@@ -21,18 +21,18 @@ One shared world (same traffic, same time of day, same traffic lights), while ev
 
 ## What is SharedCareer?
 
-BeamNG's career mode is a single-player mode. Started on a multiplayer server it breaks in many places: the game deletes other players' cars when your career loads, everybody has a different time of day, your traffic shows up under your name for everyone, and so on.
+The BeamNG career is made for playing alone. If you try it on a multiplayer server, lots of things go wrong: loading your career deletes your friends' cars, everyone has a different time of day, your traffic shows up with your name on it, and so on.
 
-**SharedCareer fixes that.** It is a small mod for BeamMP servers that turns the *normal* BeamNG career into a multiplayer experience:
+**SharedCareer fixes all of that.** It's a small mod for BeamMP servers that lets you play the normal BeamNG career together with your friends:
 
-- You join the server, and your career **starts automatically**. No menus, no setup.
-- You play the regular career: buy cars, do deliveries and missions, use your garage.
-- Everybody drives in the **same world**, and the mod keeps that world in sync.
-- **Your progress is yours**: money, cars and missions are saved on your own PC, just like in single player.
+- Join the server and your career **starts by itself**. No menus, nothing to set up.
+- Play the career like you always do: buy cars, do deliveries and missions, use your garage.
+- Everyone drives in the **same world**, and the mod keeps it the same for everyone.
+- **Your progress stays yours**: your money, cars and missions are saved on your own PC, just like in single player.
 
-SharedCareer deliberately adds **no new game modes**. There are no races, no leaderboards, no custom economy. The goal is that the career you already know runs **stable** with friends. Its structure was inspired by [Mileage](https://github.com/norto22/Mileage), but it is an independent and much smaller implementation.
+SharedCareer doesn't add new game modes like races or leaderboards. It just makes the career you already know work well with friends. The idea came from [Mileage](https://github.com/norto22/Mileage), but SharedCareer is its own, much smaller mod.
 
-Players **don't install anything**. BeamMP downloads the mod automatically when they join.
+Players **don't need to install anything**. BeamMP downloads the mod for them when they join.
 
 ## Features
 
