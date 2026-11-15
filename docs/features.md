@@ -10,6 +10,7 @@ Everything players see and use in the game. All texts in the game are in English
 - [Traffic](#traffic)
 - [Time of day](#time-of-day)
 - [Garage](#garage)
+- [Node grabber](#node-grabber)
 - [Sending money](#sending-money)
 
 ## Joining
@@ -144,6 +145,12 @@ The server runs one clock for everybody. By default a day lasts **50 real minute
 - **No duplicate cars** when you change parts, tune or paint at the garage computer.
 - Cars that the career hides or shows (garage, dealership) are hidden and shown for everyone else too.
 - Players on foot appear as a visible character for others.
+
+## Node grabber
+
+The normal career only lets you use the node grabber (grab and pull vehicles with the mouse) while walking. On a SharedCareer server you can also use it in a vehicle and in the free camera, for example to put a flipped car back on its wheels or to help a friend out of a ditch. The vehicle certification test still blocks it, so test results stay fair.
+
+Server admins can switch back to the career's rule with `sc set client.allowNodeGrabber false`. It applies immediately.
 
 ## Sending money
 

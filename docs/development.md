@@ -88,6 +88,7 @@ About a minute later the release is on GitHub, and `./server.sh update` installs
 | Settings can only be changed in the console | The SharedCareer menu syncs every change to all players | `ui/…/SharedCareer-Time`, `env.lua`, `menu.lua` |
 | New players don't know the features | Welcome dialog with "Don't show again" | `welcome.lua` |
 | Red "Unknown app" boxes after switching from Mileage | Mileage apps are removed from the players' layouts, with a backup first | `cleanup.lua` |
+| The career blocks the node grabber in a vehicle and in the free camera | After every input filter change (hook `onActionFilterUpdated`) only the career's group `careerNodeGrabberActions` is lifted; other blocks (certification test) stay | `nodegrab.lua` |
 | Sending money to other players | `/pay` as a two-step transfer with refund | `money.lua`, server |
 
 ### Join flow

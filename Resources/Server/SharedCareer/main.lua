@@ -58,7 +58,7 @@
 --   Server -> Client: sc_fuelPrices {enabled, factors = {[station] = {gasoline = 0.9, ...}}}
 --                       (from the SharedCareer menu window)
 
-local VERSION = "0.8.8"
+local VERSION = "0.8.9"
 local TAG = "[SharedCareer] "
 
 local CONFIG_DIR = "Resources/Server/SharedCareer/config"
@@ -171,6 +171,10 @@ local DEFAULTS = {
 		-- against cheating and against accidentally breaking the shared world.
 		allowConsole = false,
 		allowWorldEditor = false,
+		-- Node grabber (grab and pull vehicles with the mouse) also in a vehicle and in the free
+		-- camera. The normal career only allows it while walking. Makes cheating easy (flip cars,
+		-- push cargo), but handy among friends. false = the career's own rule.
+		allowNodeGrabber = true,
 	},
 }
 

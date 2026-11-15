@@ -583,6 +583,96 @@ update(3.1)
 tg, tr = tuningCmd(carT)
 check(tg == 3 and tr == 0, "values are clamped (gap max 3 s), 0 = game value")
 
+--== 7b3. Node grabber in the career ==========================================
+-- Rebuild of the game's core/input/actionFilter.lua: groups, rebuild from all blocked groups,
+-- hook onActionFilterUpdated after every change.
+local function makeActionFilter()
+	local groups, blockedGroups, blocked = {}, {}, {}
+	local f = {}
+	function f.setGroup(name, actions) groups[name] = actions end
+	function f.addAction(filterId, name, filtered)
+		blockedGroups[filterId] = blockedGroups[filterId] or {}
+		blockedGroups[filterId][name] = filtered
+		blocked[filterId] = {}
+		for g, on in pairs(blockedGroups[filterId]) do
+			if on then
+				for _, a in ipairs(groups[g] or {g}) do blocked[filterId][a] = true end
+			end
+		end
+		extensions.hook("onActionFilterUpdated")
+	end
+	function f.isActionBlocked(a)
+		for _, actions in pairs(blocked) do if actions[a] then return true end end
+		return false
+	end
+	return f
+end
+local NODE_ACTIONS = {"nodegrabberGrab", "nodegrabberRender", "nodegrabberStrength"}
+local walking, freeCam = false, nil
+-- the career's own rule (career.lua updateNodegrabberBlocking)
+local function careerUpdateNodegrabber()
+	local block = career_career.isActive() and (freeCam ~= nil or not walking)
+	core_input_actionFilter.setGroup("careerNodeGrabberActions", NODE_ACTIONS)
+	core_input_actionFilter.addAction(0, "careerNodeGrabberActions", block)
+end
+local function joinForNodegrab(allow)
+	resetWorld()
+	installCareer()
+	_G.core_input_actionFilter = makeActionFilter()
+	extensions.core_input_actionFilter = core_input_actionFilter
+	_G.gameplay_walk = {isWalking = function() return walking end}
+	_G.core_camera = {getActiveGlobalCameraName = function() return freeCam end}
+	extensions.hook("onWorldReadyState", 2)
+	local c = {}
+	for k, v in pairs(config) do c[k] = v end
+	c.allowNodeGrabber = allow
+	handlers.sc_config(json.encode(c))
+	update()
+	return c
+end
+local function grabBlocked() return core_input_actionFilter.isActionBlocked("nodegrabberGrab") end
+
+walking, freeCam = false, nil
+local cfgN = joinForNodegrab(false)
+careerUpdateNodegrabber()
+check(grabBlocked(), "switched off: the career blocks the node grabber in a vehicle (game rule)")
+walking = true; careerUpdateNodegrabber()
+check(not grabBlocked(), "switched off: allowed while walking (game rule)")
+
+walking, freeCam = false, nil
+cfgN = joinForNodegrab(true)
+careerUpdateNodegrabber()
+check(not grabBlocked(), "allowed: node grabber works in a vehicle")
+freeCam = "free"; careerUpdateNodegrabber()
+check(not grabBlocked(), "allowed: node grabber works in the free camera")
+freeCam = nil
+-- the certification test blocks it with its own group: that block stays
+local nodeErrors = {}
+local quietLog = _G.log
+_G.log = function(level, tag, msg) if level == "E" then table.insert(nodeErrors, tostring(msg)) end end
+core_input_actionFilter.setGroup("certificationBlockedActions", {"nodegrabberGrab"})
+core_input_actionFilter.addAction(0, "certificationBlockedActions", true)
+careerUpdateNodegrabber()
+_G.log = quietLog
+check(grabBlocked(), "the vehicle certification test still blocks it")
+check(#nodeErrors == 0, "no errors while another block stays (no endless loop): " .. tostring(nodeErrors[1]))
+core_input_actionFilter.addAction(0, "certificationBlockedActions", false)
+check(not grabBlocked(), "after the certification test it works again")
+-- switched off live -> the career's rule is back
+cfgN.allowNodeGrabber = false
+handlers.sc_configUpdate(json.encode(cfgN))
+check(grabBlocked(), "switched off live: blocked in a vehicle again")
+careerUpdateNodegrabber()
+check(grabBlocked(), "switched off live: the mod no longer lifts the block")
+cfgN.allowNodeGrabber = true
+handlers.sc_configUpdate(json.encode(cfgN))
+check(not grabBlocked(), "switched on live: allowed immediately")
+-- leaving the server restores the career's rule
+extensions.hook("onBeamMPServerLeave")
+check(grabBlocked(), "leaving the server: blocked in a vehicle again")
+_G.core_input_actionFilter, _G.gameplay_walk, _G.core_camera = nil, nil, nil
+extensions.core_input_actionFilter = nil
+
 --== 7c. Time of day and pause menu ==========================================
 resetWorld()
 installCareer()

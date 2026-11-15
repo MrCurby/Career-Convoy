@@ -14,6 +14,7 @@
 --   players   Players tab (navigate, watch, teleport), status on name tags, menu key
 --   fuel      shared fuel prices; fuel deliveries make stations cheaper for everyone
 --   welcome   welcome dialog on join (with "Don't show again")
+--   nodegrab  node grabber in the career also in a vehicle / free camera (client.allowNodeGrabber)
 --
 -- Also in the mod: levels/west_coast_usa/.../garage_interactions/items.level.json –
 -- larger zones at the garage computers (replaces the map file of the same name),
@@ -45,5 +46,6 @@ loadPersistent('sharedCareer/menu')
 loadPersistent('sharedCareer/players')
 loadPersistent('sharedCareer/fuel')
 loadPersistent('sharedCareer/welcome')
+loadPersistent('sharedCareer/nodegrab')
 loadPersistent('sharedCareer/cleanup')
 loadPersistent('sharedCareer/core')
