@@ -1,4 +1,4 @@
--- Minimaler JSON-Encoder/Decoder für die Tests (ersetzt Util.JsonEncode / jsonEncode).
+-- Minimal JSON encoder/decoder for the tests (replaces Util.JsonEncode / jsonEncode).
 local json = {}
 
 local function isArray(t)
@@ -34,7 +34,7 @@ function json.encode(v)
 		for k, x in pairs(v) do table.insert(out, esc(tostring(k)) .. ":" .. json.encode(x)) end
 		return "{" .. table.concat(out, ",") .. "}"
 	end
-	error("kann " .. t .. " nicht kodieren")
+	error("cannot " .. t .. " encode")
 end
 
 function json.decode(s)
@@ -46,7 +46,7 @@ function json.decode(s)
 		pos = pos + 1
 		while true do
 			local c = s:sub(pos, pos)
-			if c == "" then error("Ende im String") end
+			if c == "" then error("end inside a string") end
 			if c == '"' then pos = pos + 1; break end
 			if c == "\\" then
 				local n = s:sub(pos + 1, pos + 1)
@@ -78,14 +78,14 @@ function json.decode(s)
 				ws()
 				local k = str()
 				ws()
-				assert(s:sub(pos, pos) == ":", "':' erwartet")
+				assert(s:sub(pos, pos) == ":", "':' expected")
 				pos = pos + 1
 				t[k] = value()
 				ws()
 				local d = s:sub(pos, pos)
 				pos = pos + 1
 				if d == "}" then return t end
-				assert(d == ",", "',' erwartet")
+				assert(d == ",", "',' expected")
 			end
 		elseif c == "[" then
 			local t = {}
@@ -98,7 +98,7 @@ function json.decode(s)
 				local d = s:sub(pos, pos)
 				pos = pos + 1
 				if d == "]" then return t end
-				assert(d == ",", "',' erwartet")
+				assert(d == ",", "',' expected")
 			end
 		elseif c == '"' then
 			return str()
@@ -107,7 +107,7 @@ function json.decode(s)
 		elseif s:sub(pos, pos + 3) == "null" then pos = pos + 4; return nil
 		end
 		local num = s:match("^-?%d+%.?%d*[eE]?[-+]?%d*", pos)
-		if not num or num == "" then error("ungültiges JSON bei " .. pos) end
+		if not num or num == "" then error("invalid JSON at " .. pos) end
 		pos = pos + #num
 		return tonumber(num)
 	end

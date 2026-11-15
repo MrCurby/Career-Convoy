@@ -1,18 +1,18 @@
--- SharedCareer :: Fahrzeuge der anderen Spieler
+-- SharedCareer :: the other players' vehicles
 --
--- Die Karriere versteckt und zeigt ständig eigene Autos (Garage, Händler, Missionen).
--- BeamMP überträgt das nicht. Deshalb:
---   * eigenes Auto ändert active -> Server (sc_vehActive) -> alle anderen setActive()
---   * einmal pro Sekunde: welche eigenen Autos sind Traffic/geparkt -> Server (sc_vehMarks).
---     Die anderen blenden dort das Namensschild aus (sonst steht dein Name über jedem
---     Traffic-Auto).
--- Außerdem bekommen fremde Autos "ignoreTraffic", damit die eigene Polizei/der eigene
--- Traffic sie nicht übernimmt, und eine größere Sichtweite – aber erst, wenn BeamMP sie fest
--- einem anderen Spieler zuordnet (sonst würde frisch gespawnter EIGENER Traffic gesperrt
--- und stünde still; Fehler aus 0.1.0). Kollisionen (Ghost) nach Server-Einstellung
+-- The career keeps hiding and showing your own cars (garage, dealer, missions).
+-- BeamMP doesn't sync that. Therefore:
+--   * own car changes active -> server (sc_vehActive) -> all others call setActive()
+--   * once per second: which own cars are traffic/parked -> server (sc_vehMarks).
+--     The others hide the name tag there (otherwise your name would hover above every
+--     traffic car).
+-- Remote cars also get "ignoreTraffic", so our own police/traffic doesn't take them over,
+-- and a larger view distance – but only once BeamMP firmly assigns them to another player
+-- (otherwise freshly spawned OWN traffic would be blocked and stand still; bug in 0.1.0).
+-- Collisions (ghost) according to the server settings
 -- (client.remoteVehicleGhost / remoteUnicycleGhost).
 --
--- Empfängt: sc_vehStates. Sendet: sc_vehActive, sc_vehMarks, sc_vehStatesRequest.
+-- Receives: sc_vehStates. Sends: sc_vehActive, sc_vehMarks, sc_vehStatesRequest.
 
 local M = {}
 
@@ -25,7 +25,7 @@ local since = 0
 local states = {}
 -- server vehicle id -> {gameId, mark}
 local sentMarks = {}
--- game id -> zuletzt gesetzter Ghost-Wert
+-- game id -> last ghost value that was set
 local ghosts = {}
 local wantList = false
 
@@ -40,7 +40,7 @@ local function config()
 	return core and core.getConfig()
 end
 
--- Props/Anhänger, über denen nie ein Namensschild stehen soll.
+-- props/trailers that should never have a name tag above them.
 local PROPS = {
 	barrels = true, barrier = true, barrier_plastic = true, blockwall = true, bollard = true,
 	boxutility = true, boxutility_large = true, cannon = true, cargotrailer = true, cones = true,
@@ -117,12 +117,12 @@ local function sendMarks()
 	if changed then U.send("sc_vehMarks", changed) end
 end
 
--- Kollision (Ghost) nur für Spieler-Fahrzeuge:
---   eigene Fahrzeuge                      immer mit Kollision
---   Fußgänger anderer Spieler (Unicycle)  client.remoteUnicycleGhost
---   Autos anderer Spieler                 client.remoteVehicleGhost
---   Traffic/geparkte Autos anderer        IMMER mit Kollision – wie der eigene Traffic, damit
---                                         sich KI-Autos gleich verhalten, egal wem sie gehören
+-- Collision (ghost) only for player vehicles:
+--   own vehicles                          always collide
+--   other players on foot (unicycle)      client.remoteUnicycleGhost
+--   other players' cars                   client.remoteVehicleGhost
+--   other players' traffic/parked cars    ALWAYS collide – like our own traffic, so that
+--                                         AI cars behave the same no matter who owns them
 local function applyGhosts()
 	local m, cfg = mp(), config()
 	if not m or not cfg then return end
@@ -151,12 +151,12 @@ end
 
 --== Hooks =====================================================================
 
--- Beim Spawnen ist ein Auto bei BeamMP noch nicht registriert, auch ein eigenes (z.B.
--- frisch gespawnter Traffic): isOwn sagt dann false, bis der Server den Spawn bestätigt.
--- Ein Auto gilt deshalb erst als fremd, wenn BeamMP es in seiner Liste einem anderen
--- Spieler zuordnet. Die Einrichtung läuft im Sekundentakt (prepareRemoteVehicles).
--- Gesucht wird in der Liste selbst statt mit getServerVehicleID: das loggt bei jedem
--- noch unbekannten Auto einen Fehler mit Stacktrace.
+-- When it spawns, a car is not registered with BeamMP yet, even our own one (e.g.
+-- freshly spawned traffic): isOwn returns false until the server confirms the spawn.
+-- So a car only counts as remote once BeamMP assigns it to another player in its list.
+-- The setup runs once per second (prepareRemoteVehicles).
+-- We search the list itself instead of using getServerVehicleID: that logs an error with
+-- a stack trace for every car it doesn't know yet.
 local function serverIdOf(m, gameId)
 	for serverId, entry in pairs(m.getVehicles()) do
 		if entry.gameVehicleID == gameId then return serverId, entry end
@@ -164,7 +164,7 @@ local function serverIdOf(m, gameId)
 	return nil
 end
 
--- game id -> true, sobald das fremde Auto eingerichtet ist
+-- game id -> true once the remote car is set up
 local prepared = {}
 
 local function prepareRemoteVehicles()
@@ -176,8 +176,8 @@ local function prepareRemoteVehicles()
 			local veh = be:getObjectByID(gameId)
 			if veh then
 				prepared[gameId] = true
-				-- Spiel-eigene Markierung: der eigene Traffic und die Polizei übernehmen
-				-- dieses Auto nicht. NIE auf eigene Autos setzen, sonst steht der Traffic.
+				-- The game's own flag: our own traffic and the police don't take over
+				-- this car. NEVER set it on our own cars, or the traffic stands still.
 				veh:setDynDataFieldbyName("ignoreTraffic", 0, "true")
 				veh:setField("renderDistance", "", 1610)
 				if states[serverId] then applyState(serverId) else wantList = true end
@@ -209,14 +209,14 @@ function M.onVehicleActiveChanged(gameId, active)
 	if m.isOwn(gameId) then
 		U.send("sc_vehActive", {id = serverId, active = active and true or false})
 	else
-		-- Ein fremdes Auto hat sich hier verändert, ohne dass der Server es wollte
-		-- (z.B. die eigene Karriere hat es versteckt): Server-Stand wiederherstellen.
+		-- A remote car changed here without the server wanting it
+		-- (e.g. our own career hid it): restore the server state.
 		local state = states[serverId]
 		if state and (state.active ~= false) ~= (active and true or false) then applyState(serverId) end
 	end
 end
 
--- Nie in ein fremdes Prop/Anhänger "einsteigen".
+-- Never "get into" a remote prop/trailer.
 function M.onVehicleSwitched(oldId, newId)
 	local m = mp()
 	if not m or not U.isMP() then return end

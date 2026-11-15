@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Neue Version setzen (Client util.lua + Server main.lua), Tests laufen lassen.
+# Set a new version (client util.lua + server main.lua) and run the tests.
 #
-#   tools/bump.sh 0.8.5      Version auf 0.8.5 setzen
-#   tools/bump.sh patch      0.8.4 -> 0.8.5   (Fehlerbehebung)
-#   tools/bump.sh minor      0.8.4 -> 0.9.0   (neue Funktion)
+#   tools/bump.sh 0.8.5      set the version to 0.8.5
+#   tools/bump.sh patch      0.8.4 -> 0.8.5   (bug fix)
+#   tools/bump.sh minor      0.8.4 -> 0.9.0   (new feature)
 #
-# Danach committen und auf main pushen -> GitHub baut das Release v<version> automatisch.
+# Then commit and push to main -> GitHub builds the release v<version> automatically.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

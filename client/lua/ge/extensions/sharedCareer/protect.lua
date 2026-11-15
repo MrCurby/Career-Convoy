@@ -1,20 +1,20 @@
--- SharedCareer :: Schutz beim Karrierestart
+-- SharedCareer :: protection during the career start
 --
--- Problem 1: career.lua räumt beim Aktivieren die Welt auf, als wäre man allein:
---   * removeVehicles == true  -> core_vehicles.removeAll()  (löscht ALLE Fahrzeuge)
---   * sonst                   -> removeNonTrafficVehicles(), verschont nur IDs aus
---                                gameplay_traffic.getTrafficList() und geparkte Autos
--- Im Multiplayer sind das die Autos der anderen Spieler. Beide Wege werden hier für die
--- Dauer des Starts abgefangen: removeAll löscht nur noch eigene Fahrzeuge, und die
--- "sichere" Liste enthält zusätzlich alle fremden Fahrzeuge.
+-- Problem 1: career.lua cleans up the world on activation as if you were alone:
+--   * removeVehicles == true  -> core_vehicles.removeAll()  (deletes ALL vehicles)
+--   * otherwise               -> removeNonTrafficVehicles(), only spares IDs from
+--                                gameplay_traffic.getTrafficList() and parked cars
+-- In multiplayer those are the other players' cars. Both paths are intercepted here for
+-- the duration of the start: removeAll only deletes our own vehicles, and the "safe"
+-- list additionally contains all remote vehicles.
 --
--- Der Schutz wird im Hook onBeforeCareerActivate gesetzt, den career.lua ganz am Anfang
--- von activateCareer feuert. So greift er auf jedem Weg in die Karriere (Join, Laden im
--- Pausemenü), auch wenn activateCareer intern lokal aufgerufen wird.
+-- The protection is set in the onBeforeCareerActivate hook, which career.lua fires at the
+-- very beginning of activateCareer. That way it works on every path into the career (join,
+-- loading from the pause menu), even when activateCareer is called locally inside.
 --
--- Problem 2: onCareerActive wird ohne Fehlerschutz an alle Module verteilt. Wirft eines,
--- laufen die folgenden nicht mehr (z.B. Versicherung ohne Daten). Während des Starts
--- bekommt deshalb jeder Handler ein xpcall drumherum.
+-- Problem 2: onCareerActive is sent to all modules without error protection. If one
+-- throws, the following ones don't run any more (e.g. insurance without data). So during
+-- the start every handler gets an xpcall around it.
 
 local M = {}
 
@@ -26,7 +26,7 @@ local GUARD_MAX_SECONDS = 120
 local protection = nil -- {remote = {[gameId]=true}, since, originals...}
 local guard = nil      -- {since, wrapped = {[module] = {original, wrapper}}}
 
---== fremde Fahrzeuge ==========================================================
+--== remote vehicles ===========================================================
 
 local function remoteVehicleIds()
 	local remote = {}
@@ -48,8 +48,8 @@ local function installProtection()
 		local original = gameplay_traffic.getTrafficList
 		protection.getTrafficList = original
 		gameplay_traffic.getTrafficList = function(...)
-			-- Neue Tabelle: das Spiel gibt seine Live-Liste zurück und hängt danach selbst
-			-- Einträge an. Würden wir in diese Liste schreiben, wäre sie danach kaputt.
+			-- New table: the game returns its live list and appends entries to it afterwards.
+			-- If we wrote into that list, it would be broken afterwards.
 			local safe = {}
 			local list = original(...)
 			if type(list) == "table" then
@@ -90,7 +90,7 @@ local function removeProtection()
 	protection = nil
 end
 
---== onCareerActive absichern ==================================================
+--== protecting onCareerActive =================================================
 
 local failures = {}
 
@@ -112,7 +112,7 @@ local function wrapHandlers()
 			m.onCareerActive = wrapper
 		end
 	end
-	-- Der Hook-Cache muss neu gebaut werden, sonst ruft er weiter die alten Funktionen.
+	-- The hook cache has to be rebuilt, otherwise it keeps calling the old functions.
 	if type(ext.hookUpdate) == "function" then ext.hookUpdate("onCareerActive") end
 end
 
@@ -127,8 +127,8 @@ local function unwrapHandlers()
 	end
 end
 
--- extensions.hook wird für die Dauer des Starts ersetzt: genau wenn "onCareerActive"
--- verteilt wird, sind alle Karriere-Module geladen – dann werden sie eingewickelt.
+-- extensions.hook is replaced for the duration of the start: exactly when "onCareerActive"
+-- is sent out, all career modules are loaded – that's when they get wrapped.
 local function installGuard()
 	if guard then return end
 	local ext = extensions
@@ -161,21 +161,21 @@ function M.onBeforeCareerActivate()
 	installGuard()
 end
 
--- Läuft selbst als einer der onCareerActive-Handler; die Wrapper werden danach entfernt.
+-- Runs itself as one of the onCareerActive handlers; the wrappers are removed afterwards.
 function M.onCareerActive(active)
 	removeProtection()
-	-- Erst im nächsten Frame entfernen: wir sind gerade mitten in der Hook-Schleife.
+	-- Remove only in the next frame: we are in the middle of the hook loop right now.
 	if guard then guard.removeNextFrame = true end
 end
 
---- Führt fn mit aktivem Schutz aus. Gibt (true, Ergebnisse...) oder (false, Fehler) zurück.
+--- Runs fn with the protection active. Returns (true, results...) or (false, error).
 function M.run(fn, ...)
 	installProtection()
 	installGuard()
 	local args = U.pack(...)
 	local results = U.pack(xpcall(function() return fn(U.unpack(args, 1, args.n)) end, debug.traceback))
-	-- Bei einem Levelwechsel kommt onCareerActive erst später; der Schutz bleibt dann bis
-	-- dahin (oder bis zum Timeout) stehen. Bei Fehler sofort weg.
+	-- On a level change onCareerActive only comes later; the protection then stays until
+	-- then (or until the timeout). On an error it is removed immediately.
 	if not results[1] then
 		removeProtection()
 		removeGuard()

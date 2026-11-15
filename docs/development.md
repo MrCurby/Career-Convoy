@@ -7,7 +7,7 @@
 - [Known limitations](#known-limitations)
 - [Project status](#project-status)
 
-Language convention: everything players and admins see (UI, notifications, chat, logs, console output, docs) is **English**. Code comments are German.
+**Language: English only.** Everything in this repository is English: code comments, strings, logs, UI texts, test descriptions, tool output and docs. `tests/language_check.py` runs as part of `tools/test.sh` and fails on German text, so no release is built until it is fixed.
 
 ## Repository layout
 
@@ -30,7 +30,7 @@ docs/                            documentation
 You need `luajit`, `lua5.3`, `python3` and `zip`. On Fedora: `sudo dnf install luajit lua5.3 python3 zip`. On Debian/Ubuntu: `sudo apt install luajit lua5.3 python3 zip`.
 
 ```bash
-tools/test.sh      # syntax check and all tests
+tools/test.sh      # syntax check, all tests and the English-only language check
 tools/build.sh     # build Resources/Client/SharedCareer.zip from client/
 tools/package.sh   # tests + build + release package SharedCareer-<version>.zip
 ```

@@ -1,29 +1,29 @@
--- SharedCareer :: Tageszeit für alle gleich, Umwelt im Pausemenü gesperrt
+-- SharedCareer :: same time of day for everyone, environment locked in the pause menu
 --
--- Tageszeit: Der Server führt die Uhr (Stunde 0–24) und schickt sie alle 30 s (sc_time).
--- Tag und Nacht laufen verschieden schnell (server.dayMinutes / nightMinutes, Grenzen
--- dayStartHour / nightStartHour). Hier läuft die Zeit zwischen den Abgleichen selbst
--- weiter; beim Wechsel Tag <-> Nacht stellt updatePace sofort auf das andere Tempo um.
--- Korrigiert wird die Uhrzeit nur, wenn die Abweichung mehr als MAX_DRIFT_HOURS beträgt,
--- damit das Licht nicht bei jedem Abgleich springt.
--- Abschaltbar mit client.syncTimeOfDay = false (dann hat jeder seine eigene Zeit).
+-- Time of day: the server runs the clock (hour 0–24) and sends it every 30 s (sc_time).
+-- Day and night run at different speeds (server.dayMinutes / nightMinutes, boundaries
+-- dayStartHour / nightStartHour). Between syncs the time runs on here by itself; when
+-- day <-> night switches, updatePace switches to the other speed immediately.
+-- The time is only corrected if the difference is more than MAX_DRIFT_HOURS, so the
+-- light doesn't jump on every sync.
+-- Can be switched off with client.syncTimeOfDay = false (then everyone has their own time).
 --
--- BeamNG zählt die Tageszeit von 0 bis 1 ab MITTAG: 0 = 12:00, 0.25 = 18:00,
--- 0.5 = 0:00, 0.75 = 6:00. Umgerechnet wird nur in toGame/fromGame.
+-- BeamNG counts the time of day from 0 to 1 starting at NOON: 0 = 12:00, 0.25 = 18:00,
+-- 0.5 = 0:00, 0.75 = 6:00. Conversion happens only in toGame/fromGame.
 --
--- UI-Fenster "SharedCareer Tageszeit" (ui/modules/apps/SharedCareer-Time): siehe Abschnitt
--- unten. Jeder Spieler kann dort Uhrzeit und Tag-/Nachtlänge für alle verstellen.
+-- UI window "SharedCareer menu" (ui/modules/apps/SharedCareer-Time): see the section
+-- below. Every player can change the time and the day/night length there for everyone.
 --
--- Pausemenü: Die Umwelt-Seiten (Zeit, Wetter, Simulation/Zeitlupe, Traffic) werden
--- schreibgeschützt angezeigt, indem sie für ihren Aufruf "restrictScenarios" = true lesen.
--- Das ist die eingebaute Sperre des Spiels für Szenarien.
--- Abschaltbar mit client.lockEnvironment = false.
+-- Pause menu: the environment pages (time, weather, simulation/slow motion, traffic) are
+-- shown read-only by letting them read "restrictScenarios" = true during their call.
+-- That is the game's built-in lock for scenarios.
+-- Can be switched off with client.lockEnvironment = false.
 
 local M = {}
 
 local U
 
-local MAX_DRIFT_HOURS = 0.05 -- 3 Spielminuten
+local MAX_DRIFT_HOURS = 0.05 -- 3 game minutes
 
 local function config()
 	local core = U.ext("sharedCareer_core")
@@ -34,7 +34,7 @@ local function careerActive()
 	return career_career and type(career_career.isActive) == "function" and career_career.isActive() == true
 end
 
---== Tageszeit =================================================================
+--== Time of day ===============================================================
 
 function M.toGame(hour)
 	return ((tonumber(hour) - 12) / 24) % 1
@@ -44,15 +44,15 @@ function M.fromGame(t)
 	return ((tonumber(t) * 24) + 12) % 24
 end
 
--- Kürzester Abstand zweier Uhrzeiten in Stunden (23:50 und 0:10 = 20 min).
+-- Shortest distance between two times in hours (23:50 and 0:10 = 20 min).
 local function hourDistance(a, b)
 	local d = math.abs(a - b) % 24
 	return math.min(d, 24 - d)
 end
 M.hourDistance = hourDistance
 
--- Tempo für die aktuelle Uhrzeit: Tag und Nacht haben verschiedene Tageslängen (echte
--- Sekunden für einen ganzen Tag bei diesem Tempo). Ältere Server schicken nur dayLength.
+-- Speed for the current time: day and night have different day lengths (real seconds
+-- for a whole day at this speed). Older servers only send dayLength.
 local function lengthFor(msg, hour)
 	local day, night = tonumber(msg.dayLengthDay), tonumber(msg.dayLengthNight)
 	local dayStart, nightStart = tonumber(msg.dayStart), tonumber(msg.nightStart)
@@ -110,8 +110,8 @@ function M.applyTime(msg)
 	return setTod(tod, changes)
 end
 
--- Jede Sekunde: Wechselt hier Tag <-> Nacht, sofort auf das andere Tempo umstellen,
--- ohne die Uhrzeit anzufassen.
+-- Every second: if day <-> night switches here, change to the other speed immediately,
+-- without touching the time.
 function M.updatePace()
 	if not lastMsg or lastMsg.play ~= true or not syncEnabled() then return false end
 	local tod = getTod()
@@ -125,13 +125,13 @@ local function rxTime(data)
 	local msg = U.decode(data)
 	if not msg or not careerActive() then return end
 	M.applyTime(msg)
-	lastMsg = msg -- auch wenn applyTime nichts ändern musste (fürs UI-Fenster)
+	lastMsg = msg -- even if applyTime had nothing to change (for the UI window)
 	if guihooks and type(guihooks.trigger) == "function" then
 		guihooks.trigger("SharedCareerTime", M.uiState())
 	end
 end
 
---== Pausemenü sperren =========================================================
+--== Locking the pause menu ====================================================
 
 local PAUSE_ENVIRONMENT = "ui_pause_providers_routeData_environment"
 local ENVIRONMENT_PAGES = {
@@ -174,18 +174,18 @@ end
 
 function M.ensurePauseLock()
 	local pause = rawget(_G, PAUSE_ENVIRONMENT)
-	if type(pause) ~= "table" then return end -- Seite noch nicht geladen; nächste Sekunde
+	if type(pause) ~= "table" then return end -- page not loaded yet; next second
 	for _, name in ipairs(ENVIRONMENT_PAGES) do
 		U.replace(pause, name, makeRestricted)
 	end
 	U.replace(pause, "requestEnvironmentTrafficPayload", makeReadOnlyTraffic)
 end
 
---== UI-Fenster "SharedCareer Tageszeit" ======================================
--- ui/modules/apps/SharedCareer-Time/: zeigt Uhrzeit und Tag/Nacht, jeder Spieler kann
--- Uhrzeit und Tag-/Nachtlänge verstellen. Das Fenster bekommt jede Sekunde den Stand
--- (guihook "SharedCareerTime") und ruft zum Verstellen die ui*-Funktionen unten auf, die
--- an den Server gehen (sc_timeControl). Der Server übernimmt und schickt es allen.
+--== UI window "SharedCareer menu" =============================================
+-- ui/modules/apps/SharedCareer-Time/: shows the time and day/night, every player can
+-- change the time and the day/night length. The window gets the state every second
+-- (guihook "SharedCareerTime") and calls the ui* functions below to change things; they
+-- go to the server (sc_timeControl). The server applies it and sends it to everyone.
 
 local function uiState()
 	local tod = getTod()
@@ -204,20 +204,20 @@ local function uiState()
 		local dayStart, nightStart = tonumber(lastMsg.dayStart) or 6, tonumber(lastMsg.nightStart) or 20
 		if hour then
 			state.isDay = hour >= dayStart and hour < nightStart
-			-- Echte Sekunden bis zum nächsten Wechsel Tag <-> Nacht
+			-- real seconds until the next day <-> night switch
 			local boundary = state.isDay and nightStart or dayStart
 			local hoursLeft = (boundary - hour) % 24
 			local length = lengthFor(lastMsg, hour)
 			if state.running and length > 0 then state.secondsToSwitch = hoursLeft * length / 24 end
 		end
 	end
-	-- Reiter "Traffic" / "Optionen" des Menüs
+	-- "Traffic" / "Options" tabs of the menu
 	local menu = U.ext("sharedCareer_menu")
 	if menu then state.settings = menu.settingsState() end
-	-- Reiter "Players"
+	-- "Players" tab
 	local players = U.ext("sharedCareer_players")
 	if players then state.players = players.state() end
-	-- Reiter "Fuel"
+	-- fuel prices (fuel app)
 	local fuel = U.ext("sharedCareer_fuel")
 	if fuel then
 		local ok, overview = pcall(fuel.overview)
@@ -233,13 +233,13 @@ local function pushUi()
 	end
 end
 
--- Vom Fenster beim Öffnen aufgerufen, damit es nicht bis zur nächsten Sekunde leer ist.
+-- Called by the window when it opens, so it isn't empty until the next second.
 function M.uiRequest()
 	pushUi()
 end
 
--- Neue Einstellungen vom Server (jemand hat im Menü etwas geändert): sofort anzeigen,
--- nicht erst beim nächsten Sekundentakt. Aufgerufen von core.lua (sc_configUpdate).
+-- New settings from the server (someone changed something in the menu): show them right
+-- away, not only on the next one-second tick. Called by core.lua (sc_configUpdate).
 function M.onSettingsChanged()
 	pushUi()
 end
@@ -255,7 +255,7 @@ function M.uiSetHour(hour)
 	control({action = "set", hour = hour % 24})
 end
 
--- Relativ zur aktuellen Uhrzeit (z.B. +1 / -1 Stunde).
+-- Relative to the current time (e.g. +1 / -1 hour).
 function M.uiShiftHour(delta)
 	local state = uiState()
 	delta = tonumber(delta)
@@ -263,7 +263,7 @@ function M.uiShiftHour(delta)
 	M.uiSetHour((state.hour + delta) % 24)
 end
 
--- Uhr anhalten (true) oder weiterlaufen lassen (false) – für alle.
+-- Pause the clock (true) or let it run (false) – for everyone.
 function M.uiSetPaused(paused)
 	control({action = "pause", paused = paused == true})
 end

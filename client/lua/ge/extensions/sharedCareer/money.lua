@@ -1,10 +1,10 @@
--- SharedCareer :: Überweisungen zwischen Spielern (Client-Seite)
+-- SharedCareer :: money transfers between players (client side)
 --
--- Ablauf (der Server steuert, siehe main.lua):
---   sc_payDebit  -> eigenes Geld prüfen, abbuchen, speichern, sc_payDebitResult
---   sc_payCredit -> gutschreiben, sc_payCreditAck
--- Jede Überweisung hat eine ID; eine doppelt ankommende Nachricht wird nur bestätigt,
--- nicht ein zweites Mal gebucht.
+-- Flow (the server drives it, see main.lua):
+--   sc_payDebit  -> check own money, debit, save, sc_payDebitResult
+--   sc_payCredit -> credit, sc_payCreditAck
+-- Every transfer has an ID; a message that arrives twice is only acknowledged,
+-- not booked a second time.
 
 local M = {}
 
@@ -73,7 +73,7 @@ local function rxCredit(data)
 		U.send("sc_payCreditAck", {id = msg.id})
 		return
 	end
-	if not amount or not careerActive() then return end -- keine Bestätigung -> Server bucht zurück
+	if not amount or not careerActive() then return end -- no confirmation -> the server refunds
 	local label = msg.refund and "Refund" or ("Payment from " .. tostring(msg.from))
 	career_modules_playerAttributes.addAttributes({money = amount}, {tags = {"gameplay"}, label = label})
 	credited[msg.id] = true

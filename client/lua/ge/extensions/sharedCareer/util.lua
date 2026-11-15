@@ -1,18 +1,18 @@
--- SharedCareer :: gemeinsame Hilfsfunktionen (Client)
+-- SharedCareer :: shared helpers (client)
 --
---   VERSION          Mod-Version; muss zur Server-Version passen (sonst Warn-Dialog)
---   log              Logzeile unter "sharedCareer.<bereich>" in der beamng.log
---   isMP             true auf einem BeamMP-Server (sonst tut der Mod nichts)
---   send / on        Nachricht an den Server / Empfänger für Server-Nachrichten
---   decode           JSON sicher lesen (kaputte Daten -> nil statt Absturz)
---   toast            kurze Einblendung im Spiel
---   ext              Erweiterung holen, ohne sie versehentlich zu laden
---   profileName      Profilname wie das Spiel ihn bildet (klein, nur a-z0-9)
---   replace / isOurs Spielfunktion sicher ersetzen, ohne den eigenen Wrapper doppelt zu wickeln
+--   VERSION          mod version; must match the server version (otherwise a warning dialog)
+--   log              log line under "sharedCareer.<area>" in beamng.log
+--   isMP             true on a BeamMP server (otherwise the mod does nothing)
+--   send / on        message to the server / handler for server messages
+--   decode           read JSON safely (broken data -> nil instead of a crash)
+--   toast            short notification in the game
+--   ext              get an extension without loading it by accident
+--   profileName      profile name the way the game builds it (lower case, only a-z0-9)
+--   replace / isOurs replace a game function safely without wrapping our own wrapper twice
 
 local M = {}
 
-M.VERSION = "0.8.5"
+M.VERSION = "0.8.6"
 
 local unpack = table.unpack or unpack
 
@@ -25,7 +25,7 @@ function M.log(level, tag, msg)
 	log(level, "sharedCareer." .. tag, msg)
 end
 
--- true, wenn wir gerade auf einem BeamMP-Server sind.
+-- true while we are on a BeamMP server.
 function M.isMP()
 	local net = rawget(_G, "MPCoreNetwork")
 	if type(net) ~= "table" or type(net.isMPSession) ~= "function" then return false end
@@ -59,17 +59,17 @@ function M.toast(kind, msg, seconds)
 	end
 end
 
--- Lookup einer Erweiterung, ohne sie dabei versehentlich zu laden (extensions hat einen
--- __index, der fehlende Erweiterungen nachlädt).
+-- Look up an extension without loading it by accident (extensions has an __index that
+-- loads missing extensions).
 function M.ext(name)
 	local m = (type(extensions) == "table" and rawget(extensions, name)) or rawget(_G, name)
 	if type(m) == "table" then return m end
 	return nil
 end
 
--- Profilname aus dem BeamMP-Namen. Das Spiel macht selbst lowercase + nur a-z0-9 und
--- hängt bei Kollision eine Nummer an – das würde den Namen je nach PC unterschiedlich
--- machen. Deshalb hier deterministisch vorab.
+-- Profile name from the BeamMP name. The game itself lowercases, keeps only a-z0-9 and
+-- appends a number on a collision – that would make the name differ from PC to PC.
+-- So we do it deterministically up front.
 function M.profileName(nickname, suffix)
 	local name = string.lower(tostring(nickname or "") .. tostring(suffix or ""))
 	name = name:gsub("[^a-z0-9]", "")
@@ -77,11 +77,11 @@ function M.profileName(nickname, suffix)
 	return name
 end
 
---== Funktionen ersetzen, ohne doppelt zu wickeln =============================
--- Karriere-Module werden bei jedem Karrierestart neu geladen (neue Tabelle). Ein Wrapper
--- muss deshalb regelmäßig geprüft und auf der aktuellen Tabelle neu gesetzt werden. Damit
--- wir dabei nicht unseren eigenen Wrapper erneut einwickeln (Stack Overflow nach ein paar
--- Leveln), merken wir uns alle Wrapper in einer schwachen Tabelle.
+--== Replacing functions without wrapping twice ===============================
+-- Career modules are reloaded on every career start (new table). A wrapper therefore has
+-- to be checked regularly and set again on the current table. So that we never wrap our
+-- own wrapper again (stack overflow after a few levels), all wrappers are remembered in a
+-- weak table.
 
 local ours = setmetatable({}, {__mode = "k"})
 
@@ -89,8 +89,8 @@ function M.isOurs(fn)
 	return type(fn) == "function" and ours[fn] == true
 end
 
--- Ersetzt module[fnName] durch makeWrapper(original). Gibt true zurück, wenn die Funktion
--- jetzt unser Wrapper ist (neu gesetzt oder schon vorher).
+-- Replaces module[fnName] with makeWrapper(original). Returns true if the function is
+-- now our wrapper (newly set or already before).
 function M.replace(module, fnName, makeWrapper)
 	if type(module) ~= "table" or type(module[fnName]) ~= "function" then return false end
 	if ours[module[fnName]] then return true end

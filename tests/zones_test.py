@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Prüft die erzeugten Werkstatt-Zonen gegen das BeamNG-Original.
-Ausführen: python3 tests/zones_test.py"""
+"""Checks the generated garage zones against the BeamNG original.
+Run: python3 tests/zones_test.py"""
 import importlib.util, json, os, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 spec = importlib.util.spec_from_file_location("zones", os.path.join(ROOT, "tools/zones/make_garage_zones.py"))
@@ -10,11 +10,11 @@ ok = fail = 0
 def check(cond, msg):
     global ok, fail
     if cond: ok += 1
-    else: fail += 1; print("FEHLER:", msg)
+    else: fail += 1; print("FAILED:", msg)
 
 orig = [json.loads(l) for l in open(zones.ORIGINAL, encoding="utf-8") if l.strip()]
 gen = [json.loads(l) for l in open(zones.OUTPUT, encoding="utf-8") if l.strip()]
-check(len(orig) == len(gen), "gleich viele Objekte wie im Original")
+check(len(orig) == len(gen), "same number of objects as in the original")
 by_name = {o["name"]: o for o in orig}
 
 def inside(point, area, margin=0.0):
@@ -27,18 +27,18 @@ for o, g in zip(orig, gen):
     if "Computer_area_" in o["name"]:
         for key in o:
             if key not in ("position", "scale"):
-                check(o[key] == g[key], f"{o['name']}: {key} unverändert")
-        check(g["position"][2] == o["position"][2], f"{o['name']}: Höhe unverändert")
+                check(o[key] == g[key], f"{o['name']}: {key} unchanged")
+        check(g["position"][2] == o["position"][2], f"{o['name']}: height unchanged")
         icon = by_name[o["name"].replace("_area_", "_icon_")]
-        check(inside(icon["position"], g), f"{o['name']}: Computer liegt in der neuen Zone")
-        check(inside(o["position"], g), f"{o['name']}: alte Zone liegt in der neuen")
-        check(g["scale"][0] * g["scale"][1] > 20 * o["scale"][0] * o["scale"][1], f"{o['name']}: deutlich größer")
+        check(inside(icon["position"], g), f"{o['name']}: computer lies in the new zone")
+        check(inside(o["position"], g), f"{o['name']}: old zone lies inside the new one")
+        check(g["scale"][0] * g["scale"][1] > 20 * o["scale"][0] * o["scale"][1], f"{o['name']}: clearly larger")
     else:
-        check(o == g, f"{o['name']}: unverändert")
+        check(o == g, f"{o['name']}: unchanged")
 
-# Datei muss zum Skript passen (nach Änderungen am Skript neu erzeugen!)
+# the file must match the script (regenerate it after changing the script!)
 before = open(zones.OUTPUT, encoding="utf-8").read()
 zones.main()
-check(open(zones.OUTPUT, encoding="utf-8").read() == before, "erzeugte Datei ist aktuell")
-print(f"Zonen: {ok} ok, {fail} Fehler")
+check(open(zones.OUTPUT, encoding="utf-8").read() == before, "generated file is up to date")
+print(f"Zones: {ok} ok, {fail} failed")
 sys.exit(1 if fail else 0)

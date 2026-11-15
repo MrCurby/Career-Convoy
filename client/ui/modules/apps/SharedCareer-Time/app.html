@@ -1,7 +1,7 @@
 <div ng-controller="SharedCareerTime" class="scTime" ng-class="{'sct-collapsed': collapsed}">
 	<link rel="stylesheet" type="text/css" href="/ui/modules/apps/SharedCareer-Time/app.css">
 
-	<!-- Ausgeklappt: SharedCareer-Menü mit Reitern (Stil wie die BeamMP-Spielerliste) -->
+	<!-- Expanded: SharedCareer menu with tabs (styled like the BeamMP player list) -->
 	<div class="sct-panel" ng-if="!collapsed">
 		<div class="sct-header">
 			<span class="sct-brand sct-brand-click" title="SharedCareer – click for the welcome overview" ng-click="showWelcome()"><svg class="sct-logo" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.3" fill="none" stroke="currentColor" stroke-width="2.6"/><circle cx="12" cy="12.6" r="2.7" fill="currentColor"/><path d="M3.2 11.2 Q12 8.2 20.8 11.2 M12 15.3 V21.2" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg></span>
@@ -15,7 +15,7 @@
 			<span class="sct-note">Only on a SharedCareer server</span>
 		</div>
 
-		<!-- Reiter Zeit -->
+		<!-- Time tab -->
 		<div class="sct-body" ng-if="state && state.connected && tab === 'time'">
 			<div class="sct-top">
 				<span class="sct-icon" ng-bind="state.isDay ? '☀' : '☾'"></span>
@@ -49,7 +49,7 @@
 			<div class="sct-note" ng-if="!state.synced">Time sync is switched off on this server</div>
 		</div>
 
-		<!-- Reiter Traffic -->
+		<!-- Traffic tab -->
 		<div class="sct-body" ng-if="state && state.connected && state.settings && tab === 'traffic'">
 			<div class="sct-row">
 				<span class="sct-label sct-wide">Driving</span>
@@ -74,7 +74,7 @@
 			<div class="sct-note">Per player · applies to everyone · {{ state.settings.players || 1 }} online</div>
 		</div>
 
-		<!-- Reiter Optionen -->
+		<!-- Options tab -->
 		<div class="sct-body sct-compact" ng-if="state && state.connected && state.settings && tab === 'options'">
 			<div class="sct-row">
 				<span class="sct-label sct-grow">Collision with other players' cars</span>
@@ -105,7 +105,7 @@
 			<div class="sct-note" ng-if="!canEdit()">Only the server owner can change settings on this server</div>
 		</div>
 
-		<!-- Reiter Players -->
+		<!-- Players tab -->
 		<div class="sct-body sct-scroll" ng-if="state && state.connected && state.players && tab === 'players'">
 			<div class="sct-row sct-watchbar" ng-if="state.players.watching">
 				<span class="sct-label sct-grow">Watching {{ state.players.watching }}</span>
@@ -126,10 +126,10 @@
 		</div>
 	</div>
 
-	<!-- Dialog (Willkommen, Meldungen des Servers) als Karte in der Bildschirmmitte – auch bei
-	     eingeklapptem Menü. Text wird nur als Text eingesetzt (kein HTML). -->
-	<!-- Der Host wird beim Start an <body> gehängt (app.js), damit das App-Fenster den Dialog
-	     nicht beschneidet oder verschiebt (0.8.2: unsichtbarer Dialog blockierte die Lasche). -->
+	<!-- Dialog (welcome, messages from the server) as a card in the middle of the screen – even when
+	     the menu is collapsed. Text is only inserted as text (no HTML). -->
+	<!-- The host is attached to <body> on start (app.js), so the app frame can't clip or move the
+	     dialog (0.8.2: an invisible dialog blocked the tab). -->
 	<div class="scTime sct-dialog-host" id="sharedCareerDialogHost"><div class="sct-overlay" ng-if="dialog">
 		<div class="sct-dialog" ng-class="{'sct-dialog-warn': dialog.warning}">
 			<div class="sct-dialog-title" ng-bind="dialog.title"></div>
@@ -145,9 +145,9 @@
 		</div>
 	</div></div>
 
-	<!-- Lasche am rechten Rand: klappt ein/aus. Eingeklappt bleibt nur sie sichtbar. -->
+	<!-- Tab at the right edge: collapses/expands. When collapsed, only the tab is visible. -->
 	<div class="sct-tab" ng-click="toggleCollapsed()" title="{{ collapsed ? 'Expand SharedCareer menu' : 'Collapse SharedCareer menu' }}">
-		<!-- SharedCareer-Logo (Lenkrad) -->
+		<!-- SharedCareer logo (steering wheel) -->
 		<span class="sct-tab-icon" ng-if="collapsed"><svg class="sct-logo" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.3" fill="none" stroke="currentColor" stroke-width="2.6"/><circle cx="12" cy="12.6" r="2.7" fill="currentColor"/><path d="M3.2 11.2 Q12 8.2 20.8 11.2 M12 15.3 V21.2" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg></span>
 		<span class="sct-tab-arrow" ng-bind="collapsed ? '<' : '>'"></span>
 	</div>

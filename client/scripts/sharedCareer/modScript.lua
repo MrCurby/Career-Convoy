@@ -1,33 +1,33 @@
--- SharedCareer :: Einstiegspunkt des Client-Mods
+-- SharedCareer :: entry point of the client mod
 --
--- BeamMP lädt diesen Mod beim Join automatisch vom Server; BeamNG führt dieses Skript aus.
+-- BeamMP downloads this mod from the server on join; BeamNG runs this script.
 --
--- Module (lua/ge/extensions/sharedCareer/):
---   util      gemeinsame Hilfen (Logging, Server-Nachrichten, Funktionen sicher ersetzen)
---   protect   Schutz beim Karrierestart: fremde Autos werden nicht gelöscht
---   traffic   Traffic-Menge vom Server, simple vehicles, vorsichtigere KI
---   garage    Garage: keine doppelten Autos, sichtbarer Fußgänger, Computer aus der Nähe
---   vehicles  Autos der anderen: Sichtbarkeit, Namensschilder, Kollision (Ghost)
---   money     Überweisungen zwischen Spielern (/pay)
---   env       Tageszeit vom Server, Umwelt im Pausemenü gesperrt
---   menu      Einstellungen im SharedCareer-Menü (Traffic, Optionen) – gelten für alle
---   players   Reiter Players (Navigate, Watch, Teleport), Status am Namensschild, Menü-Taste
---   fuel      gemeinsame Spritpreise; Spritlieferungen machen Tankstellen für alle günstiger
---   welcome   Willkommensdialog beim Join (mit "Don't show again")
+-- Modules (lua/ge/extensions/sharedCareer/):
+--   util      shared helpers (logging, server messages, replacing functions safely)
+--   protect   protection during the career start: other players' cars are not deleted
+--   traffic   traffic amount from the server, simple vehicles, more careful AI
+--   garage    garage: no duplicate cars, visible player on foot, computers from a distance
+--   vehicles  other players' cars: visibility, name tags, collision (ghost)
+--   money     money transfers between players (/pay)
+--   env       time of day from the server, environment locked in the pause menu
+--   menu      settings in the SharedCareer menu (traffic, options) – apply to everyone
+--   players   Players tab (navigate, watch, teleport), status on name tags, menu key
+--   fuel      shared fuel prices; fuel deliveries make stations cheaper for everyone
+--   welcome   welcome dialog on join (with "Don't show again")
 --
--- Außerdem im Mod: levels/west_coast_usa/.../garage_interactions/items.level.json –
--- größere Zonen an den Werkstatt-Computern (ersetzt die gleichnamige Datei der Karte),
--- und die UI-Apps ui/modules/apps/SharedCareer-Time/ (SharedCareer-Menü) und
--- ui/modules/apps/SharedCareer-Fuel/ (Tankstellen-Preise, eigene Lasche mit Zapfsäule).
+-- Also in the mod: levels/west_coast_usa/.../garage_interactions/items.level.json –
+-- larger zones at the garage computers (replaces the map file of the same name),
+-- and the UI apps ui/modules/apps/SharedCareer-Time/ (SharedCareer menu) and
+-- ui/modules/apps/SharedCareer-Fuel/ (fuel prices, own tab with a fuel pump).
 --
---   cleanup   UI-Layouts: entfernt Mileage-Reste (rote "Unknown app"-Kästen) und setzt das
---             Tageszeit-Fenster einmalig ins Karriere-Layout
---   core      Ablauf beim Join: Einstellungen holen, Karriere starten, Ergebnis melden
+--   cleanup   UI layouts: removes Mileage leftovers (red "Unknown app" boxes) and adds the
+--             SharedCareer apps to the career layout once
+--   core      join flow: get settings, start the career, report the result
 --
--- Reihenfolge ist wichtig: util zuerst (alle anderen nutzen es), protect vor core
--- (der Schutz muss stehen, bevor irgendeine Karriere startet).
--- 'manual' hält die Erweiterungen über Kartenwechsel hinweg am Leben – die Karriere
--- wechselt ständig Level bzw. lädt ihre Module neu.
+-- Order matters: util first (all others use it), protect before core
+-- (the protection must be in place before any career starts).
+-- 'manual' keeps the extensions alive across map changes – the career keeps
+-- switching levels and reloading its modules.
 
 local function loadPersistent(path)
 	load(path)

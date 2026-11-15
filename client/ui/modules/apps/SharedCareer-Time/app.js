@@ -1,28 +1,28 @@
-// SharedCareer-Menü (ehemals "Tageszeit"): Reiter Zeit, Traffic und Optionen.
-// Alles, was hier eingestellt wird, geht an den Server und gilt sofort für ALLE Spieler.
+// SharedCareer menu (formerly "time of day"): Time, Traffic, Options and Players tabs.
+// Everything set here goes to the server and applies to ALL players immediately.
 //
-// Reiter Zeit: Uhrzeit des Servers und ob Tag oder Nacht ist.
-// Jeder Spieler kann die Uhrzeit (±1 Std., Morgen/Mittag/Abend/Nacht) und die Länge von
-// Tag und Nacht verstellen; der Server übernimmt das sofort für alle.
-// "Stopp" hält die Uhr für alle bei der aktuellen Uhrzeit an, "Weiter" lässt sie ab dort laufen.
-// Reiter Traffic: fahrende/geparkte Autos pro Spieler, KI-Fahrstil.
-// Reiter Optionen: Kollision mit Autos/Fußgängern, Ampeln synchron, Status am Namensschild,
-// Server-Limit.
-// Reiter Players: Navigate (Wegmarkierung zum Spieler), Watch (Kamera), Go (Teleport, nur wenn
-// der Server es erlaubt). Spielernamen werden als JSON-String an Lua übergeben.
-// Tankstellen-Preise: eigene App SharedCareer-Fuel (nutzt dieselben Daten und Stile).
-// Taste F7 (änderbar unter Optionen → Steuerung → BeamMP) klappt das Menü ein/aus.
-// Zahlen werden erst gesendet, wenn man kurz nicht mehr klickt (SEND_DELAY), damit nicht jeder
-// Klick bei allen eine Einblendung auslöst.
-// Über die Lasche am rechten Rand lässt sich das Fenster ein- und ausklappen (wie die
-// BeamMP-Spielerliste); der Zustand wird im Browser-Speicher des Spiels gemerkt.
+// Time tab: the server's time and whether it is day or night.
+// Every player can change the time (±1 h, morning/noon/evening/night) and the length of
+// day and night; the server applies that for everyone immediately.
+// "Pause" stops the clock for everyone at the current time, "Resume" lets it run on from there.
+// Traffic tab: driving/parked cars per player, AI driving style.
+// Options tab: collision with cars/players on foot, synced traffic lights, status on name tags,
+// server limit.
+// Players tab: Navigate (route to the player), Watch (camera), Go (teleport, only if the
+// server allows it). Player names are passed to Lua as JSON strings.
+// Fuel prices: separate app SharedCareer-Fuel (uses the same data and styles).
+// Key F7 (can be changed under Options → Controls → BeamMP) collapses/expands the menu.
+// Numbers are only sent once you stop clicking for a moment (SEND_DELAY), so that not every
+// click triggers a notification for everyone.
+// The tab at the right edge collapses and expands the window (like the BeamMP player
+// list); the state is remembered in the game's browser storage.
 //
-// Daten kommen jede Sekunde per guihook "SharedCareerTime" aus
-// lua/ge/extensions/sharedCareer/env.lua (uiState); Klicks gehen per bngApi.engineLua an
+// Data arrives every second via the guihook "SharedCareerTime" from
+// lua/ge/extensions/sharedCareer/env.lua (uiState); clicks go via bngApi.engineLua to
 // sharedCareer_env.uiSetHour / uiShiftHour / uiSetLengths.
 //
-// Hinweis: Oberste Ebene nur mit var/function – das Spiel wertet app.js beim Neuladen der
-// Apps erneut im selben Bereich aus.
+// Note: only var/function at the top level – the game evaluates app.js again in the same
+// scope when the apps are reloaded.
 
 var sharedCareerTimeApp = angular.module('beamng.apps');
 
@@ -36,18 +36,18 @@ sharedCareerTimeApp.directive('sharedCareerTime', [function () {
 }]);
 
 sharedCareerTimeApp.controller('SharedCareerTime', ['$scope', '$element', function ($scope, $element) {
-	var LENGTH_STEP = 5;       // Minuten pro Klick bei Tag/Nacht-Länge
+	var LENGTH_STEP = 5;       // minutes per click for the day/night length
 	var LENGTH_MIN = 1, LENGTH_MAX = 600;
 
 	var STORAGE_KEY = "sharedCareerTimeCollapsed";
 
 	$scope.state = null;
-	// Eingeklappt (nur die Lasche am Rand sichtbar)? Wird pro Spieler gemerkt.
+	// Collapsed (only the tab at the edge visible)? Remembered per player.
 	$scope.collapsed = false;
 	try { $scope.collapsed = window.localStorage.getItem(STORAGE_KEY) === "1"; } catch (e) {}
 
-	// Menü und Fuel-Fenster liegen an derselben Stelle am rechten Rand: öffnet sich eins, klappt
-	// das andere zu (Fenster-Ereignis "sharedCareerPanelOpen").
+	// Menu and fuel window sit at the right edge: when one opens, the other one collapses
+	// (window event "sharedCareerPanelOpen").
 	function setCollapsed(value) {
 		$scope.collapsed = value;
 		try { window.localStorage.setItem(STORAGE_KEY, value ? "1" : "0"); } catch (e) {}
@@ -64,7 +64,7 @@ sharedCareerTimeApp.controller('SharedCareerTime', ['$scope', '$element', functi
 	window.addEventListener("sharedCareerPanelOpen", onOtherOpened);
 	$scope.$on('$destroy', function () { window.removeEventListener("sharedCareerPanelOpen", onOtherOpened); });
 
-	// Aktiver Reiter, ebenfalls gemerkt
+	// active tab, remembered as well
 	var TAB_KEY = "sharedCareerMenuTab";
 	$scope.tab = "time";
 	try { $scope.tab = window.localStorage.getItem(TAB_KEY) || "time"; } catch (e) {}
@@ -74,11 +74,11 @@ sharedCareerTimeApp.controller('SharedCareerTime', ['$scope', '$element', functi
 		try { window.localStorage.setItem(TAB_KEY, tab); } catch (e) {}
 	};
 
-	// Dialog (guihook "SharedCareerDialog" aus welcome.lua): Willkommen oder Meldung des Servers
+	// Dialog (guihook "SharedCareerDialog" from welcome.lua): welcome or a message from the server
 	$scope.dialog = null;
-	// Dialog-Host an <body> hängen (Angular-Bindungen bleiben erhalten), beim Schließen des
-	// Fensters wieder entfernen. Klappt das nicht, bleibt er im Fenster – funktioniert dann wie vorher.
-	// Erst nach dem Verknüpfen verschieben (sonst bringt es Angulars Knotenliste durcheinander).
+	// Attach the dialog host to <body> (Angular bindings are kept) and remove it again when the
+	// window closes. If that fails, it stays in the window – then it works as before.
+	// Move it only after linking (otherwise it messes up Angular's node list).
 	var dialogHost = null;
 	setTimeout(function () {
 		try {
@@ -102,12 +102,12 @@ sharedCareerTimeApp.controller('SharedCareerTime', ['$scope', '$element', functi
 			JSON.stringify(String(d.kind || "")) + ', ' + JSON.stringify(String(b.action || "")) + ') end');
 	};
 
-	// Klick aufs Lenkrad-Logo: Willkommensdialog wieder anzeigen
+	// click on the steering-wheel logo: show the welcome dialog again
 	$scope.showWelcome = function () {
 		bngApi.engineLua('if sharedCareer_welcome then sharedCareer_welcome.show(true) end');
 	};
 
-	//== Reiter Players ==
+	//== Players tab ==
 	var STATUS_TEXT = {mission: "Mission", walking: "On foot", loading: "Loading"};
 	$scope.statusText = function (status) { return STATUS_TEXT[status] || ""; };
 	function players(cmd) {
@@ -120,14 +120,14 @@ sharedCareerTimeApp.controller('SharedCareerTime', ['$scope', '$element', functi
 	$scope.back = function () { players('uiBack()'); };
 	$scope.teleport = function (name) { players('uiTeleport(' + quote(name) + ')'); };
 
-	// Menü-Taste (Standard F7, siehe players.lua): ein-/ausklappen
+	// menu key (default F7, see players.lua): collapse/expand
 	$scope.$on('SharedCareerToggle', function () {
 		$scope.$evalAsync(function () { $scope.toggleCollapsed(); });
 	});
 
-	//== Einstellungen (Reiter Traffic / Optionen) ==
-	var SEND_DELAY = 600;   // ms Ruhe nach dem letzten Klick, dann senden
-	var PENDING_MAX = 4;    // s: danach wieder den Server-Wert zeigen, falls nichts zurückkam
+	//== Settings (Traffic / Options tabs) ==
+	var SEND_DELAY = 600;   // ms of quiet after the last click, then send
+	var PENDING_MAX = 4;    // s: afterwards show the server value again if nothing came back
 	var pending = {};       // key -> {value, age, timer}
 
 	function field(key) { return key.split('.')[1]; }
@@ -179,7 +179,7 @@ sharedCareerTimeApp.controller('SharedCareerTime', ['$scope', '$element', functi
 		return "fast";
 	};
 
-	// "du: 5 · live bis 10" – was dieser Spieler bekommt und bis wohin es ohne Neu-Join geht
+	// "you: 5 · live up to 10" – what this player gets and how far it goes without re-joining
 	$scope.trafficHint = function (kind) {
 		var s = ($scope.state && $scope.state.settings) || {};
 		var share = kind === 'road' ? s.shareRoad : s.shareParked;
@@ -189,7 +189,7 @@ sharedCareerTimeApp.controller('SharedCareerTime', ['$scope', '$element', functi
 		if (typeof pool === "number") parts.push("live up to " + pool);
 		return parts.join(" · ");
 	};
-	// Längen, die gerade eingestellt, aber noch nicht vom Server bestätigt sind
+	// lengths that were just set but not confirmed by the server yet
 	$scope.pending = null;
 
 	function pad(n) { return (n < 10 ? "0" : "") + n; }
@@ -252,20 +252,20 @@ sharedCareerTimeApp.controller('SharedCareerTime', ['$scope', '$element', functi
 	$scope.$on('SharedCareerTime', function (event, data) {
 		$scope.$evalAsync(function () {
 			$scope.state = data || null;
-			// Server hat Einstellungen bestätigt: wartende Werte, die jetzt stimmen, entfernen
+			// the server confirmed settings: remove pending values that are correct now
 			var s = (data && data.settings) || {};
 			Object.keys(pending).forEach(function (key) {
 				var p = pending[key];
 				if (!p.timer && s[field(key)] === p.value) delete pending[key];
 			});
-			// Server hat die neuen Längen bestätigt (oder abgelehnt): Anzeige wieder vom Server
+			// the server confirmed (or rejected) the new lengths: show the server's values again
 			if ($scope.pending && data && data.dayMinutes === $scope.pending.day && data.nightMinutes === $scope.pending.night) {
 				$scope.pending = null;
 			}
 		});
 	});
 
-	// Falls der Server eine Änderung nicht übernimmt, nach 3 s wieder den echten Wert zeigen
+	// if the server doesn't apply a change, show the real value again after 3 s
 	var pendingTimer = setInterval(function () {
 		if ($scope.pending) {
 			$scope.pending.age = ($scope.pending.age || 0) + 1;
@@ -281,6 +281,6 @@ sharedCareerTimeApp.controller('SharedCareerTime', ['$scope', '$element', functi
 	$scope.$on('$destroy', function () { clearInterval(pendingTimer); });
 
 	engine('uiRequest()');
-	// Offenen Dialog abholen (z.B. wenn er kam, während das Hauptmenü die Apps ausgeblendet hatte)
+	// fetch an open dialog (e.g. if it arrived while the main menu had hidden the apps)
 	bngApi.engineLua('if sharedCareer_welcome then sharedCareer_welcome.uiRequestDialog() end');
 }]);

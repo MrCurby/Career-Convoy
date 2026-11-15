@@ -1,25 +1,25 @@
--- SharedCareer :: Einstellungen im SharedCareer-Menü (Reiter "Traffic" und "Optionen")
+-- SharedCareer :: settings in the SharedCareer menu ("Traffic" and "Options" tabs)
 --
--- Das UI-Fenster (ui/modules/apps/SharedCareer-Time) zeigt neben der Tageszeit auch diese
--- Einstellungen. Jeder Spieler kann sie ändern; der Server prüft den Wert, speichert ihn und
--- schickt ihn an ALLE (sc_configUpdate) – dadurch gilt er überall gleich.
+-- The UI window (ui/modules/apps/SharedCareer-Time) shows these settings next to the time
+-- of day. Every player may change them; the server checks the value, saves it and sends
+-- it to EVERYONE (sc_configUpdate) – so it applies everywhere the same way.
 --
--- Was live wirkt:
---   Fahrende / geparkte Autos pro Spieler   sofort (blendet Autos aus dem Vorrat ein/aus,
---                                           siehe traffic.lua); mehr als der Vorrat erst
---                                           beim nächsten Join
---   KI-Fahrstil                             innerhalb von 3 s (traffic.lua)
---   Kollision mit Autos / Fußgängern        innerhalb von 1 s (vehicles.lua)
---   Ampeln synchron, Server-Limits          sofort (Server)
+-- What applies live:
+--   Driving / parked cars per player        immediately (shows/hides cars from the pool,
+--                                           see traffic.lua); more than the pool only on
+--                                           the next join
+--   AI driving style                        within 3 s (traffic.lua)
+--   Collision with cars / players on foot   within 1 s (vehicles.lua)
+--   Synced traffic lights, server limits    immediately (server)
 --
--- Sendet: sc_setSetting {key, value}. Der Stand fürs Fenster kommt mit dem guihook
--- "SharedCareerTime" (env.lua ruft settingsState auf).
+-- Sends: sc_setSetting {key, value}. The state for the window comes with the guihook
+-- "SharedCareerTime" (env.lua calls settingsState).
 
 local M = {}
 
 local U
 
--- Diese Schlüssel darf das Menü ändern (muss zur Liste MENU_SETTINGS im Server passen).
+-- Keys the menu may change (must match the MENU_SETTINGS list on the server).
 local KEYS = {
 	["client.roadTraffic"] = true, ["client.parkedTraffic"] = true, ["client.trafficAggression"] = true,
 	["client.remoteVehicleGhost"] = true, ["client.remoteUnicycleGhost"] = true,
@@ -32,7 +32,7 @@ local function config()
 	return core and core.getConfig()
 end
 
---- Stand fürs Fenster, oder nil ohne Server-Einstellungen.
+--- State for the window, or nil without server settings.
 function M.settingsState()
 	local cfg = config()
 	if type(cfg) ~= "table" then return nil end
@@ -51,14 +51,14 @@ function M.settingsState()
 		roadTrafficTotal = ui.roadTrafficTotal,
 		parkedTrafficTotal = ui.parkedTrafficTotal,
 		players = ui.players,
-		-- was dieser Spieler gerade bekommt (Server-Limit geteilt) und bis wohin es live geht
+		-- what this player gets right now (server limit shared) and how far it goes live
 		shareRoad = share.road, shareParked = share.parked,
 		poolRoad = traffic and traffic.pool and traffic.pool.road or nil,
 		poolParked = traffic and traffic.pool and traffic.pool.parked or nil,
 	}
 end
 
---- Vom Fenster: eine Einstellung für alle ändern.
+--- From the window: change a setting for everyone.
 function M.uiSetSetting(key, value)
 	if not KEYS[key] or not U.isMP() then return end
 	U.send("sc_setSetting", {key = key, value = value})

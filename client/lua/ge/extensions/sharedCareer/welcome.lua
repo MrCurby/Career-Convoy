@@ -1,24 +1,24 @@
--- SharedCareer :: Willkommensdialog beim Join
+-- SharedCareer :: welcome dialog on join
 --
--- Ein paar Sekunden, nachdem die Karriere fertig geladen ist, zeigt das SharedCareer-Menü-Fenster
--- einen Dialog mit den wichtigsten Funktionen. Knöpfe:
---   "Got it"            schließt den Dialog (kommt beim nächsten Join wieder)
---   "Don't show again"  merkt sich das in settings/sharedCareer/state.json (welcomeHidden) auf
---                       diesem PC – der Dialog kommt nicht mehr
--- Außerdem zeigt es Meldungen des Servers (sc_dialog) als Dialog.
--- Ein Klick auf das Lenkrad-Logo im SharedCareer-Menü zeigt den Dialog jederzeit wieder (show(true)).
--- Server-Schalter: client.showWelcome = false zeigt ihn niemandem.
+-- A few seconds after the career has finished loading, the SharedCareer menu window shows
+-- a dialog with the most important features. Buttons:
+--   "Got it"            closes the dialog (it comes back on the next join)
+--   "Don't show again"  remembers that in settings/sharedCareer/state.json (welcomeHidden) on
+--                       this PC – the dialog does not come back
+-- It also shows messages from the server (sc_dialog) as a dialog.
+-- Clicking the steering-wheel logo in the SharedCareer menu shows the dialog again at any time (show(true)).
+-- Server switch: client.showWelcome = false shows it to nobody.
 
 local M = {}
 
 local U
 
 local STATE_FILE = "settings/sharedCareer/state.json"
-local DELAY = 3            -- Sekunden, nachdem die Karriere fertig geladen ist
+local DELAY = 3            -- seconds after the career has finished loading
 
 local shownThisJoin = false
-local pending = nil        -- Dialog, der noch auf einen Knopfdruck wartet (siehe openDialog)
-local waitTime = 0         -- Sekunden seit "Karriere fertig geladen", solange der Dialog aussteht
+local pending = nil        -- dialog that is still waiting for a button press (see openDialog)
+local waitTime = 0         -- seconds since "career finished loading" while the dialog is pending
 
 local function readState()
 	local ok, state = pcall(jsonReadFile, STATE_FILE)
@@ -36,7 +36,7 @@ end
 
 M.TITLE = "Welcome to SharedCareer"
 
---- Inhalt des Willkommensdialogs (reiner Text, kein HTML – das Fenster setzt ihn zusammen).
+--- Content of the welcome dialog (plain text, no HTML – the window builds the layout).
 function M.content()
 	return {
 		kind = "welcome",
@@ -59,14 +59,14 @@ function M.content()
 	}
 end
 
--- Dialoge zeigt das SharedCareer-Menü-Fenster selbst (guihook "SharedCareerDialog"), als Karte
--- in der Bildschirmmitte. BeamMPs Dialog (MPGameNetwork.spawnUiDialog) wird bewusst NICHT
--- benutzt: er greift auf die alte Angular-Oberfläche zu und landete in BeamNG 0.40 im
--- Hauptmenü statt einen Dialog zu zeigen (0.8.1).
+-- Dialogs are shown by the SharedCareer menu window itself (guihook "SharedCareerDialog"), as
+-- a card in the middle of the screen. BeamMP's dialog (MPGameNetwork.spawnUiDialog) is
+-- deliberately NOT used: it relies on the old Angular UI and in BeamNG 0.40 it opened the
+-- main menu instead of showing a dialog (0.8.1).
 --
--- Der Dialog bleibt in `pending`, bis ein Knopf gedrückt wird: Ist das Fenster gerade nicht zu
--- sehen (z.B. Hauptmenü offen, dort blendet BeamNG alle Apps aus), baut es sich später neu auf,
--- fragt per uiRequestDialog() nach und zeigt ihn dann (Fehler in 0.8.2).
+-- The dialog stays in `pending` until a button is pressed: if the window is not visible
+-- right now (e.g. main menu open, where BeamNG hides all apps), it rebuilds itself later,
+-- asks via uiRequestDialog() and shows it then (bug in 0.8.2).
 local function openDialog(dialog)
 	pending = dialog
 	if guihooks and type(guihooks.trigger) == "function" then
@@ -76,7 +76,7 @@ local function openDialog(dialog)
 	return false
 end
 
---- Zeigt den Dialog. force = true: auch wenn "Don't show again" gewählt wurde (Klick aufs Logo).
+--- Shows the dialog. force = true: even if "Don't show again" was chosen (click on the logo).
 function M.show(force)
 	if not force then
 		local cfg = config()
@@ -85,24 +85,24 @@ function M.show(force)
 	return openDialog(M.content())
 end
 
---- Vom Fenster: ein Knopf im Dialog wurde gedrückt.
+--- From the window: a button in the dialog was pressed.
 function M.uiDialogButton(kind, action)
 	pending = nil
 	if kind == "welcome" and action == "never" then M.sharedCareerWelcomeNever() end
 end
 
---- Vom Fenster beim Aufbau: offenen Dialog (falls vorhanden) noch einmal schicken.
+--- From the window while it builds itself: send the open dialog (if any) again.
 function M.uiRequestDialog()
 	if pending and guihooks and type(guihooks.trigger) == "function" then
 		guihooks.trigger("SharedCareerDialog", pending)
 	end
 end
 
---== Zurück ins Spiel, falls das Hauptmenü offen ist ==========================
--- In BeamNG 0.40 landet man beim Join manchmal im Hauptmenü: Der Wechsel auf den Fahr-
--- bildschirm vom Kartenladen (BeamMP) und der vom Karrierestart überschneiden sich, das
--- Spiel geht dann auf "menu" (beamng.log: "routeChangeComplete transition id mismatch",
--- danach "Transition started: menu"). Einmal nach dem Karrierestart zurück auf "play".
+--== Back into the game if the main menu is open ==============================
+-- In BeamNG 0.40 you sometimes land in the main menu on join: the switch to the driving
+-- screen from loading the map (BeamMP) and the one from the career start overlap, and
+-- the game then goes to "menu" (beamng.log: "routeChangeComplete transition id mismatch",
+-- then "Transition started: menu"). Once after the career start, switch back to "play".
 
 local function currentRoute(router)
 	for _, name in ipairs({"getCurrentRoute", "getCurrentRouteName", "getRoute", "getCurrentState"}) do
@@ -134,7 +134,7 @@ function M.ensurePlayScreen()
 	return ok
 end
 
---- Meldung vom Server (Gast-Hinweis, Version passt nicht, Karriere startet nicht): als Dialog.
+--- Message from the server (guest notice, version mismatch, career does not start): as a dialog.
 local function rxDialog(data)
 	local msg = U.decode(data)
 	if not msg or type(msg.title) ~= "string" then return end
@@ -145,7 +145,7 @@ local function rxDialog(data)
 	})
 end
 
--- Knopf "Don't show again" (von BeamMP über extensions.hook gemeldet)
+-- "Don't show again" button (reported by BeamMP via extensions.hook)
 function M.sharedCareerWelcomeNever()
 	local state = readState()
 	state.welcomeHidden = true
@@ -157,9 +157,9 @@ end
 
 --== Hooks =====================================================================
 
--- Erst wenn der Mod die Karriere als fertig gemeldet hat (alle Ladebildschirme weg), dann noch
--- DELAY Sekunden. Vorher würde der Dialog hinter dem Ladebildschirm erscheinen und beim Wechsel
--- auf den Fahrbildschirm wieder geschlossen (so in 0.8.0).
+-- Only once the mod has reported the career as ready (all loading screens gone), then another
+-- DELAY seconds. Earlier, the dialog would appear behind the loading screen and be closed
+-- again on the switch to the driving screen (as in 0.8.0).
 function M.onUpdate(dtReal)
 	if shownThisJoin or not U.isMP() then return end
 	local core = U.ext("sharedCareer_core")

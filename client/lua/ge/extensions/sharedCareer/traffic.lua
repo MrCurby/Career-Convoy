@@ -1,24 +1,24 @@
--- SharedCareer :: Traffic-Menge vom Server
+-- SharedCareer :: traffic amount from the server
 --
--- Jeder Spieler spawnt seinen eigenen Karriere-Traffic, und BeamMP zeigt ihn allen.
--- Bei 4 Spielern mit je 10 Autos fahren also 40 herum. Der Server teilt deshalb ein
--- Gesamtlimit auf und schickt jedem seinen Anteil.
+-- Every player spawns their own career traffic, and BeamMP shows it to everyone.
+-- With 4 players with 10 cars each, 40 cars drive around. So the server splits a
+-- total limit and sends every player their share.
 --
--- Die Karriere (career/modules/playerDriving.lua) übergibt ihre Mengen an einer Stelle:
+-- The career (career/modules/playerDriving.lua) passes its amounts in one place:
 --   gameplay_traffic.setupTrafficHelper(trafficAmount, trafficOptions, parkingAmount, ...)
--- Diese Funktion wird für genau einen Aufruf ersetzt, damit die Server-Mengen ankommen.
--- Alles andere (Polizei, Strafen, Parken) bleibt Spielcode.
+-- That function is replaced for exactly one call, so the server amounts get through.
+-- Everything else (police, fines, parking) stays game code.
 --
--- Dabei auch:
---   * simple vehicles (client.trafficSimpleVehicles): Traffic spawnt als einfaches Modell
---     "simple_traffic" – weniger Rechenlast bei allen, weil BeamMP genau dieses Modell verteilt
---   * vorsichtigere KI (client.trafficAggression): siehe "Vorsichtigere KI" unten
+-- Also:
+--   * simple vehicles (client.trafficSimpleVehicles): traffic spawns as the simple model
+--     "simple_traffic" – less load for everyone, because BeamMP sends exactly this model
+--   * more careful AI (client.trafficAggression): see "More careful AI" below
 --
--- Live-Änderung (Menü, Spieler kommen/gehen): setActiveAmount blendet Autos aus dem beim Start
--- gespawnten Vorrat ein oder aus. Vorrat = Anteil + client.trafficReserve. Weniger geht immer
--- live, mehr bis zur Vorratsgröße; darüber hinaus wirkt es beim nächsten Join.
+-- Live changes (menu, players joining/leaving): setActiveAmount shows or hides cars from the
+-- pool spawned at the start. Pool = share + client.trafficReserve. Less always works live,
+-- more up to the pool size; anything above that applies on the next join.
 --
--- Empfängt: sc_traffic {road, parked} – neuer Anteil, wenn Spieler kommen oder gehen.
+-- Receives: sc_traffic {road, parked} – new share when players join or leave.
 
 local M = {}
 
@@ -27,10 +27,10 @@ local U
 local MAX = 50
 local armed = nil -- {original, share}
 
--- Vorrat, der beim Karrierestart gespawnt wurde: {road, parked}. Live lässt sich die Menge
--- nur bis hierhin erhöhen (setActiveAmount blendet Autos aus dem Vorrat ein/aus); mehr
--- bräuchte neue Fahrzeuge, die BeamMP bei allen auf einmal bauen müsste (Ruckler).
--- Siehe client.trafficReserve.
+-- Pool that was spawned at the career start: {road, parked}. Live, the amount can only be
+-- raised up to this (setActiveAmount shows/hides cars from the pool); more would need new
+-- vehicles that BeamMP would have to build on every PC at once (stutter).
+-- See client.trafficReserve.
 M.pool = nil
 
 local function clamp(n)
@@ -52,7 +52,7 @@ local function disarm()
 	armed = nil
 end
 
---- Vor dem Karrierestart aufrufen.
+--- Call before the career start.
 function M.arm(config)
 	disarm()
 	local road, parked = M.amounts(config)
@@ -70,11 +70,11 @@ function M.arm(config)
 			for k, v in pairs(trafficOptions) do options[k] = v end
 		end
 		if road > 0 then options.police = options.police ~= false end
-		-- Traffic als "simple_traffic" spawnen: weniger Physik, kleinere Konfiguration, und
-		-- weil BeamMP die Konfiguration des Besitzers verteilt, bei allen Spielern einfach.
+		-- Spawn traffic as "simple_traffic": less physics, smaller config, and because BeamMP
+		-- sends the owner's config to everyone, simple on every player's PC.
 		if type(config.trafficSimpleVehicles) == "boolean" then options.simpleVehs = config.trafficSimpleVehicles end
-		-- Vorrat = Anteil + Reserve; die Reserve bleibt versteckt, bis jemand im Menü mehr
-		-- Traffic einstellt.
+		-- Pool = share + reserve; the reserve stays hidden until someone sets more traffic
+		-- in the menu.
 		local reserve = clamp(config.trafficReserve)
 		local poolRoad, poolParked = clamp(road + reserve), clamp(parked + reserve)
 		U.log("I", "traffic", string.format("server traffic: %d driving, %d parked (pool %d / %d)",
@@ -82,8 +82,8 @@ function M.arm(config)
 		local ok, result = pcall(original, poolRoad, options, poolParked, ...)
 		if ok then
 			M.pool = {road = poolRoad, parked = poolParked}
-			-- Die Karriere setzt die aktiven Mengen danach evtl. aus den eigenen Einstellungen;
-			-- einen Frame später erzwingen wir die Server-Werte.
+			-- The career may set the active amounts from its own settings afterwards;
+			-- one frame later we enforce the server values.
 			M.pending = {road = road, parked = parked}
 			return result
 		end
@@ -94,7 +94,7 @@ function M.arm(config)
 	armed = entry
 end
 
--- Setzt die aktive Menge; nie mehr als der gespawnte Vorrat.
+-- Sets the active amount; never more than the spawned pool.
 function M.applyLive(road, parked)
 	road, parked = clamp(road), clamp(parked)
 	if M.pool then
@@ -119,12 +119,12 @@ local function rxTraffic(data)
 	U.log("I", "traffic", string.format("new traffic share: %d / %d", clamp(share.road), clamp(share.parked)))
 end
 
---== Vorsichtigere KI ==========================================================
--- Die Fahr-KI bremst umso später und fährt umso dichter auf, je höher ihre Aggressivität
--- ist (0 = sehr vorsichtig, 1 = sehr aggressiv). Der Traffic setzt sie beim Spawnen und
--- Respawnen selbst neu, deshalb wird sie für den eigenen Traffic regelmäßig auf den
--- Server-Wert gesetzt. Polizei bleibt unverändert, sonst funktionieren Verfolgungen nicht.
--- client.trafficAggression = 0 lässt die KI ganz in Ruhe.
+--== More careful AI ===========================================================
+-- The driving AI brakes later and follows closer the higher its aggression is
+-- (0 = very careful, 1 = very aggressive). Traffic resets it itself on spawn and
+-- respawn, so for our own traffic it is set to the server value regularly.
+-- The police stay unchanged, otherwise chases don't work.
+-- client.trafficAggression = 0 leaves the AI alone completely.
 
 local AI_EVERY = 3
 local sinceAi = AI_EVERY
@@ -183,7 +183,7 @@ function M.onUpdate(dtReal)
 		M.pending = nil
 		M.applyLive(p.road, p.parked)
 	end
-	-- Hat die Karriere den Helfer nie aufgerufen, nicht ewig eingehängt lassen.
+	-- If the career never called the helper, don't leave it hooked forever.
 	if armed and os.clockhp() - armed.since > 120 then disarm() end
 end
 

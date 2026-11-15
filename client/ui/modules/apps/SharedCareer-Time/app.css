@@ -1,5 +1,5 @@
-/* SharedCareer Tageszeit – Stil angelehnt an die BeamMP-Spielerliste:
-   dunkles Fenster mit orangem Rand oben, Lasche am rechten Rand zum Ein-/Ausklappen. */
+/* SharedCareer menu – styled like the BeamMP player list:
+   dark window with an orange top border, tab at the right edge to collapse/expand. */
 .scTime {
 	width: 100%; height: 100%; display: flex; flex-direction: row; justify-content: flex-end;
 	align-items: flex-start; color: #fff; user-select: none; pointer-events: none;
@@ -29,7 +29,7 @@
 .scTime .sct-pause { padding: 2px 7px; font-size: 11px; }
 .scTime .sct-btn.sct-paused { background: rgba(255, 102, 0, 0.75); border-color: #ff6600; }
 
-/* Inhalt passt in die Fensterhöhe; längere Listen scrollen */
+/* content fits the window height; longer lists scroll */
 .scTime .sct-body { padding: 6px 10px 8px; display: flex; flex-direction: column; gap: 6px; max-height: 118px; overflow-y: auto; }
 .scTime .sct-scroll { gap: 4px; }
 .scTime .sct-player { font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -45,9 +45,9 @@
 .scTime .sct-fuelkey { font-size: 9px; opacity: 0.7; margin-right: 2px; }
 .scTime .sct-disc { font-size: 9px; margin-left: 2px; }
 .scTime .sct-dist { font-size: 10px; opacity: 0.7; white-space: nowrap; min-width: 40px; text-align: right; }
-/* Dialog in der Bildschirmmitte */
-/* Host liegt direkt in <body>, ohne Größe; nur die Karte nimmt Klicks an, die Abdunklung nicht –
-   so kann ein Dialog nie das Spiel oder die Lasche blockieren. */
+/* dialog in the middle of the screen */
+/* The host sits directly in <body>, without a size; only the card takes clicks, the backdrop
+   doesn't – so a dialog can never block the game or the tab. */
 .scTime.sct-dialog-host { position: fixed; left: 0; top: 0; width: 0; height: 0; z-index: 100000; pointer-events: none; }
 .scTime .sct-overlay {
 	position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; z-index: 100000; pointer-events: none;

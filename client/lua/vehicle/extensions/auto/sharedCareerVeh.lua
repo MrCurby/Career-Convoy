@@ -1,7 +1,7 @@
--- SharedCareer :: Fahrzeug-Lua (läuft in jedem Fahrzeug)
+-- SharedCareer :: vehicle Lua (runs in every vehicle)
 --
--- Wird von der GE-Seite (vehicles.lua) per queueLuaCommand aufgerufen, um Kollisionen mit
--- diesem Fahrzeug an- oder auszuschalten (Ghost-Modus für Autos/Fußgänger anderer Spieler).
+-- Called from the GE side (vehicles.lua) via queueLuaCommand to switch collisions with
+-- this vehicle on or off (ghost mode for other players' cars / players on foot).
 
 local M = {}
 

@@ -1,26 +1,26 @@
--- SharedCareer :: Karrierestart beim Join (Client)
+-- SharedCareer :: career start on join (client)
 --
--- Ablauf:
---   1. Karte geladen (onWorldReadyState 2)    -> sc_hello an den Server
---   2. Server schickt Einstellungen (sc_config) -> Karriere starten:
---        Profil = profileBase vom Server (fest pro BeamMP-Account, siehe Server
---        profiles.json) + client.saveSuffix. Ältere Server ohne profileBase: BeamMP-Name.
---        Startmodus "freshStart" (Open World, kein Singleplayer-Tutorial in einer
---        geteilten Welt); geschützt durch sharedCareer_protect (sonst werden fremde
---        Autos gelöscht)
---      Außerdem: Spiel-Einstellungen vom Server setzen (simple vehicles) und Konsole /
---      Welteditor sperren; die eigenen Werte des Spielers werden beim Verlassen
---      wiederhergestellt.
---   3. Warten bis career_career.isActive() und die Ladebildschirme weg sind
+-- Flow:
+--   1. map loaded (onWorldReadyState 2)       -> sc_hello to the server
+--   2. server sends the settings (sc_config)  -> start the career:
+--        profile = profileBase from the server (fixed per BeamMP account, see the server's
+--        profiles.json) + client.saveSuffix. Older servers without profileBase: BeamMP name.
+--        Start mode "freshStart" (open world, no single-player tutorial in a shared
+--        world); protected by sharedCareer_protect (otherwise remote cars get
+--        deleted)
+--      Also: apply game settings from the server (simple vehicles) and lock the console /
+--      world editor; the player's own values are restored when leaving.
+--
+--   3. wait until career_career.isActive() and the loading screens are gone
 --        -> sc_careerResult {ok = true}
---      Hängt der Start, werden die Ladebildschirme nach JOIN_TIMEOUT freigegeben und der
---      Fehler an den Server gemeldet (statt für immer im Ladebildschirm zu stecken).
+--      If the start hangs, the loading screens are released after JOIN_TIMEOUT and the
+--      error is reported to the server (instead of being stuck in a loading screen forever).
 --
--- Wichtig: createOrLoadCareerAndStart(name, saveFolder, startingOptions) – der dritte
--- Parameter ist seit 0.39 eine Tabelle. Ein boolean wird stillschweigend ignoriert.
+-- Important: createOrLoadCareerAndStart(name, saveFolder, startingOptions) – since 0.39 the
+-- third parameter is a table. A boolean is silently ignored.
 --
--- Empfängt: sc_config (beim Join), sc_configUpdate (sc set client.* auf dem Server),
---           sc_signals (Ampel-Takt). Sendet: sc_hello, sc_careerResult.
+-- Receives: sc_config (on join), sc_configUpdate (sc set client.* on the server),
+--           sc_signals (traffic light cycle). Sends: sc_hello, sc_careerResult.
 
 local M = {}
 
@@ -33,17 +33,17 @@ local CAREER_SCREENS = {"careerActivate", "careerVehicles"}
 local config = nil
 local helloSent = false
 local started = false
-local waiting = nil  -- {since}: Einstellungen da, career_career noch nicht geladen
-local starting = nil -- {since}: Start läuft
+local waiting = nil  -- {since}: settings received, career_career not loaded yet
+local starting = nil -- {since}: start in progress
 local reported = false
-local readyOk = false   -- Karrierestart erfolgreich gemeldet (Ladebildschirme weg)
+local readyOk = false   -- career start reported as successful (loading screens gone)
 local currentProfile = nil
 
 function M.getConfig()
 	return config
 end
 
---- true, sobald die Karriere vollständig läuft und die Ladebildschirme weg sind.
+--- true as soon as the career runs completely and the loading screens are gone.
 function M.isReady()
 	return readyOk
 end
@@ -52,7 +52,7 @@ function M.isStarted()
 	return started
 end
 
---== Eingaben sperren (Konsole / Welteditor) ===================================
+--== Locking input (console / world editor) ===================================
 
 local function applyInputBlocks()
 	local filter = extensions.core_input_actionFilter
@@ -75,15 +75,15 @@ local function clearInputBlocks()
 	filter.addAction(0, "sharedCareer", false)
 end
 
---== Vereinfachte Fahrzeuge ("simple vehicles") ================================
--- Zwei Spiel-Einstellungen, vom Server vorgegeben:
---   trafficSimpleVehicles  (BeamNG) eigener Traffic spawnt als "simple_traffic"-Modell.
---                          BeamMP überträgt genau diese Konfiguration an alle, d.h. der
---                          Traffic ist dann auf JEDEM Rechner das einfache Modell.
---   simplifyRemoteVehicles (BeamMP) die Autos der anderen Spieler werden hier lokal als
---                          einfaches Modell gebaut (nur für 17 Standardmodelle). Spart
---                          Rechenleistung, sieht aber schlichter aus.
--- Die eigenen Werte des Spielers werden gemerkt und beim Verlassen zurückgesetzt.
+--== Simplified vehicles ("simple vehicles") ===================================
+-- Two game settings, set by the server:
+--   trafficSimpleVehicles  (BeamNG) our own traffic spawns as the "simple_traffic" model.
+--                          BeamMP sends exactly this config to everyone, i.e. the
+--                          traffic is then the simple model on EVERY PC.
+--   simplifyRemoteVehicles (BeamMP) other players' cars are built locally as a simple
+--                          model (only for 17 standard models). Saves performance,
+--                          but looks plainer.
+-- The player's own values are remembered and restored when leaving.
 
 local GAME_SETTINGS = {"trafficSimpleVehicles", "simplifyRemoteVehicles"}
 local userSettings = nil
@@ -109,7 +109,7 @@ local function restoreGameSettings()
 	userSettings = nil
 end
 
---== Ladebildschirm ============================================================
+--== Loading screen ============================================================
 
 local function loadingOpen(tag)
 	return core_gamestate and type(core_gamestate.getLoadingStatus) == "function"
@@ -125,7 +125,7 @@ local function openCareerScreens()
 end
 
 local function releaseCareerScreens()
-	-- Der eigene Handler der Karriere räumt beim Traffic-Bildschirm noch mit auf.
+	-- The career's own handler also cleans up on the traffic loading screen.
 	if loadingOpen("careerVehicles") and career_modules_playerDriving
 			and type(career_modules_playerDriving.onTrafficOrParkingReady) == "function" then
 		pcall(career_modules_playerDriving.onTrafficOrParkingReady)
@@ -152,7 +152,7 @@ local function report(ok, reason)
 	end
 end
 
---== Karriere starten ==========================================================
+--== Starting the career =======================================================
 
 local function careerActive()
 	return career_career and type(career_career.isActive) == "function" and career_career.isActive() == true
@@ -163,14 +163,14 @@ local function callStart(profile)
 		-- 0.39+
 		return career_career.createOrLoadCareerAndStart(profile, false, {startMode = "freshStart"})
 	end
-	-- ältere Versionen: dritter Parameter = Tutorial an/aus
+	-- older versions: third parameter = tutorial on/off
 	return career_career.createOrLoadCareerAndStart(profile, false, false)
 end
 
 local function beginStart()
 	waiting = nil
-	-- Der Server vergibt den Profilnamen pro BeamMP-Account (bleibt bei Namensänderung gleich).
-	-- Ältere Server schicken keinen: dann der BeamMP-Name.
+	-- The server assigns the profile name per BeamMP account (stays the same when renamed).
+	-- Older servers don't send one: then the BeamMP name.
 	local base = type(config.profileBase) == "string" and config.profileBase ~= "" and config.profileBase
 		or (MPConfig and MPConfig.getNickname and MPConfig.getNickname()) or "player"
 	local profile = U.profileName(base, config.saveSuffix)
@@ -220,7 +220,7 @@ local function updateStart()
 		starting = nil
 		releaseCareerScreens()
 		if careerActive() then
-			-- Karriere läuft, nur der Ladebildschirm hing (oft: Traffic meldet nie "fertig").
+			-- The career runs, only the loading screen hung (often: traffic never reports "ready").
 			report(true)
 		else
 			report(false, "start did not finish within " .. JOIN_TIMEOUT .. " s")
@@ -228,7 +228,7 @@ local function updateStart()
 	end
 end
 
---== Server-Nachrichten ========================================================
+--== Server messages ===========================================================
 
 local function rxConfig(data)
 	local decoded = U.decode(data)
@@ -264,7 +264,7 @@ local function rxConfigUpdate(data)
 	end
 	local players = U.ext("sharedCareer_players")
 	if players and players.onConfigChanged then players.onConfigChanged() end
-	-- Menü sofort aktualisieren (bei allen, die es gerade offen haben)
+	-- Update the menu immediately (for everyone who has it open right now)
 	local env = U.ext("sharedCareer_env")
 	if env and env.onSettingsChanged then env.onSettingsChanged() end
 end
@@ -309,7 +309,7 @@ function M.onExtensionLoaded()
 	U.on("sc_configUpdate", rxConfigUpdate)
 	U.on("sc_signals", rxSignals)
 	U.log("I", "core", "SharedCareer " .. U.VERSION .. " loaded")
-	-- Mod wurde nachgeladen, während die Karte schon fertig war.
+	-- The mod was reloaded while the map was already ready.
 	if rawget(_G, "worldReadyState") == 2 then M.onWorldReadyState(2) end
 end
 

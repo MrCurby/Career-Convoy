@@ -1,8 +1,8 @@
-# gebaute Pakete (entstehen mit tools/build.sh / tools/package.sh, Releases baut GitHub)
+# built packages (made by tools/build.sh / tools/package.sh; GitHub builds the releases)
 SharedCareer-*.zip
 Resources/Client/SharedCareer.zip
 /server.sh
-# Einstellungen eines Servers gehören nicht ins Repository
+# a server's settings don't belong in the repository
 Resources/Server/SharedCareer/config/
 *.bak
 __pycache__/

@@ -1,165 +1,165 @@
--- SharedCareer :: BeamMP-Server-Plugin
+-- SharedCareer :: BeamMP server plugin
 --
--- Gemeinsamer Karrieremodus für BeamMP: alle spielen die normale BeamNG-Karriere in einer
--- geteilten Welt, jeder mit seinem eigenen Spielstand auf dem eigenen PC.
+-- Shared career mode for BeamMP: everyone plays the normal BeamNG career in a shared
+-- world, each with their own save on their own PC.
 --
--- Der Server ist Vermittler und Schiedsrichter:
---   * schickt jedem Spieler beim Join die Einstellungen; danach startet der Client die Karriere
---   * vergibt pro BeamMP-Account einen festen Profilnamen (config/profiles.json)
---   * führt die Liste, welche Fahrzeuge sichtbar/versteckt bzw. Traffic sind, und verteilt sie
---   * teilt die Traffic-Menge fair auf alle Spieler auf
---   * führt die Uhr (Tageszeit, Tag und Nacht verschieden schnell) und die Ampel-Schaltung
---   * wickelt Überweisungen zwischen Spielern in zwei Schritten ab (erst abbuchen, dann gutschreiben)
+-- The server is the go-between and referee:
+--   * sends every player the settings on join; then the client starts the career
+--   * assigns a fixed profile name per BeamMP account (config/profiles.json)
+--   * keeps the list of which vehicles are visible/hidden or traffic, and distributes it
+--   * splits the traffic amount fairly across all players
+--   * runs the clock (time of day, day and night at different speeds) and the traffic light cycle
+--   * handles money transfers between players in two steps (debit first, then credit)
 --
--- Nur BeamMP-Server-API (MP.*, Util.*, FS.*), kein Spielcode.
+-- Only the BeamMP server API (MP.*, Util.*, FS.*), no game code.
 --
--- DATEIEN (Resources/Server/SharedCareer/config/)
---   config.json    Einstellungen (siehe DEFAULTS unten) + die Standardwerte, mit denen die
---                  Datei geschrieben wurde (_defaults; für automatische Updates)
---   profiles.json  BeamMP-Account-ID -> Profilname
---   fuelprices.json Rabatte der Tankstellen durch Spritlieferungen (Station -> Sorte -> %)
+-- FILES (Resources/Server/SharedCareer/config/)
+--   config.json    settings (see DEFAULTS below) + the defaults the file was written
+--                  with (_defaults; for automatic updates)
+--   profiles.json  BeamMP account ID -> profile name
+--   fuelprices.json station discounts from fuel deliveries (station -> fuel -> %)
 --
--- BEFEHLE IN DER SERVER-KONSOLE
---   sc help                           Kurzhilfe
---   sc get                            alle Einstellungen anzeigen
---   sc set <server|client>.<name> <wert>
---                                     Einstellung ändern; wird gespeichert und client.* sofort
---                                     an alle Spieler geschickt. Ohne <wert> = leerer Text.
---   sc time                           aktuelle Uhrzeit und Tag-/Nachtlänge anzeigen
---   sc time <HH:MM | Stunde>          Uhrzeit für alle setzen, z.B. sc time 18:30
---   sc time stop | start              Uhr anhalten (Uhrzeit bleibt stehen) / weiterlaufen lassen
---   sc players                        Spieler und ob ihre Karriere läuft
---   sc fuel | sc fuel reset           Rabatte der Tankstellen anzeigen / alle zurücksetzen
---   sc reload                         config.json neu einlesen
+-- SERVER CONSOLE COMMANDS
+--   sc help                           short help
+--   sc get                            show all settings
+--   sc set <server|client>.<name> <value>
+--                                     change a setting; it is saved and client.* is sent to
+--                                     all players immediately. Without <value> = empty text.
+--   sc time                           show the current time and the day/night length
+--   sc time <HH:MM | hour>            set the time for everyone, e.g. sc time 18:30
+--   sc time stop | start              pause the clock (time stands still) / let it run again
+--   sc players                        players and whether their career is running
+--   sc fuel | sc fuel reset           show station discounts / reset all of them
+--   sc reload                         read config.json again
 --
--- BEFEHLE IM CHAT (für Spieler; werden nicht im Chat angezeigt)
---   /pay <Name> <Betrag>              Geld an einen Spieler überweisen (Teilname reicht)
---   /players                          wer ist da, wer lädt noch
---   /schelp                           Hilfe
+-- CHAT COMMANDS (for players; they are not shown in the chat)
+--   /pay <name> <amount>              send money to a player (part of the name is enough)
+--   /players                          who is here, who is still loading
+--   /schelp                           help
 --
--- NACHRICHTEN ZWISCHEN CLIENT UND SERVER (alle JSON)
+-- MESSAGES BETWEEN CLIENT AND SERVER (all JSON)
 --   Client -> Server                  Server -> Client
---   sc_hello            {version}     sc_config / sc_configUpdate   Client-Einstellungen
+--   sc_hello            {version}     sc_config / sc_configUpdate   client settings
 --   sc_careerResult     {ok, reason,  sc_vehStates   {"<pid>-<vid>": {active, traffic}}
---                        profile}     sc_traffic     {road, parked}  neuer Traffic-Anteil
+--                        profile}     sc_traffic     {road, parked}  new traffic share
 --   sc_vehActive        {id, active}  sc_time        {hour, play, dayLength, dayLengthDay,
 --   sc_vehMarks         {id: bool}                    dayLengthNight, dayStart, nightStart,
 --                                                     dayMinutes, nightMinutes, canControl}
---   sc_vehStatesRequest               sc_signals     Ampel-Takt (Sekunden)
---   sc_payDebitResult   {id, ok}      sc_payDebit / sc_payCredit   Überweisung
+--   sc_vehStatesRequest               sc_signals     traffic light cycle (seconds)
+--   sc_payDebitResult   {id, ok}      sc_payDebit / sc_payCredit   money transfer
 --   sc_payCreditAck     {id}
 --   sc_timeControl      {action = "set", hour} | {action = "lengths", dayMinutes, nightMinutes}
 --                       | {action = "pause", paused = true|false}
---   sc_setSetting       {key = "client.roadTraffic", value}  (Menü, nur erlaubte Einstellungen)
+--   sc_setSetting       {key = "client.roadTraffic", value}  (menu, allowed settings only)
 --   sc_status           {status = driving|walking|mission|loading}
---   Server -> Client: sc_dialog {title, body, warning}  Meldung als Dialog im Menü-Fenster
---   Server -> Client: sc_players {players = [{id, name, status}]}  (Reiter Players, Namensschilder)
---   sc_fuelDelivered    {station, fuel, amount, stationName}  eigene Spritlieferung an eine Tankstelle
+--   Server -> Client: sc_dialog {title, body, warning}  message as a dialog in the menu window
+--   Server -> Client: sc_players {players = [{id, name, status}]}  (Players tab, name tags)
+--   sc_fuelDelivered    {station, fuel, amount, stationName}  own fuel delivery to a station
 --   Server -> Client: sc_fuelPrices {enabled, factors = {[station] = {gasoline = 0.9, ...}}}
---                       (aus dem UI-Fenster "SharedCareer Tageszeit")
+--                       (from the SharedCareer menu window)
 
-local VERSION = "0.8.5"
+local VERSION = "0.8.6"
 local TAG = "[SharedCareer] "
 
 local CONFIG_DIR = "Resources/Server/SharedCareer/config"
 local CONFIG_FILE = CONFIG_DIR .. "/config.json"
 
-local MAX_PAYLOAD = 16384 -- Bytes; größere Client-Nachrichten werden ignoriert
+local MAX_PAYLOAD = 16384 -- bytes; larger client messages are ignored
 
 local DEFAULTS = {
 	server = {
-		-- Überweisungen zwischen Spielern per Chat: /pay <Name> <Betrag>
+		-- money transfers between players via chat: /pay <name> <amount>
 		allowPayments = true,
 		paymentMax = 1000000,
 		paymentCooldownSeconds = 5,
-		-- Spieler rauswerfen, wenn seine Karriere nicht startet (sonst Hinweis-Dialog)
+		-- kick a player whose career doesn't start (otherwise a notice dialog)
 		kickOnFailedStart = false,
-		-- Ampeln für alle gleich schalten (Abgleich alle 10 s)
+		-- same traffic light cycle for everyone (synced every 10 s)
 		trafficSignalSync = true,
-		-- Tageszeit: Startzeit nach Serverstart (Stunde 0–24, z.B. 10.5 = 10:30).
-		-- Tag (dayStartHour bis nightStartHour) und Nacht laufen unterschiedlich schnell:
-		-- dayMinutes / nightMinutes = echte Minuten für den ganzen Tag- bzw. Nachtabschnitt.
-		-- Eine der beiden auf 0 = Zeit steht still. Im Betrieb: sc time 18:30
+		-- Time of day: start time after a server start (hour 0–24, e.g. 10.5 = 10:30).
+		-- Day (dayStartHour to nightStartHour) and night run at different speeds:
+		-- dayMinutes / nightMinutes = real minutes for the whole day or night part.
+		-- Either one at 0 = time stands still. While running: sc time 18:30
 		startHour = 10,
 		dayMinutes = 50,
 		nightMinutes = 5,
 		dayStartHour = 6,
 		nightStartHour = 20,
-		-- Jeder Spieler darf Uhrzeit und Tag-/Nachtlänge über das UI-Fenster "SharedCareer
-		-- Tageszeit" verstellen; es gilt sofort für alle. false = nur noch per Konsole (sc time).
+		-- Every player may change the time and the day/night length in the SharedCareer menu;
+		-- it applies to everyone immediately. false = console only (sc time).
 		allowPlayerTimeControl = true,
-		-- Jeder Spieler darf im SharedCareer-Menü (Reiter Traffic / Optionen) die dort
-		-- angebotenen Einstellungen für alle ändern. false = nur noch per Konsole.
+		-- Every player may change the settings offered in the SharedCareer menu (Traffic /
+		-- Options tabs) for everyone. false = console only.
 		allowPlayerSettings = true,
-		-- "Teleport" im Reiter Players: das eigene Auto zu einem anderen Spieler springen lassen.
-		-- Standardmäßig aus, weil es in der Karriere Fahrwege und Tankkosten umgeht.
+		-- "Teleport" in the Players tab: jump with your own car to another player.
+		-- Off by default, because in a career it skips driving and fuel costs.
 		allowTeleport = false,
-		-- Gemeinsame Spritpreise: alle zahlen an einer Tankstelle denselben Preis (ohne Zufall),
-		-- und wer Benzin/Diesel dorthin liefert, macht diese Sorte dort für alle günstiger.
+		-- Shared fuel prices: everyone pays the same price at a station (no random part),
+		-- and whoever delivers gasoline/diesel there makes that fuel cheaper there for everyone.
 		fuelEconomy = true,
-		fuelLitersPerStep = 1000,     -- so viele Liter ...
-		fuelDiscountPerStep = 5,      -- ... machen die Sorte an der Station um so viele % günstiger
-		fuelMaxDiscount = 30,         -- höchstens so viel % günstiger
-		fuelRecoveryPercent = 1,      -- der Rabatt sinkt um so viele Prozentpunkte ...
-		fuelRecoveryMinutes = 5,      -- ... alle so viele Minuten (Preis kehrt langsam zurück)
-		-- Uhr angehalten: die Uhrzeit bleibt stehen, bis jemand "Weiter" drückt (Fenster) oder
-		-- sc time start eingibt. Stopp: Fenster oder sc time stop.
+		fuelLitersPerStep = 1000,     -- this many liters ...
+		fuelDiscountPerStep = 5,      -- ... make the fuel at that station this many % cheaper
+		fuelMaxDiscount = 30,         -- at most this many % cheaper
+		fuelRecoveryPercent = 1,      -- the discount drops by this many percentage points ...
+		fuelRecoveryMinutes = 5,      -- ... every this many minutes (the price slowly returns)
+		-- Clock paused: the time stands still until someone presses "Resume" (window) or types
+		-- sc time start. Pause: window or sc time stop.
 		timePaused = false,
-		-- Traffic für den ganzen Server (0 = kein Limit). Jeder Spieler bekommt
-		-- client.roadTraffic / client.parkedTraffic, bis die Summe das Limit überschreitet;
-		-- dann wird das Limit gleichmäßig aufgeteilt.
+		-- Traffic for the whole server (0 = no limit). Every player gets
+		-- client.roadTraffic / client.parkedTraffic until the sum exceeds the limit;
+		-- then the limit is split evenly.
 		roadTrafficTotal = 20,
 		parkedTrafficTotal = 24,
 	},
 	client = {
-		-- Wird an den Profilnamen gehängt, z.B. "_meinserver", damit jeder Server einen
-		-- eigenen Spielstand bekommt. Leer = derselbe Spielstand auf jedem SharedCareer-Server.
+		-- Appended to the profile name, e.g. "_myserver", so that every server gets its own
+		-- save. Empty = the same save on every SharedCareer server.
 		saveSuffix = "",
-		-- Traffic, den JEDER Spieler spawnt (fahrend / geparkt, je 0–50). BeamMP zeigt ihn
-		-- allen; die Server-Grenzen roadTrafficTotal / parkedTrafficTotal gelten zusätzlich.
+		-- Traffic that EVERY player spawns (driving / parked, 0–50 each). BeamMP shows it to
+		-- everyone; the server limits roadTrafficTotal / parkedTrafficTotal apply on top.
 		roadTraffic = 6,
 		parkedTraffic = 8,
-		-- Reserve: so viele Autos (fahrend und geparkt) spawnt jeder Spieler beim Join
-		-- zusätzlich versteckt mit. Bis dahin lässt sich die Traffic-Menge im Menü LIVE
-		-- erhöhen; mehr wirkt erst beim nächsten Join. Weniger geht immer live.
-		-- Kostet etwas Ladezeit, weil BeamMP auch versteckte Autos bei allen baut.
+		-- Reserve: every player spawns this many extra cars (driving and parked) hidden on
+		-- join. Up to that, the traffic amount can be raised LIVE in the menu; more only
+		-- applies on the next join. Less always works live.
+		-- Costs some loading time, because BeamMP builds hidden cars on every PC too.
 		trafficReserve = 4,
-		-- Autos anderer SPIELER ohne Kollision (true) oder mit (false). Gilt nicht für KI-Traffic:
-		-- mit Traffic/geparkten Autos stößt man immer zusammen, egal wem sie gehören.
+		-- Other PLAYERS' cars without collision (true) or with (false). Does not apply to AI traffic:
+		-- traffic/parked cars always collide, no matter who owns them.
 		remoteVehicleGhost = false,
-		-- Andere Spieler, die zu Fuß unterwegs sind (Unicycle), ohne Kollision – so kann man
-		-- niemanden aus Versehen umfahren
+		-- Other players on foot (unicycle) without collision – so nobody can run anyone
+		-- over by accident
 		remoteUnicycleGhost = true,
-		-- Traffic als vereinfachte Fahrzeuge ("simple_traffic") spawnen. Weil BeamMP die
-		-- Konfiguration des Besitzers an alle schickt, ist der Traffic dann überall einfach.
+		-- Spawn traffic as simplified vehicles ("simple_traffic"). Because BeamMP sends the
+		-- owner's config to everyone, the traffic is then simple everywhere.
 		trafficSimpleVehicles = true,
-		-- Aggressivität der Traffic-KI, 0.05 (sehr vorsichtig) bis 1 (sehr aggressiv).
-		-- Niedriger = bremst früher, hält mehr Abstand. 0 = Spielstandard, nicht verändern.
-		-- Polizei ist ausgenommen. Live änderbar: sc set client.trafficAggression 0.15
+		-- Aggression of the traffic AI, 0.05 (very careful) to 1 (very aggressive).
+		-- Lower = brakes earlier, keeps more distance. 0 = game default, don't change.
+		-- The police are excluded. Can be changed live: sc set client.trafficAggression 0.15
 		trafficAggression = 0.2,
-		-- Garagen-Computer aus der Nähe benutzen: "Computer benutzen" erscheint schon in diesem
-		-- Abstand (Meter, halbe Kantenlänge der Zone). 0 = Spielstandard (direkt davor). Max 30.
+		-- Use garage computers from a distance: "Use computer" already appears at this
+		-- distance (meters, half edge length of the zone). 0 = game default (right in front). Max 30.
 		computerAccessRange = 6,
-		-- Tageszeit vom Server für alle gleich (sonst hat jeder seine eigene)
+		-- same time of day from the server for everyone (otherwise everyone has their own)
 		syncTimeOfDay = true,
-		-- Zeit, Wetter, Zeitlupe und Traffic im Pausemenü nur anzeigen, nicht verstellen
+		-- time, weather, slow motion and traffic in the pause menu are display-only
 		lockEnvironment = true,
-		-- Beim Join Mileage-Reste (rote "Unknown app"-Kästen) aus den UI-Layouts der Spieler
-		-- entfernen und die BeamMP-Spielerliste zurückholen. Dateien werden vorher gesichert.
+		-- On join, remove Mileage leftovers (red "Unknown app" boxes) from the players' UI
+		-- layouts and bring back the BeamMP player list. Files are backed up first.
 		cleanupMileageApps = true,
-		-- Das Fenster "SharedCareer Tageszeit" beim ersten Join automatisch ins Karriere-Layout
-		-- setzen (einmalig; wer es entfernt, bekommt es nicht wieder).
+		-- Add the SharedCareer menu and fuel app to the career layout automatically on the first
+		-- join (once; players who remove them don't get them back).
 		addTimeApp = true,
-		-- Status hinter dem Namen der Spieler: [Mission], [On foot], [Loading]
+		-- status after the players' names: [Mission], [On foot], [Loading]
 		showPlayerStatus = true,
-		-- Willkommensdialog beim Join mit den wichtigsten Funktionen (jeder kann "Don't show again"
-		-- wählen; ein Klick aufs Lenkrad-Logo im Menü zeigt ihn wieder)
+		-- welcome dialog on join with the most important features (everyone can choose "Don't show
+		-- again"; a click on the steering-wheel logo in the menu shows it again)
 		showWelcome = true,
-		-- Zusätzlich die Autos der ANDEREN Spieler lokal vereinfacht bauen (BeamMP-Funktion,
-		-- 17 Standardmodelle). Für schwache PCs; Autos sehen dann schlichter aus.
+		-- Additionally build the OTHER players' cars as simplified models locally (BeamMP feature,
+		-- 17 standard models). For weak PCs; cars then look plainer.
 		simplifyRemoteVehicles = false,
-		-- Lua-Konsole (Taste ^ bzw. ~) und Welteditor im Spiel erlauben. Aus = Schutz gegen
-		-- Schummeln und versehentliches Kaputtmachen der geteilten Welt.
+		-- Allow the Lua console (key ^ or ~) and the world editor in the game. Off = protection
+		-- against cheating and against accidentally breaking the shared world.
 		allowConsole = false,
 		allowWorldEditor = false,
 	},
@@ -167,15 +167,15 @@ local DEFAULTS = {
 
 local Config
 
--- player_id -> {name, counted (hat Einstellungen bekommen), careerActive, startFailed,
---               account (BeamMP-ID oder nil), guest, profile, lastPaymentAt}
+-- player_id -> {name, counted (has received settings), careerActive, startFailed,
+--               account (BeamMP ID or nil), guest, profile, lastPaymentAt}
 local players = {}
 -- "<player_id>-<vehicle_id>" -> {active = bool, traffic = bool|nil}
 local vehicleStates = {}
 -- transfer id -> {from, to, fromName, toName, amount, stage, createdAt}
 local transfers = {}
 local transferSeq = 0
--- player_id -> {road, parked} zuletzt geschickter Traffic-Anteil
+-- player_id -> {road, parked} traffic share sent last
 local sharesSent = {}
 
 local clock = MP.CreateTimer()
@@ -184,7 +184,7 @@ local function now()
 	return clock:GetCurrent()
 end
 
---== Hilfen ====================================================================
+--== Helpers ===================================================================
 
 local function log(msg)
 	print(TAG .. msg)
@@ -210,8 +210,8 @@ local function chat(player_id, msg)
 	MP.SendChatMessage(player_id, msg)
 end
 
--- Einblendung im Spiel (BeamMP-Benachrichtigung). Funktioniert auch, wenn der Chat in der
--- Karriere nicht sichtbar ist. Ältere Server ohne MP.SendNotification: Chat.
+-- Notification in the game (BeamMP notification). Also works when the chat isn't visible
+-- in the career. Older servers without MP.SendNotification: chat.
 local function notify(player_id, msg, icon)
 	if type(MP.SendNotification) == "function" then
 		local ok = pcall(MP.SendNotification, player_id, msg, icon or "info")
@@ -220,10 +220,10 @@ local function notify(player_id, msg, icon)
 	chat(player_id, msg)
 end
 
--- Dialog mit OK-Knopf, für Dinge, die der Spieler nicht übersehen darf. Angezeigt vom
--- SharedCareer-Menü-Fenster (sc_dialog); dazu eine Einblendung, falls das Fenster gerade nicht
--- da ist (z.B. Karriere startet nicht). BeamMPs MP.ConfirmationDialog wird bewusst NICHT benutzt:
--- er führte in BeamNG 0.40 ins Hauptmenü statt einen Dialog zu zeigen.
+-- Dialog with an OK button, for things the player must not miss. Shown by the
+-- SharedCareer menu window (sc_dialog); plus a notification in case the window isn't
+-- there right now (e.g. the career doesn't start). BeamMP's MP.ConfirmationDialog is
+-- deliberately NOT used: in BeamNG 0.40 it led to the main menu instead of showing a dialog.
 local function dialog(player_id, title, body, warning)
 	send(player_id, "sc_dialog", {title = title, body = body, warning = warning == true})
 	notify(player_id, title .. ": " .. tostring(body):gsub("%s+", " "):sub(1, 200), warning and "warning" or "info")
@@ -244,7 +244,7 @@ local function clampInt(value, low, high)
 	return math.floor(math.max(low, math.min(high, n)))
 end
 
---== Konfiguration =============================================================
+--== Configuration =============================================================
 
 local function readFile(path)
 	local f = io.open(path, "r")
@@ -254,10 +254,10 @@ local function readFile(path)
 	return text
 end
 
--- Die Datei enthält neben den Einstellungen die Standardwerte, mit denen sie zuletzt
--- geschrieben wurde (_defaults). Daran erkennt loadConfig nach einem Update, welche Werte
--- noch auf dem alten Standard stehen (-> bekommen den neuen) und welche jemand geändert hat
--- (-> bleiben). So reicht es, ein Update einfach einzuspielen.
+-- Besides the settings, the file contains the defaults it was last written with
+-- (_defaults). From that, loadConfig recognizes after an update which values are still
+-- on the old default (-> they get the new one) and which someone changed (-> they stay).
+-- That way simply installing an update is enough.
 local function saveConfig()
 	if FS and FS.CreateDirectory and not FS.Exists(CONFIG_DIR) then FS.CreateDirectory(CONFIG_DIR) end
 	local text = encode({server = Config.server, client = Config.client, _defaults = DEFAULTS, _version = VERSION})
@@ -272,7 +272,7 @@ local function saveConfig()
 	return true
 end
 
--- Standardwerte früherer Versionen, für Config-Dateien ohne _defaults (bis 0.3.1).
+-- defaults of earlier versions, for config files without _defaults (up to 0.3.1).
 local OLD_DEFAULTS = {
 	server = {dayMinutes = {45}, nightMinutes = {15}},
 }
@@ -286,8 +286,8 @@ local function wasDefault(section, key, value, recorded)
 	return false
 end
 
--- Übernimmt die geladenen Werte; ein Wert, der noch auf dem alten Standard steht, bekommt
--- den neuen Standard. Gibt die Liste der so aktualisierten Einstellungen zurück.
+-- Takes over the loaded values; a value that is still on the old default gets the
+-- new default. Returns the list of settings updated that way.
 local function mergeConfig(loaded)
 	local result, updated = {}, {}
 	for section, defaults in pairs(DEFAULTS) do
@@ -317,7 +317,7 @@ local function loadConfig()
 		if ok and type(value) == "table" then
 			loaded = value
 		else
-			-- Kaputte Datei nicht einfach überschreiben: sichern, damit nichts verloren geht.
+			-- Don't just overwrite a broken file: back it up so nothing gets lost.
 			local backup = CONFIG_FILE .. ".broken"
 			local f = io.open(backup, "w")
 			if f then f:write(text); f:close() end
@@ -330,18 +330,18 @@ local function loadConfig()
 		log("Update: " .. #updated .. " setting(s) moved to the new default (values you changed are kept):")
 		for _, line in ipairs(updated) do log("  " .. line) end
 	end
-	saveConfig() -- neue Einstellungen und Standardwerte erscheinen so automatisch in der Datei
+	saveConfig() -- new settings and defaults show up in the file automatically this way
 end
 
---== Spielstand-Zuordnung ======================================================
--- Die Spielstände liegen lokal auf jedem PC; ihr Name kommt vom Server. Damit eine
--- Namensänderung bei BeamMP nicht den Spielstand "verliert", merkt sich der Server pro
--- BeamMP-Account den Profilnamen vom ersten Join (config/profiles.json). Bestehende
--- Profile laufen so einfach weiter. Gäste haben keinen Account: ihr Profil hängt am
--- Gastnamen.
+--== Save game mapping =========================================================
+-- The saves live locally on every PC; their name comes from the server. So that a rename
+-- on BeamMP doesn't "lose" the save, the server remembers the profile name from the first
+-- join per BeamMP account (config/profiles.json). Existing profiles simply keep working.
+-- Guests have no account: their profile is tied to the guest name.
+--
 
 local PROFILES_FILE = CONFIG_DIR .. "/profiles.json"
-local profiles = {} -- BeamMP-Account-ID (string) -> Profilname
+local profiles = {} -- BeamMP account ID (string) -> profile name
 
 local function sanitizeProfile(name)
 	local s = string.lower(tostring(name or "")):gsub("[^a-z0-9]", "")
@@ -393,7 +393,7 @@ local function identityOf(player_id)
 	return {account = account, guest = guest or account == nil}
 end
 
--- Profilname für diesen Spieler (ohne Server-Suffix; das hängt der Client an).
+-- Profile name for this player (without the server suffix; the client appends that).
 local function profileFor(player_id, identity)
 	if identity.account then
 		local known = profiles[identity.account]
@@ -406,15 +406,15 @@ local function profileFor(player_id, identity)
 	return sanitizeProfile(playerName(player_id))
 end
 
---== Traffic-Anteile ===========================================================
--- Jeder Spieler spawnt eigenen Traffic, und BeamMP zeigt ihn allen. Damit es bei vielen
--- Spielern nicht zu voll wird, gilt eine Grenze für den ganzen Server
--- (server.roadTrafficTotal / parkedTrafficTotal). Bis zur Grenze bekommt jeder die volle
--- Menge (client.roadTraffic / parkedTraffic), darüber wird die Grenze gleichmäßig geteilt;
--- übrige Autos gehen an die niedrigsten Spieler-IDs. Ändert sich die Spielerzahl, bekommen
--- alle sofort ihren neuen Anteil (sc_traffic).
+--== Traffic shares ============================================================
+-- Every player spawns their own traffic, and BeamMP shows it to everyone. So it doesn't get
+-- too crowded with many players, there is a limit for the whole server
+-- (server.roadTrafficTotal / parkedTrafficTotal). Up to the limit everyone gets the full
+-- amount (client.roadTraffic / parkedTraffic); above it the limit is split evenly;
+-- leftover cars go to the lowest player IDs. When the number of players changes, everyone
+-- gets their new share immediately (sc_traffic).
 
--- Spieler, die schon Einstellungen bekommen haben, nach ID sortiert.
+-- Players who have already received settings, sorted by ID.
 local function careerPlayerIds()
 	local ids = {}
 	for id, entry in pairs(players) do
@@ -424,7 +424,7 @@ local function careerPlayerIds()
 	return ids
 end
 
--- Anteil eines Spielers: perPlayer pro Kopf, bis alle zusammen `total` überschreiten.
+-- A player's share: perPlayer each, until all together exceed `total`.
 local function shareOf(perPlayer, total, ids, player_id)
 	perPlayer = clampInt(perPlayer, 0, 50)
 	total = clampInt(total, 0, 400)
@@ -438,7 +438,7 @@ local function shareOf(perPlayer, total, ids, player_id)
 	return math.min(perPlayer, each)
 end
 
--- {road, parked} für diesen Spieler.
+-- {road, parked} for this player.
 local function trafficShareFor(player_id)
 	local ids = careerPlayerIds()
 	return {
@@ -447,7 +447,7 @@ local function trafficShareFor(player_id)
 	}
 end
 
--- Schickt jedem Spieler mit laufender Karriere seinen neuen Anteil, wenn er sich geändert hat.
+-- Sends every player with a running career their new share if it changed.
 local function updateTrafficShares()
 	for _, id in ipairs(careerPlayerIds()) do
 		local share = trafficShareFor(id)
@@ -459,20 +459,20 @@ local function updateTrafficShares()
 	end
 end
 
---== Fahrzeugzustände ==========================================================
--- Die Karriere versteckt eigene Autos oft (Garage, Händler, Missionen); BeamMP überträgt das
--- nicht. Jeder Client meldet daher Verstecken/Zeigen und welche seiner Autos Traffic sind;
--- der Server führt die Liste (vehicleStates) und verteilt Änderungen an alle anderen.
--- Neue Spieler bekommen die ganze Liste beim Join.
+--== Vehicle states ============================================================
+-- The career often hides your own cars (garage, dealer, missions); BeamMP doesn't sync
+-- that. So every client reports hiding/showing and which of its cars are traffic;
+-- the server keeps the list (vehicleStates) and sends changes to everyone else.
+-- New players get the whole list on join.
 
--- Ein Client darf nur seine eigenen Fahrzeuge melden ("<seine player_id>-<vehicle_id>").
+-- A client may only report its own vehicles ("<its player_id>-<vehicle_id>").
 local function ownsVehicle(player_id, serverVehicleID)
 	if type(serverVehicleID) ~= "string" then return false end
 	local owner = serverVehicleID:match("^(%d+)%-%d+$")
 	return owner ~= nil and tonumber(owner) == tonumber(player_id)
 end
 
--- Schickt Zustände an alle (außer `except`, meist der Absender selbst).
+-- Sends states to everyone (except `except`, usually the sender).
 local function broadcastStates(states, except)
 	local data = encode(states)
 	for id in pairs(players) do
@@ -482,15 +482,15 @@ local function broadcastStates(states, except)
 	end
 end
 
---== Tageszeit =================================================================
--- Der Server führt die Uhr: timeState.hour galt zum Zeitpunkt timeState.at. Tag und Nacht
--- laufen mit eigenem Tempo (Spielstunden pro echter Sekunde); die Uhr wird stückweise
--- bis zur nächsten Grenze (Tagesbeginn / Nachtbeginn) vorgerechnet. Die Spieler gleichen
--- alle 30 s ab und stellen beim Wechsel Tag/Nacht selbst auf das andere Tempo um.
+--== Time of day ===============================================================
+-- The server runs the clock: timeState.hour was valid at time timeState.at. Day and night
+-- run at their own speed (game hours per real second); the clock is computed ahead piece by
+-- piece up to the next boundary (day start / night start). Players sync every 30 s and
+-- switch to the other speed themselves when day/night changes.
 
 local timeState = nil
 
--- {dayStart, nightStart, daySpeed, nightSpeed} oder nil, wenn die Zeit steht.
+-- {dayStart, nightStart, daySpeed, nightSpeed} or nil when time stands still.
 local function timePhases()
 	local dayStart = tonumber(Config.server.dayStartHour) or 6
 	local nightStart = tonumber(Config.server.nightStartHour) or 20
@@ -501,7 +501,7 @@ local function timePhases()
 	local dayHours, nightHours = nightStart - dayStart, 24 - (nightStart - dayStart)
 	return {
 		dayStart = dayStart, nightStart = nightStart,
-		daySpeed = dayHours / (dayMin * 60),     -- Spielstunden pro echter Sekunde
+		daySpeed = dayHours / (dayMin * 60),     -- game hours per real second
 		nightSpeed = nightHours / (nightMin * 60),
 	}
 end
@@ -510,7 +510,7 @@ local function isDay(hour, ph)
 	return hour >= ph.dayStart and hour < ph.nightStart
 end
 
--- Uhrzeit nach `seconds` echten Sekunden ab `hour`.
+-- Time after `seconds` real seconds starting at `hour`.
 local function advance(hour, seconds, ph)
 	hour = hour % 24
 	local guard = 0
@@ -540,17 +540,17 @@ local function setHour(hour)
 	timeState = {hour = hour % 24, at = now()}
 end
 
--- Vor einer Änderung des Tempos: aktuelle Uhrzeit festhalten, sonst springt sie.
+-- Before changing the speed: pin the current time, otherwise it jumps.
 local function rebaseTime()
 	setHour(currentHour())
 end
 
--- dayLength = Länge eines ganzen Tages in echten Sekunden bei dem jeweiligen Tempo
--- (so rechnet BeamNG); der Client nimmt je nach Uhrzeit dayLengthDay oder -Night.
+-- dayLength = length of a whole day in real seconds at the respective speed
+-- (that's how BeamNG calculates); depending on the time, the client uses dayLengthDay or -Night.
 local function timePayload()
 	local ph = timePhases()
 	local hour = currentHour()
-	-- Für das UI-Fenster: eingestellte Längen und ob Spieler steuern dürfen.
+	-- For the UI window: configured lengths and whether players may control them.
 	local paused = Config.server.timePaused == true
 	local extra = {
 		dayMinutes = tonumber(Config.server.dayMinutes) or 0,
@@ -589,8 +589,8 @@ end
 
 local TIME_KEYS = {dayMinutes = true, nightMinutes = true, dayStartHour = true, nightStartHour = true, timePaused = true}
 
--- Uhr anhalten/weiterlaufen lassen. Vorher die aktuelle Uhrzeit festhalten, damit sie
--- genau dort stehen bleibt bzw. von dort weiterläuft.
+-- Pause/resume the clock. Pin the current time first, so it stops exactly there
+-- or runs on from there.
 local function setPaused(paused)
 	if (Config.server.timePaused == true) == paused then return false end
 	rebaseTime()
@@ -599,17 +599,17 @@ local function setPaused(paused)
 	return true
 end
 
--- Neue Uhrzeit/Längen sofort an alle Spieler mit laufender Karriere.
+-- New time/lengths immediately to all players with a running career.
 local function sendTimeToAll()
 	for id, entry in pairs(players) do
 		if entry.careerActive and MP.IsPlayerConnected(id) then sendTime(id) end
 	end
 end
 
---== Einstellungen für einen Spieler ===========================================
--- Was der Client bekommt (sc_config beim Join, sc_configUpdate bei Änderungen): alle
--- client.*-Einstellungen, sein Traffic-Anteil, und unter "ui" die Server-Werte, die das
--- SharedCareer-Menü anzeigt.
+--== Settings for one player ===================================================
+-- What the client gets (sc_config on join, sc_configUpdate on changes): all client.*
+-- settings, its traffic share, and under "ui" the server values that the SharedCareer
+-- menu shows.
 
 local function settingsFor(player_id)
 	local settings = {}
@@ -634,7 +634,7 @@ local function settingsFor(player_id)
 	return settings
 end
 
--- Neue Einstellungen an alle, die schon spielen.
+-- New settings to everyone who is already playing.
 local function sendSettingsToAll()
 	for id, entry in pairs(players) do
 		if entry.counted and MP.IsPlayerConnected(id) then
@@ -645,10 +645,10 @@ local function sendSettingsToAll()
 	end
 end
 
---== Spritpreise (gemeinsame Wirtschaft) =======================================
--- discounts[station][fuel] = Rabatt in Prozent (0..fuelMaxDiscount). Station = ID der
--- Tankstelle wie im Spiel (freeroam_facilities gasStations), fuel = "gasoline" | "diesel".
--- Gespeichert in config/fuelprices.json, an alle als sc_fuelPrices {enabled, factors}.
+--== Fuel prices (shared economy) ==============================================
+-- discounts[station][fuel] = discount in percent (0..fuelMaxDiscount). Station = ID of the
+-- gas station as in the game (freeroam_facilities gasStations), fuel = "gasoline" | "diesel".
+-- Saved in config/fuelprices.json, sent to everyone as sc_fuelPrices {enabled, factors}.
 local FUEL_FILE = CONFIG_DIR .. "/fuelprices.json"
 local FUEL_TYPES = {gasoline = true, diesel = true}
 local fuelDiscounts = {}
@@ -701,7 +701,7 @@ local function sendFuelToAll()
 	end
 end
 
--- Ein Client meldet eine eigene Spritlieferung: {station, fuel, amount, stationName?}
+-- A client reports its own fuel delivery: {station, fuel, amount, stationName?}
 local FUEL_MAX_AMOUNT = 100000
 function sc_fuelDelivered(player_id, data)
 	local entry = players[player_id]
@@ -730,7 +730,7 @@ function sc_fuelDelivered(player_id, data)
 	end
 end
 
--- Jede Sekunde: Rabatte sinken langsam (Preise kehren zum Normalpreis zurück).
+-- Every second: discounts drop slowly (prices return to the normal price).
 local function fuelRecoveryTick(dt)
 	if Config.server.fuelEconomy ~= true or not next(fuelDiscounts) then return end
 	fuelRecoveryElapsed = fuelRecoveryElapsed + dt
@@ -749,9 +749,9 @@ local function fuelRecoveryTick(dt)
 	sendFuelToAll()
 end
 
---== Spielerliste (Reiter "Players", Status am Namensschild) =====================
--- Jeder Client meldet seinen Status (sc_status); der Server schickt allen die Liste
--- (sc_players) bei Join, Karrierestart, Statuswechsel und Verlassen.
+--== Player list (Players tab, status on name tags) ============================
+-- Every client reports its status (sc_status); the server sends the list to everyone
+-- (sc_players) on join, career start, status change and leave.
 local PLAYER_STATUS = {driving = true, walking = true, mission = true, loading = true}
 
 local function broadcastPlayers()
@@ -778,9 +778,9 @@ function sc_status(player_id, data)
 	broadcastPlayers()
 end
 
---== Ereignisse vom Client =====================================================
+--== Events from the client ====================================================
 
--- Der Client ist bereit (Karte geladen) und will die Einstellungen.
+-- The client is ready (map loaded) and wants the settings.
 function sc_hello(player_id, data)
 	local entry = players[player_id]
 	if not entry then return end
@@ -793,7 +793,7 @@ function sc_hello(player_id, data)
 				"and reconnect, otherwise errors may occur.", tostring(hello.version), VERSION), true)
 	end
 
-	-- Derselbe Account zweimal gleichzeitig würde in dasselbe Profil speichern.
+	-- The same account twice at the same time would save into the same profile.
 	local identity = identityOf(player_id)
 	if identity.account then
 		for id, other in pairs(players) do
@@ -813,12 +813,12 @@ function sc_hello(player_id, data)
 	sharesSent[player_id] = settings.trafficShare
 	send(player_id, "sc_config", settings)
 	send(player_id, "sc_vehStates", vehicleStates)
-	-- Bei vollem Server bekommen die anderen sofort ihren kleineren Anteil.
+	-- On a full server the others get their smaller share immediately.
 	updateTrafficShares()
 	broadcastPlayers()
 end
 
--- Ergebnis des Karrierestarts: {ok = true} oder {ok = false, reason = "..."}
+-- Result of the career start: {ok = true} or {ok = false, reason = "..."}
 function sc_careerResult(player_id, data)
 	local entry = players[player_id]
 	local result = decodeTable(data)
@@ -855,7 +855,7 @@ function sc_careerResult(player_id, data)
 	end
 end
 
--- Ein eigenes Fahrzeug wurde versteckt/gezeigt: {id = "<pid>-<vid>", active = bool}
+-- An own vehicle was hidden/shown: {id = "<pid>-<vid>", active = bool}
 function sc_vehActive(player_id, data)
 	local msg = decodeTable(data)
 	if not msg or type(msg.active) ~= "boolean" or not ownsVehicle(player_id, msg.id) then return end
@@ -866,7 +866,7 @@ function sc_vehActive(player_id, data)
 	broadcastStates({[msg.id] = state}, player_id)
 end
 
--- Welche eigenen Fahrzeuge Traffic/geparkt sind: {["<pid>-<vid>"] = bool, ...}
+-- Which own vehicles are traffic/parked: {["<pid>-<vid>"] = bool, ...}
 function sc_vehMarks(player_id, data)
 	local marks = decodeTable(data)
 	if not marks then return end
@@ -885,11 +885,11 @@ function sc_vehStatesRequest(player_id)
 	if players[player_id] then send(player_id, "sc_vehStates", vehicleStates) end
 end
 
--- Steuerung aus dem UI-Fenster "SharedCareer Tageszeit" (jeder Spieler, wenn erlaubt):
---   {action = "set", hour = 0..24}                               Uhrzeit für alle setzen
---   {action = "lengths", dayMinutes = 1..600, nightMinutes = 1..600}  Tag-/Nachtlänge
---   {action = "pause", paused = true|false}                       Uhr anhalten / weiterlaufen
--- Höchstens eine Änderung pro Sekunde und Spieler; alle bekommen eine Einblendung.
+-- Control from the SharedCareer menu window (every player, if allowed):
+--   {action = "set", hour = 0..24}                               set the time for everyone
+--   {action = "lengths", dayMinutes = 1..600, nightMinutes = 1..600}  day/night length
+--   {action = "pause", paused = true|false}                       pause / resume the clock
+-- At most one change per second and player; everyone gets a notification.
 local TIME_CONTROL_COOLDOWN = 1
 local LENGTH_MIN, LENGTH_MAX = 1, 600
 
@@ -932,7 +932,7 @@ function sc_timeControl(player_id, data)
 		day = math.floor(math.max(LENGTH_MIN, math.min(LENGTH_MAX, day)) + 0.5)
 		night = math.floor(math.max(LENGTH_MIN, math.min(LENGTH_MAX, night)) + 0.5)
 		if day == Config.server.dayMinutes and night == Config.server.nightMinutes then return end
-		rebaseTime() -- Uhrzeit festhalten, nur das Tempo ändert sich
+		rebaseTime() -- pin the time, only the speed changes
 		Config.server.dayMinutes, Config.server.nightMinutes = day, night
 		saveConfig()
 		log(string.format("%s sets day/night to %d/%d min", playerName(player_id), day, night))
@@ -941,11 +941,11 @@ function sc_timeControl(player_id, data)
 	end
 end
 
---== Überweisungen =============================================================
--- 1. /pay im Chat -> Server prüft -> Absender bekommt sc_payDebit
--- 2. Absender-Client prüft sein Geld, bucht ab, antwortet sc_payDebitResult
--- 3. Server -> Empfänger bekommt sc_payCredit und bestätigt mit sc_payCreditAck
--- Fällt der Empfänger vorher weg, bekommt der Absender das Geld zurück.
+--== Money transfers ===========================================================
+-- 1. /pay in chat -> server checks -> sender gets sc_payDebit
+-- 2. sender client checks its money, debits, answers sc_payDebitResult
+-- 3. server -> receiver gets sc_payCredit and confirms with sc_payCreditAck
+-- If the receiver disappears before that, the sender gets the money back.
 
 local TRANSFER_TIMEOUT = 30
 
@@ -1066,7 +1066,7 @@ local function checkTransfers()
 	for id, transfer in pairs(transfers) do
 		if t - transfer.createdAt > TRANSFER_TIMEOUT then
 			if transfer.stage == "debit" then
-				-- Absender hat nie geantwortet: es wurde nichts abgebucht (oder er ist weg).
+				-- The sender never answered: nothing was debited (or they are gone).
 				transfers[id] = nil
 			elseif transfer.stage == "credit" then
 				refund(transfer, "Recipient did not confirm.")
@@ -1078,10 +1078,10 @@ local function checkTransfers()
 	end
 end
 
---== Chat- und Konsolenbefehle =================================================
--- Chat: /pay, /players, /schelp (bzw. /help). Gibt die Funktion 1 zurück, zeigt BeamMP die
--- Nachricht nicht im Chat an. Normale Chat-Nachrichten bleiben unberührt.
--- Konsole: alles, was mit "sc" beginnt (siehe Übersicht am Dateianfang).
+--== Chat and console commands =================================================
+-- Chat: /pay, /players, /schelp (or /help). If the function returns 1, BeamMP doesn't show
+-- the message in the chat. Normal chat messages stay untouched.
+-- Console: everything starting with "sc" (see the overview at the top of the file).
 
 local CHAT_HELP = "SharedCareer: /pay <name> <amount> – send money | /players – player list | /schelp – this help"
 
@@ -1126,9 +1126,9 @@ function onChatMessage(player_id, name, message)
 	end
 end
 
--- "sc set": Wert prüfen (Typ wie der Standardwert), speichern und wirksam machen.
--- client.*: sofort an alle Spieler (sc_configUpdate). Ausnahme: saveSuffix gilt erst beim
--- nächsten Join, weil das Profil beim Karrierestart gewählt wird.
+-- "sc set": check the value (same type as the default), save it and make it effective.
+-- client.*: immediately to all players (sc_configUpdate). Exception: saveSuffix only applies
+-- on the next join, because the profile is chosen at the career start.
 local function setSetting(path, valueText)
 	local section, key = tostring(path):match("^(%a+)%.(%w+)$")
 	if not section or not Config[section] or Config[section][key] == nil then
@@ -1148,15 +1148,15 @@ local function setSetting(path, valueText)
 	Config[section][key] = value
 	saveConfig()
 	if section == "server" and key:sub(1, 4) == "fuel" then sendFuelToAll() end
-	-- Live-Update für alle, die schon spielen (enthält auch die neuen Traffic-Anteile).
-	-- Startoptionen wie saveSuffix wirken erst beim nächsten Join.
+	-- Live update for everyone who is already playing (also contains the new traffic shares).
+	-- Start options like saveSuffix only apply on the next join.
 	sendSettingsToAll()
 	return path .. " = " .. tostring(value)
 end
 
---== Einstellungen aus dem SharedCareer-Menü =====================================
--- Nur diese Einstellungen darf ein Spieler im Menü ändern (wenn server.allowPlayerSettings);
--- jede gilt sofort für alle. Werte werden geprüft und begrenzt.
+--== Settings from the SharedCareer menu =======================================
+-- Only these settings may be changed by a player in the menu (if server.allowPlayerSettings);
+-- each applies to everyone immediately. Values are checked and clamped.
 local MENU_SETTINGS = {
 	["client.roadTraffic"]         = {kind = "int",  min = 0, max = 50, label = "Driving traffic per player"},
 	["client.parkedTraffic"]       = {kind = "int",  min = 0, max = 50, label = "Parked cars per player"},
@@ -1275,15 +1275,15 @@ function onConsoleInput(input)
 	return string.format(CONSOLE_HELP, VERSION)
 end
 
---== BeamMP-Ereignisse =========================================================
--- Von BeamMP selbst ausgelöst (Join, Verlassen, Fahrzeuge).
+--== BeamMP events =============================================================
+-- Triggered by BeamMP itself (join, leave, vehicles).
 
--- Verbindung steht; die Karriere startet erst nach sc_hello / sc_careerResult.
+-- Connection established; the career only starts after sc_hello / sc_careerResult.
 function onPlayerJoin(player_id)
 	players[player_id] = {name = MP.GetPlayerName(player_id), careerActive = false}
 end
 
--- Aufräumen: Fahrzeugzustände, offene Überweisungen (ggf. Rückbuchung), Traffic-Anteile.
+-- Clean up: vehicle states, open transfers (refund if needed), traffic shares.
 function onPlayerDisconnect(player_id)
 	local prefix = tostring(player_id) .. "-"
 	for id in pairs(vehicleStates) do
@@ -1293,8 +1293,8 @@ function onPlayerDisconnect(player_id)
 		if transfer.to == player_id and transfer.stage == "credit" then
 			refund(transfer, transfer.toName .. " left the server.")
 		elseif transfer.from == player_id then
-			-- Absender weg: in Stufe "debit" wurde noch nichts gutgeschrieben -> verwerfen.
-			-- In Stufe "credit" läuft die Gutschrift normal weiter.
+			-- Sender gone: in stage "debit" nothing has been credited yet -> discard.
+			-- In stage "credit" the credit continues normally.
 			if transfer.stage ~= "credit" then transfers[id] = nil end
 		end
 	end
@@ -1304,14 +1304,14 @@ function onPlayerDisconnect(player_id)
 	broadcastPlayers()
 end
 
--- Neues Fahrzeug: sichtbar; der Besitzer meldet danach, ob es Traffic ist.
+-- New vehicle: visible; the owner reports afterwards whether it is traffic.
 function onVehicleSpawn(player_id, vehicle_id, data)
 	local id = player_id .. "-" .. vehicle_id
 	vehicleStates[id] = {active = true}
 	broadcastStates({[id] = vehicleStates[id]})
 end
 
--- Ein neu gebautes Auto ist wieder aktiv, bei allen.
+-- A newly built car is active again, for everyone.
 function onVehicleEdited(player_id, vehicle_id, data)
 	local id = player_id .. "-" .. vehicle_id
 	local state = vehicleStates[id] or {}
@@ -1324,9 +1324,9 @@ function onVehicleDeleted(player_id, vehicle_id)
 	vehicleStates[player_id .. "-" .. vehicle_id] = nil
 end
 
---== Timer =====================================================================
--- sc_signalTick alle 10 s (Ampeln), sc_timeTick alle 30 s (Tageszeit),
--- sc_tick jede Sekunde (Zeitlimits für Überweisungen).
+--== Timers ====================================================================
+-- sc_signalTick every 10 s (traffic lights), sc_timeTick every 30 s (time of day),
+-- sc_tick every second (time limits for transfers).
 
 function sc_signalTick()
 	if not Config.server.trafficSignalSync then return end
@@ -1338,7 +1338,7 @@ function sc_signalTick()
 	end
 end
 
--- Tageszeit-Abgleich alle 30 s; dazwischen läuft der Tag bei jedem Spieler selbst weiter.
+-- Time sync every 30 s; in between, the day runs on by itself on every player's PC.
 function sc_timeTick()
 	if Config.client.syncTimeOfDay ~= true then return end
 	local data = encode(timePayload())

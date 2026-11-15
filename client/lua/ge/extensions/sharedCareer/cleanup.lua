@@ -1,24 +1,24 @@
--- SharedCareer :: UI-Layouts der Spieler
+-- SharedCareer :: the players' UI layouts
 --
--- Zwei Aufgaben beim Join (nach dem Karrierestart):
---   A) Mileage-Reste entfernen (client.cleanupMileageApps)
---   B) Die Apps "SharedCareer Menu" und "SharedCareer Fuel" je EINMAL ins Karriere-Layout setzen
---      (client.addTimeApp). Danach merkt sich der Mod das in settings/sharedCareer/state.json;
---      wer eine App entfernt, bekommt sie nicht wieder aufgedrängt.
+-- Two jobs on join (after the career start):
+--   A) remove Mileage leftovers (client.cleanupMileageApps)
+--   B) add the apps "SharedCareer Menu" and "SharedCareer Fuel" to the career layout ONCE each
+--      (client.addTimeApp). Afterwards the mod remembers that in settings/sharedCareer/state.json;
+--      players who remove an app don't get it forced on them again.
 --
--- A) Mileage-Reste:
--- Mileage schreibt seine Apps (mileageplayerlist, mileageoffers, mileagerace) direkt in die
--- UI-Layouts des Spielers (settings/ui_apps/layouts/**.uilayout.json im Benutzerordner) und
--- ersetzt dabei die BeamMP-Spielerliste durch seine eigene. Ohne Mileage bleiben davon rote
--- "Unknown app"-Kästen übrig – auch im Einzelspieler, weil es die eigenen Layouts sind.
+-- A) Mileage leftovers:
+-- Mileage writes its apps (mileageplayerlist, mileageoffers, mileagerace) directly into the
+-- player's UI layouts (settings/ui_apps/layouts/**.uilayout.json in the user folder) and
+-- replaces the BeamMP player list with its own. Without Mileage, red "Unknown app" boxes
+-- are left over – even in single player, because these are the player's own layouts.
 --
--- Diese Erweiterung räumt das einmal pro Server-Besuch auf:
---   * Apps, deren Name mit "mileage" beginnt, werden aus den Layouts entfernt
---   * an die Stelle der Mileage-Spielerliste kommt wieder BeamMPs eigene Liste
---     (beammpPlayerListVue), falls das Layout noch keine hat
---   * alles andere (eigene Anordnung, andere Mods, BeamMP-Chat …) bleibt unverändert
---   * vor der ersten Änderung wird jede Datei als <datei>.sharedcareer-backup gesichert
--- Abschaltbar mit client.cleanupMileageApps = false.
+-- This extension cleans that up once per server visit:
+--   * apps whose name starts with "mileage" are removed from the layouts
+--   * BeamMP's own list (beammpPlayerListVue) takes the place of the Mileage player list,
+--     if the layout doesn't have one yet
+--   * everything else (own arrangement, other mods, BeamMP chat …) stays unchanged
+--   * before the first change every file is backed up as <file>.sharedcareer-backup
+-- Can be switched off with client.cleanupMileageApps = false.
 
 local M = {}
 
@@ -31,9 +31,9 @@ local REPLACEMENT_LIST = "beammpPlayerListVue"
 
 local done = false
 
---== B) SharedCareer-Apps einmalig ins Karriere-Layout ==========================
--- Jede App wird genau EINMAL hinzugefügt (Merker in settings/sharedCareer/state.json);
--- wer sie danach entfernt, bekommt sie nicht wieder aufgedrängt.
+--== B) SharedCareer apps into the career layout once ===========================
+-- Every app is added exactly ONCE (flag in settings/sharedCareer/state.json);
+-- players who remove it afterwards don't get it forced on them again.
 
 local STATE_FILE = "settings/sharedCareer/state.json"
 local CAREER_LAYOUT = "settings/ui_apps/layouts/default/career.uilayout.json"
@@ -41,15 +41,15 @@ local CAREER_ORIGINAL = "settings/ui_apps/originalLayouts/default/career.uilayou
 local APPS = {
 	{
 		appName = "sharedCareerTime", stateKey = "timeAppAdded", label = "SharedCareer menu",
-		-- rechts, unter der BeamMP-Spielerliste (die reicht bis ca. 590 px)
+		-- right, below the BeamMP player list (which reaches down to about 590 px)
 		placement = {position = "absolute", right = "0px", top = "600px", width = "345px", height = "160px",
 			left = "", bottom = ""},
 	},
 	{
 		appName = "sharedCareerFuel", stateKey = "fuelAppAdded", label = "SharedCareer fuel prices",
-		-- direkt unter dem Menü am rechten Rand, OHNE Überlappung: BeamNGs Rahmen um eine App
-		-- fängt Klicks auf seiner ganzen Fläche ab. Lagen beide Apps übereinander (0.8.0–0.8.3),
-		-- ließ sich die Lenkrad-Lasche des Menüs nicht mehr anklicken.
+		-- directly below the menu at the right edge, WITHOUT overlap: BeamNG's frame around an app
+		-- catches clicks over its whole area. When both apps lay on top of each other (0.8.0–0.8.3),
+		-- the menu's steering-wheel tab could no longer be clicked.
 		placement = {position = "absolute", right = "0px", top = "760px", width = "345px", height = "160px",
 			left = "", bottom = ""},
 	},
@@ -61,8 +61,8 @@ local function readState()
 	return (ok and type(state) == "table") and state or {}
 end
 
---- Setzt die SharedCareer-Apps ins Karriere-Layout, soweit noch nie geschehen. Gibt die Anzahl
---- jetzt hinzugefügter Apps zurück.
+--- Adds the SharedCareer apps to the career layout if that never happened yet. Returns the
+--- number of apps added now.
 function M.addAppsOnce()
 	local state = readState()
 	local todo = {}
@@ -70,7 +70,7 @@ function M.addAppsOnce()
 		if not state[def.stateKey] then table.insert(todo, def) end
 	end
 	if #todo == 0 then return 0 end
-	-- Eigenes Karriere-Layout des Spielers, sonst das Original des Spiels als Grundlage
+	-- The player's own career layout, otherwise the game's original as the base
 	local okCustom, custom = pcall(jsonReadFile, CAREER_LAYOUT)
 	local layout = okCustom and type(custom) == "table" and custom or nil
 	if not layout then
@@ -88,7 +88,7 @@ function M.addAppsOnce()
 	local added = {}
 	for _, def in ipairs(todo) do
 		if present[def.appName] then
-			state[def.stateKey] = true -- schon da (selbst hinzugefügt): nur merken
+			state[def.stateKey] = true -- already there (added by the player): just remember it
 		else
 			local app = {appName = def.appName, placement = {}}
 			for k, v in pairs(def.placement) do app.placement[k] = v end
@@ -112,11 +112,11 @@ function M.addAppsOnce()
 	jsonWriteFile(STATE_FILE, state, true)
 	return #added
 end
--- Einmalige Korrekturen an schon gesetzten Apps: 0.7.2 stellte die Fuel-App 350 px links
--- neben das Menü – eingeklappt schwebte ihre Lasche mitten im Bild. Jetzt an den Rand.
+-- One-time corrections of apps that were already placed: 0.7.2 put the fuel app 350 px to the
+-- left of the menu – collapsed, its tab floated in the middle of the screen. Now at the edge.
 local MOVES = {
 	{stateKey = "fuelAppAtEdge", appName = "sharedCareerFuel", from = {right = "350px"}, to = {right = "0px", top = "600px"}},
-	-- 0.8.0–0.8.3: Fuel-App genau über dem Menü -> verdeckte die Lenkrad-Lasche. Darunter setzen.
+	-- 0.8.0–0.8.3: fuel app exactly on top of the menu -> covered the steering-wheel tab. Move it below.
 	{stateKey = "fuelAppBelowMenu", appName = "sharedCareerFuel", from = {right = "0px", top = "600px"}, to = {top = "760px"}},
 }
 
@@ -152,15 +152,15 @@ function M.moveAppsOnce()
 	return moved
 end
 
--- alter Name (Tests, ältere Aufrufe)
+-- old name (tests, older callers)
 M.addTimeAppOnce = function() return M.addAppsOnce() > 0 end
 
 local function isMileageApp(name)
 	return type(name) == "string" and name:lower():sub(1, 7) == "mileage"
 end
 
---- Entfernt Mileage-Apps aus einem Layout (Tabelle wird verändert). Gibt die Anzahl
---- entfernter Apps zurück.
+--- Removes Mileage apps from a layout (the table is modified). Returns the number of
+--- removed apps.
 function M.cleanLayout(layout)
 	if type(layout) ~= "table" or type(layout.apps) ~= "table" then return 0 end
 	local hasPlayerList = false
@@ -172,7 +172,7 @@ function M.cleanLayout(layout)
 		local name = type(app) == "table" and app.appName or nil
 		if isMileageApp(name) then
 			removed = removed + 1
-			-- Die Mileage-Liste hatte die BeamMP-Liste ersetzt: diese an derselben Stelle zurück.
+			-- The Mileage list had replaced the BeamMP list: put that back in the same place.
 			if name:lower() == "mileageplayerlist" and not hasPlayerList then
 				local replacement = {}
 				for k, v in pairs(app) do replacement[k] = v end
@@ -221,7 +221,7 @@ local function notifyLayouts()
 	if guihooks then guihooks.trigger("UiAppLayoutsChanged") end
 end
 
---- Räumt alle Layout-Dateien auf. Gibt die Anzahl entfernter Apps zurück.
+--- Cleans up all layout files. Returns the number of removed apps.
 function M.run()
 	local total, files = 0, 0
 	for _, path in ipairs(layoutFiles()) do
@@ -229,7 +229,7 @@ function M.run()
 		if ok and type(layout) == "table" then
 			local removed = M.cleanLayout(layout)
 			if removed > 0 then
-				-- Sicherung nur beim ersten Mal, damit sie das Original von vor SharedCareer bleibt.
+				-- Back up only the first time, so the backup stays the original from before SharedCareer.
 				if not FS:fileExists(path .. BACKUP_SUFFIX) then
 					local original = jsonReadFile(path)
 					jsonWriteFile(path .. BACKUP_SUFFIX, original, true)
@@ -257,7 +257,7 @@ local function config()
 	return core and core.getConfig()
 end
 
--- Nach dem Karrierestart (dann sind die Layout-Dateien da und die Oberfläche bereit).
+-- After the career start (then the layout files exist and the UI is ready).
 function M.onCareerActive(active)
 	local cfg = config()
 	if not active or done or not cfg or not U.isMP() then return end

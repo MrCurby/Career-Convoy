@@ -1,30 +1,30 @@
--- SharedCareer :: Gemeinsame Spritpreise
+-- SharedCareer :: shared fuel prices
 --
--- Spiel (freeroam/facilities/fuelPrice.lua): Jede Tankstelle hat pro Sorte einen Grundpreis
--- (priceBaseline) und einen Zufallsanteil, den JEDER Spieler beim Laden der Karte selbst würfelt –
--- an derselben Tankstelle zahlt also jeder etwas anderes. setDisplayPrices() berechnet die Preise
--- und beschriftet die Preisschilder; career/modules/fuel.lua fragt beim Tanken getFuelPrice ab.
+-- Game (freeroam/facilities/fuelPrice.lua): every station has a base price per fuel type
+-- (priceBaseline) and a random part that EVERY player rolls themselves when the map loads –
+-- so everyone pays something different at the same station. setDisplayPrices() calculates the
+-- prices and labels the price signs; career/modules/fuel.lua asks getFuelPrice when refueling.
 --
 -- SharedCareer:
---   * Preise = Grundpreis × Faktor vom Server, ohne Zufall -> alle zahlen dasselbe.
---   * Die Faktoren kommen vom Server (sc_fuelPrices). Hier werden priceBaseline/Zufall in den
---     Tankstellen-Daten gesetzt und setDisplayPrices() aufgerufen: das Spiel rechnet neu und
---     beschriftet die Schilder selbst.
---   * Spritlieferungen: career_modules_delivery_progress.onCargoDelivered wird eingewickelt.
---     Eigene Lieferungen von Benzin/Diesel an eine Tankstelle gehen an den Server
---     (sc_fuelDelivered), der den Preis dieser Sorte dort für alle senkt.
--- Ausschalten: server.fuelEconomy = false (dann gelten die normalen Spielpreise).
+--   * price = base price × factor from the server, without the random part -> everyone pays the same.
+--   * The factors come from the server (sc_fuelPrices). Here priceBaseline/random part are set in
+--     the station data and setDisplayPrices() is called: the game recalculates and labels the
+--     signs itself.
+--   * Fuel deliveries: career_modules_delivery_progress.onCargoDelivered gets wrapped.
+--     Our own deliveries of gasoline/diesel to a station go to the server
+--     (sc_fuelDelivered), which lowers the price of that fuel there for everyone.
+-- Switch off: server.fuelEconomy = false (then the normal game prices apply).
 
 local M = {}
 
 local U
 
-local factors = nil        -- {[station] = {[fuel] = faktor}} vom Server
+local factors = nil        -- {[station] = {[fuel] = factor}} from the server
 local enabled = false
 local originals = {}       -- [station][fuel] = {baseline, gain, bias}
 local applyPending = false
-local expected = {}        -- [station][fuel] = Preis, den das Spiel nach apply liefern sollte
-local fallback = false     -- true, wenn getFuelPrice direkt eingewickelt werden musste
+local expected = {}        -- [station][fuel] = price the game should return after apply
+local fallback = false     -- true if getFuelPrice had to be wrapped directly
 local sinceCheck = 1
 
 local function careerActive()
@@ -41,10 +41,10 @@ local function gasStations()
 	return data.gasStations
 end
 
---== Preise anwenden ===========================================================
+--== Applying prices ===========================================================
 
---- Setzt Grundpreis × Faktor (ohne Zufall) in den Tankstellen-Daten und lässt das Spiel
---- Preise und Schilder neu berechnen. Gibt die Anzahl geänderter Preise zurück.
+--- Sets base price × factor (without the random part) in the station data and lets the game
+--- recalculate prices and signs. Returns the number of changed prices.
 function M.apply()
 	local stations = gasStations()
 	local priceModule = rawget(_G, "freeroam_facilities_fuelPrice")
@@ -85,8 +85,8 @@ function M.apply()
 	return changed
 end
 
--- Hat das Spiel die neuen Preise übernommen? Falls getFacilities nur eine Kopie liefert, nicht –
--- dann wird getFuelPrice direkt eingewickelt (Tanken richtig, Schilder bleiben beim alten Wert).
+-- Did the game take over the new prices? Not if getFacilities only returns a copy –
+-- then getFuelPrice is wrapped directly (refueling correct, signs keep the old value).
 local function makeGetFuelPrice(original)
 	return function(stationId, fuelType, ...)
 		if enabled and expected[stationId] and expected[stationId][fuelType] then
@@ -119,7 +119,7 @@ local function rxFuelPrices(data)
 	applyPending = true
 end
 
---== Lieferungen erkennen ======================================================
+--== Detecting deliveries ======================================================
 
 local function fuelTypeOf(cargo)
 	local t = tostring(cargo.materialType or ""):lower()
@@ -128,7 +128,7 @@ local function fuelTypeOf(cargo)
 	return nil
 end
 
---- Tankstellen-ID (für die Preise) zu einer Liefer-Station (z.B. "apex_fuel").
+--- Station ID (for the prices) for a delivery location (e.g. "apex_fuel").
 function M.stationFor(deliveryFacId)
 	local stations = gasStations()
 	if not stations or type(deliveryFacId) ~= "string" then return nil end
@@ -158,7 +158,7 @@ local function translate(key)
 	return nil
 end
 
---- Aus den abgelieferten Frachtstücken die Spritlieferungen heraussuchen und melden.
+--- Pick the fuel deliveries out of the delivered cargo items and report them.
 function M.reportDelivered(cargoItems)
 	if not enabled or type(cargoItems) ~= "table" then return end
 	local totals = {} -- [station][fuel] = {amount, name}
@@ -203,30 +203,30 @@ local function ensurePatch()
 	if type(progress) ~= "table" then return end
 	local before = progress.onCargoDelivered
 	U.replace(progress, "onCargoDelivered", makeOnCargoDelivered)
-	-- Falls das Spiel die Funktion über extensions.hook aufruft: Hook-Cache neu bauen.
+	-- If the game calls the function via extensions.hook: rebuild the hook cache.
 	if progress.onCargoDelivered ~= before and type(extensions) == "table" and type(extensions.hookUpdate) == "function" then
 		pcall(extensions.hookUpdate, "onCargoDelivered")
 	end
 end
 M.ensurePatch = ensurePatch
 
---== Übersicht im Menü (Reiter "Fuel") ===========================================
--- Alle Tankstellen mit aktuellem Preis je Sorte (wie beim Tanken: getFuelPrice), Rabatt durch
--- Lieferungen, Entfernung zum Spieler. "Go" setzt die Navigation zur Tankstelle.
--- Preise in der Einheit der Karte (West Coast: pro US-Gallone, wie auf den Schildern).
+--== Overview for the fuel app =================================================
+-- All stations with the current price per fuel type (as when refueling: getFuelPrice), discount
+-- from deliveries, distance to the player. "Go" sets a route to the station.
+-- Prices in the map's unit (West Coast: per US gallon, like on the signs).
 
 local GALLON = 3.78541
-local positions = {}      -- [station] = vec3 oder false (unbekannt)
+local positions = {}      -- [station] = vec3 or false (unknown)
 local navigatingStation = nil
 
--- Nur gefundene Positionen merken: kurz nach dem Laden kennt das Spiel sie evtl. noch nicht,
--- dann wird es beim nächsten Mal erneut versucht.
+-- Only remember positions that were found: shortly after loading the game may not know them
+-- yet, then it is tried again next time.
 local function stationPosition(station)
 	if positions[station.id] then return positions[station.id] end
 	local facilities = rawget(_G, "freeroam_facilities")
 	if facilities and type(facilities.getAverageDoorPositionForFacility) == "function" then
 		local ok, p = pcall(facilities.getAverageDoorPositionForFacility, station)
-		-- im Spiel ein vec3 (LuaJIT-cdata), in den Tests eine Tabelle: beides hat .x
+		-- a vec3 in the game (LuaJIT cdata), a table in the tests: both have .x
 		if ok and p and p.x then
 			positions[station.id] = p
 			return p
@@ -256,7 +256,7 @@ local function playerPosition()
 	return nil
 end
 
---- Stand für den Reiter "Fuel", oder nil ohne Tankstellen.
+--- State for the fuel app, or nil without stations.
 function M.overview()
 	local stations = gasStations()
 	local priceModule = rawget(_G, "freeroam_facilities_fuelPrice")
@@ -318,7 +318,7 @@ function M.onUpdate(dtReal)
 	if applyPending and careerActive() then
 		applyPending = false
 		local n = M.apply()
-		if n == 0 then applyPending = true end -- Karte/Tankstellen noch nicht bereit
+		if n == 0 then applyPending = true end -- map/stations not ready yet
 	end
 	if sinceCheck >= 1 then
 		sinceCheck = 0
@@ -326,7 +326,7 @@ function M.onUpdate(dtReal)
 	end
 end
 
--- Nach dem Laden einer Karte würfelt das Spiel die Preise neu: danach wieder anwenden.
+-- After loading a map the game rolls the prices again: apply them again afterwards.
 function M.onClientStartMission()
 	originals = {}
 	positions = {}
@@ -344,7 +344,7 @@ end
 function M.onBeamMPServerLeave()
 	if factors then
 		enabled = false
-		pcall(M.apply) -- Originalpreise zurück
+		pcall(M.apply) -- original prices back
 	end
 	factors, enabled, originals, applyPending = nil, false, {}, false
 	positions, navigatingStation = {}, nil

@@ -33,9 +33,9 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$DIR" || exit 1
 SESSION="${SC_SESSION:-$(basename "$DIR")}"
 LOG="$DIR/Server.log"
-STOP_WAIT=20   # Sekunden, die der Server zum sauberen Beenden bekommt
+STOP_WAIT=20   # seconds the server gets to shut down cleanly
 REPO="${SC_REPO:-}"
-API="${SC_API:-https://api.github.com}"   # nur zum Testen änderbar
+API="${SC_API:-https://api.github.com}"   # only changed for testing
 GITHUB_TOKEN="${GITHUB_TOKEN:-}"
 # shellcheck disable=SC1091
 [ -f "$DIR/server.conf" ] && . "$DIR/server.conf"
@@ -51,7 +51,7 @@ need_screen() {
 	fi
 }
 
-# Server-Programm im Ordner finden (Name hängt von der Linux-Version ab)
+# find the server program in the folder (its name depends on the Linux version)
 find_binary() {
 	local f
 	for f in "$DIR"/BeamMP-Server*; do
@@ -68,9 +68,9 @@ running() {
 }
 
 server_pid() {
-	# PID des Server-Prozesses in diesem Ordner
+	# PID of the server process in this folder
 	local p
-	# Nur der Server selbst (Prozessname), nicht die bash-Hülle der screen-Sitzung
+	# only the server itself (process name), not the bash wrapper of the screen session
 	for p in $(pgrep "^BeamMP-Server" 2>/dev/null); do
 		if [ "$(readlink -f "/proc/$p/cwd" 2>/dev/null)" = "$DIR" ]; then echo "$p"; return 0; fi
 	done
@@ -78,7 +78,7 @@ server_pid() {
 }
 
 send() {
-	# Text + Enter in die Konsole tippen
+	# type text + Enter into the console
 	screen -S "$SESSION" -p 0 -X stuff "$1$(printf '\r')"
 }
 
@@ -88,7 +88,7 @@ cmd_start() {
 	local bin
 	if ! bin="$(find_binary)"; then red "No BeamMP-Server program found in $DIR."; exit 1; fi
 	if [ ! -f "$DIR/ServerConfig.toml" ]; then info "Note: no ServerConfig.toml yet – BeamMP creates one on the first start."; fi
-	screen -dmS "$SESSION" bash -c "cd '$DIR' && '$bin'; echo; echo 'Server beendet. Taste drücken...'; read -r -n1"
+	screen -dmS "$SESSION" bash -c "cd '$DIR' && '$bin'; echo; echo 'Server stopped. Press a key...'; read -r -n1"
 	sleep 2
 	if running; then
 		green "Started: $(basename "$bin") in session '$SESSION'."
@@ -119,7 +119,7 @@ cmd_stop() {
 		red "Server does not respond – killing it (PID $p)."
 		kill "$p"; sleep 3; kill -0 "$p" 2>/dev/null && kill -9 "$p"
 	fi
-	# screen-Sitzung wartet auf Tastendruck -> schließen
+	# the screen session waits for a key press -> close it
 	running && screen -S "$SESSION" -X quit
 	green "Stopped."
 }
@@ -166,7 +166,7 @@ cmd_cmd() {
 	[ -f "$LOG" ] && before="$(wc -l < "$LOG")"
 	send "$1"
 	sleep 1
-	# Antwort aus dem Log zeigen (alles, was seit dem Befehl dazugekommen ist)
+	# show the answer from the log (everything added since the command)
 	[ -f "$LOG" ] && tail -n "+$((before + 1))" "$LOG"
 }
 
@@ -176,7 +176,7 @@ installed_version() {
 	sed -n 's/^local VERSION = "\(.*\)"/\1/p' "$DIR/Resources/Server/SharedCareer/main.lua" 2>/dev/null
 }
 
-# curl mit Token (falls gesetzt)
+# curl with token (if set)
 gh_curl() {
 	if [ -n "$GITHUB_TOKEN" ]; then
 		curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" "$@"
@@ -185,7 +185,7 @@ gh_curl() {
 	fi
 }
 
-# Holt das neueste Release. Setzt LATEST_VERSION und LATEST_ASSET (API-Adresse der zip).
+# Gets the newest release. Sets LATEST_VERSION and LATEST_ASSET (API address of the zip).
 fetch_latest() {
 	if ! command -v curl >/dev/null 2>&1; then red "curl is missing. Install it with:  sudo apt install curl"; exit 1; fi
 	local json
@@ -209,7 +209,7 @@ cmd_check() {
 	if [ "$have" = "$LATEST_VERSION" ]; then green "Up to date."; else green "Update available: ./server.sh update"; fi
 }
 
-# Lädt das neueste Release in den Ordner; gibt den Dateinamen aus (leer = schon aktuell).
+# Downloads the newest release into the folder; prints the file name (empty = already up to date).
 download_latest() {
 	local force="$1"
 	fetch_latest
@@ -255,11 +255,11 @@ cmd_update() {
 	if [ "${#what[@]}" -gt 0 ]; then
 		if tar czf "$backup" "${what[@]}"; then info "Backup: $backup"; else red "Backup failed – aborting."; exit 1; fi
 	fi
-	# server.sh selbst wird mit ersetzt; das ist sicher, weil bash dieses Skript schon komplett
-	# gelesen hat (alles steckt in Funktionen, siehe main ganz unten).
+	# server.sh itself is replaced too; that is safe because bash has already read this script
+	# completely (everything sits in functions, see main at the very bottom).
 	unzip -o -q "$zip" || { red "Unpacking failed."; exit 1; }
 	chmod +x "$DIR/server.sh" 2>/dev/null
-	# alte zips aufräumen (die neuesten 3 bleiben)
+	# clean up old zips (the newest 3 stay)
 	ls -1 "$DIR"/SharedCareer-*.zip 2>/dev/null | sort -V | head -n -3 | xargs -r rm -f
 	green "Unpacked (settings in Resources/Server/SharedCareer/config are kept)."
 	cmd_start
@@ -288,6 +288,6 @@ main() {
 	esac
 }
 
-# In einer Zeile mit exit: bash liest sie komplett, bevor es loslegt. Ersetzt "update" diese
-# Datei, läuft trotzdem die alte Fassung sauber zu Ende.
+# On one line with exit: bash reads it completely before it starts. If "update" replaces
+# this file, the old version still runs to the end cleanly.
 main "$@"; exit $?

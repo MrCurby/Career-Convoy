@@ -1,20 +1,20 @@
--- SharedCareer :: Mitspieler (Reiter "Players" im Menü, Status am Namensschild, Menü-Taste)
+-- SharedCareer :: other players (Players tab in the menu, status on name tags, menu key)
 --
--- Reiter "Players":
---   Navigate  Wegmarkierung auf der Straße zu einem Spieler, folgt ihm, wenn er weiterfährt
+-- Players tab:
+--   Navigate  route on the road to a player, follows them when they drive on
 --             (BeamMP: MPVehicleGE.groundmarkerFollowPlayer)
---   Watch     Kamera zu einem Spieler (BeamMP: focusCameraOnPlayer) – "Back" setzt dich
---             wieder in dein eigenes Fahrzeug. Solange du zuschaust, bleibt dein Traffic bei
---             deinem eigenen Auto statt der Kamera zu folgen.
---   Teleport  dein aktuelles Fahrzeug zum Spieler (BeamMP: teleportVehToPlayer); nur wenn der
---             Server es erlaubt (server.allowTeleport, Standard aus)
+--   Watch     camera to a player (BeamMP: focusCameraOnPlayer) – "Back" puts you back
+--             into your own vehicle. While you watch, your traffic stays around your own
+--             car instead of following the camera.
+--   Teleport  your current vehicle to the player (BeamMP: teleportVehToPlayer); only if the
+--             server allows it (server.allowTeleport, off by default)
 --
--- Status am Namensschild (client.showPlayerStatus): jeder Client meldet alle 2 s seinen
--- Status (sc_status: driving / walking / mission / loading); der Server schickt allen die
--- Liste (sc_players), und hier wird hinter den Namen der anderen z.B. "[Mission]" gesetzt.
+-- Status on name tags (client.showPlayerStatus): every client reports its status every 2 s
+-- (sc_status: driving / walking / mission / loading); the server sends the list to everyone
+-- (sc_players), and here e.g. "[Mission]" is put after the other players' names.
 --
--- Menü-Taste: über BeamMPs Tastenbelegung (MPKeybindsGE.addAction) – erscheint unter
--- Optionen → Steuerung → BeamMP und lässt sich dort umbelegen. Standard: F7.
+-- Menu key: via BeamMP's key bindings (MPKeybindsGE.addAction) – shows up under
+-- Options → Controls → BeamMP and can be rebound there. Default: F7.
 
 local M = {}
 
@@ -26,12 +26,12 @@ local SUFFIX_TEXT = {mission = "[Mission]", walking = "[On foot]", loading = "[L
 local MENU_ACTION = "sharedCareerMenu"
 local MENU_KEY = "f7"
 
-local list = {}          -- {{id, name, status}, ...} vom Server
+local list = {}          -- {{id, name, status}, ...} from the server
 local sentStatus = nil
 local sinceStatus = STATUS_EVERY
-local navigating = nil   -- Name des Spielers, zu dem navigiert wird
+local navigating = nil   -- name of the player we navigate to
 local watching = nil     -- {name, ownVehId}
-local suffixed = {}      -- Name -> gesetzter Text (zum Aufräumen)
+local suffixed = {}      -- name -> text that was set (for cleaning up)
 local keyRegistered = false
 
 local function mp()
@@ -54,7 +54,7 @@ local function careerActive()
 	return career_career and type(career_career.isActive) == "function" and career_career.isActive() == true
 end
 
---== eigener Status ============================================================
+--== own status ================================================================
 
 function M.currentStatus()
 	if not careerActive() then return "loading" end
@@ -79,12 +79,12 @@ local function sendStatus(force)
 	end
 end
 
---== Namensschilder ============================================================
+--== name tags =================================================================
 
 local function setSuffix(name, text)
 	local m = mp()
 	if not m or type(m.setPlayerNickSuffix) ~= "function" then return end
-	-- Leerer Text statt nil: BeamMP würde bei nil "sharedCareer" als Text anzeigen.
+	-- Empty text instead of nil: with nil BeamMP would show "sharedCareer" as the text.
 	pcall(m.setPlayerNickSuffix, name, SUFFIX_SOURCE, text or "")
 	if text and text ~= "" then suffixed[name] = text else suffixed[name] = nil end
 end
@@ -126,7 +126,7 @@ local function rxPlayers(data)
 	if env and env.onSettingsChanged then env.onSettingsChanged() end
 end
 
---== Menü-Aktionen =============================================================
+--== menu actions ==============================================================
 
 function M.uiNavigate(name)
 	local m = mp()
@@ -153,7 +153,7 @@ function M.uiWatch(name)
 	if not m or type(name) ~= "string" or type(m.focusCameraOnPlayer) ~= "function" then return end
 	local own = watching and watching.ownVehId or be:getPlayerVehicleID(0)
 	watching = {name = name, ownVehId = own}
-	pinTraffic(own) -- dein Traffic bleibt bei deinem Auto, nicht bei der Kamera
+	pinTraffic(own) -- your traffic stays around your car, not around the camera
 	pcall(m.focusCameraOnPlayer, name)
 end
 
@@ -173,7 +173,7 @@ function M.uiTeleport(name)
 	pcall(m.teleportVehToPlayer, name)
 end
 
---- Stand für den Reiter "Players".
+--- State for the Players tab.
 function M.state()
 	local cfg = config()
 	local me = myName()
@@ -189,7 +189,7 @@ function M.state()
 	}
 end
 
---== Menü-Taste ================================================================
+--== menu key ==================================================================
 
 local function registerKey()
 	if keyRegistered then return end

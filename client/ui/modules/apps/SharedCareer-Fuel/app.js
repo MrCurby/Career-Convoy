@@ -1,11 +1,11 @@
-// SharedCareer Fuel: alle Tankstellen mit Benzin-/Dieselpreis, günstigste zuerst (oder nächste).
-// Eigene App mit eigener Lasche (Zapfsäule) zum Ein-/Ausklappen; standardmäßig eingeklappt.
+// SharedCareer Fuel: all stations with gasoline/diesel prices, cheapest first (or nearest).
+// Separate app with its own tab (fuel pump) to collapse/expand; collapsed by default.
 //
-// Daten: guihook "SharedCareerTime" (Feld "fuel", aus lua/ge/extensions/sharedCareer/fuel.lua
-// overview), jede Sekunde. "Go" setzt die Navigation zur Tankstelle (sharedCareer_fuel.uiNavigate).
+// Data: guihook "SharedCareerTime" (field "fuel", from lua/ge/extensions/sharedCareer/fuel.lua
+// overview), every second. "Go" sets a route to the station (sharedCareer_fuel.uiNavigate).
 //
-// Hinweis: Oberste Ebene nur mit var/function – das Spiel wertet app.js beim Neuladen der Apps
-// erneut im selben Bereich aus.
+// Note: only var/function at the top level – the game evaluates app.js again in the same
+// scope when the apps are reloaded.
 
 var sharedCareerFuelApp = angular.module('beamng.apps');
 
@@ -24,14 +24,14 @@ sharedCareerFuelApp.controller('SharedCareerFuel', ['$scope', function ($scope) 
 
 	$scope.fuel = null;
 	$scope.connected = false;
-	// Standard: eingeklappt (nur die Lasche mit der Zapfsäule)
+	// default: collapsed (only the tab with the fuel pump)
 	$scope.collapsed = true;
 	try { var c = window.localStorage.getItem(COLLAPSED_KEY); if (c !== null) $scope.collapsed = c === "1"; } catch (e) {}
 	$scope.sort = "gasoline";
 	try { $scope.sort = window.localStorage.getItem(SORT_KEY) || "gasoline"; } catch (e) {}
 
-	// Menü und Fuel-Fenster liegen an derselben Stelle am rechten Rand: öffnet sich eins, klappt
-	// das andere zu (Fenster-Ereignis "sharedCareerPanelOpen").
+	// Menu and fuel window sit at the right edge: when one opens, the other one collapses
+	// (window event "sharedCareerPanelOpen").
 	function setCollapsed(value) {
 		$scope.collapsed = value;
 		try { window.localStorage.setItem(COLLAPSED_KEY, value ? "1" : "0"); } catch (e) {}
@@ -51,7 +51,7 @@ sharedCareerFuelApp.controller('SharedCareerFuel', ['$scope', function ($scope) 
 		$scope.sort = s;
 		try { window.localStorage.setItem(SORT_KEY, s); } catch (e) {}
 	};
-	// Sorte, deren Preis hervorgehoben wird (bei "Nearest" Benzin)
+	// fuel type whose price is highlighted (gasoline for "Nearest")
 	$scope.mainFuel = function () { return $scope.sort === 'diesel' ? 'diesel' : 'gasoline'; };
 
 	$scope.stations = function () {
