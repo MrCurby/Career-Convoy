@@ -32,26 +32,57 @@ The BeamNG career is made for playing alone. If you try it on a multiplayer serv
 
 **Made for small groups of friends.** SharedCareer is built for a few friends who just want to hang out on a BeamMP server and enjoy the career together, without stress and without things breaking. It's not made for big public servers.
 
-SharedCareer doesn't add new game modes like races or leaderboards. It just makes the career you already know work well with friends. The idea came from [Mileage](https://github.com/norto22/Mileage), but SharedCareer is its own, much smaller mod.
+**What it is and what it isn't.** There are no new game modes like races or leaderboards. It's still the normal BeamNG career. Most of what SharedCareer does are fixes, so the career works at all with more than one player. On top of that there are a few small extras that only make sense when you play together. They are listed separately below, and you can switch most of them off. The idea came from [Mileage](https://github.com/norto22/Mileage), but SharedCareer is its own, much smaller mod.
 
 Players **don't need to install anything**. BeamMP downloads the mod for them when they join.
 
 ## Features
 
-| | |
-|---|---|
-| <img src="docs/icons/save.svg" width="20" height="20" alt=""> **Own save per player** | Each player has their own career save, tied to their BeamMP account. Renaming your BeamMP account keeps your save. |
-| <img src="docs/icons/shield.svg" width="20" height="20" alt=""> **Safe career start** | Other players' cars survive when your career loads. Duplicate cars in the garage are prevented. |
-| <img src="docs/icons/traffic-light.svg" width="20" height="20" alt=""> **One shared world** | Same time of day, same traffic light cycle and the same amount of traffic for everyone. |
-| <img src="docs/icons/day-night.svg" width="20" height="20" alt=""> **Day & night cycle** | Long days and short nights (default 50 min day, 5 min night). Anyone can pause the clock or jump to a time. |
-| <img src="docs/icons/car.svg" width="20" height="20" alt=""> **Lightweight, careful traffic** | Traffic uses simplified vehicles that are cheap to sync, and the AI keeps more distance. The server splits a total traffic limit across all players. |
-| <img src="docs/icons/sliders.svg" width="20" height="20" alt=""> **SharedCareer menu** | An in-game window (key **F7**) with tabs for time, traffic, options and players. Every change applies to everyone instantly. |
-| <img src="docs/icons/users.svg" width="20" height="20" alt=""> **Find your friends** | Navigate to a player with a route on the road, or watch them. Name tags show what players are doing: *Mission*, *On foot*, *Loading*. |
-| <img src="docs/icons/fuel.svg" width="20" height="20" alt=""> **Shared fuel prices** | Everyone pays the same price at a station. Deliver gasoline or diesel and that station gets cheaper for everyone. A fuel app shows the cheapest station. |
-| <img src="docs/icons/monitor.svg" width="20" height="20" alt=""> **Garage computers from a distance** | Use the garage computer from anywhere in the room instead of standing exactly in front of it. |
-| <img src="docs/icons/money.svg" width="20" height="20" alt=""> **Send money** | `/pay <name> <amount>` in chat, with automatic refund if something goes wrong. |
-| <img src="docs/icons/message.svg" width="20" height="20" alt=""> **Welcome dialog** | New players get a short overview when they join, with a "Don't show again" option. |
-| <img src="docs/icons/update.svg" width="20" height="20" alt=""> **Painless updates** | Settings migrate automatically on updates. One command on the server installs the newest release. |
+### Fixes: making the career work with friends
+
+Without these, the career breaks or behaves strangely on a multiplayer server.
+
+| | What it does | Can be turned off? |
+|---|---|---|
+| <img src="docs/icons/save.svg" width="20" height="20" alt=""> **Career starts on join, own save** | Your career loads by itself when you join. Each player has their own save, tied to their BeamMP account, so renaming your account keeps your save. | No (core of the mod) |
+| <img src="docs/icons/shield.svg" width="20" height="20" alt=""> **Safe career start** | Loading your career no longer deletes your friends' cars, and the garage no longer creates duplicate cars. | No |
+| <img src="docs/icons/traffic-light.svg" width="20" height="20" alt=""> **Same world for everyone** | Same time of day and same traffic light cycle for everyone. Cars that the career hides or shows (garage, dealer) are hidden or shown for everyone too. | Time and traffic lights: yes |
+| <img src="docs/icons/car.svg" width="20" height="20" alt=""> **Traffic that doesn't overload the server** | The server splits a total traffic limit across all players, and traffic uses simplified cars that are cheap to sync. Your traffic no longer carries your name tag. | Limit and simple cars: yes |
+| <img src="docs/icons/fuel.svg" width="20" height="20" alt=""> **Same fuel price for everyone** | Normally every player rolls their own random price at the same station. With SharedCareer everyone pays the same. | Yes (together with the fuel extra below) |
+
+### Extras: small things for playing together
+
+These go beyond the normal career. They are on by default unless noted.
+
+| | What it does | Can be turned off? |
+|---|---|---|
+| <img src="docs/icons/day-night.svg" width="20" height="20" alt=""> **Long days, short nights** | Default: 50 min day, 5 min night, instead of the game's own day length. Anyone can pause the clock or jump to a time. | Yes, lengths are adjustable, or each player keeps their own time |
+| <img src="docs/icons/car.svg" width="20" height="20" alt=""> **More careful traffic AI** | The AI keeps more distance and brakes earlier. The police are not affected. | Yes (back to the game's AI) |
+| <img src="docs/icons/sliders.svg" width="20" height="20" alt=""> **SharedCareer menu** | An in-game window (key **F7**) for time, traffic, options and players. Every change applies to everyone. | Changing things can be limited to the server console |
+| <img src="docs/icons/users.svg" width="20" height="20" alt=""> **Find your friends** | Navigate to a player or watch them, and see what others are doing on their name tags (*Mission*, *On foot*, *Loading*). Teleporting to a player is **off** by default. | Name tag status and teleport: yes |
+| <img src="docs/icons/fuel.svg" width="20" height="20" alt=""> **Cheaper fuel through deliveries** | Deliver gasoline or diesel to a station and it gets cheaper there for everyone for a while. A fuel app shows the cheapest station. | Yes |
+| <img src="docs/icons/monitor.svg" width="20" height="20" alt=""> **Garage computers from a distance** | Use the garage computer from anywhere in the room instead of standing right in front of it. | On other maps: yes. On West Coast USA it comes from a map file in the mod, so it's always on |
+| <img src="docs/icons/money.svg" width="20" height="20" alt=""> **Send money** | `/pay <name> <amount>` in chat, with an automatic refund if something goes wrong. | Yes |
+| <img src="docs/icons/message.svg" width="20" height="20" alt=""> **Welcome dialog** | A short overview when you join. Each player can pick "Don't show again". | Yes |
+
+How to switch things off: [Settings & commands](docs/configuration.md).
+
+### Good to know: what the mod changes on your PC
+
+The mod only runs while you are on a SharedCareer server (BeamMP only loads it there). While it runs:
+
+- **Console and world editor are locked**, and time, weather and traffic in the pause menu are display-only. This keeps the shared world the same for everyone. The server can allow both.
+- **Two game settings are set by the server** (simplified traffic cars, optionally simplified cars of other players). Your own values come back when you leave.
+- **Your UI layout gets the SharedCareer menu and the fuel app**, once. If you remove them, they don't come back. Leftover apps from Mileage are removed, after a backup of the layout file.
+- **On West Coast USA, the garage computer zones are bigger** (the mod ships a changed copy of that map file).
+
+These changes stay after you leave:
+
+- **Your save** is a normal career save in your BeamNG user folder, named after your BeamMP account.
+- **Your UI layout** keeps the two SharedCareer apps (you can remove them), and Mileage leftovers stay removed.
+- **A small file** `settings/sharedCareer/state.json` remembers choices like "Don't show again".
+
+For server owners: settings move to new defaults automatically on updates, and `./server.sh update` installs the newest release. See [Server setup](docs/server-setup.md).
 
 ## Screenshots
 
