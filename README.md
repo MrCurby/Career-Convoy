@@ -30,6 +30,8 @@ The BeamNG career is made for playing alone. If you try it on a multiplayer serv
 - Everyone drives in the **same world**, and the mod keeps it the same for everyone.
 - **Your progress stays yours**: your money, cars and missions are saved on your own PC, just like in single player.
 
+**Made for small groups of friends.** SharedCareer is built for a few friends who just want to hang out on a BeamMP server and enjoy the career together, without stress and without things breaking. It's not made for big public servers.
+
 SharedCareer doesn't add new game modes like races or leaderboards. It just makes the career you already know work well with friends. The idea came from [Mileage](https://github.com/norto22/Mileage), but SharedCareer is its own, much smaller mod.
 
 Players **don't need to install anything**. BeamMP downloads the mod for them when they join.
