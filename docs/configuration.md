@@ -53,6 +53,7 @@ The file is `Resources/Server/SharedCareer/config/config.json`. It is created on
 | `client.trafficReserve` | `4` | Extra hidden cars per player, so the menu can raise the amount live |
 | `client.trafficSimpleVehicles` | `true` | Traffic as simplified vehicles (`simple_traffic`) for all players |
 | `client.trafficAggression` | `0.2` | Traffic AI aggression, from 0.05 (careful) to 1 (aggressive). 0 = game default. Lower means more distance and earlier braking. Police are not affected. |
+| `client.trafficGrip` | `0.85` | How much tire grip the traffic AI thinks it has (0.5–0.95, game default 0.95). Lower means it brakes earlier and more gently at intersections and traffic lights, and takes corners more slowly. 0 = game default. Police are not affected. |
 | `server.trafficSignalSync` | `true` | Same traffic light cycle for everyone |
 
 ### Time of day

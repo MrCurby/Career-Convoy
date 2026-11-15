@@ -124,7 +124,15 @@ end
 -- (0 = very careful, 1 = very aggressive). Traffic resets it itself on spawn and
 -- respawn, so for our own traffic it is set to the server value regularly.
 -- The police stay unchanged, otherwise chases don't work.
--- client.trafficAggression = 0 leaves the AI alone completely.
+-- client.trafficAggression = 0 leaves the aggression alone.
+--
+-- Second lever (client.trafficGrip): the AI's estimate of its own tire grip
+-- (ai.lua parameter staticFrictionCoefMult, game default 0.95). A lower estimate makes it
+-- brake earlier and more gently at intersections and traffic lights (brake distance
+-- = speed^2 / (2 g grip ...)) and drive through corners more slowly. Following distance to
+-- cars ahead is still set by the aggression (ai.lua uses min(aggression, grip) there).
+-- The game resets the parameters when the AI gets a new route, so it is re-sent
+-- regularly together with the aggression. client.trafficGrip = 0 leaves it alone.
 
 local AI_EVERY = 3
 local sinceAi = AI_EVERY
@@ -137,12 +145,30 @@ local function isPolice(data)
 	return name == "police"
 end
 
+-- Lua command for one traffic car, or nil if both levers are off.
+local function aiCommand(aggression, grip)
+	local parts = {}
+	if aggression then
+		table.insert(parts, string.format("if ai.setAggression then ai.setAggression(%.3f) end", aggression))
+	end
+	if grip then
+		table.insert(parts, string.format("if ai.setParameters then ai.setParameters({staticFrictionCoefMult = %.3f}) end", grip))
+	end
+	if #parts == 0 then return nil end
+	return "if ai then " .. table.concat(parts, " ") .. " end"
+end
+M.aiCommand = aiCommand
+
 function M.applyAiCaution(now)
 	local core = U.ext("sharedCareer_core")
 	local config = core and core.getConfig()
-	local value = config and tonumber(config.trafficAggression)
-	if not value or value <= 0 then return end
-	value = math.max(0.05, math.min(1, value))
+	if not config then return end
+	local aggression = tonumber(config.trafficAggression)
+	aggression = (aggression and aggression > 0) and math.max(0.05, math.min(1, aggression)) or nil
+	local grip = tonumber(config.trafficGrip)
+	grip = (grip and grip > 0) and math.max(0.5, math.min(0.95, grip)) or nil
+	local value = aiCommand(aggression, grip)
+	if not value then return end
 	if not gameplay_traffic or type(gameplay_traffic.getTrafficData) ~= "function" then return end
 	local seen = {}
 	for gameId, data in pairs(gameplay_traffic.getTrafficData() or {}) do
@@ -151,7 +177,7 @@ function M.applyAiCaution(now)
 			local veh = be:getObjectByID(gameId)
 			local last = aiApplied[gameId]
 			if veh and (not last or last.value ~= value or now - last.at >= AI_REFRESH) then
-				veh:queueLuaCommand(string.format("if ai and ai.setAggression then ai.setAggression(%.3f) end", value))
+				veh:queueLuaCommand(value)
 				aiApplied[gameId] = {value = value, at = now}
 			end
 		end

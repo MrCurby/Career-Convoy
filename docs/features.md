@@ -117,7 +117,9 @@ Added to your UI automatically on the first join. If you removed it: UI app menu
 ## Traffic
 
 - Traffic spawns as **simplified vehicles** (`simple_traffic`). They look a bit plainer, but cost much less to sync between all players.
-- The **AI drives more carefully** than in single player: more distance, earlier braking. Police are not affected.
+- The **AI drives more carefully** than in single player. Two settings do that, and police are not affected by either:
+  - lower *aggression* (`client.trafficAggression`): more distance to the car ahead, earlier braking behind it
+  - a lower *grip estimate* (`client.trafficGrip`): the AI thinks its tires grip less, so it brakes earlier and more gently at intersections and traffic lights and takes corners more slowly
 - The server has a **total limit** for driving and parked traffic and splits it across all players, so more players don't mean more lag.
 - Other players' cars are never treated as your traffic, so your police won't chase them and your traffic won't take them over.
 - Your traffic doesn't show your name tag.

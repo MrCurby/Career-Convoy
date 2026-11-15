@@ -427,6 +427,7 @@ extensions.hook("onWorldReadyState", 2)
 local cfgAi = {}
 for k, v in pairs(config) do cfgAi[k] = v end
 cfgAi.trafficAggression = 0.2
+cfgAi.trafficGrip = 0.85
 handlers.sc_config(json.encode(cfgAi))
 local carA = addVehicle(40, "0-40", true)
 local cop = addVehicle(41, "0-41", true)
@@ -447,7 +448,36 @@ local function aggrCount(v)
 	for _, cmd in ipairs(v.lua) do if cmd:find("setAggression") then c = c + 1 end end
 	return c
 end
+local function grip(v)
+	for i = #v.lua, 1, -1 do
+		local x = v.lua[i]:match("staticFrictionCoefMult = ([%d%.]+)")
+		if x then return tonumber(x) end
+	end
+end
+-- runs the last AI command in a fake vehicle Lua and returns what it called
+local function lastAiCommand(v)
+	for i = #v.lua, 1, -1 do
+		if v.lua[i]:find("ai%.set") then return v.lua[i], i end
+	end
+end
+local function runInVehicle(v)
+	local calls = {}
+	local env = {ai = {
+		setAggression = function(x) calls.aggression = x end,
+		setParameters = function(t) calls.params = t end,
+	}}
+	local fn = assert(loadstring((lastAiCommand(v))))
+	setfenv(fn, env)
+	fn()
+	return calls
+end
 check(aggr(carA) == 0.2, "traffic gets a more careful aggression")
+check(grip(carA) == 0.85, "traffic gets a lower grip estimate (brakes earlier)")
+local calls = runInVehicle(carA)
+check(calls.aggression == 0.2 and calls.params and calls.params.staticFrictionCoefMult == 0.85
+	and next(calls.params, next(calls.params)) == nil,
+	"the command runs in the vehicle and only sets staticFrictionCoefMult")
+check(grip(cop) == nil, "police grip stays unchanged")
 check(aggr(cop) == nil, "police stay unchanged")
 check(aggr(mineAi) == nil, "the player's car is not touched")
 local n = aggrCount(carA)
@@ -457,11 +487,22 @@ cfgAi.trafficAggression = 0.1
 handlers.sc_configUpdate(json.encode(cfgAi))
 update(3.1)
 check(aggr(carA) == 0.1, "live change from the server applies")
+cfgAi.trafficGrip = 0.2
+handlers.sc_configUpdate(json.encode(cfgAi))
+update(3.1)
+check(grip(carA) == 0.5, "grip is clamped to at least 0.5 (the AI would crawl otherwise)")
+cfgAi.trafficGrip = 0.85
 cfgAi.trafficAggression = 0
 handlers.sc_configUpdate(json.encode(cfgAi))
 n = aggrCount(carA)
 update(3.1); update(10)
-check(aggrCount(carA) == n, "0 = AI is not changed")
+check(aggrCount(carA) == n, "0 = aggression is not changed")
+check(grip(carA) == 0.85 and runInVehicle(carA).aggression == nil, "grip still applies on its own")
+cfgAi.trafficGrip = 0
+handlers.sc_configUpdate(json.encode(cfgAi))
+local _, lastIndex = lastAiCommand(carA)
+update(3.1); update(10)
+check(select(2, lastAiCommand(carA)) == lastIndex, "both 0 = AI is not touched at all")
 
 --== 7c. Time of day and pause menu ==========================================
 resetWorld()

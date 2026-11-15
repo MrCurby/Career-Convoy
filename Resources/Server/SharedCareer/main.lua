@@ -58,7 +58,7 @@
 --   Server -> Client: sc_fuelPrices {enabled, factors = {[station] = {gasoline = 0.9, ...}}}
 --                       (from the SharedCareer menu window)
 
-local VERSION = "0.8.6"
+local VERSION = "0.8.7"
 local TAG = "[SharedCareer] "
 
 local CONFIG_DIR = "Resources/Server/SharedCareer/config"
@@ -137,6 +137,10 @@ local DEFAULTS = {
 		-- Lower = brakes earlier, keeps more distance. 0 = game default, don't change.
 		-- The police are excluded. Can be changed live: sc set client.trafficAggression 0.15
 		trafficAggression = 0.2,
+		-- How much grip the traffic AI thinks its tires have (game default 0.95, range 0.5–0.95).
+		-- Lower = brakes earlier and more gently at intersections and traffic lights, and takes
+		-- corners more slowly. 0 = leave the game's value alone. Police are excluded.
+		trafficGrip = 0.85,
 		-- Use garage computers from a distance: "Use computer" already appears at this
 		-- distance (meters, half edge length of the zone). 0 = game default (right in front). Max 30.
 		computerAccessRange = 6,
