@@ -1,0 +1,52 @@
+<div ng-controller="SharedCareerFuel" class="scTime scFuel" ng-class="{'sct-collapsed': collapsed}">
+	<!-- Stil vom SharedCareer-Menü (gleiche Optik) + eigene Ergänzungen -->
+	<link rel="stylesheet" type="text/css" href="/ui/modules/apps/SharedCareer-Time/app.css">
+	<link rel="stylesheet" type="text/css" href="/ui/modules/apps/SharedCareer-Fuel/app.css">
+
+	<div class="sct-panel" ng-if="!collapsed">
+		<div class="sct-header">
+			<span class="sct-brand" title="SharedCareer Fuel">
+				<svg class="sct-logo" viewBox="0 0 24 24" aria-hidden="true">
+					<path d="M5 3h9a1 1 0 0 1 1 1v16h1v2H4v-2h1V4a1 1 0 0 1 1-1z" fill="currentColor"/>
+					<rect x="7" y="5" width="6" height="5" rx="0.6" class="scf-window"/>
+					<path d="M15 8h2.2l2.3 2.3V17a1.5 1.5 0 0 1-3 0v-3h-1.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+				</svg>
+			</span>
+			<span class="sct-title">FUEL PRICES</span>
+			<span class="sct-gap"></span>
+			<button class="sct-btn sct-small" ng-class="{'sct-on': sort === 'gasoline'}" ng-click="setSort('gasoline')" title="Cheapest gasoline first">Gasoline</button>
+			<button class="sct-btn sct-small" ng-class="{'sct-on': sort === 'diesel'}" ng-click="setSort('diesel')" title="Cheapest diesel first">Diesel</button>
+			<button class="sct-btn sct-small" ng-class="{'sct-on': sort === 'distance'}" ng-click="setSort('distance')" title="Nearest first">Nearest</button>
+		</div>
+
+		<div class="sct-body sct-scroll" title="Deliver gasoline or diesel to a station to make it cheaper for everyone">
+			<div class="sct-row sct-station" ng-repeat="st in stations() track by st.id"
+				ng-class="{'sct-cheapest': $first && sort !== 'distance'}">
+				<span class="sct-player sct-grow" ng-bind="st.name" title="{{ st.name }}"></span>
+				<span class="sct-price" ng-repeat="f in ['gasoline', 'diesel']" ng-if="st.fuels[f]"
+					ng-class="{'sct-price-main': f === mainFuel(), 'sct-price-off': st.fuels[f].discount > 0}"
+					title="{{ f }}{{ st.fuels[f].discount > 0 ? ' – ' + st.fuels[f].discount + '% cheaper from deliveries' : '' }}">
+					<span class="sct-fuelkey" ng-bind="f === 'gasoline' ? 'G' : 'D'"></span>{{ formatPrice(st.fuels[f]) }}<span class="sct-disc" ng-if="st.fuels[f].discount > 0">−{{ st.fuels[f].discount }}%</span>
+				</span>
+				<span class="sct-dist" ng-if="st.distance !== undefined" ng-bind="formatDistance(st.distance)"></span>
+				<button class="sct-btn sct-small" ng-if="st.canNavigate && fuel.navigating !== st.id" ng-click="navigate(st.id)"
+					title="Set the navigation to this gas station">Go</button>
+				<button class="sct-btn sct-small sct-on" ng-if="fuel.navigating === st.id" ng-click="stopNavigate()" title="Stop navigation">Stop</button>
+			</div>
+			<div class="sct-note" ng-if="!connected">Only on a SharedCareer server</div>
+			<div class="sct-note" ng-if="connected && !stations().length">No gas stations on this map</div>
+		</div>
+	</div>
+
+	<!-- Lasche: klappt ein/aus (Zapfsäule) -->
+	<div class="sct-tab" ng-click="toggleCollapsed()" title="{{ collapsed ? 'Show fuel prices' : 'Hide fuel prices' }}">
+		<span class="sct-tab-icon" ng-if="collapsed">
+			<svg class="sct-logo" viewBox="0 0 24 24" aria-hidden="true">
+				<path d="M5 3h9a1 1 0 0 1 1 1v16h1v2H4v-2h1V4a1 1 0 0 1 1-1z" fill="currentColor"/>
+				<rect x="7" y="5" width="6" height="5" rx="0.6" class="scf-window"/>
+				<path d="M15 8h2.2l2.3 2.3V17a1.5 1.5 0 0 1-3 0v-3h-1.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+			</svg>
+		</span>
+		<span class="sct-tab-arrow" ng-bind="collapsed ? '<' : '>'"></span>
+	</div>
+</div>

@@ -1,0 +1,360 @@
+-- SharedCareer :: Gemeinsame Spritpreise
+--
+-- Spiel (freeroam/facilities/fuelPrice.lua): Jede Tankstelle hat pro Sorte einen Grundpreis
+-- (priceBaseline) und einen Zufallsanteil, den JEDER Spieler beim Laden der Karte selbst würfelt –
+-- an derselben Tankstelle zahlt also jeder etwas anderes. setDisplayPrices() berechnet die Preise
+-- und beschriftet die Preisschilder; career/modules/fuel.lua fragt beim Tanken getFuelPrice ab.
+--
+-- SharedCareer:
+--   * Preise = Grundpreis × Faktor vom Server, ohne Zufall -> alle zahlen dasselbe.
+--   * Die Faktoren kommen vom Server (sc_fuelPrices). Hier werden priceBaseline/Zufall in den
+--     Tankstellen-Daten gesetzt und setDisplayPrices() aufgerufen: das Spiel rechnet neu und
+--     beschriftet die Schilder selbst.
+--   * Spritlieferungen: career_modules_delivery_progress.onCargoDelivered wird eingewickelt.
+--     Eigene Lieferungen von Benzin/Diesel an eine Tankstelle gehen an den Server
+--     (sc_fuelDelivered), der den Preis dieser Sorte dort für alle senkt.
+-- Ausschalten: server.fuelEconomy = false (dann gelten die normalen Spielpreise).
+
+local M = {}
+
+local U
+
+local factors = nil        -- {[station] = {[fuel] = faktor}} vom Server
+local enabled = false
+local originals = {}       -- [station][fuel] = {baseline, gain, bias}
+local applyPending = false
+local expected = {}        -- [station][fuel] = Preis, den das Spiel nach apply liefern sollte
+local fallback = false     -- true, wenn getFuelPrice direkt eingewickelt werden musste
+local sinceCheck = 1
+
+local function careerActive()
+	return career_career and type(career_career.isActive) == "function" and career_career.isActive() == true
+end
+
+local function gasStations()
+	local facilities = rawget(_G, "freeroam_facilities")
+	if type(facilities) ~= "table" or type(facilities.getFacilities) ~= "function" then return nil end
+	local level = type(getCurrentLevelIdentifier) == "function" and getCurrentLevelIdentifier() or nil
+	if not level then return nil end
+	local ok, data = pcall(facilities.getFacilities, level)
+	if not ok or type(data) ~= "table" or type(data.gasStations) ~= "table" then return nil end
+	return data.gasStations
+end
+
+--== Preise anwenden ===========================================================
+
+--- Setzt Grundpreis × Faktor (ohne Zufall) in den Tankstellen-Daten und lässt das Spiel
+--- Preise und Schilder neu berechnen. Gibt die Anzahl geänderter Preise zurück.
+function M.apply()
+	local stations = gasStations()
+	local priceModule = rawget(_G, "freeroam_facilities_fuelPrice")
+	if not stations or type(priceModule) ~= "table" or type(priceModule.setDisplayPrices) ~= "function" then
+		return 0
+	end
+	local changed = 0
+	expected = {}
+	for _, station in pairs(stations) do
+		if type(station) == "table" and station.id and type(station.prices) == "table" then
+			for fuel, p in pairs(station.prices) do
+				if type(p) == "table" and tonumber(p.priceBaseline) then
+					originals[station.id] = originals[station.id] or {}
+					local o = originals[station.id][fuel]
+					if not o then
+						o = {baseline = p.priceBaseline, gain = p.priceRandomnessGain, bias = p.priceRandomnessBias}
+						originals[station.id][fuel] = o
+					end
+					if enabled then
+						local f = factors and factors[station.id] and tonumber(factors[station.id][fuel]) or 1
+						p.priceBaseline = o.baseline * f
+						p.priceRandomnessGain, p.priceRandomnessBias = nil, nil
+						expected[station.id] = expected[station.id] or {}
+						expected[station.id][fuel] = o.baseline * f
+					else
+						p.priceBaseline, p.priceRandomnessGain, p.priceRandomnessBias = o.baseline, o.gain, o.bias
+					end
+					changed = changed + 1
+				end
+			end
+		end
+	end
+	if changed > 0 then
+		local ok, err = pcall(priceModule.setDisplayPrices)
+		if not ok then U.log("E", "fuel", "setDisplayPrices failed: " .. tostring(err)) end
+		M.verify(priceModule)
+	end
+	return changed
+end
+
+-- Hat das Spiel die neuen Preise übernommen? Falls getFacilities nur eine Kopie liefert, nicht –
+-- dann wird getFuelPrice direkt eingewickelt (Tanken richtig, Schilder bleiben beim alten Wert).
+local function makeGetFuelPrice(original)
+	return function(stationId, fuelType, ...)
+		if enabled and expected[stationId] and expected[stationId][fuelType] then
+			return expected[stationId][fuelType]
+		end
+		return original(stationId, fuelType, ...)
+	end
+end
+
+function M.verify(priceModule)
+	if not enabled or fallback or type(priceModule.getFuelPrice) ~= "function" then return end
+	for station, fuels in pairs(expected) do
+		for fuel, price in pairs(fuels) do
+			local ok, actual = pcall(priceModule.getFuelPrice, station, fuel)
+			if ok and tonumber(actual) and math.abs(actual - price) > 0.0005 then
+				fallback = true
+				U.replace(priceModule, "getFuelPrice", makeGetFuelPrice)
+				U.log("W", "fuel", "game did not take the new prices – using getFuelPrice fallback (price signs keep the old value)")
+			end
+			return
+		end
+	end
+end
+
+local function rxFuelPrices(data)
+	local msg = U.decode(data)
+	if not msg then return end
+	enabled = msg.enabled == true
+	factors = type(msg.factors) == "table" and msg.factors or {}
+	applyPending = true
+end
+
+--== Lieferungen erkennen ======================================================
+
+local function fuelTypeOf(cargo)
+	local t = tostring(cargo.materialType or ""):lower()
+	if t:find("diesel", 1, true) then return "diesel" end
+	if t:find("gasoline", 1, true) or t:find("petrol", 1, true) then return "gasoline" end
+	return nil
+end
+
+--- Tankstellen-ID (für die Preise) zu einer Liefer-Station (z.B. "apex_fuel").
+function M.stationFor(deliveryFacId)
+	local stations = gasStations()
+	if not stations or type(deliveryFacId) ~= "string" then return nil end
+	local name
+	local generator = rawget(_G, "career_modules_delivery_generator")
+	if generator and type(generator.getFacilityById) == "function" then
+		local ok, fac = pcall(generator.getFacilityById, deliveryFacId)
+		if ok and type(fac) == "table" then name = fac.name end
+	end
+	local stripped = deliveryFacId:gsub("_fuel$", ""):gsub("^fuel_", "")
+	for _, s in pairs(stations) do
+		if type(s) == "table" and s.id then
+			if (name and s.name == name) or s.id == deliveryFacId or s.id == stripped then
+				return s.id, s.name
+			end
+		end
+	end
+	return nil
+end
+
+local function translate(key)
+	if type(key) ~= "string" then return nil end
+	if type(translateLanguage) == "function" then
+		local ok, text = pcall(translateLanguage, key, key)
+		if ok and type(text) == "string" and text ~= key then return text end
+	end
+	return nil
+end
+
+--- Aus den abgelieferten Frachtstücken die Spritlieferungen heraussuchen und melden.
+function M.reportDelivered(cargoItems)
+	if not enabled or type(cargoItems) ~= "table" then return end
+	local totals = {} -- [station][fuel] = {amount, name}
+	for _, cargo in ipairs(cargoItems) do
+		local fuel = type(cargo) == "table" and fuelTypeOf(cargo)
+		local facId = fuel and type(cargo.location) == "table" and cargo.location.facId
+		if facId then
+			local station, stationName = M.stationFor(facId)
+			if station then
+				totals[station] = totals[station] or {}
+				local t = totals[station][fuel] or {amount = 0, name = translate(stationName)}
+				t.amount = t.amount + (tonumber(cargo.slots) or 0)
+				totals[station][fuel] = t
+			else
+				U.log("W", "fuel", "no gas station found for delivery facility " .. tostring(facId))
+			end
+		end
+	end
+	for station, fuels in pairs(totals) do
+		for fuel, t in pairs(fuels) do
+			if t.amount > 0 then
+				U.log("I", "fuel", string.format("delivered %s %s to %s", tostring(t.amount), fuel, station))
+				U.send("sc_fuelDelivered", {station = station, fuel = fuel, amount = t.amount, stationName = t.name})
+			end
+		end
+	end
+end
+
+local function makeOnCargoDelivered(original)
+	return function(cargoItems, ...)
+		local results = U.pack(original(cargoItems, ...))
+		if U.isMP() then
+			local ok, err = pcall(M.reportDelivered, cargoItems)
+			if not ok then U.log("E", "fuel", "fuel delivery check failed: " .. tostring(err)) end
+		end
+		return U.unpack(results, 1, results.n)
+	end
+end
+
+local function ensurePatch()
+	local progress = rawget(_G, "career_modules_delivery_progress")
+	if type(progress) ~= "table" then return end
+	local before = progress.onCargoDelivered
+	U.replace(progress, "onCargoDelivered", makeOnCargoDelivered)
+	-- Falls das Spiel die Funktion über extensions.hook aufruft: Hook-Cache neu bauen.
+	if progress.onCargoDelivered ~= before and type(extensions) == "table" and type(extensions.hookUpdate) == "function" then
+		pcall(extensions.hookUpdate, "onCargoDelivered")
+	end
+end
+M.ensurePatch = ensurePatch
+
+--== Übersicht im Menü (Reiter "Fuel") ===========================================
+-- Alle Tankstellen mit aktuellem Preis je Sorte (wie beim Tanken: getFuelPrice), Rabatt durch
+-- Lieferungen, Entfernung zum Spieler. "Go" setzt die Navigation zur Tankstelle.
+-- Preise in der Einheit der Karte (West Coast: pro US-Gallone, wie auf den Schildern).
+
+local GALLON = 3.78541
+local positions = {}      -- [station] = vec3 oder false (unbekannt)
+local navigatingStation = nil
+
+-- Nur gefundene Positionen merken: kurz nach dem Laden kennt das Spiel sie evtl. noch nicht,
+-- dann wird es beim nächsten Mal erneut versucht.
+local function stationPosition(station)
+	if positions[station.id] then return positions[station.id] end
+	local facilities = rawget(_G, "freeroam_facilities")
+	if facilities and type(facilities.getAverageDoorPositionForFacility) == "function" then
+		local ok, p = pcall(facilities.getAverageDoorPositionForFacility, station)
+		-- im Spiel ein vec3 (LuaJIT-cdata), in den Tests eine Tabelle: beides hat .x
+		if ok and p and p.x then
+			positions[station.id] = p
+			return p
+		end
+	end
+	return nil
+end
+
+local function unitFor(fuel)
+	local levels = rawget(_G, "core_levels")
+	local level = type(getCurrentLevelIdentifier) == "function" and getCurrentLevelIdentifier() or nil
+	if levels and level and type(levels.getLevelByName) == "function" then
+		local ok, info = pcall(levels.getLevelByName, level)
+		if ok and type(info) == "table" and type(info.localUnits) == "table" and info.localUnits[fuel] == "gallonUS" then
+			return "gal", GALLON
+		end
+	end
+	return "l", 1
+end
+
+local function playerPosition()
+	local veh = type(getPlayerVehicle) == "function" and getPlayerVehicle(0) or nil
+	if veh then
+		local ok, pos = pcall(function() return veh:getPosition() end)
+		if ok then return pos end
+	end
+	return nil
+end
+
+--- Stand für den Reiter "Fuel", oder nil ohne Tankstellen.
+function M.overview()
+	local stations = gasStations()
+	local priceModule = rawget(_G, "freeroam_facilities_fuelPrice")
+	if not stations or type(priceModule) ~= "table" or type(priceModule.getFuelPrice) ~= "function" then return nil end
+	local me = playerPosition()
+	local list = {}
+	for _, station in pairs(stations) do
+		if type(station) == "table" and station.id and type(station.prices) == "table" then
+			local entry = {id = station.id, name = translate(station.name) or station.id, fuels = {}}
+			for fuel in pairs(station.prices) do
+				local ok, price = pcall(priceModule.getFuelPrice, station.id, fuel)
+				if ok and tonumber(price) then
+					local unit, mult = unitFor(fuel)
+					local f = enabled and factors and factors[station.id] and tonumber(factors[station.id][fuel]) or 1
+					entry.fuels[fuel] = {price = price * mult, unit = unit,
+						discount = math.floor((1 - f) * 100 + 0.5)}
+				end
+			end
+			local pos = stationPosition(station)
+			if pos and me then
+				local dx, dy = pos.x - me.x, pos.y - me.y
+				entry.distance = math.sqrt(dx * dx + dy * dy)
+			end
+			entry.canNavigate = pos ~= nil
+			if next(entry.fuels) then table.insert(list, entry) end
+		end
+	end
+	return {stations = list, navigating = navigatingStation, enabled = enabled}
+end
+
+function M.uiNavigate(stationId)
+	local stations = gasStations()
+	local markers = rawget(_G, "core_groundMarkers")
+	if not stations or not markers or type(markers.setPath) ~= "function" then return end
+	for _, station in pairs(stations) do
+		if type(station) == "table" and station.id == stationId then
+			local pos = stationPosition(station)
+			if pos then
+				local ok, err = pcall(markers.setPath, vec3(pos.x, pos.y, pos.z))
+				if ok then navigatingStation = stationId
+				else U.log("E", "fuel", "navigation to gas station failed: " .. tostring(err)) end
+			end
+			return
+		end
+	end
+end
+
+function M.uiStopNavigate()
+	local markers = rawget(_G, "core_groundMarkers")
+	if markers and type(markers.setPath) == "function" then pcall(markers.setPath, nil) end
+	navigatingStation = nil
+end
+
+--== Hooks =====================================================================
+
+function M.onUpdate(dtReal)
+	if not U.isMP() then return end
+	sinceCheck = sinceCheck + (tonumber(dtReal) or 0)
+	if applyPending and careerActive() then
+		applyPending = false
+		local n = M.apply()
+		if n == 0 then applyPending = true end -- Karte/Tankstellen noch nicht bereit
+	end
+	if sinceCheck >= 1 then
+		sinceCheck = 0
+		if careerActive() then ensurePatch() end
+	end
+end
+
+-- Nach dem Laden einer Karte würfelt das Spiel die Preise neu: danach wieder anwenden.
+function M.onClientStartMission()
+	originals = {}
+	positions = {}
+	navigatingStation = nil
+	applyPending = factors ~= nil
+end
+
+function M.onCareerActive(active)
+	if active then
+		applyPending = factors ~= nil
+		if U.isMP() then ensurePatch() end
+	end
+end
+
+function M.onBeamMPServerLeave()
+	if factors then
+		enabled = false
+		pcall(M.apply) -- Originalpreise zurück
+	end
+	factors, enabled, originals, applyPending = nil, false, {}, false
+	positions, navigatingStation = {}, nil
+end
+
+function M.onExtensionLoaded()
+	U = extensions.sharedCareer_util
+	U.on("sc_fuelPrices", rxFuelPrices)
+end
+
+M.onInit = function() setExtensionUnloadMode(M, 'manual') end
+
+return M

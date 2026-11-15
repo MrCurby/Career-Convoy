@@ -1,0 +1,67 @@
+# SharedCareer :: automatisches Release
+#
+# Bei jedem Push auf main (und von Hand über "Run workflow"):
+#   1. alle Tests laufen lassen (tools/test.sh)
+#   2. Paket bauen (tools/package.sh -> SharedCareer-<version>.zip)
+#   3. gibt es noch kein Release "v<version>", wird es angelegt und die zip angehängt.
+#      Gibt es die Version schon, passiert nichts. Ein neues Release entsteht also genau dann,
+#      wenn die Version (util.lua + main.lua) erhöht wurde.
+#
+# Auf dem Server holt "./server.sh update" dann das neueste Release (siehe tools/server.sh).
+
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Werkzeuge installieren
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq luajit lua5.3 zip
+
+      - name: Version lesen
+        id: version
+        run: |
+          v=$(sed -n 's/^local VERSION = "\(.*\)"/\1/p' Resources/Server/SharedCareer/main.lua)
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "Version: $v"
+
+      - name: Gibt es das Release schon?
+        id: exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Release v${{ steps.version.outputs.version }} gibt es schon - kein neues Release (Version erhöhen für ein Update)."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Tests und Paket bauen
+        run: |
+          tools/test.sh
+          tools/package.sh
+
+      - name: Release anlegen
+        if: steps.exists.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v="${{ steps.version.outputs.version }}"
+          gh release create "v$v" "SharedCareer-$v.zip" \
+            --title "SharedCareer $v" \
+            --notes "Auf dem Server einspielen: \`./server.sh update\` (lädt dieses Release automatisch)."
