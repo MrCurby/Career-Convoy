@@ -120,6 +120,9 @@ Added to your UI automatically on the first join. If you removed it: UI app menu
 - The **AI drives more carefully** than in single player. Two settings do that, and police are not affected by either:
   - lower *aggression* (`client.trafficAggression`): more distance to the car ahead, earlier braking behind it
   - a lower *grip estimate* (`client.trafficGrip`): the AI thinks its tires grip less, so it brakes earlier and more gently at intersections and traffic lights and takes corners more slowly
+  - a larger *safety gap* (`client.trafficReactionGap`) and a longer *sight range* (`client.trafficSightRange`): the AI notices a slow or standing vehicle on its path earlier (about 190 m instead of 114 m ahead at 100 km/h) and starts braking sooner. This helps when you maneuver a truck on the road. It does not make traffic drive slower.
+
+  The game has no official setting for the last two. SharedCareer finds the values inside the game's AI code while it runs and changes them there; it never edits game files. If a game update renames them, nothing changes and `beamng.log` says `AI tuning not applied`. When it works, every traffic car logs `AI tuning active` once.
 - The server has a **total limit** for driving and parked traffic and splits it across all players, so more players don't mean more lag.
 - Other players' cars are never treated as your traffic, so your police won't chase them and your traffic won't take them over.
 - Your traffic doesn't show your name tag.

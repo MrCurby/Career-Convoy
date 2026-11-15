@@ -54,6 +54,8 @@ The file is `Resources/Server/SharedCareer/config/config.json`. It is created on
 | `client.trafficSimpleVehicles` | `true` | Traffic as simplified vehicles (`simple_traffic`) for all players |
 | `client.trafficAggression` | `0.2` | Traffic AI aggression, from 0.05 (careful) to 1 (aggressive). 0 = game default. Lower means more distance and earlier braking. Police are not affected. |
 | `client.trafficGrip` | `0.85` | How much tire grip the traffic AI thinks it has (0.5–0.95, game default 0.95). Lower means it brakes earlier and more gently at intersections and traffic lights, and takes corners more slowly. 0 = game default. Police are not affected. |
+| `client.trafficReactionGap` | `1.0` | Safety gap in seconds that the traffic AI keeps to a vehicle on its path (0.3–3, game default 0.3). Larger means it starts braking earlier behind slow or standing vehicles, without driving slower. 0 = game default. |
+| `client.trafficSightRange` | `5` | How far ahead the traffic AI checks its path for vehicles: (speed in m/s + 10) × this factor, in meters (3–8, game default 3). With 5 it sees about 190 m ahead at 100 km/h instead of 114 m. 0 = game default. |
 | `server.trafficSignalSync` | `true` | Same traffic light cycle for everyone |
 
 ### Time of day

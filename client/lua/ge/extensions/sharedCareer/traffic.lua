@@ -133,6 +133,13 @@ end
 -- cars ahead is still set by the aggression (ai.lua uses min(aggression, grip) there).
 -- The game resets the parameters when the AI gets a new route, so it is re-sent
 -- regularly together with the aggression. client.trafficGrip = 0 leaves it alone.
+--
+-- Third lever: reacting earlier to obstacles without driving slower (sharedCareerVeh.setAiTuning,
+-- see lua/vehicle/extensions/auto/sharedCareerVeh.lua):
+--   client.trafficReactionGap  safety gap in seconds to a vehicle on the AI's path (game 0.3)
+--   client.trafficSightRange   how far ahead it checks for vehicles: (speed + 10) * factor
+--                              meters (game factor 3)
+-- 0 restores the game's value. Like everything here, police are excluded.
 
 local AI_EVERY = 3
 local sinceAi = AI_EVERY
@@ -145,8 +152,9 @@ local function isPolice(data)
 	return name == "police"
 end
 
--- Lua command for one traffic car, or nil if both levers are off.
-local function aiCommand(aggression, grip)
+-- Lua command for one traffic car, or nil if all levers are off.
+-- tuning = {gap, sight} or nil (both nil when the server doesn't send the settings).
+local function aiCommand(aggression, grip, tuning)
 	local parts = {}
 	if aggression then
 		table.insert(parts, string.format("if ai.setAggression then ai.setAggression(%.3f) end", aggression))
@@ -154,8 +162,20 @@ local function aiCommand(aggression, grip)
 	if grip then
 		table.insert(parts, string.format("if ai.setParameters then ai.setParameters({staticFrictionCoefMult = %.3f}) end", grip))
 	end
-	if #parts == 0 then return nil end
-	return "if ai then " .. table.concat(parts, " ") .. " end"
+	local cmd = #parts > 0 and ("if ai then " .. table.concat(parts, " ") .. " end") or nil
+	if tuning then
+		local t = string.format("if sharedCareerVeh and sharedCareerVeh.setAiTuning then sharedCareerVeh.setAiTuning(%.3f, %.3f) end",
+			tuning.gap, tuning.sight)
+		cmd = cmd and (cmd .. " " .. t) or t
+	end
+	return cmd
+end
+
+-- value from the server: 0 (or missing/invalid) = game value, otherwise clamped to [lo, hi]
+local function tuningValue(raw, lo, hi)
+	local v = tonumber(raw)
+	if not v or v <= 0 then return 0 end
+	return math.max(lo, math.min(hi, v))
 end
 M.aiCommand = aiCommand
 
@@ -167,7 +187,11 @@ function M.applyAiCaution(now)
 	aggression = (aggression and aggression > 0) and math.max(0.05, math.min(1, aggression)) or nil
 	local grip = tonumber(config.trafficGrip)
 	grip = (grip and grip > 0) and math.max(0.5, math.min(0.95, grip)) or nil
-	local value = aiCommand(aggression, grip)
+	local tuning = nil
+	if config.trafficReactionGap ~= nil or config.trafficSightRange ~= nil then
+		tuning = {gap = tuningValue(config.trafficReactionGap, 0.3, 3), sight = tuningValue(config.trafficSightRange, 3, 8)}
+	end
+	local value = aiCommand(aggression, grip, tuning)
 	if not value then return end
 	if not gameplay_traffic or type(gameplay_traffic.getTrafficData) ~= "function" then return end
 	local seen = {}

@@ -58,7 +58,7 @@
 --   Server -> Client: sc_fuelPrices {enabled, factors = {[station] = {gasoline = 0.9, ...}}}
 --                       (from the SharedCareer menu window)
 
-local VERSION = "0.8.7"
+local VERSION = "0.8.8"
 local TAG = "[SharedCareer] "
 
 local CONFIG_DIR = "Resources/Server/SharedCareer/config"
@@ -141,6 +141,11 @@ local DEFAULTS = {
 		-- Lower = brakes earlier and more gently at intersections and traffic lights, and takes
 		-- corners more slowly. 0 = leave the game's value alone. Police are excluded.
 		trafficGrip = 0.85,
+		-- Traffic AI reacts earlier to vehicles on its path, without driving slower:
+		-- safety gap in seconds (game 0.3, range 0.3–3) and how far ahead it looks:
+		-- (speed + 10) * factor meters (game factor 3, range 3–8). 0 = game value.
+		trafficReactionGap = 1.0,
+		trafficSightRange = 5,
 		-- Use garage computers from a distance: "Use computer" already appears at this
 		-- distance (meters, half edge length of the zone). 0 = game default (right in front). Max 30.
 		computerAccessRange = 6,

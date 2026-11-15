@@ -80,7 +80,7 @@ About a minute later the release is on GitHub, and `./server.sh update` installs
 | You have to stand exactly in front of a garage computer | Enlarged computer zones on West Coast USA (generated from the original level file), plus a range boost while playing on other maps | `levels/…`, `tools/zones/`, `garage.lua` |
 | Traffic costs a lot of performance on every PC | Traffic spawns as simplified vehicles, and BeamMP sends that model to everyone | `core.lua`, `traffic.lua` |
 | Too much traffic with many players | The server splits a total limit across all players | `traffic.lua`, server |
-| Traffic AI drives too close and rams players | Lower AI aggression, police excluded | `traffic.lua` |
+| Traffic AI drives too close and rams players | Lower AI aggression and grip estimate; larger safety gap and sight range, set inside ai.lua through upvalues (no game files edited); police excluded | `traffic.lua`, `sharedCareerVeh.lua` |
 | Everybody has a different time of day | The server runs the clock, and the pause-menu environment controls are locked | `env.lua`, server |
 | Different traffic light cycles | The server syncs the signal timer | `core.lua`, server |
 | Finding friends on the map | Players tab: navigate, watch, optional teleport, status on name tags, F7 | `players.lua` |

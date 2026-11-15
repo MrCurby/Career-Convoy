@@ -504,6 +504,85 @@ local _, lastIndex = lastAiCommand(carA)
 update(3.1); update(10)
 check(select(2, lastAiCommand(carA)) == lastIndex, "both 0 = AI is not touched at all")
 
+--== 7b2. AI reacts earlier (vehicle side, ai.lua internals) =================
+-- Rebuild of the relevant structure of the game's lua/vehicle/ai.lua: `ego` and `traffic` are
+-- local tables, only reachable as upvalues of local functions, which are called by the module.
+local function makeFakeAi()
+	local ego = {race_time_gap = 0.3, race_catchAgg = 1, race_brakeAgg = 0}
+	local traffic = {Rfl_fun = function(v) return math.max(60, math.min(200, (v + 10) * 3)) end}
+	local function planAhead() return traffic.Rfl_fun(ego.speed or 0) end   -- nested level 2
+	local function update() return planAhead() end                          -- nested level 1
+	local mod = {}
+	mod.update = function() return update() end
+	mod.setAggression = function() end
+	return mod, ego, traffic
+end
+local vehLogs = {}
+local savedLog = _G.log
+_G.log = function(level, tag, msg) table.insert(vehLogs, level .. " " .. tostring(msg)) end
+local fakeAi, fakeEgo, fakeTraffic = makeFakeAi()
+_G.ai = fakeAi
+local veh = dofile("client/lua/vehicle/extensions/auto/sharedCareerVeh.lua")
+local gameSight = fakeTraffic.Rfl_fun
+check(veh.setAiTuning(1.0, 5) == true, "AI tables found through nested upvalues")
+check(fakeEgo.race_time_gap == 1.0, "safety gap set to 1 s (game 0.3 s)")
+check(fakeTraffic.Rfl_fun(28) == 190 and fakeTraffic.Rfl_fun(0) == 60 and fakeTraffic.Rfl_fun(100) == 300,
+	"sight range: (speed + 10) * 5, between 60 and 300 m")
+check(gameSight(28) == 114, "for comparison: the game sees 114 m at 100 km/h")
+check(#vehLogs == 1 and vehLogs[1]:find("0.30 s %-> 1.00 s") and vehLogs[1]:find("113 m %-> 189 m"),
+	"first apply is logged with old and new values: " .. tostring(vehLogs[1]))
+veh.setAiTuning(1.0, 5)
+check(fakeEgo.race_time_gap == 1.0 and fakeTraffic.Rfl_fun(28) == 190, "applying again changes nothing")
+check(veh.setAiTuning(0, 0) == true and fakeEgo.race_time_gap == 0.3 and fakeTraffic.Rfl_fun == gameSight,
+	"0 restores the game's values")
+veh.setAiTuning(0.8, 0)
+check(fakeEgo.race_time_gap == 0.8 and fakeTraffic.Rfl_fun == gameSight, "each value can be switched on its own")
+-- a game update that renames the internals: nothing changes, one log line
+_G.ai = {update = function() return 1 end}
+veh = dofile("client/lua/vehicle/extensions/auto/sharedCareerVeh.lua")
+vehLogs = {}
+check(veh.setAiTuning(1.0, 5) == false and veh.setAiTuning(1.0, 5) == false, "internals not found: nothing changed")
+check(#vehLogs == 1 and vehLogs[1]:find("not found"), "internals not found: logged once")
+-- debug library not available: nothing changed
+fakeAi, fakeEgo = makeFakeAi()
+_G.ai = fakeAi
+veh = dofile("client/lua/vehicle/extensions/auto/sharedCareerVeh.lua")
+local savedDebug = _G.debug
+_G.debug = nil
+local okNoDebug = veh.setAiTuning(1.0, 5)
+_G.debug = savedDebug
+check(okNoDebug == false and fakeEgo.race_time_gap == 0.3, "without the debug library: nothing changed")
+_G.ai, _G.log = nil, savedLog
+
+-- GE side: the command includes the tuning for traffic, not for police
+resetWorld()
+installCareer()
+extensions.hook("onWorldReadyState", 2)
+local cfgT = {}
+for k, v in pairs(config) do cfgT[k] = v end
+cfgT.trafficAggression, cfgT.trafficReactionGap, cfgT.trafficSightRange = 0.2, 1.0, 5
+handlers.sc_config(json.encode(cfgT))
+local carT = addVehicle(50, "0-50", true)
+local copT = addVehicle(51, "0-51", true)
+gameplay_traffic.getTrafficData = function()
+	return {[50] = {isAi = true}, [51] = {isAi = true, role = {name = "police"}}}
+end
+update(3.1)
+local function tuningCmd(v)
+	for i = #v.lua, 1, -1 do
+		local g, r = v.lua[i]:match("setAiTuning%(([%d%.]+), ([%d%.]+)%)")
+		if g then return tonumber(g), tonumber(r) end
+	end
+end
+local tg, tr = tuningCmd(carT)
+check(tg == 1.0 and tr == 5, "traffic gets the reaction gap and sight range")
+check(tuningCmd(copT) == nil, "police AI is not tuned")
+cfgT.trafficReactionGap, cfgT.trafficSightRange = 9, 0
+handlers.sc_configUpdate(json.encode(cfgT))
+update(3.1)
+tg, tr = tuningCmd(carT)
+check(tg == 3 and tr == 0, "values are clamped (gap max 3 s), 0 = game value")
+
 --== 7c. Time of day and pause menu ==========================================
 resetWorld()
 installCareer()
