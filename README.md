@@ -95,7 +95,12 @@ Bei einem **privaten** Repository zusätzlich eine Zeile `GITHUB_TOKEN="..."` (e
 
 `.github/workflows/release.yml` läuft bei jedem Push auf `main`: alle Tests, Paket bauen, und **wenn es die Version noch nicht als Release gibt**, ein neues Release `v<version>` mit der zip anlegen. Ein Update ausrollen heißt also:
 
-1. Version erhöhen (`util.lua` und `main.lua`) und auf `main` pushen
+1. Version erhöhen und auf `main` pushen:
+   ```bash
+   tools/bump.sh patch     # 0.8.4 -> 0.8.5 (oder: minor, oder eine Version wie 0.9.0)
+   git commit -am "SharedCareer 0.8.5" && git push
+   ```
+   `bump.sh` setzt die Version in `util.lua` und `main.lua` und lässt die Tests laufen. Ein Push **ohne** neue Version baut und testet nur, legt aber kein Release an.
 2. warten, bis unter „Actions“ der Lauf grün ist (ca. 1 Minute)
 3. auf dem Server: `./server.sh update`
 

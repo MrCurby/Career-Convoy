@@ -3,6 +3,8 @@
 
 package.path = "./tests/?.lua;" .. package.path
 local json = require("json")
+-- Version aus dem Code lesen (nur util.lua/main.lua pflegen, siehe tools/bump.sh)
+local VERSION = io.open("client/lua/ge/extensions/sharedCareer/util.lua"):read("*a"):match('M%.VERSION = "(.-)"')
 
 local ROOT = "client/lua/ge/extensions/"
 local clock = 0
@@ -181,7 +183,7 @@ local function update(dt)
 end
 
 local config = {saveSuffix = "_srv", trafficShare = {road = 4, parked = 3},
-	remoteVehicleGhost = true, remoteUnicycleGhost = true, allowConsole = false, serverVersion = "0.8.4",
+	remoteVehicleGhost = true, remoteUnicycleGhost = true, allowConsole = false, serverVersion = VERSION,
 	trafficSimpleVehicles = true, simplifyRemoteVehicles = true}
 
 --== 1. Join: Karriere startet, fremde Autos überleben ==========================

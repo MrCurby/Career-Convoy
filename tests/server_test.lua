@@ -3,6 +3,8 @@
 
 package.path = "./tests/?.lua;" .. package.path
 local json = require("json")
+-- Version aus dem Code lesen (nur util.lua/main.lua pflegen, siehe tools/bump.sh)
+local VERSION = io.open("Resources/Server/SharedCareer/main.lua"):read("*a"):match('local VERSION = "(.-)"')
 
 local tmp = os.tmpname()
 os.remove(tmp)
@@ -85,7 +87,7 @@ local function join(id, name, account)
 	names[id] = name
 	accounts[id] = account == nil and (1000 + id) or (account ~= false and account or nil)
 	onPlayerJoin(id)
-	sc_hello(id, json.encode({version = "0.8.4"}))
+	sc_hello(id, json.encode({version = VERSION}))
 	sc_careerResult(id, json.encode({ok = true}))
 end
 
@@ -211,7 +213,7 @@ check(lastChat(0):find("save anna") ~= nil, "Bestätigung als Einblendung")
 -- Derselbe Account ein zweites Mal gleichzeitig
 connected[7] = true; names[7] = "AnnaZwei"; accounts[7] = 1000; onPlayerJoin(7)
 local before7 = countTo(7, "sc_config")
-sc_hello(7, json.encode({version = "0.8.4"}))
+sc_hello(7, json.encode({version = VERSION}))
 check(dropped[#dropped] == 7 and countTo(7, "sc_config") == before7, "gleicher Account doppelt wird abgelehnt")
 connected[7] = false; onPlayerDisconnect(7)
 -- Gast
@@ -231,7 +233,7 @@ local savedNotify, savedDialog = MP.SendNotification, MP.ConfirmationDialog
 MP.SendNotification, MP.ConfirmationDialog = nil, nil
 local chatsBefore = #chats
 connected[10] = true; names[10] = "Fallback"; accounts[10] = 1010; onPlayerJoin(10)
-sc_hello(10, json.encode({version = "0.8.4"}))
+sc_hello(10, json.encode({version = VERSION}))
 sc_careerResult(10, json.encode({ok = false, reason = "kaputt"}))
 check(#chats > chatsBefore and chats[#chats].kind == nil and chats[#chats].msg:find("kaputt"), "ohne Dialog-API kommt Chat")
 MP.SendNotification, MP.ConfirmationDialog = savedNotify, savedDialog
