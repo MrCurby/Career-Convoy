@@ -1,6 +1,8 @@
 <div align="center">
 
-# 🛞 SharedCareer
+<img src="docs/images/logo.svg" width="72" height="72" alt="SharedCareer logo">
+
+# SharedCareer
 
 **Play the BeamNG.drive career together on a BeamMP server.**
 
@@ -36,18 +38,18 @@ Players **don't install anything**. BeamMP downloads the mod automatically when 
 
 | | |
 |---|---|
-| 💾 **Own save per player** | Each player has their own career save, tied to their BeamMP account. Renaming your BeamMP account keeps your save. |
-| 🚗 **Safe career start** | Other players' cars survive when your career loads. Duplicate cars in the garage are prevented. |
-| 🚦 **One shared world** | Same time of day, same traffic light cycle and the same amount of traffic for everyone. |
-| 🌗 **Day & night cycle** | Long days and short nights (default 50 min day, 5 min night). Anyone can pause the clock or jump to a time. |
-| 🛣️ **Lightweight, careful traffic** | Traffic uses simplified vehicles that are cheap to sync, and the AI keeps more distance. The server splits a total traffic limit across all players. |
-| 🎛️ **SharedCareer menu** | An in-game window (key **F7**) with tabs for time, traffic, options and players. Every change applies to everyone instantly. |
-| 👥 **Find your friends** | Navigate to a player with a route on the road, or watch them. Name tags show what players are doing: *Mission*, *On foot*, *Loading*. |
-| ⛽ **Shared fuel prices** | Everyone pays the same price at a station. Deliver gasoline or diesel and that station gets cheaper for everyone. A fuel app shows the cheapest station. |
-| 🖥️ **Garage computers from a distance** | Use the garage computer from anywhere in the room instead of standing exactly in front of it. |
-| 💸 **Send money** | `/pay <name> <amount>` in chat, with automatic refund if something goes wrong. |
-| 👋 **Welcome dialog** | New players get a short overview when they join, with a "Don't show again" option. |
-| 🔄 **Painless updates** | Settings migrate automatically on updates. One command on the server installs the newest release. |
+| <img src="docs/icons/save.svg" width="20" height="20" alt=""> **Own save per player** | Each player has their own career save, tied to their BeamMP account. Renaming your BeamMP account keeps your save. |
+| <img src="docs/icons/shield.svg" width="20" height="20" alt=""> **Safe career start** | Other players' cars survive when your career loads. Duplicate cars in the garage are prevented. |
+| <img src="docs/icons/traffic-light.svg" width="20" height="20" alt=""> **One shared world** | Same time of day, same traffic light cycle and the same amount of traffic for everyone. |
+| <img src="docs/icons/day-night.svg" width="20" height="20" alt=""> **Day & night cycle** | Long days and short nights (default 50 min day, 5 min night). Anyone can pause the clock or jump to a time. |
+| <img src="docs/icons/car.svg" width="20" height="20" alt=""> **Lightweight, careful traffic** | Traffic uses simplified vehicles that are cheap to sync, and the AI keeps more distance. The server splits a total traffic limit across all players. |
+| <img src="docs/icons/sliders.svg" width="20" height="20" alt=""> **SharedCareer menu** | An in-game window (key **F7**) with tabs for time, traffic, options and players. Every change applies to everyone instantly. |
+| <img src="docs/icons/users.svg" width="20" height="20" alt=""> **Find your friends** | Navigate to a player with a route on the road, or watch them. Name tags show what players are doing: *Mission*, *On foot*, *Loading*. |
+| <img src="docs/icons/fuel.svg" width="20" height="20" alt=""> **Shared fuel prices** | Everyone pays the same price at a station. Deliver gasoline or diesel and that station gets cheaper for everyone. A fuel app shows the cheapest station. |
+| <img src="docs/icons/monitor.svg" width="20" height="20" alt=""> **Garage computers from a distance** | Use the garage computer from anywhere in the room instead of standing exactly in front of it. |
+| <img src="docs/icons/money.svg" width="20" height="20" alt=""> **Send money** | `/pay <name> <amount>` in chat, with automatic refund if something goes wrong. |
+| <img src="docs/icons/message.svg" width="20" height="20" alt=""> **Welcome dialog** | New players get a short overview when they join, with a "Don't show again" option. |
+| <img src="docs/icons/update.svg" width="20" height="20" alt=""> **Painless updates** | Settings migrate automatically on updates. One command on the server installs the newest release. |
 
 ## Screenshots
 
