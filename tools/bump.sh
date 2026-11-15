@@ -17,12 +17,12 @@ case "${1:-}" in
 	patch) IFS=. read -r a b c <<< "$OLD"; NEW="$a.$b.$((c + 1))" ;;
 	minor) IFS=. read -r a b c <<< "$OLD"; NEW="$a.$((b + 1)).0" ;;
 	[0-9]*.[0-9]*.[0-9]*) NEW="$1" ;;
-	*) echo "Aufruf: tools/bump.sh <x.y.z|patch|minor>   (aktuell: $OLD)"; exit 1 ;;
+	*) echo "Usage: tools/bump.sh <x.y.z|patch|minor>   (current: $OLD)"; exit 1 ;;
 esac
 
 sed -i "s/^M.VERSION = \".*\"/M.VERSION = \"$NEW\"/" "$CLIENT"
 sed -i "s/^local VERSION = \".*\"/local VERSION = \"$NEW\"/" "$SERVER"
 echo "Version: $OLD -> $NEW"
-tools/test.sh >/dev/null && echo "Tests bestanden."
-echo "Jetzt committen und pushen, z.B.:"
+tools/test.sh >/dev/null && echo "Tests passed."
+echo "Now commit and push, for example:"
 echo "  git commit -am \"SharedCareer $NEW\" && git push"

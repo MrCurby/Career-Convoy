@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Baut das Paket zum Ausrollen: SharedCareer-<version>.zip
 # Inhalt: Resources/Client/SharedCareer.zip, Resources/Server/SharedCareer/main.lua, README.md,
-#         server.sh (Server-Steuerung, landet beim Entpacken im Server-Ordner), Bilder
+#         server.sh (Server-Steuerung, landet beim Entpacken im Server-Ordner)
 # (keine config/ – Einstellungen auf dem Server bleiben beim Entpacken unangetastet).
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -15,6 +15,6 @@ if [ "$VERSION" != "$CLIENT_VERSION" ]; then
 fi
 rm -f SharedCareer-*.zip
 cp tools/server.sh server.sh && chmod +x server.sh
-zip -qr "SharedCareer-$VERSION.zip" server.sh Resources/Client/SharedCareer.zip Resources/Server/SharedCareer/main.lua README.md sharedcareer-menu.png sharedcareer-fuel.png sharedcareer-welcome.png
+zip -qr "SharedCareer-$VERSION.zip" server.sh Resources/Client/SharedCareer.zip Resources/Server/SharedCareer/main.lua README.md
 rm -f server.sh
 echo "gebaut: SharedCareer-$VERSION.zip (Tests bestanden)"

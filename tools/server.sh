@@ -1,31 +1,31 @@
 #!/usr/bin/env bash
-# SharedCareer :: Server-Steuerung für einen BeamMP-Server (läuft in einer screen-Sitzung)
+# SharedCareer :: server control for a BeamMP server (runs it in a screen session)
 #
-# Diese Datei in den Server-Ordner legen (dort, wo BeamMP-Server und ServerConfig.toml liegen),
-# einmal ausführbar machen:   chmod +x server.sh
+# Put this file into the server folder (where BeamMP-Server and ServerConfig.toml are),
+# make it executable once:   chmod +x server.sh
 #
-#   ./server.sh start          Server im Hintergrund starten
-#   ./server.sh stop           Server sauber beenden ("exit" in der Konsole, notfalls hart)
+#   ./server.sh start          start the server in the background
+#   ./server.sh stop           stop it cleanly ("exit" in the console, killed if needed)
 #   ./server.sh restart        stop + start
-#   ./server.sh status         läuft er? (mit PID)
-#   ./server.sh console        Live-Konsole öffnen  –  verlassen mit Strg+A, dann D
-#                              (NICHT Strg+C: das beendet den Server)
-#   ./server.sh logs [n]       letzte n Zeilen der Server.log (Standard 100)
-#   ./server.sh follow         Server.log live mitlesen (Strg+C beendet nur das Mitlesen)
-#   ./server.sh cmd "sc time"  einen Befehl in die Server-Konsole schicken, z.B. "sc get"
-#   ./server.sh update         neuestes Release von GitHub holen und einspielen (stoppen,
-#                              sichern, entpacken, starten) – nur wenn es neuer ist
-#   ./server.sh update --force dasselbe, auch wenn die Version schon installiert ist
-#   ./server.sh update x.zip   eine bestimmte zip aus dem Ordner einspielen
-#   ./server.sh check          installierte Version und neueste auf GitHub anzeigen
+#   ./server.sh status         is it running? (with PID and SharedCareer version)
+#   ./server.sh console        open the live console  –  leave with Ctrl+A, then D
+#                              (NOT Ctrl+C: that stops the server)
+#   ./server.sh logs [n]       last n lines of Server.log (default 100)
+#   ./server.sh follow         follow Server.log live (Ctrl+C only stops following)
+#   ./server.sh cmd "sc time"  send a command to the server console, e.g. "sc get"
+#   ./server.sh update         install the newest GitHub release (stop, back up, unpack,
+#                              start) – only if it is newer than the installed version
+#   ./server.sh update --force the same, even if that version is already installed
+#   ./server.sh update x.zip   install a specific zip from this folder
+#   ./server.sh check          show the installed version and the newest one on GitHub
 #
-# GitHub-Repository in server.conf (im selben Ordner) eintragen:
-#   REPO="dein-name/SharedCareer"
-#   GITHUB_TOKEN=""            nur für ein privates Repository nötig (Token mit Lesezugriff)
-# Ohne REPO nimmt "update" die neueste SharedCareer-*.zip im Ordner.
+# Put the GitHub repository into server.conf (same folder):
+#   REPO="MrCurby/SharedCareer"
+#   GITHUB_TOKEN=""            only needed for a private repository (token with read access)
+# Without REPO, "update" installs the newest SharedCareer-*.zip in this folder.
 #
-# Name der screen-Sitzung = Ordnername (z.B. "sctest"). Mehrere Server in verschiedenen
-# Ordnern stören sich dadurch nicht.
+# The screen session is named after the folder (e.g. "sctest"), so several servers in
+# different folders don't get in each other's way.
 
 set -u
 
@@ -46,7 +46,7 @@ info()  { printf '\033[36m%s\033[0m\n' "$*"; }
 
 need_screen() {
 	if ! command -v screen >/dev/null 2>&1; then
-		red "screen ist nicht installiert. Installieren mit:  sudo apt install screen"
+		red "screen is not installed. Install it with:  sudo apt install screen"
 		exit 1
 	fi
 }
@@ -84,17 +84,17 @@ send() {
 
 cmd_start() {
 	need_screen
-	if running; then info "Läuft schon (Sitzung '$SESSION'). Konsole: ./server.sh console"; return 0; fi
+	if running; then info "Already running (session '$SESSION'). Console: ./server.sh console"; return 0; fi
 	local bin
-	if ! bin="$(find_binary)"; then red "Kein BeamMP-Server-Programm in $DIR gefunden."; exit 1; fi
-	if [ ! -f "$DIR/ServerConfig.toml" ]; then info "Hinweis: keine ServerConfig.toml – BeamMP legt beim ersten Start eine an."; fi
+	if ! bin="$(find_binary)"; then red "No BeamMP-Server program found in $DIR."; exit 1; fi
+	if [ ! -f "$DIR/ServerConfig.toml" ]; then info "Note: no ServerConfig.toml yet – BeamMP creates one on the first start."; fi
 	screen -dmS "$SESSION" bash -c "cd '$DIR' && '$bin'; echo; echo 'Server beendet. Taste drücken...'; read -r -n1"
 	sleep 2
 	if running; then
-		green "Gestartet: $(basename "$bin") in Sitzung '$SESSION'."
-		info "Konsole: ./server.sh console   |   Log: ./server.sh follow"
+		green "Started: $(basename "$bin") in session '$SESSION'."
+		info "Console: ./server.sh console   |   Log: ./server.sh follow"
 	else
-		red "Start fehlgeschlagen. Letzte Logzeilen:"; cmd_logs 30
+		red "Start failed. Last log lines:"; cmd_logs 30
 		exit 1
 	fi
 }
@@ -103,12 +103,12 @@ cmd_stop() {
 	need_screen
 	if ! running; then
 		local p; if p="$(server_pid)"; then
-			info "Keine screen-Sitzung, aber Server-Prozess $p läuft – wird beendet."
+			info "No screen session, but server process $p is running – stopping it."
 			kill "$p"; sleep 3; kill -0 "$p" 2>/dev/null && kill -9 "$p"
 		fi
-		info "Läuft nicht."; return 0
+		info "Not running."; return 0
 	fi
-	info "Stoppe Server (Sitzung '$SESSION') ..."
+	info "Stopping server (session '$SESSION') ..."
 	send "exit"
 	local i
 	for ((i = 0; i < STOP_WAIT; i++)); do
@@ -116,12 +116,12 @@ cmd_stop() {
 		if ! server_pid >/dev/null; then break; fi
 	done
 	if p="$(server_pid)"; then
-		red "Server reagiert nicht – wird hart beendet (PID $p)."
+		red "Server does not respond – killing it (PID $p)."
 		kill "$p"; sleep 3; kill -0 "$p" 2>/dev/null && kill -9 "$p"
 	fi
 	# screen-Sitzung wartet auf Tastendruck -> schließen
 	running && screen -S "$SESSION" -X quit
-	green "Gestoppt."
+	green "Stopped."
 }
 
 cmd_status() {
@@ -129,39 +129,39 @@ cmd_status() {
 	local p
 	if running; then
 		p="$(server_pid || true)"
-		green "Läuft (Sitzung '$SESSION'${p:+, PID $p})."
+		green "Running (session '$SESSION'${p:+, PID $p})."
 		if [ -f "$LOG" ]; then
 			local v; v="$(grep -o 'SharedCareer\] Version [0-9.]*' "$LOG" | tail -n 1)"
 			[ -n "$v" ] && info "${v#*] }"
 		fi
 	else
-		red "Läuft nicht."
+		red "Not running."
 	fi
 }
 
 cmd_console() {
 	need_screen
-	if ! running; then red "Server läuft nicht. Starten: ./server.sh start"; exit 1; fi
-	info "Konsole öffnet sich. Verlassen: Strg+A, dann D  (NICHT Strg+C – das beendet den Server)"
+	if ! running; then red "Server is not running. Start it with: ./server.sh start"; exit 1; fi
+	info "Opening the console. Leave with Ctrl+A, then D  (NOT Ctrl+C – that stops the server)"
 	sleep 2
 	screen -r "$SESSION"
 }
 
 cmd_logs() {
-	if [ ! -f "$LOG" ]; then red "Keine Server.log in $DIR."; exit 1; fi
+	if [ ! -f "$LOG" ]; then red "No Server.log in $DIR."; exit 1; fi
 	tail -n "${1:-100}" "$LOG"
 }
 
 cmd_follow() {
-	if [ ! -f "$LOG" ]; then red "Keine Server.log in $DIR."; exit 1; fi
-	info "Live-Log (Strg+C beendet nur das Mitlesen, der Server läuft weiter)"
+	if [ ! -f "$LOG" ]; then red "No Server.log in $DIR."; exit 1; fi
+	info "Live log (Ctrl+C only stops following, the server keeps running)"
 	tail -n 30 -f "$LOG"
 }
 
 cmd_cmd() {
 	need_screen
 	if [ -z "${1:-}" ]; then red 'Befehl fehlt, z.B.: ./server.sh cmd "sc time"'; exit 1; fi
-	if ! running; then red "Server läuft nicht."; exit 1; fi
+	if ! running; then red "Server is not running."; exit 1; fi
 	local before=0
 	[ -f "$LOG" ] && before="$(wc -l < "$LOG")"
 	send "$1"
@@ -187,26 +187,26 @@ gh_curl() {
 
 # Holt das neueste Release. Setzt LATEST_VERSION und LATEST_ASSET (API-Adresse der zip).
 fetch_latest() {
-	if ! command -v curl >/dev/null 2>&1; then red "curl fehlt. Installieren mit:  sudo apt install curl"; exit 1; fi
+	if ! command -v curl >/dev/null 2>&1; then red "curl is missing. Install it with:  sudo apt install curl"; exit 1; fi
 	local json
 	if ! json="$(gh_curl -H "Accept: application/vnd.github+json" "$API/repos/$REPO/releases/latest")"; then
-		red "GitHub-Abfrage fehlgeschlagen ($REPO). Repository-Name in server.conf richtig? Privat -> GITHUB_TOKEN nötig."
+		red "GitHub request failed ($REPO). Is the repository name in server.conf right? A private repository needs GITHUB_TOKEN."
 		exit 1
 	fi
 	LATEST_VERSION="$(printf '%s' "$json" | grep -o '"tag_name": *"[^"]*"' | head -n 1 | sed 's/.*"v\{0,1\}\([^"]*\)"$/\1/')"
 	LATEST_ASSET="$(printf '%s' "$json" | grep -o '"url": *"[^"]*/releases/assets/[0-9]*"' | head -n 1 | sed 's/.*"\(http[^"]*\)"$/\1/')"
 	if [ -z "$LATEST_VERSION" ] || [ -z "$LATEST_ASSET" ]; then
-		red "Neuestes Release von $REPO hat keine zip."; exit 1
+		red "The newest release of $REPO has no zip."; exit 1
 	fi
 }
 
 cmd_check() {
 	local have; have="$(installed_version)"
-	info "Installiert: ${have:-keine}"
-	if [ -z "$REPO" ]; then info "Kein REPO in server.conf – GitHub wird nicht abgefragt."; return 0; fi
+	info "Installed: ${have:-none}"
+	if [ -z "$REPO" ]; then info "No REPO in server.conf – GitHub is not checked."; return 0; fi
 	fetch_latest
-	info "Neueste auf GitHub ($REPO): $LATEST_VERSION"
-	if [ "$have" = "$LATEST_VERSION" ]; then green "Aktuell."; else green "Update verfügbar: ./server.sh update"; fi
+	info "Newest on GitHub ($REPO): $LATEST_VERSION"
+	if [ "$have" = "$LATEST_VERSION" ]; then green "Up to date."; else green "Update available: ./server.sh update"; fi
 }
 
 # Lädt das neueste Release in den Ordner; gibt den Dateinamen aus (leer = schon aktuell).
@@ -215,20 +215,20 @@ download_latest() {
 	fetch_latest
 	local have; have="$(installed_version)"
 	if [ "$have" = "$LATEST_VERSION" ] && [ "$force" != 1 ]; then
-		green "Schon aktuell (Version $have). Neu einspielen trotzdem: ./server.sh update --force" >&2
+		green "Already up to date (version $have). To reinstall anyway: ./server.sh update --force" >&2
 		return 0
 	fi
 	local file="$DIR/SharedCareer-$LATEST_VERSION.zip"
-	info "Lade SharedCareer $LATEST_VERSION von GitHub ($REPO) ..." >&2
+	info "Downloading SharedCareer $LATEST_VERSION from GitHub ($REPO) ..." >&2
 	if ! gh_curl -H "Accept: application/octet-stream" -o "$file.part" "$LATEST_ASSET" || ! unzip -tq "$file.part" >/dev/null 2>&1; then
-		rm -f "$file.part"; red "Download fehlgeschlagen." >&2; exit 1
+		rm -f "$file.part"; red "Download failed." >&2; exit 1
 	fi
 	mv "$file.part" "$file"
 	echo "$file"
 }
 
 cmd_update() {
-	if ! command -v unzip >/dev/null 2>&1; then red "unzip fehlt. Installieren mit:  sudo apt install unzip"; exit 1; fi
+	if ! command -v unzip >/dev/null 2>&1; then red "unzip is missing. Install it with:  sudo apt install unzip"; exit 1; fi
 	local zip="" force=0 a
 	for a in "$@"; do
 		case "$a" in
@@ -242,10 +242,10 @@ cmd_update() {
 		[ -z "$zip" ] && return 0
 	elif [ -z "$zip" ]; then
 		zip="$(ls -1 "$DIR"/SharedCareer-*.zip 2>/dev/null | sort -V | tail -n 1)"
-		if [ -z "$zip" ]; then red "Keine SharedCareer-*.zip im Ordner und kein REPO in server.conf."; exit 1; fi
+		if [ -z "$zip" ]; then red "No SharedCareer-*.zip in this folder and no REPO in server.conf."; exit 1; fi
 	fi
-	if [ ! -f "$zip" ]; then red "Datei nicht gefunden: $zip"; exit 1; fi
-	info "Update mit $(basename "$zip") (vorher: $(installed_version))"
+	if [ ! -f "$zip" ]; then red "File not found: $zip"; exit 1; fi
+	info "Updating with $(basename "$zip") (installed before: $(installed_version))"
 	local was_running=0
 	running && was_running=1
 	cmd_stop
@@ -253,23 +253,23 @@ cmd_update() {
 	local what=() f
 	for f in Resources/Server/SharedCareer Resources/Client/SharedCareer.zip; do [ -e "$f" ] && what+=("$f"); done
 	if [ "${#what[@]}" -gt 0 ]; then
-		if tar czf "$backup" "${what[@]}"; then info "Sicherung: $backup"; else red "Sicherung fehlgeschlagen – Abbruch."; exit 1; fi
+		if tar czf "$backup" "${what[@]}"; then info "Backup: $backup"; else red "Backup failed – aborting."; exit 1; fi
 	fi
 	# server.sh selbst wird mit ersetzt; das ist sicher, weil bash dieses Skript schon komplett
 	# gelesen hat (alles steckt in Funktionen, siehe main ganz unten).
-	unzip -o -q "$zip" || { red "Entpacken fehlgeschlagen."; exit 1; }
+	unzip -o -q "$zip" || { red "Unpacking failed."; exit 1; }
 	chmod +x "$DIR/server.sh" 2>/dev/null
 	# alte zips aufräumen (die neuesten 3 bleiben)
 	ls -1 "$DIR"/SharedCareer-*.zip 2>/dev/null | sort -V | head -n -3 | xargs -r rm -f
-	green "Entpackt (Einstellungen in Resources/Server/SharedCareer/config bleiben erhalten)."
+	green "Unpacked (settings in Resources/Server/SharedCareer/config are kept)."
 	cmd_start
 	sleep 3
 	grep -h "SharedCareer\]" "$LOG" 2>/dev/null | tail -n 5
-	[ "$was_running" = 0 ] && info "(Server lief vorher nicht – jetzt gestartet.)"
+	[ "$was_running" = 0 ] && info "(The server was not running before – it is running now.)"
 }
 
 usage() {
-	sed -n '2,31p' "$DIR/server.sh" | sed 's/^# \{0,1\}//'
+	sed -n '2,28p' "$DIR/server.sh" | sed 's/^# \{0,1\}//'
 }
 
 main() {

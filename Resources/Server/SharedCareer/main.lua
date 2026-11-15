@@ -58,7 +58,7 @@
 --   Server -> Client: sc_fuelPrices {enabled, factors = {[station] = {gasoline = 0.9, ...}}}
 --                       (aus dem UI-Fenster "SharedCareer Tageszeit")
 
-local VERSION = "0.8.4"
+local VERSION = "0.8.5"
 local TAG = "[SharedCareer] "
 
 local CONFIG_DIR = "Resources/Server/SharedCareer/config"
