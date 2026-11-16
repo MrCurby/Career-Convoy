@@ -164,7 +164,7 @@ Because the game's node grabber is so weak in the career, SharedCareer has its o
 
 Open the phone (**F4**) and tap **Tow**:
 
-- **Attach:** "Attach where I look" puts the rope where the middle of your screen points; a blue cross shows where (only while the Tow app is open). Or tap one of **your vehicles nearby** in the list: the rope goes on the point of that vehicle closest to you.
+- **Attach:** "Attach where I look" puts the rope where the middle of your screen points; a see-through blue ball shows where (only while the Tow app is open). Or tap one of **your vehicles nearby** in the list: the rope goes on the point of that vehicle closest to you.
 - **Anchor remote:** hold ▲ ▼ ◀ ▶ to move the anchor away/towards you and left/right (as seen from your view), **Up** / **Down** to raise or lower it. The vehicle doesn't move; the rope just gets longer. ◎ puts the anchor in the middle of your view. **Fine** makes everything four times slower, for exact placing.
 - **Winch:** **Pay out** (rope gets longer, e.g. to lower a lifted end), **Stop** (rope holds), **Haul in** (pulls the vehicle to the anchor).
 - The card at the top shows the vehicle, the rope length, the distance to the anchor and how hard the rope pulls.
@@ -185,7 +185,8 @@ It behaves like a real rope: it only pulls when it's taut, never pushes. The for
 What you see:
 
 - **Rope:** grey when slack, and it sags – the more rope is out, the deeper; it straightens as it is pulled taut. When taut, the color shows how hard the winch works: **green** is easy, **yellow** is working hard, **red** means it's at its force limit (too heavy, stuck, or trying to lift too much).
-- **Anchor:** a cross; white when resting, cyan while you move it, orange while the winch runs.
+- **Anchor:** a pin (a post with a ball on top); white when resting, cyan while you move it, orange while the winch hauls in (the ball pulses), purple while it pays out. While the Tow app is open, a sign above it shows the distance to the vehicle.
+- **Grip:** a small ball on the vehicle, in the rope's color.
 
 It only works on your own vehicles and your own traffic: other players' vehicles are simulated on their PCs, and BeamMP would put them right back. Players on foot can't be roped, and neither can the vehicle you are sitting in (the camera would move with it). Get out, or use the free camera.
 

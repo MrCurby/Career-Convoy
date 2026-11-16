@@ -31,9 +31,14 @@
 --   rope      a line from the grip to the anchor: grey = slack; when taut, the color shows the
 --             strain: green = easy, yellow = working hard, red = at the force limit. A slack rope
 --             sags (a curve as long as the rope); it straightens smoothly when it is pulled taut
---   anchor    a cross: white = resting, cyan = being moved, orange = winch running
---   preview   on foot or in the free camera, pointing at one of your vehicles: a small cross
---             where F6 would grab
+--   grip      a small ball on the vehicle, in the rope's color
+--   anchor    a pin (post with a ball on top): white = resting, cyan = being moved, orange =
+--             hauling in (the ball pulses), purple = paying out. While the Tow app is open, a
+--             sign above it shows "Anchor · <distance to the grip>"
+--   preview   while the Tow app is open, pointing at one of your vehicles: a see-through ball
+--             where the rope would attach
+-- Balls, posts and the sign use debugDrawer:drawSphere/drawCylinder/drawTextAdvanced; if one of
+-- them is missing or fails, that shape is drawn as a cross (or left out, for the sign).
 --   hint      the first grab of a session shows how it works
 --
 -- Only your own vehicles (incl. your own traffic): other players' vehicles are simulated on
@@ -488,7 +493,52 @@ local function cross(p, size, color)
 	line({x = p.x, y = p.y, z = p.z - size}, {x = p.x, y = p.y, z = p.z + size}, color)
 end
 
+-- shapes beyond lines: tried once each; a failure is logged once and that shape falls back
+local shapeBroken = {}
+local function tryShape(name, fn)
+	if shapeBroken[name] then return false end
+	local ok, err = pcall(fn)
+	if not ok then
+		shapeBroken[name] = true
+		U.log("W", "grab", "debugDrawer:" .. name .. " not available, using lines instead: " .. tostring(err))
+	end
+	return ok
+end
+
+--- Forget which shapes failed (tests; the game keeps the result for the session).
+function M.resetShapes() shapeBroken = {} end
+
+local function ball(p, radius, color)
+	local ok = tryShape("drawSphere", function()
+		debugDrawer:drawSphere(vec3(p.x, p.y, p.z), radius, color)
+	end)
+	if not ok then cross(p, radius * 1.6, color) end
+end
+
+local PIN_HEIGHT = 0.6     -- m: the anchor's post, from the anchor point up
+local PIN_BALL = 0.12      -- m: radius of the ball on top
+local function pin(p, color, pulse)
+	local top = {x = p.x, y = p.y, z = p.z + PIN_HEIGHT}
+	local ok = tryShape("drawCylinder", function()
+		debugDrawer:drawCylinder(vec3(p.x, p.y, p.z), vec3(top.x, top.y, top.z), 0.02, color)
+	end)
+	if not ok then line(p, top, color) end
+	ball(top, PIN_BALL * (pulse or 1), color)
+	ball(p, 0.05, color)
+end
+
+local function sign(p, text)
+	tryShape("drawTextAdvanced", function()
+		local str = String and String(text) or text
+		debugDrawer:drawTextAdvanced(vec3(p.x, p.y, p.z), str, ColorF(1, 1, 1, 1), true, false,
+			ColorI(20, 20, 24, 190))
+	end)
+end
+
+local clock = 0            -- s, for the pulsing ball while the winch hauls in
+
 function M.draw(dt)
+	clock = clock + math.max(0, tonumber(dt) or 0)
 	if not (held and held.grip and held.target) and not probe then return end
 	if not canDraw() then return end
 	if held and held.grip and held.target then
@@ -506,13 +556,18 @@ function M.draw(dt)
 		local k = 1 - math.exp(-SAG_RATE * math.max(0, tonumber(dt) or 0))
 		held.sag = (held.sag or want) + (want - (held.sag or want)) * k
 		rope(a, b, held.sag, color)
-		cross(held.grip, 0.15, color)
+		ball(held.grip, 0.09, color)
 		local anchorColor = (held.moving or held.nudge) and ColorF(0.3, 0.9, 1, 0.9)
 			or held.winch == 1 and ColorF(1, 0.55, 0.1, 0.9)
-			or held.winch == -1 and ColorF(0.75, 0.55, 1, 0.9) or ColorF(1, 1, 1, 0.7)
-		cross(held.target, 0.25, anchorColor)
+			or held.winch == -1 and ColorF(0.75, 0.55, 1, 0.9) or ColorF(1, 1, 1, 0.8)
+		local pulse = held.winch == 1 and not (held.moving or held.nudge)
+			and 1 + 0.25 * math.sin(clock * 2 * math.pi * 1.5) or 1
+		pin(b, anchorColor, pulse)
+		if appOpen then
+			sign({x = b.x, y = b.y, z = b.z + PIN_HEIGHT + 0.35}, string.format("Anchor \194\183 %.1f m", span))
+		end
 	elseif probe then
-		cross(probe, 0.2, ColorF(0.3, 0.8, 1, 0.9))
+		ball(probe, 0.12, ColorF(0.3, 0.8, 1, 0.45))
 	end
 end
 

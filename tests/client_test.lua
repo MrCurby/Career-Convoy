@@ -1019,8 +1019,8 @@ _G.debugDrawer = {drawLine = function(_, p1, p2, c) table.insert(drawn, {p1 = p1
 sharedCareer_grab.onHandState(60, 9, 0, 1, 0.1, 0, 4)
 drawn = {}
 frames(1 / 60)
-check(#drawn == 7 and drawn[1].p1.x == 9 and drawn[1].c.g > 0.8 and drawn[1].c.r < 0.4,
-	"taut rope: line and two crosses, green when it's easy")
+check(#drawn == 11 and drawn[1].p1.x == 9 and drawn[1].c.g > 0.8 and drawn[1].c.r < 0.4,
+	"taut rope (lines only): line, grip and pin as crosses, green when it's easy")
 check(drawn[5].c.r == 1 and drawn[5].c.g < 0.6, "winch running: orange anchor")
 sharedCareer_grab.onHandState(60, 9, 0, 1, 1, 0, 4)
 drawn = {}
@@ -1063,11 +1063,64 @@ check(curve > 7 and deep < 1 - 0.5, string.format("slack rope sags (%d lines, lo
 sharedCareer_grab.onHandState(60, 9, 0, 1, 0.5, 0, 4)  -- pulled taut
 drawn = {}
 frames(1 / 60)
-local midway = #drawn > 7 and lowest() > deep
+local midway = #drawn > 11 and lowest() > deep
 frames(1)
 drawn = {}
 frames(1 / 60)
-check(midway and #drawn == 7, "taut again: the curve straightens smoothly, then a straight line")
+check(midway and #drawn == 11, "taut again: the curve straightens smoothly, then a straight line")
+-- with spheres, cylinders and text: grip ball, anchor pin, sign only while the Tow app is open
+local shapes = {}
+local lineOnly = _G.debugDrawer
+_G.String = function(t) return {str = t} end
+_G.ColorI = function(r, g, b, a) return {r = r, g = g, b = b, a = a} end
+_G.debugDrawer = {
+	drawLine = function(_, p1, p2, c) table.insert(shapes, {kind = "line", c = c}) end,
+	drawSphere = function(_, p, r, c) table.insert(shapes, {kind = "sphere", p = p, r = r, c = c}) end,
+	drawCylinder = function(_, a, b, r, c) table.insert(shapes, {kind = "cylinder", a = a, b = b, c = c}) end,
+	drawTextAdvanced = function(_, p, t, c) table.insert(shapes, {kind = "text", p = p, t = t.str}) end,
+}
+local function count(kind)
+	local n = 0
+	for _, x in ipairs(shapes) do if x.kind == kind then n = n + 1 end end
+	return n
+end
+local function find(kind)
+	for _, x in ipairs(shapes) do if x.kind == kind then return x end end
+end
+sharedCareer_grab.resetShapes()
+shapes = {}
+frames(1 / 60)
+check(count("line") == 1 and count("sphere") == 3 and count("cylinder") == 1 and count("text") == 0,
+	string.format("shapes: rope line, grip ball, pin (post + 2 balls), no sign with the app closed (%d/%d/%d/%d)",
+		count("line"), count("sphere"), count("cylinder"), count("text")))
+check(find("cylinder").b.z > find("cylinder").a.z + 0.5, "anchor pin: a post standing up from the anchor")
+sharedCareer_grab.setAppOpen(true)
+shapes = {}
+frames(1 / 60)
+local sg = find("text")
+check(sg and sg.t:find("^Anchor") and sg.t:find("%d+%.%d m"), "Tow app open: sign above the anchor with the distance (" .. tostring(sg and sg.t) .. ")")
+sharedCareer_grab.setAppOpen(false)
+-- winch hauling in: the pin's ball pulses
+grabKeys.sharedCareerGrabWinch.onDown()
+local radii = {}
+for _ = 1, 20 do
+	shapes = {}
+	frames(1 / 30)
+	local biggest = 0
+	for _, x in ipairs(shapes) do if x.kind == "sphere" then biggest = math.max(biggest, x.r) end end
+	radii[#radii + 1] = biggest
+end
+local lo, hi = math.huge, 0
+for _, r in ipairs(radii) do lo, hi = math.min(lo, r), math.max(hi, r) end
+check(hi - lo > 0.03, string.format("winch hauling in: the anchor ball pulses (%.3f-%.3f)", lo, hi))
+grabKeys.sharedCareerGrabWinch.onDown()
+-- a missing shape falls back to lines, without errors
+_G.debugDrawer.drawSphere = nil
+shapes = {}
+frames(1 / 60)
+check(count("sphere") == 0 and count("line") > 6 and count("cylinder") == 1, "no drawSphere: balls drawn as crosses")
+_G.debugDrawer, _G.String, _G.ColorI = lineOnly, nil, nil
+sharedCareer_grab.resetShapes()
 end
 -- let go
 keyG.onDown()
