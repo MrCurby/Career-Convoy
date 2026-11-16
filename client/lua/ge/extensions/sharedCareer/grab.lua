@@ -8,8 +8,12 @@
 --     1st press  grabs your vehicle under the mouse cursor (or in the middle of the view if
 --                the cursor points at the sky); the vehicle closest to that line is taken
 --     2nd press  lets go – the vehicle keeps its speed, so you can throw it
---   While grabbed, the vehicle is pulled to the point on the line from the camera through the
---   mouse cursor, at the distance where you grabbed it.
+--   While grabbed, the vehicle hangs in the middle of your view ("gravity gun"): look around and
+--   it swings with you. Mouse wheel = farther / closer (we push the game's "Nodegrabber" input
+--   layer while holding and take its wheel action; see adjustDistance). Fallback keys:
+--   Page Up / Page Down. If the camera has no view direction, the mouse ray is used instead.
+--   The vehicle you are sitting in can't be grabbed (the camera would move with it and it would
+--   run away); on foot or from the free camera it works.
 --
 -- How: like the game's own "fling" (core/funstuff.lua), via
 -- veh:applyClusterVelocityScaleAdd(refNode, scale, x, y, z): new velocity = old * scale + add,
@@ -27,11 +31,14 @@ local U
 local ACTION = "sharedCareerGrab"
 local KEY = "f6"
 local MAX_DISTANCE = 120   -- m, how far away a vehicle can be grabbed
-local GAIN = 4             -- 1/s: target speed = distance to target * GAIN
-local BLEND = 10           -- 1/s: how fast the vehicle's speed follows the target speed
+local MIN_DISTANCE = 3     -- m, closest the mouse wheel brings a vehicle
+local DISTANCE_STEP = 1.5  -- m per mouse wheel notch / key press
+local GAIN = 5             -- 1/s: target speed = distance to target * GAIN
+local BLEND = 8            -- 1/s: how fast the vehicle's speed follows the target speed
 
 local held = nil           -- {id, dist, ox, oy, oz, dx, dy, dz}
 local keyRegistered = false
+local actionMapPushed = false
 
 local function config()
 	local core = U.ext("sharedCareer_core")
@@ -91,10 +98,42 @@ end
 
 --== Grabbing ==================================================================
 
+local function setWheelLayer(on)
+	if on == actionMapPushed then return end
+	local push, pop = rawget(_G, "pushActionMap"), rawget(_G, "popActionMap")
+	if type(push) ~= "function" or type(pop) ~= "function" then return end
+	if on then pcall(push, "Nodegrabber") else pcall(pop, "Nodegrabber") end
+	actionMapPushed = on
+end
+
 function M.release()
 	if not held then return end
 	held = nil
+	setWheelLayer(false)
 	U.log("D", "grab", "vehicle released")
+end
+
+--- Moves the held vehicle farther away (positive) or closer (negative), in wheel notches.
+function M.adjustDistance(notches)
+	if not held then return false end
+	local n = tonumber(notches) or 0
+	held.dist = math.max(MIN_DISTANCE, math.min(MAX_DISTANCE, held.dist + n * DISTANCE_STEP))
+	return true
+end
+
+-- While holding, the mouse wheel (the game's node grabber strength action) changes the distance.
+local function wrapWheel()
+	local gp = U.ext("core_nodegrabberGamepad")
+	if not gp then return end
+	U.replace(gp, "changeStrength", function(original)
+		return function(value, filterType, ...)
+			if held then
+				M.adjustDistance(tonumber(value) or 0)
+				return
+			end
+			return original(value, filterType, ...)
+		end
+	end)
 end
 
 -- Direction from the camera through the mouse cursor (or the view direction if the ray hits
@@ -120,6 +159,17 @@ local function aimRay()
 	return nil
 end
 M.aimRay = aimRay
+
+-- Camera view direction (unit vector) or nil.
+local function viewDir()
+	if not (core_camera and type(core_camera.getForward) == "function") then return nil end
+	local ok, f = pcall(core_camera.getForward)
+	f = ok and vecOf(f)
+	if not f then return nil end
+	local len = math.sqrt(f.x * f.x + f.y * f.y + f.z * f.z)
+	if len < 0.01 then return nil end
+	return {x = f.x / len, y = f.y / len, z = f.z / len}
+end
 
 -- The vehicle closest to the aim line: {veh, id, t (distance along the line), miss (distance
 -- from the line)}, or nil. The ray cast itself doesn't report vehicles in every game version,
@@ -169,12 +219,21 @@ local function grab()
 		message("You can only grab your own vehicles")
 		return
 	end
+	local freeCam = core_camera and type(core_camera.getActiveGlobalCameraName) == "function"
+		and core_camera.getActiveGlobalCameraName()
+	if id == be:getPlayerVehicleID(0) and not freeCam then
+		message("Get out (or use the free camera) to grab the vehicle you are in")
+		return
+	end
 	-- grab point: the point on the aim line closest to the vehicle's center
 	local p = vecOf(veh:getPosition())
 	local gx, gy, gz = cam.x + dir.x * found.t, cam.y + dir.y * found.t, cam.z + dir.z * found.t
 	held = {id = id, dist = found.t, ox = gx - p.x, oy = gy - p.y, oz = gz - p.z,
 		dx = dir.x, dy = dir.y, dz = dir.z}
-	U.log("I", "grab", string.format("grabbed vehicle %s at %.1f m", tostring(id), found.t))
+	wrapWheel()
+	setWheelLayer(true)
+	U.log("I", "grab", string.format("grabbed vehicle %s at %.1f m (%s)", tostring(id), found.t,
+		viewDir() and "follows the view" or "follows the mouse"))
 end
 
 function M.toggle()
@@ -191,7 +250,9 @@ function M.step(dt)
 		M.release()
 		return
 	end
-	local cam, dir = aimRay()
+	-- the view direction while holding ("gravity gun"), the mouse ray if there is none
+	local cam, dir = cameraPos(), viewDir()
+	if not dir then cam, dir = aimRay() end
 	if not cam then return end
 	held.dx, held.dy, held.dz = dir.x, dir.y, dir.z
 	local p = vecOf(veh:getPosition())
@@ -230,6 +291,15 @@ local function registerKey()
 		onDown = function() M.toggle() end,
 	})
 	if not ok then U.log("E", "grab", "could not register the grab key: " .. tostring(err)) end
+	for _, k in ipairs({
+		{ACTION .. "Farther", "SharedCareer: grabbed vehicle farther", "pageup", 1},
+		{ACTION .. "Closer", "SharedCareer: grabbed vehicle closer", "pagedown", -1},
+	}) do
+		pcall(keys.addAction, k[1], {
+			title = k[2], desc = "Moves the grabbed vehicle away from you or towards you",
+			default = k[3], onDown = function() M.adjustDistance(k[4]) end,
+		})
+	end
 end
 
 --== Hooks =====================================================================

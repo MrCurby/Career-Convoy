@@ -677,7 +677,18 @@ extensions.core_input_actionFilter = nil
 resetWorld()
 installCareer()
 local keyG
-_G.MPKeybindsGE = {addAction = function(name, def) if name == "sharedCareerGrab" then keyG = def end end}
+local grabKeys = {}
+_G.MPKeybindsGE = {addAction = function(name, def)
+	grabKeys[name] = def
+	if name == "sharedCareerGrab" then keyG = def end
+end}
+local actionMaps = {}
+_G.pushActionMap = function(name) actionMaps[name] = (actionMaps[name] or 0) + 1 end
+_G.popActionMap = function(name) actionMaps[name] = (actionMaps[name] or 0) - 1 end
+-- the game's node grabber strength action (mouse wheel), see core/nodegrabberGamepad.lua
+local strengthCalls = 0
+local gpGrab = {changeStrength = function() strengthCalls = strengthCalls + 1 end}
+_G.core_nodegrabberGamepad = gpGrab
 extensions.hook("onWorldReadyState", 2)
 local cfgG = {}
 for k, v in pairs(config) do cfgG[k] = v end
@@ -714,7 +725,10 @@ _G.cameraMouseRayCast = function()
 		object = mouse.objectId and {getID = function() return mouse.objectId end} or nil}
 end
 local truck = physVeh(60, 10, 0, 0)
+extensions.core_nodegrabberGamepad = gpGrab
 check(keyG and keyG.default == "f6" and keyG.title:find("grab"), "grab key registered via BeamMP (F6)")
+check(grabKeys.sharedCareerGrabFarther and grabKeys.sharedCareerGrabFarther.default == "pageup"
+	and grabKeys.sharedCareerGrabCloser.default == "pagedown", "fallback keys for the distance (Page Up / Down)")
 -- grab the truck where the mouse points at it. Like in the game (0.9.0 bug): the ray cast
 -- reports no vehicle object, only the point behind it on the ground.
 mouse.objectId, mouse.pos = nil, {x = 20, y = 0, z = -2}
@@ -744,6 +758,48 @@ local vxBefore, vyBefore = truck.v.x, truck.v.y
 simulate(truck, 0.1)
 check(math.abs(truck.v.x - vxBefore) < 1e-9 and math.abs(truck.v.y - vyBefore) < 1e-9,
 	"after letting go the vehicle keeps its speed (thrown)")
+-- "gravity gun": with a camera view direction the vehicle hangs in the middle of the view
+mouse.objectId, mouse.pos = nil, {x = truck.p.x, y = truck.p.y, z = truck.p.z}
+local fwd = {x = 1, y = 0, z = 0}
+core_camera.getForward = function() return fwd end
+truck.p, truck.v = {x = 10, y = 0, z = 2}, {x = 0, y = 0, z = 0}
+mouse.pos = {x = 10, y = 0, z = 2}
+keyG.onDown()
+check(sharedCareer_grab.isHolding() and actionMaps.Nodegrabber == 1, "grabbed; the wheel input layer is switched on")
+mouse.pos = {x = 0, y = -30, z = -5} -- the cursor points somewhere else: doesn't matter any more
+fwd = {x = 0, y = 1, z = 0}         -- look to the left
+simulate(truck, 3)
+check(math.abs(truck.p.x) < 0.8 and math.abs(truck.p.y - 10) < 0.8,
+	string.format("looking around: the vehicle swings with the view (at %.1f/%.1f)", truck.p.x, truck.p.y))
+-- mouse wheel: 4 notches up = 6 m farther; the game's strength is not changed
+gpGrab.changeStrength(4, 0)
+simulate(truck, 3)
+check(math.abs(truck.p.y - 16) < 1.0 and strengthCalls == 0,
+	string.format("mouse wheel up: farther away (at %.1f m), node grabber strength untouched", truck.p.y))
+grabKeys.sharedCareerGrabCloser.onDown()
+grabKeys.sharedCareerGrabCloser.onDown()
+simulate(truck, 3)
+check(math.abs(truck.p.y - 13) < 1.0, string.format("Page Down: closer (at %.1f m)", truck.p.y))
+for _ = 1, 20 do gpGrab.changeStrength(-1, 0) end
+simulate(truck, 3)
+check(truck.p.y > 2.4 and truck.p.y < 3.8, string.format("never closer than 3 m (at %.1f m)", truck.p.y))
+keyG.onDown()
+check(not sharedCareer_grab.isHolding() and actionMaps.Nodegrabber == 0, "let go: the wheel input layer is switched off")
+gpGrab.changeStrength(1, 0)
+check(strengthCalls == 1, "not holding: the wheel is the game's node grabber strength again")
+core_camera.getForward = nil
+-- the vehicle you sit in can't be grabbed (the camera would move with it)
+world.playerVeh = 60
+mouse.pos = {x = truck.p.x, y = truck.p.y, z = truck.p.z}
+toasts = {}
+keyG.onDown()
+check(not sharedCareer_grab.isHolding() and toasts[#toasts].msg:find("Get out"), "the vehicle you are in can't be grabbed")
+core_camera.getActiveGlobalCameraName = function() return "free" end
+keyG.onDown()
+check(sharedCareer_grab.isHolding(), "from the free camera it can")
+sharedCareer_grab.release()
+core_camera.getActiveGlobalCameraName = nil
+world.playerVeh = nil
 -- refusals
 local function tryGrab(objectId, pos)
 	mouse.objectId, mouse.pos = objectId, pos
@@ -784,6 +840,7 @@ handlers.sc_configUpdate(json.encode(cfgG))
 simulate(truck, 0.05)
 check(not sharedCareer_grab.isHolding(), "switched off while holding: lets go")
 _G.core_camera, _G.cameraMouseRayCast, _G.MPKeybindsGE = nil, nil, nil
+_G.pushActionMap, _G.popActionMap, _G.core_nodegrabberGamepad = nil, nil, nil
 
 --== 7c. Time of day and pause menu ==========================================
 resetWorld()
@@ -1074,7 +1131,7 @@ MPVehicleGE.teleportVehToPlayer = function(name) table.insert(mpCalls, {"tp", na
 local suffixes = {}
 MPVehicleGE.setPlayerNickSuffix = function(name, src, text) suffixes[name] = {src = src, text = text} end
 local keyAction
-_G.MPKeybindsGE = {addAction = function(name, def) if name ~= "sharedCareerGrab" then keyAction = {name = name, def = def} end end}
+_G.MPKeybindsGE = {addAction = function(name, def) if not name:find("^sharedCareerGrab") then keyAction = {name = name, def = def} end end}
 local toggled = 0
 _G.guihooks = {trigger = function(n) if n == "SharedCareerToggle" then toggled = toggled + 1 end end}
 local cfgPl = {}
