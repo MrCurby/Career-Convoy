@@ -169,4 +169,4 @@ SharedCareer and Mileage must **never run on the same server at the same time**.
 3. Install SharedCareer as described above and start the server.
 4. If Mileage used a suffix (for example `_wcusa`), set the same one: `sc set client.saveSuffix _wcusa`. Otherwise leave it empty. The Mileage saves then keep working, because the profile name is built the same way.
 5. Every player should back up their save folder before the first join (`<BeamNG user folder>/current/settings/cloud/saves/<name>`).
-6. The red "Unknown app" boxes that Mileage leaves in the UI are removed automatically on join (`client.cleanupMileageApps`). The mod backs up the layout files first as `.sharedcareer-backup`.
+6. Players who used Mileage still have its apps in their UI layout; without Mileage they show up as red "Unknown app" boxes. SharedCareer removes them automatically on join (`client.cleanupMileageApps`). The mod backs up the layout files first as `.sharedcareer-backup`.
