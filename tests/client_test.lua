@@ -673,6 +673,107 @@ check(grabBlocked(), "leaving the server: blocked in a vehicle again")
 _G.core_input_actionFilter, _G.gameplay_walk, _G.core_camera = nil, nil, nil
 extensions.core_input_actionFilter = nil
 
+--== 7b4. Our own grabber (move/throw own vehicles) ===========================
+resetWorld()
+installCareer()
+local keyG
+_G.MPKeybindsGE = {addAction = function(name, def) if name == "sharedCareerGrab" then keyG = def end end}
+extensions.hook("onWorldReadyState", 2)
+local cfgG = {}
+for k, v in pairs(config) do cfgG[k] = v end
+cfgG.allowGrab, cfgG.grabSpeed = true, 30
+handlers.sc_config(json.encode(cfgG))
+update()
+-- simple physics: position follows velocity, gravity pulls down
+local function physVeh(id, x, y, z, jbeam, remote)
+	local v = addVehicle(id, (remote and "7-" or "0-") .. id, not remote, jbeam)
+	v.p = {x = x, y = y, z = z}
+	v.v = {x = 0, y = 0, z = 0}
+	v.getPosition = function(self) return self.p end
+	v.getRefNodeId = function() return 0 end
+	v.getVelocityXYZ = function(self) return self.v.x, self.v.y, self.v.z end
+	v.applyClusterVelocityScaleAdd = function(self, _, scale, ax, ay, az)
+		self.v = {x = self.v.x * scale + ax, y = self.v.y * scale + ay, z = self.v.z * scale + az}
+	end
+	return v
+end
+local function simulate(v, seconds)
+	local dt = 1 / 60
+	for _ = 1, math.floor(seconds / dt) do
+		v.v.z = v.v.z - 9.81 * dt
+		v.p = {x = v.p.x + v.v.x * dt, y = v.p.y + v.v.y * dt, z = v.p.z + v.v.z * dt}
+		extensions.hook("onUpdate", dt)
+	end
+end
+local cam = {x = 0, y = 0, z = 2}
+local mouse = {objectId = nil, pos = nil}
+_G.core_camera = {getPosition = function() return cam end}
+_G.cameraMouseRayCast = function()
+	if not mouse.pos then return nil end
+	return {pos = mouse.pos, distance = 10,
+		object = mouse.objectId and {getID = function() return mouse.objectId end} or nil}
+end
+local truck = physVeh(60, 10, 0, 0)
+check(keyG and keyG.default == "f6" and keyG.title:find("grab"), "grab key registered via BeamMP (F6)")
+-- grab the truck where the mouse points at it
+mouse.objectId, mouse.pos = 60, {x = 10, y = 0, z = 0}
+keyG.onDown()
+check(sharedCareer_grab.isHolding(), "own vehicle grabbed")
+-- move the mouse up: the truck follows and stays there against gravity
+mouse.objectId, mouse.pos = nil, {x = 10, y = 0, z = 6}
+simulate(truck, 4)
+-- target: from the camera (0/0/2) towards the mouse (10/0/6), at the grab distance (10.2 m) = 9.5/0/5.8
+check(math.abs(truck.p.x - 9.47) < 0.6 and math.abs(truck.p.z - 5.79) < 0.6 and math.abs(truck.p.y) < 0.1,
+	string.format("grabbed vehicle follows the mouse and is held in the air (at %.1f/%.1f/%.1f)", truck.p.x, truck.p.y, truck.p.z))
+-- swing: move the mouse quickly to the side, then let go -> it keeps flying
+cfgG.grabSpeed = 10
+handlers.sc_configUpdate(json.encode(cfgG))
+mouse.pos = {x = 0, y = 10, z = 2}
+simulate(truck, 0.5)
+local speedBefore = math.sqrt(truck.v.x ^ 2 + truck.v.y ^ 2 + truck.v.z ^ 2)
+check(speedBefore > 5 and speedBefore <= 10.5, string.format("pulled with at most grabSpeed (%.1f of 10 m/s)", speedBefore))
+cfgG.grabSpeed = 30
+handlers.sc_configUpdate(json.encode(cfgG))
+keyG.onDown()
+check(not sharedCareer_grab.isHolding(), "second press lets go")
+local vxBefore, vyBefore = truck.v.x, truck.v.y
+simulate(truck, 0.1)
+check(math.abs(truck.v.x - vxBefore) < 1e-9 and math.abs(truck.v.y - vyBefore) < 1e-9,
+	"after letting go the vehicle keeps its speed (thrown)")
+-- refusals
+local function tryGrab(objectId, pos)
+	mouse.objectId, mouse.pos = objectId, pos
+	toasts = {}
+	keyG.onDown()
+	local held = sharedCareer_grab.isHolding()
+	sharedCareer_grab.release()
+	return held, toasts[#toasts] and toasts[#toasts].msg or ""
+end
+local other = physVeh(61, 5, 5, 0, nil, true)
+local held, msg = tryGrab(61, {x = 5, y = 5, z = 0})
+check(not held and msg:find("your own"), "another player's vehicle can't be grabbed")
+physVeh(62, 3, 0, 0, "unicycle")
+held, msg = tryGrab(62, {x = 3, y = 0, z = 0})
+check(not held and msg:find("on foot"), "a player on foot can't be grabbed")
+held, msg = tryGrab(nil, {x = 50, y = 0, z = 0})
+check(not held and msg:find("Point at"), "nothing under the mouse: hint")
+held = tryGrab(60, {x = 500, y = 0, z = 0})
+check(not held, "too far away: not grabbed")
+cfgG.allowGrab = false
+handlers.sc_configUpdate(json.encode(cfgG))
+held, msg = tryGrab(60, {x = truck.p.x, y = truck.p.y, z = truck.p.z})
+check(not held and msg:find("switched off"), "switched off on the server: no grabbing")
+-- switched off while holding: lets go
+cfgG.allowGrab = true
+handlers.sc_configUpdate(json.encode(cfgG))
+mouse.objectId, mouse.pos = 60, {x = truck.p.x, y = truck.p.y, z = truck.p.z}
+keyG.onDown()
+cfgG.allowGrab = false
+handlers.sc_configUpdate(json.encode(cfgG))
+simulate(truck, 0.05)
+check(not sharedCareer_grab.isHolding(), "switched off while holding: lets go")
+_G.core_camera, _G.cameraMouseRayCast, _G.MPKeybindsGE = nil, nil, nil
+
 --== 7c. Time of day and pause menu ==========================================
 resetWorld()
 installCareer()
@@ -962,7 +1063,7 @@ MPVehicleGE.teleportVehToPlayer = function(name) table.insert(mpCalls, {"tp", na
 local suffixes = {}
 MPVehicleGE.setPlayerNickSuffix = function(name, src, text) suffixes[name] = {src = src, text = text} end
 local keyAction
-_G.MPKeybindsGE = {addAction = function(name, def) keyAction = {name = name, def = def} end}
+_G.MPKeybindsGE = {addAction = function(name, def) if name ~= "sharedCareerGrab" then keyAction = {name = name, def = def} end end}
 local toggled = 0
 _G.guihooks = {trigger = function(n) if n == "SharedCareerToggle" then toggled = toggled + 1 end end}
 local cfgPl = {}

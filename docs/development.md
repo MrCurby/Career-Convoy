@@ -89,6 +89,7 @@ About a minute later the release is on GitHub, and `./server.sh update` installs
 | New players don't know the features | Welcome dialog with "Don't show again" | `welcome.lua` |
 | Red "Unknown app" boxes after switching from Mileage | Mileage apps are removed from the players' layouts, with a backup first | `cleanup.lua` |
 | The career blocks the node grabber in a vehicle and in the free camera | After every input filter change (hook `onActionFilterUpdated`) only the career's group `careerNodeGrabberActions` is lifted; other blocks (certification test) stay | `nodegrab.lua` |
+| The career's node grabber is too weak to move heavy vehicles (engine limit) | Own grabber: `cameraMouseRayCast` picks the vehicle, then every frame `applyClusterVelocityScaleAdd` (like the game's fling) pulls the whole vehicle towards the mouse ray | `grab.lua` |
 | Sending money to other players | `/pay` as a two-step transfer with refund | `money.lua`, server |
 
 ### Join flow

@@ -11,6 +11,7 @@ Everything players see and use in the game. All texts in the game are in English
 - [Time of day](#time-of-day)
 - [Garage](#garage)
 - [Node grabber](#node-grabber)
+- [Grabbing and throwing your vehicles](#grabbing-and-throwing-your-vehicles)
 - [Sending money](#sending-money)
 
 ## Joining
@@ -152,7 +153,19 @@ The normal career only lets you use the node grabber (grab and pull vehicles wit
 
 Server admins can switch back to the career's rule with `sc set client.allowNodeGrabber false`. It applies immediately.
 
-**The pull is weaker than in freeroam.** BeamNG limits the grab force in the career inside the game engine; the single-player career is just as weak. A mod can't change that, so in the career the node grabber is good for nudging and turning cars, but not for throwing them around.
+**The pull is weaker than in freeroam.** BeamNG limits the grab force in the career inside the game engine; the single-player career is just as weak. A mod can't change that, so in the career the node grabber is good for nudging and turning cars, but not for throwing them around. For that, use SharedCareer's own grabber (F6), see below.
+
+## Grabbing and throwing your vehicles
+
+Because the game's node grabber is so weak in the career, SharedCareer has its own grabber:
+
+1. Point the mouse at one of your vehicles and press **F6**.
+2. The vehicle follows your mouse at the distance where you grabbed it. Move the mouse (or the camera) to carry it around.
+3. Press **F6** again to let go. The vehicle keeps its speed, so a quick mouse movement before letting go throws it.
+
+It moves the whole vehicle at once, so nothing bends, and a heavy truck flies as easily as a small car. It only works on your own vehicles and your own traffic: other players' vehicles are simulated on their PCs, and BeamMP would put them right back. Players on foot can't be grabbed.
+
+To use another key: *Options → Controls → BeamMP*, entry "SharedCareer: grab vehicle". Server admins can switch it off with `sc set client.allowGrab false` or change how hard it pulls with `client.grabSpeed` (m/s, default 30).
 
 ## Sending money
 
