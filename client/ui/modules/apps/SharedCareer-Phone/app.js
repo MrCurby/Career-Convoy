@@ -6,6 +6,8 @@
 // Data: guihook "SharedCareerPhone" {enabled, apps} from phone.lua, "SharedCareerState" (time,
 // players, connection, fuel prices) from menu.lua every second, "SharedCareerTow" from grab.lua
 // while the Tow app is open, "SharedCareerPhoneToggle" from the key.
+// menu.lua only sends "SharedCareerState" while someone looks: the phone reports "phone" (out)
+// and "fuel" (Fuel app open) with sharedCareer_menu.uiVisible on every change and every 2 s.
 // Opening the phone collapses the menu and the other way round (window event
 // "sharedCareerPanelOpen").
 //
@@ -47,13 +49,31 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 		if (host && host.parentNode) host.parentNode.removeChild(host);
 	});
 
+	// Tells Lua what is visible: the phone, and the Fuel app on it (see menu.lua uiVisible).
+	function reportView(view, visible) {
+		bngApi.engineLua('if sharedCareer_menu then sharedCareer_menu.uiVisible("' + view + '", ' + (visible ? 'true' : 'false') + ') end');
+	}
+	function fuelOpen() { return $scope.open && !!$scope.currentApp && $scope.currentApp.id === 'fuel'; }
+	function reportViews() {
+		reportView('phone', $scope.open);
+		reportView('fuel', fuelOpen());
+	}
+	var viewTimer = setInterval(function () { if ($scope.open) reportViews(); }, 2000);
+	$scope.$on('$destroy', function () {
+		clearInterval(viewTimer);
+		reportView('phone', false);
+		reportView('fuel', false);
+	});
+
 	function closeApp() {
 		if ($scope.currentApp) lua('uiCloseApp(' + JSON.stringify(String($scope.currentApp.id)) + ')');
 		$scope.currentApp = null;
+		reportView('fuel', false);
 	}
 	function setOpen(value) {
 		$scope.open = value;
 		if (!value) closeApp();
+		reportViews();
 		if (value) {
 			try { window.dispatchEvent(new CustomEvent("sharedCareerPanelOpen", {detail: "phone"})); } catch (e) {}
 		}
@@ -69,6 +89,7 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 		closeApp();
 		$scope.currentApp = app;
 		lua('uiOpenApp(' + JSON.stringify(String(app.id)) + ')');
+		if (fuelOpen()) reportView('fuel', true);
 	};
 	$scope.goHome = function () { closeApp(); };
 	$scope.homeBar = function () {
@@ -170,9 +191,11 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 			$scope.connected = data.connected === true;
 			var list = data.players && Array.isArray(data.players.list) ? data.players.list : null;
 			$scope.players = list ? list.length : '–';
-			$scope.fuel = data.fuel || null;
+			// fuel is false while the Fuel app is closed: keep the last list until fresh prices arrive
+			if (data.fuel !== false) $scope.fuel = data.fuel || null;
 		});
 	});
 
 	lua('uiRequest()');
+	reportViews();
 }]);

@@ -423,7 +423,8 @@ function M.onClientStartMission()
 end
 
 -- The fuel prices are an app on the phone (phone.lua); its screen is in the phone window and
--- gets the data with "SharedCareerState" (menu.lua -> M.overview).
+-- gets the data with "SharedCareerState" (menu.lua -> M.overview, only while the app is open).
+-- The prices at the pumps and on the signs are set by M.apply above, independent of the app.
 local function registerPhoneApp()
 	local phone = U.ext("sharedCareer_phone")
 	if phone and type(phone.registerApp) == "function" then

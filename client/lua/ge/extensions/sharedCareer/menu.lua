@@ -5,7 +5,18 @@
 --   time of day        env.lua (timeState; the time controls are there too)
 --   "Traffic", "Options" tabs   the settings below (settingsState)
 --   "Players" tab      players.lua
---   fuel prices        fuel.lua (for the Fuel app on the phone, which reads the same guihook)
+--   fuel prices        fuel.lua (only while the Fuel app is open; the phone reads the same guihook)
+-- The phone's home screen uses the same state (time, players, connection).
+--
+-- Only while someone looks: the windows report what is visible with uiVisible(view, on) –
+--   "menu"   the menu is expanded
+--   "phone"  the phone is out
+--   "fuel"   the Fuel app is open on the phone
+-- They report on every change and again every 2 s while visible; a view counts as visible for
+-- VIEW_LEASE seconds after its last report. So a lost report or a reloaded extension fixes itself
+-- within 2 s, and a window that vanished without saying so stops the updates after VIEW_LEASE.
+-- Nothing visible: no state is built or sent. A view that becomes visible gets the state at once.
+-- The prices at the pumps and on the signs don't depend on this (fuel.lua applies them itself).
 --
 -- Settings ("Traffic" and "Options" tabs): every player may change them; the server checks
 -- the value, saves it and sends it to EVERYONE (sc_configUpdate) – so it applies everywhere
@@ -82,23 +93,61 @@ function M.state()
 	state.settings = M.settingsState()
 	local players = U.ext("sharedCareer_players")
 	if players then state.players = players.state() end
-	local fuel = U.ext("sharedCareer_fuel")
-	if fuel then
-		local ok, overview = pcall(fuel.overview)
-		if ok then state.fuel = overview end
+	-- fuel: the station list while the Fuel app is open (nil = no stations on this map);
+	-- false while it is closed, so the phone keeps its last list instead of an empty one
+	if M.isVisible("fuel") then
+		local fuel = U.ext("sharedCareer_fuel")
+		if fuel then
+			local ok, overview = pcall(fuel.overview)
+			if ok then state.fuel = overview end
+		end
+	else
+		state.fuel = false
 	end
 	return state
 end
 
-function M.push()
+local function send()
 	if guihooks and type(guihooks.trigger) == "function" then
 		guihooks.trigger("SharedCareerState", M.state())
 	end
 end
 
--- Called by the window when it opens, so it isn't empty until the next second.
+--== Who looks =================================================================
+
+local VIEW_LEASE = 5       -- s a view counts as visible after its last report (windows: every 2 s)
+local VIEWS = {menu = true, phone = true, fuel = true}
+local views = {}           -- view -> seconds since its last report (only visible views)
+
+function M.isVisible(view)
+	return views[view] ~= nil
+end
+
+function M.anyVisible()
+	return next(views) ~= nil
+end
+
+--- Sends the state if a window shows it right now.
+function M.push()
+	if M.anyVisible() then send() end
+end
+
+--- From the windows: view ("menu", "phone", "fuel") is visible (true) or not (false).
+--- A view that becomes visible gets the state right away.
+function M.uiVisible(view, on)
+	if not VIEWS[view] then return end
+	if on == true then
+		local wasVisible = views[view] ~= nil
+		views[view] = 0
+		if not wasVisible then send() end
+	else
+		views[view] = nil
+	end
+end
+
+-- Called by a window when it is (re)built, so it isn't empty until the next second.
 function M.uiRequest()
-	M.push()
+	send()
 end
 
 -- New settings from the server (someone changed something in the menu): show them right
@@ -111,7 +160,12 @@ end
 local since = 1
 
 function M.onUpdate(dtReal)
-	since = since + (tonumber(dtReal) or 0)
+	local dt = tonumber(dtReal) or 0
+	for view, age in pairs(views) do
+		age = age + dt
+		views[view] = age <= VIEW_LEASE and age or nil
+	end
+	since = since + dt
 	if since < 1 then return end
 	since = 0
 	if U.isMP() then M.push() end
@@ -138,6 +192,7 @@ end
 
 function M.onBeamMPServerLeave()
 	keyRegistered = false
+	views = {}
 end
 
 function M.onExtensionLoaded()

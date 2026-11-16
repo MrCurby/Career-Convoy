@@ -18,7 +18,9 @@
 // list); the state is remembered in the game's browser storage.
 //
 // Data arrives every second via the guihook "SharedCareerState" from
-// lua/ge/extensions/sharedCareer/menu.lua (state). Clicks go via bngApi.engineLua to
+// lua/ge/extensions/sharedCareer/menu.lua (state) – only while someone looks: the window reports
+// "menu" visible with sharedCareer_menu.uiVisible on every expand/collapse and every 2 s while
+// expanded (see menu.lua). Clicks go via bngApi.engineLua to
 // sharedCareer_env (time: uiSetHour / uiShiftHour / uiSetPaused / uiSetLengths),
 // sharedCareer_menu (settings) and sharedCareer_players (Players tab).
 //
@@ -47,11 +49,17 @@ sharedCareerMenuApp.controller('SharedCareerMenu', ['$scope', '$element', functi
 	$scope.collapsed = false;
 	try { $scope.collapsed = window.localStorage.getItem(STORAGE_KEY) === "1"; } catch (e) {}
 
+	// Tells Lua whether the expanded menu is visible (it only sends the state while someone looks).
+	function reportVisible(visible) {
+		bngApi.engineLua('if sharedCareer_menu then sharedCareer_menu.uiVisible("menu", ' + (visible ? 'true' : 'false') + ') end');
+	}
+
 	// Menu and phone sit at the right edge: when one opens, the other one closes
 	// (window event "sharedCareerPanelOpen").
 	function setCollapsed(value) {
 		$scope.collapsed = value;
 		try { window.localStorage.setItem(STORAGE_KEY, value ? "1" : "0"); } catch (e) {}
+		reportVisible(!value);
 		if (!value) {
 			try { window.dispatchEvent(new CustomEvent("sharedCareerPanelOpen", {detail: "menu"})); } catch (e) {}
 		}
@@ -267,8 +275,12 @@ sharedCareerMenuApp.controller('SharedCareerMenu', ['$scope', '$element', functi
 		});
 	});
 
-	// if the server doesn't apply a change, show the real value again after 3 s
+	// if the server doesn't apply a change, show the real value again after 3 s;
+	// every 2 s: still visible (keeps the state coming, see reportVisible)
+	var ticks = 0;
 	var pendingTimer = setInterval(function () {
+		ticks++;
+		if (ticks % 2 === 0 && !$scope.collapsed) reportVisible(true);
 		if ($scope.pending) {
 			$scope.pending.age = ($scope.pending.age || 0) + 1;
 			if ($scope.pending.age > 3) $scope.$evalAsync(function () { $scope.pending = null; });
@@ -280,8 +292,9 @@ sharedCareerMenuApp.controller('SharedCareerMenu', ['$scope', '$element', functi
 			if (p.age > PENDING_MAX) $scope.$evalAsync(function () { delete pending[key]; });
 		});
 	}, 1000);
-	$scope.$on('$destroy', function () { clearInterval(pendingTimer); });
+	$scope.$on('$destroy', function () { clearInterval(pendingTimer); reportVisible(false); });
 
+	reportVisible(!$scope.collapsed);
 	bngApi.engineLua('if sharedCareer_menu then sharedCareer_menu.uiRequest() end');
 	// fetch an open dialog (e.g. if it arrived while the main menu had hidden the apps)
 	bngApi.engineLua('if sharedCareer_welcome then sharedCareer_welcome.uiRequestDialog() end');

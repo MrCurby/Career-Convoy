@@ -1310,8 +1310,13 @@ check(setCalls == calls, "no constant resetting")
 -- UI window: state and control
 local uiEvents = {}
 _G.guihooks = {trigger = function(name, data) if name == "SharedCareerState" then table.insert(uiEvents, data) end end}
+sharedCareer_menu.onBeamMPServerLeave() -- nothing visible
 handlers.sc_time(json.encode({hour = 19.5, play = true, dayLength = 3600, dayLengthDay = 3600, dayLengthNight = 720,
 	dayStart = 6, nightStart = 20, dayMinutes = 50, nightMinutes = 5, canControl = true}))
+update(1.1); update(1.1)
+check(#uiEvents == 0, "menu collapsed, phone away: no state built or sent (neither on news nor every second)")
+sharedCareer_menu.uiVisible("menu", true)
+check(#uiEvents == 1, "menu expanded: the state comes at once")
 local ui = uiEvents[#uiEvents]
 check(ui and ui.connected and ui.canControl and ui.isDay == true, "window gets the state (day, may control)")
 check(ui and math.abs(ui.secondsToSwitch - 0.5 * 3600 / 24) < 1, "time until night correct (0.5 h = 75 s)")
@@ -1338,6 +1343,77 @@ check(uiEvents[#uiEvents].paused == true, "window knows the clock is paused")
 local setsPaused = setCalls
 update(1.1); update(1.1)
 check(setCalls == setsPaused, "paused: no speed switching")
+
+do
+local menu = sharedCareer_menu
+-- who looks: reports with a lease (windows report every 2 s while visible)
+local function pushesDuring(seconds, beat)
+	local before, t, sinceBeat = #uiEvents, 0, 0
+	while t < seconds - 1e-9 do
+		update(0.5)
+		t, sinceBeat = t + 0.5, sinceBeat + 0.5
+		if beat and sinceBeat >= 2 then sinceBeat = 0; beat() end
+	end
+	return #uiEvents - before
+end
+menu.onBeamMPServerLeave()
+menu.uiVisible("menu", true)
+local kept = pushesDuring(10, function() menu.uiVisible("menu", true) end)
+check(kept >= 9 and kept <= 11, "menu reports every 2 s: the state keeps coming every second (" .. kept .. " in 10 s)")
+check(menu.isVisible("menu") and not menu.isVisible("phone") and not menu.isVisible("fuel"), "only the menu counts as visible")
+local repeated = #uiEvents
+menu.uiVisible("menu", true)
+check(#uiEvents == repeated, "a repeated report sends nothing extra")
+local tail = pushesDuring(5)
+check(tail >= 4 and menu.isVisible("menu"), "no report for 5 s: still visible (lease)")
+local afterLease = pushesDuring(1)
+check(not menu.isVisible("menu"), "no report for more than 5 s: no longer visible")
+check(pushesDuring(5) == 0, "a window that vanished without a word: no more updates")
+menu.uiVisible("menu", true)
+check(menu.isVisible("menu") and uiEvents[#uiEvents] ~= nil, "visible again: state at once")
+menu.uiVisible("menu", false)
+check(pushesDuring(3) == 0, "menu collapsed: updates stop at once")
+handlers.sc_time(json.encode({hour = 15, play = false, paused = true, dayLength = 0, dayStart = 6, nightStart = 20,
+	dayMinutes = 50, nightMinutes = 5, canControl = true}))
+check(pushesDuring(0) == 0 and #uiEvents == repeated + tail + afterLease + 1, "news from the server while nothing is visible: not sent")
+-- the phone's home screen (time, players) keeps the state coming, without fuel prices
+local before = #uiEvents
+menu.uiVisible("phone", true)
+check(#uiEvents == before + 1 and uiEvents[#uiEvents].fuel == false and uiEvents[#uiEvents].hour ~= nil,
+	"phone out: state at once, fuel = false (Fuel app closed)")
+check(pushesDuring(2) >= 1 and uiEvents[#uiEvents].fuel == false, "phone out: every second, still without fuel prices")
+-- the Fuel app open: fuel prices at once (nil: this test map has no gas stations)
+local fuelAsked = 0
+local realOverview = sharedCareer_fuel.overview
+sharedCareer_fuel.overview = function() fuelAsked = fuelAsked + 1; return {stations = {{id = "apex"}}} end
+before = #uiEvents
+menu.uiVisible("fuel", true)
+check(#uiEvents == before + 1 and type(uiEvents[#uiEvents].fuel) == "table" and fuelAsked == 1, "Fuel app open: prices at once")
+local asked = fuelAsked
+pushesDuring(3, function() menu.uiVisible("phone", true); menu.uiVisible("fuel", true) end)
+check(fuelAsked - asked >= 2 and type(uiEvents[#uiEvents].fuel) == "table", "Fuel app open: prices every second")
+menu.uiVisible("fuel", false)
+asked = fuelAsked
+pushesDuring(3, function() menu.uiVisible("phone", true) end)
+check(fuelAsked == asked and uiEvents[#uiEvents].fuel == false, "Fuel app closed: no prices computed, phone still updated")
+sharedCareer_fuel.overview = function() return nil end
+menu.uiVisible("fuel", true)
+check(uiEvents[#uiEvents].fuel == nil, "Fuel app open on a map without stations: fuel = nil (empty list, not false)")
+sharedCareer_fuel.overview = function() error("broken") end
+menu.uiVisible("fuel", false); menu.uiVisible("fuel", true)
+check(uiEvents[#uiEvents].hour ~= nil and uiEvents[#uiEvents].fuel == nil, "a fuel error doesn't break the rest of the state")
+sharedCareer_fuel.overview = realOverview
+-- odd reports are ignored; uiRequest (window rebuilt) always answers; leaving the server resets
+before = #uiEvents
+menu.uiVisible("radio", true)
+check(#uiEvents == before and not menu.isVisible("radio"), "unknown view: ignored")
+menu.uiVisible("menu", "yes")
+check(not menu.isVisible("menu"), "a report that isn't true counts as not visible")
+menu.onBeamMPServerLeave()
+check(not menu.anyVisible() and pushesDuring(2) == 0, "leaving the server: nothing visible")
+menu.uiRequest()
+check(#uiEvents == before + 1, "a rebuilt window asks and gets the state, even if nothing reported yet")
+end
 
 -- pause menu lock
 local seen = {}
@@ -1553,6 +1629,13 @@ check(activeRoad == 8 and activeParked == 7, "more than the pool: limited (rest 
 -- menu updated immediately when someone else changes something
 local menuPushes = {}
 _G.guihooks = {trigger = function(name, data) if name == "SharedCareerState" then table.insert(menuPushes, data) end end}
+sharedCareer_menu.uiVisible("menu", false)
+cfgM.roadTraffic = 8
+handlers.sc_configUpdate(json.encode(cfgM))
+check(#menuPushes == 0, "menu collapsed: another player's change is not sent to it")
+sharedCareer_menu.uiVisible("menu", true)
+check(#menuPushes == 1 and menuPushes[1].settings.roadTraffic == 8, "expanding the menu: it shows the current value at once")
+menuPushes = {}
 cfgM.roadTraffic = 9
 handlers.sc_configUpdate(json.encode(cfgM))
 check(#menuPushes == 1 and menuPushes[1].settings.roadTraffic == 9, "menu shows another player's change immediately (without the 1 s tick)")
