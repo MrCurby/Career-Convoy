@@ -67,14 +67,14 @@
 					</div>
 
 					<div ng-if="!tow.attached && tow.allowed">
-						<button class="scp-wide scp-primary" ng-click="towCall('uiAttachView()')">Attach where I look</button>
+						<button class="scp-wide scp-primary" ng-click="towCall('uiAttachView()')"><svg class="scp-btn-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v9" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M12 11a5 5 0 1 0 5 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg><span>Attach where I look</span></button>
 						<div class="scp-hint">Aim with the middle of the screen – a blue ball shows where.</div>
 						<div class="scp-label" ng-if="tow.nearby.length">Your vehicles nearby</div>
 						<button class="scp-row" ng-repeat="v in tow.nearby track by v.id" ng-click="towCall('uiAttachVehicle(' + v.id + ')')">
 							<span class="scp-row-name" ng-bind="v.name"></span><span class="scp-row-right" ng-bind="v.distance + ' m'"></span>
 						</button>
 						<div class="scp-hint" ng-if="!tow.nearby.length">None of your vehicles is nearby.</div>
-						<button class="scp-wide scp-secondary" ng-if="tow.towToRoad" ng-click="towCall('uiTowToRoad()')">Tow to the road</button>
+						<button class="scp-wide scp-hazard" ng-if="tow.towToRoad" ng-click="towCall('uiTowToRoad()')"><span class="scp-hazard-plate"><svg class="scp-btn-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3 L3 21 M16 3 L21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/><path d="M12 4v3M12 10.5v3M12 17v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Tow to the road</span></span></button>
 						<div class="scp-hint" ng-if="tow.towToRoad">For the vehicle you look at: puts it on the last road it drove on, free of charge. The damage stays.</div>
 					</div>
 
@@ -106,9 +106,9 @@
 							<button ng-repeat="s in tow.strengths" ng-class="{'scp-seg-on scp-seg-in': tow.strength === s}" ng-click="towCall('uiStrength(' + s + ')')">{{s}} %</button>
 						</div>
 						<div class="scp-hint">Stuck, handbrake or Park: try 100 % or more.</div>
-						<button class="scp-wide scp-secondary" ng-if="tow.towToRoad" ng-click="towCall('uiTowToRoad()')">Tow to the road</button>
+						<button class="scp-wide scp-hazard" ng-if="tow.towToRoad" ng-click="towCall('uiTowToRoad()')"><span class="scp-hazard-plate"><svg class="scp-btn-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3 L3 21 M16 3 L21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/><path d="M12 4v3M12 10.5v3M12 17v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Tow to the road</span></span></button>
 						<div class="scp-hint" ng-if="tow.towToRoad">Stuck for good? Puts the vehicle on the last road it drove on, free of charge. The damage stays.</div>
-						<button class="scp-wide scp-danger" ng-click="towCall('uiRelease()')">Remove rope</button>
+						<button class="scp-wide scp-danger" ng-click="towCall('uiRelease()')"><svg class="scp-btn-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="18" r="2.6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="18" cy="18" r="2.6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M7.8 16 L17 4 M16.2 16 L7 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Remove rope</span></button>
 					</div>
 				</div>
 
