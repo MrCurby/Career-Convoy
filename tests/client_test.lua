@@ -622,6 +622,17 @@ local function joinForNodegrab(allow)
 	extensions.core_input_actionFilter = core_input_actionFilter
 	_G.gameplay_walk = {isWalking = function() return walking end}
 	_G.core_camera = {getActiveGlobalCameraName = function() return freeCam end}
+	-- rebuild of core/nodegrabberGamepad.lua: strength 0..100, passed on to the engine
+	be.nodeGrabber = {strength = nil, onMouseButton = function() end}
+	function be.nodeGrabber.setStrength(self, v) self.strength = v end
+	local gp = {state = {strength = 30}}
+	function gp.addStrength(v)
+		gp.state.strength = math.max(0, math.min(100, gp.state.strength + v))
+		be.nodeGrabber:setStrength(gp.state.strength)
+	end
+	function gp.fixCurrentNode() be.nodeGrabber:setStrength(gp.state.strength) end
+	_G.core_nodegrabberGamepad = gp
+	extensions.core_nodegrabberGamepad = gp
 	extensions.hook("onWorldReadyState", 2)
 	local c = {}
 	for k, v in pairs(config) do c[k] = v end
@@ -667,11 +678,33 @@ check(grabBlocked(), "switched off live: the mod no longer lifts the block")
 cfgN.allowNodeGrabber = true
 handlers.sc_configUpdate(json.encode(cfgN))
 check(not grabBlocked(), "switched on live: allowed immediately")
+-- strength multiplier
+extensions.hook("onCareerActive", true)
+check(be.nodeGrabber.strength == 30, "multiplier 1: the game's own strength (30 %)")
+cfgN.nodeGrabberStrength = 3
+handlers.sc_configUpdate(json.encode(cfgN))
+check(be.nodeGrabber.strength == 90, "multiplier 3: the engine gets 3 x 30")
+core_nodegrabberGamepad.addStrength(100)
+check(core_nodegrabberGamepad.state.strength == 100 and be.nodeGrabber.strength == 300,
+	"the game's 100 % cap stays in its UI, the engine gets 300")
+core_nodegrabberGamepad.fixCurrentNode()
+check(be.nodeGrabber.strength == 300, "fixing a node keeps the multiplied strength")
+cfgN.nodeGrabberStrength = 50
+handlers.sc_configUpdate(json.encode(cfgN))
+check(be.nodeGrabber.strength == 1000, "multiplier is capped at 10")
+core_nodegrabberGamepad.addStrength(-5)
+local wrappedOnce = be.nodeGrabber.strength == 950
+cfgN.nodeGrabberStrength = 10
+handlers.sc_configUpdate(json.encode(cfgN))
+core_nodegrabberGamepad.addStrength(5)
+check(wrappedOnce and be.nodeGrabber.strength == 1000, "strength follows later changes in the game UI")
 -- leaving the server restores the career's rule
 extensions.hook("onBeamMPServerLeave")
 check(grabBlocked(), "leaving the server: blocked in a vehicle again")
+check(be.nodeGrabber.strength == 100, "leaving the server: back to the game's own strength")
 _G.core_input_actionFilter, _G.gameplay_walk, _G.core_camera = nil, nil, nil
 extensions.core_input_actionFilter = nil
+_G.core_nodegrabberGamepad, extensions.core_nodegrabberGamepad, be.nodeGrabber = nil, nil, nil
 
 --== 7c. Time of day and pause menu ==========================================
 resetWorld()

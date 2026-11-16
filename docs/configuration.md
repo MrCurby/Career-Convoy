@@ -115,6 +115,7 @@ The file is `Resources/Server/SharedCareer/config/config.json`. It is created on
 | `client.allowConsole` | `false` | Allow the in-game Lua console |
 | `client.allowWorldEditor` | `false` | Allow the world editor |
 | `client.allowNodeGrabber` | `true` | Node grabber (grab and pull vehicles with the mouse) also in a vehicle and in the free camera. The normal career only allows it while walking. The vehicle certification test still blocks it. `false` = the career's own rule. |
+| `client.nodeGrabberStrength` | `1` | Multiplier for the node grabber strength (1–10). The game caps the strength at 100 %; with `3`, the engine gets three times that. `1` = the game's own strength. |
 
 ### How settings survive updates
 

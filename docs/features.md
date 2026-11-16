@@ -152,6 +152,8 @@ The normal career only lets you use the node grabber (grab and pull vehicles wit
 
 Server admins can switch back to the career's rule with `sc set client.allowNodeGrabber false`. It applies immediately.
 
+**Too weak for heavy vehicles?** The game caps the grab strength at 100 % (mouse wheel while grabbing). `sc set client.nodeGrabberStrength 3` gives the engine three times the strength you set; the on-screen value still shows up to 100 %. `1` is the game's own strength.
+
 ## Sending money
 
 ```

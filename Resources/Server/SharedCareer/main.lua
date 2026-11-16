@@ -58,7 +58,7 @@
 --   Server -> Client: sc_fuelPrices {enabled, factors = {[station] = {gasoline = 0.9, ...}}}
 --                       (from the SharedCareer menu window)
 
-local VERSION = "0.8.9"
+local VERSION = "0.8.10"
 local TAG = "[SharedCareer] "
 
 local CONFIG_DIR = "Resources/Server/SharedCareer/config"
@@ -175,6 +175,9 @@ local DEFAULTS = {
 		-- camera. The normal career only allows it while walking. Makes cheating easy (flip cars,
 		-- push cargo), but handy among friends. false = the career's own rule.
 		allowNodeGrabber = true,
+		-- Node grabber strength multiplier (1–10). The game caps the grab strength at 100 %;
+		-- with 3 the engine gets three times that. 1 = the game's own strength.
+		nodeGrabberStrength = 1,
 	},
 }
 
