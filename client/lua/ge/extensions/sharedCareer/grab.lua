@@ -29,7 +29,8 @@
 --
 -- What you see (debugDrawer lines, like the game's own markers):
 --   rope      a line from the grip to the anchor: grey = slack; when taut, the color shows the
---             strain: green = easy, yellow = working hard, red = at the force limit
+--             strain: green = easy, yellow = working hard, red = at the force limit. A slack rope
+--             sags (a curve as long as the rope); it straightens smoothly when it is pulled taut
 --   anchor    a cross: white = resting, cyan = being moved, orange = winch running
 --   preview   on foot or in the free camera, pointing at one of your vehicles: a small cross
 --             where F6 would grab
@@ -452,13 +453,42 @@ local function line(a, b, color)
 	debugDrawer:drawLine(vec3(a.x, a.y, a.z), vec3(b.x, b.y, b.z), color)
 end
 
+-- how deep a slack rope sags in the middle: a parabola over the horizontal span d whose length is
+-- about the rope length L (L ~ d + 8 s^2 / 3d), at most half the rope (hanging straight down)
+local SAG_SEGMENTS = 12
+local SAG_RATE = 8         -- 1/s: how fast the drawn sag follows the rope
+local SAG_MAX = 6          -- m
+function M.sagDepth(span, horizontal, length)
+	span, horizontal, length = tonumber(span) or 0, tonumber(horizontal) or 0, tonumber(length) or 0
+	if span < 0.05 or length <= span then return 0 end
+	local s = math.sqrt(3 * span * (length - span) / 8)
+	s = math.min(s, length / 2, SAG_MAX)
+	-- a steep rope hangs along itself rather than below it
+	return s * math.max(0, math.min(1, horizontal / span))
+end
+
+local function rope(a, b, sag, color)
+	if sag < 0.02 then
+		line(a, b, color)
+		return
+	end
+	local prev = a
+	for i = 1, SAG_SEGMENTS do
+		local t = i / SAG_SEGMENTS
+		local p = {x = a.x + (b.x - a.x) * t, y = a.y + (b.y - a.y) * t,
+			z = a.z + (b.z - a.z) * t - 4 * sag * t * (1 - t)}
+		line(prev, p, color)
+		prev = p
+	end
+end
+
 local function cross(p, size, color)
 	line({x = p.x - size, y = p.y, z = p.z}, {x = p.x + size, y = p.y, z = p.z}, color)
 	line({x = p.x, y = p.y - size, z = p.z}, {x = p.x, y = p.y + size, z = p.z}, color)
 	line({x = p.x, y = p.y, z = p.z - size}, {x = p.x, y = p.y, z = p.z + size}, color)
 end
 
-function M.draw()
+function M.draw(dt)
 	if not (held and held.grip and held.target) and not probe then return end
 	if not canDraw() then return end
 	if held and held.grip and held.target then
@@ -469,7 +499,13 @@ function M.draw()
 			local r, g, b = M.strainColor(held.strain)
 			color = ColorF(r, g, b, 0.9)
 		end
-		line(held.grip, held.target, color)
+		local a, b = held.grip, held.target
+		local dx, dy, dz = b.x - a.x, b.y - a.y, b.z - a.z
+		local span = math.sqrt(dx * dx + dy * dy + dz * dz)
+		local want = held.slack and M.sagDepth(span, math.sqrt(dx * dx + dy * dy), held.length) or 0
+		local k = 1 - math.exp(-SAG_RATE * math.max(0, tonumber(dt) or 0))
+		held.sag = (held.sag or want) + (want - (held.sag or want)) * k
+		rope(a, b, held.sag, color)
 		cross(held.grip, 0.15, color)
 		local anchorColor = (held.moving or held.nudge) and ColorF(0.3, 0.9, 1, 0.9)
 			or held.winch == 1 and ColorF(1, 0.55, 0.1, 0.9)
@@ -728,7 +764,7 @@ function M.onUpdate(dtReal)
 			pcall(pushApp)
 		end
 	end
-	local ok, err = pcall(M.draw)
+	local ok, err = pcall(M.draw, tonumber(dtReal) or 0)
 	if not ok and not drawErrorLogged then
 		drawErrorLogged = true
 		U.log("E", "grab", "drawing failed: " .. tostring(err))

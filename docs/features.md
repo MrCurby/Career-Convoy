@@ -184,7 +184,7 @@ It behaves like a real rope: it only pulls when it's taut, never pushes. The for
 
 What you see:
 
-- **Rope:** grey when slack. When taut, the color shows how hard the winch works: **green** is easy, **yellow** is working hard, **red** means it's at its force limit (too heavy, stuck, or trying to lift too much).
+- **Rope:** grey when slack, and it sags – the more rope is out, the deeper; it straightens as it is pulled taut. When taut, the color shows how hard the winch works: **green** is easy, **yellow** is working hard, **red** means it's at its force limit (too heavy, stuck, or trying to lift too much).
 - **Anchor:** a cross; white when resting, cyan while you move it, orange while the winch runs.
 
 It only works on your own vehicles and your own traffic: other players' vehicles are simulated on their PCs, and BeamMP would put them right back. Players on foot can't be roped, and neither can the vehicle you are sitting in (the camera would move with it). Get out, or use the free camera.

@@ -1030,13 +1030,45 @@ grabKeys.sharedCareerGrabWinch.onDown()
 sharedCareer_grab.onHandState(60, 9, 0, 1, 0, 1, 4)
 drawn = {}
 frames(1 / 60)
-check(drawn[1].c.r == 0.7 and drawn[1].c.g == 0.7 and drawn[5].c.r == 1 and drawn[5].c.g == 1,
+check(drawn[1].c.r == 0.7 and drawn[1].c.g == 0.7 and drawn[#drawn - 2].c.r == 1 and drawn[#drawn - 2].c.g == 1,
 	"slack rope: grey line; winch off: white anchor")
 gpGrab.grab(1, "mouse0")
 drawn = {}
 frames(1 / 60)
-check(drawn[5].c.b > 0.9 and drawn[5].c.r < 0.5, "moving the anchor: cyan anchor")
+check(drawn[#drawn - 2].c.b > 0.9 and drawn[#drawn - 2].c.r < 0.5, "moving the anchor: cyan anchor")
 gpGrab.grab(0, "mouse0")
+do
+-- sag: a slack rope is drawn as a curve below the straight line, a taut one straight
+check(sharedCareer_grab.sagDepth(4, 4, 4) == 0 and sharedCareer_grab.sagDepth(4, 4, 3) == 0,
+	"sag: none when the rope is as long as the distance or shorter")
+local s5 = sharedCareer_grab.sagDepth(4, 4, 5)
+check(math.abs(s5 - math.sqrt(1.5)) < 1e-6 and 4 + 8 * s5 ^ 2 / 12 == 5, "sag: parabola about as long as the rope")
+check(sharedCareer_grab.sagDepth(4, 0, 6) == 0 and sharedCareer_grab.sagDepth(4, 2, 6) < sharedCareer_grab.sagDepth(4, 4, 6),
+	"sag: a steep rope hangs along itself")
+check(sharedCareer_grab.sagDepth(10, 10, 60) == 6, "sag: limited")
+local function lowest()
+	local z = math.huge
+	for _, d in ipairs(drawn) do if d.c.r == 0.7 then z = math.min(z, d.p2.z) end end
+	return z
+end
+sharedCareer_grab.onHandState(60, 9, 0, 1, 0, 1, 30)   -- slack, rope much longer than the distance
+drawn = {}
+frames(1 / 60)
+local curve = #drawn
+frames(1)
+drawn = {}
+frames(1 / 60)
+local deep = lowest()
+check(curve > 7 and deep < 1 - 0.5, string.format("slack rope sags (%d lines, lowest %.2f)", curve, deep))
+sharedCareer_grab.onHandState(60, 9, 0, 1, 0.5, 0, 4)  -- pulled taut
+drawn = {}
+frames(1 / 60)
+local midway = #drawn > 7 and lowest() > deep
+frames(1)
+drawn = {}
+frames(1 / 60)
+check(midway and #drawn == 7, "taut again: the curve straightens smoothly, then a straight line")
+end
 -- let go
 keyG.onDown()
 check(not sharedCareer_grab.isHolding() and lastHand(truck) == "handRelease" and actionMaps.Nodegrabber == 0,
