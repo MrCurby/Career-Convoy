@@ -178,7 +178,7 @@ local DEFAULTS = {
 		-- Our own node grabber (key F6): move your own vehicles slowly by hand, with physics –
 		-- e.g. onto a tow truck. Only own vehicles.
 		allowGrab = true,
-		-- The phone (key F4, tab at the right screen edge): home for future SharedCareer apps.
+		-- The phone (key F4, tab at the right screen edge) with the Tow and Fuel apps.
 		phone = true,
 		-- How fast the grabbed point moves at most, in m/s (0.2–5).
 		grabSpeed = 1,

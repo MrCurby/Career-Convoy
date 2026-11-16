@@ -46,7 +46,7 @@ echo 'REPO="MrCurby/SharedCareer"' > server.conf
 `update` downloads the newest release from GitHub, installs it and starts the server. The server console should show:
 
 ```
-[SharedCareer] Version 0.8.4 loaded. Console: sc help
+[SharedCareer] Version <version> loaded. Console: sc help
 ```
 
 On the first start the mod creates its settings in `Resources/Server/SharedCareer/config/config.json`.

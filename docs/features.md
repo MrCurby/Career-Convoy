@@ -180,7 +180,7 @@ Open the phone (**F4**) and tap **Tow**:
 | Pull | **F8** | Winch on: the rope is hauled in and the vehicle is pulled slowly (at most 1 m/s) to the anchor. It stops half a meter before it and doesn't roll past. Press F8 again to stop; the vehicle then hangs on the rope. |
 | Remove the rope | **F6** | |
 
-It behaves like a real rope: it only pulls when it's taut, never pushes. The force is limited to 60 % of the vehicle's weight, so you can lift one end (put the anchor up high) and drag the vehicle, but not float it. Pull a corner and the vehicle turns; the wheels roll. The force goes mostly to the heavy frame parts around the rope's end, so nothing gets bent.
+It behaves like a real rope: it only pulls when it's taut, never pushes. The force is limited to the pull strength picked in the Tow app (60 % of the vehicle's weight at first, see below). Below 100 % you can lift one end (put the anchor up high) and drag the vehicle, but not float it. Pull a corner and the vehicle turns; the wheels roll. The force goes mostly to the heavy frame parts around the rope's end, so nothing gets bent.
 
 What you see:
 
