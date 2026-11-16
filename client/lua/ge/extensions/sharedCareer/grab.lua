@@ -38,7 +38,8 @@
 -- Only your own vehicles (incl. your own traffic): other players' vehicles are simulated on
 -- their PCs, BeamMP would put them back immediately. Not the player on foot.
 -- Server settings: client.allowGrab (on/off), client.grabSpeed (m/s the winch hauls in at most),
--- client.grabStrength (force limit in % of the vehicle's weight).
+-- client.grabStrength (the highest force limit a player may pick, in % of the vehicle's weight).
+-- Each player picks the strength in the Tow app (30/60/100/150 %, capped at client.grabStrength).
 
 local M = {}
 
@@ -67,6 +68,8 @@ local APP_PUSH_EVERY = 0.2 -- s: how often the Tow app gets the state while it's
 local held = nil           -- {id, dist, since, grip = {x, y, z}, target (= anchor), strain, slack,
                            --  moving, winch (1 haul in, 0 stop, -1 pay out), placed, nudge, length}
 local fine = false         -- fine mode (Tow app)
+local STRENGTHS = {30, 60, 100, 150} -- strength choices in the Tow app (% of the vehicle's weight)
+local strengthPick = 60    -- the player's pick in the Tow app
 local appOpen = false      -- the Tow app is open on the phone
 local sinceAppPush = 0
 local probe = nil          -- {id, x, y, z, age}
@@ -95,7 +98,8 @@ end
 
 -- m/s the grip moves at most, and the force limit in % of the vehicle's weight
 local function grabSpeed() return numberSetting("grabSpeed", 1, 0.2, 5) end
-local function grabStrength() return numberSetting("grabStrength", 60, 10, 150) end
+local function maxStrength() return numberSetting("grabStrength", 150, 10, 150) end
+local function grabStrength() return math.min(strengthPick, maxStrength()) end
 
 local function sendToVehicle(id, cmd)
 	local veh = be:getObjectByID(id)
@@ -544,7 +548,14 @@ end
 
 --- State for the Tow app.
 function M.appState()
-	local state = {allowed = allowed(), attached = held ~= nil, fine = fine}
+	local max = maxStrength()
+	local choices = {}
+	for _, v in ipairs(STRENGTHS) do
+		if v <= max then table.insert(choices, v) end
+	end
+	if #choices == 0 or choices[#choices] < max then table.insert(choices, math.floor(max + 0.5)) end
+	local state = {allowed = allowed(), attached = held ~= nil, fine = fine,
+		strength = grabStrength(), maxStrength = max, strengths = choices}
 	if held then
 		local veh = be:getObjectByID(held.id)
 		state.vehicle = veh and vehicleName(veh) or "?"
@@ -599,6 +610,14 @@ end
 function M.uiRelease() M.release(); pushApp() end
 function M.uiWinch(mode) M.setWinch(mode); pushApp() end
 function M.uiFine(on) fine = on == true; pushApp() end
+--- Pull strength in % of the vehicle's weight (capped at the server's client.grabStrength).
+function M.uiStrength(v)
+	v = tonumber(v)
+	if not v then return end
+	strengthPick = math.max(10, math.min(150, v))
+	if held then held.since = SEND_EVERY end
+	pushApp()
+end
 --- Remote control: move the anchor while a button is held (f = forward, r = right, u = up; -1..1).
 function M.uiNudge(f, r, u)
 	if not held then return end

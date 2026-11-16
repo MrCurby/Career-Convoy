@@ -99,6 +99,11 @@
 							<button ng-class="{'scp-seg-on': tow.winch === 0}" ng-click="towCall('uiWinch(0)')">Stop</button>
 							<button ng-class="{'scp-seg-on scp-seg-in': tow.winch === 1}" ng-click="towCall('uiWinch(1)')">Haul in</button>
 						</div>
+						<div class="scp-label">Strength <span>{{tow.strength}} % of the weight</span></div>
+						<div class="scp-seg scp-seg-strength" ng-style="{'grid-template-columns': 'repeat(' + (tow.strengths.length || 1) + ', 1fr)'}">
+							<button ng-repeat="s in tow.strengths" ng-class="{'scp-seg-on scp-seg-in': tow.strength === s}" ng-click="towCall('uiStrength(' + s + ')')">{{s}} %</button>
+						</div>
+						<div class="scp-hint">Stuck, handbrake or Park: try 100 % or more.</div>
 						<button class="scp-wide scp-danger" ng-click="towCall('uiRelease()')">Remove rope</button>
 					</div>
 				</div>

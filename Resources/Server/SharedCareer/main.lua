@@ -58,7 +58,7 @@
 --   Server -> Client: sc_fuelPrices {enabled, factors = {[station] = {gasoline = 0.9, ...}}}
 --                       (from the SharedCareer menu window)
 
-local VERSION = "0.13.0"
+local VERSION = "0.14.0"
 local TAG = "[SharedCareer] "
 
 local CONFIG_DIR = "Resources/Server/SharedCareer/config"
@@ -182,9 +182,9 @@ local DEFAULTS = {
 		phone = true,
 		-- How fast the grabbed point moves at most, in m/s (0.2–5).
 		grabSpeed = 1,
-		-- Force limit in % of the vehicle's weight (10–150). Below 100 you can lift one end and
-		-- drag or push the vehicle, but not float it.
-		grabStrength = 60,
+		-- Highest pull strength a player may pick in the Tow app, in % of the vehicle's weight
+		-- (10–150). Below 100 you can lift one end and drag or push the vehicle, but not float it.
+		grabStrength = 150,
 	},
 }
 

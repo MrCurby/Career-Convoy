@@ -115,6 +115,9 @@ end
 --   * winch -1 (pay out): the rope gets longer at `speed` m/s, e.g. to lower a lifted end
 --   * the pull is limited to `strength` % of the vehicle's weight: you can lift one end and drag
 --     the vehicle, but not float it (below 100 %)
+--   * if the vehicle doesn't follow (handbrake, gear in park, a wheel against a curb), the pull
+--     builds up to the limit within about 2 s, like a winch working harder; once the vehicle
+--     moves at the wanted speed it eases off again
 --   * the force is split over the grip nodes by their mass, so thin panels don't bend
 -- Forces are applied once per frame for that frame (obj:applyForceVectorTime in updateGFX, like
 -- the game's container locks do).
@@ -128,6 +131,8 @@ local HAND_LIFT_RAMP = 0.3 -- m of stretch at which an upward rope carries the f
 local ROPE_MIN = 0.5       -- m: the winch doesn't haul in further than this
 local ROPE_MAX = 150       -- m: the winch doesn't pay out further than this
 local WINCH_BRAKE = 0.5    -- share of the force limit the running winch may use to brake
+local BOOST_RISE = 0.5     -- share of the force limit per second the pull builds up while stuck
+local BOOST_FALL = 2       -- share of the force limit per second it eases off once it moves
 local GRAVITY = 9.81
 
 local HAND_REPORT_EVERY = 0.1 -- s: how often the grip position and strain go back to the GE side
@@ -174,7 +179,7 @@ function M.handGrab(x, y, z, speed, strength)
 		return false
 	end
 	hand = {nodes = nodes, gripMass = gripMass, vehMass = vehMass, ax = x, ay = y, az = z,
-		length = nil, winch = 0, moving = false,
+		length = nil, winch = 0, moving = false, boost = 0,
 		speed = tonumber(speed) or 1, strength = tonumber(strength) or 60, strain = 0,
 		since = HAND_REPORT_EVERY}
 	return true
@@ -290,6 +295,13 @@ function M.updateGFX(dt)
 		local want = math.max(0, math.min(hand.speed, stretch * HAND_KP))
 		local along = vx * ux + vy * uy + vz * uz
 		tension = hand.vehMass / HAND_TAU * (want - along)
+		-- stuck (slower than wanted): build up an extra pull, step by step up to the limit
+		if want - along > 0.1 then
+			hand.boost = math.min(limit, hand.boost + limit * BOOST_RISE * dt)
+		else
+			hand.boost = math.max(0, hand.boost - limit * BOOST_FALL * dt)
+		end
+		tension = tension + hand.boost
 		-- an upward rope also carries the weight once it is stretched a bit
 		tension = tension + hand.vehMass * GRAVITY * math.max(0, uz) * math.min(1, math.max(0, stretch) / HAND_LIFT_RAMP)
 		-- a rope only pulls; the running winch may also brake a little
@@ -301,6 +313,8 @@ function M.updateGFX(dt)
 				obj:applyForceVectorTime(n.cid, vec3(ux * f, uy * f, uz * f), dt)
 			end
 		end
+	else
+		hand.boost = 0
 	end
 	-- strain: share of the force limit in use (1 = at the limit), smoothed for the display
 	hand.strain = hand.strain + (math.abs(tension) / limit - hand.strain) * math.min(1, dt * 6)

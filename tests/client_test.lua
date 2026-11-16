@@ -713,8 +713,19 @@ do
 		for _ = 1, math.floor(seconds / dt + 0.5) do
 			body.f = {x = 0, y = 0, z = 0}
 			veh.updateGFX(dt)
-			body.v.x = body.v.x + body.f.x / MASS * dt
-			body.v.y = body.v.y + body.f.y / MASS * dt
+			-- handbrake (body.brake, N): the vehicle only moves once the pull is stronger
+			local fhx, fhy = body.f.x, body.f.y
+			if body.brake and body.p.z < 0.01 then
+				local vh = math.sqrt(body.v.x ^ 2 + body.v.y ^ 2)
+				local fh = math.sqrt(fhx ^ 2 + fhy ^ 2)
+				if vh < 0.05 and fh <= body.brake then
+					fhx, fhy, body.v.x, body.v.y = 0, 0, 0, 0
+				elseif vh >= 0.05 then
+					fhx, fhy = fhx - body.v.x / vh * body.brake * 0.8, fhy - body.v.y / vh * body.brake * 0.8
+				end
+			end
+			body.v.x = body.v.x + fhx / MASS * dt
+			body.v.y = body.v.y + fhy / MASS * dt
 			body.v.z = body.v.z + (body.f.z / MASS - 9.81) * dt
 			-- ground: it can't sink below it; on the ground the wheels have a little rolling resistance
 			if body.p.z + body.v.z * dt < 0 then body.v.z = 0 end
@@ -816,6 +827,27 @@ do
 	body.f = {x = 0, y = 0, z = 0}
 	veh.updateGFX(1 / 60)
 	check(body.f.x == 0 and body.f.y == 0 and body.f.z == 0 and veh.handInfo() == nil, "released: no force any more")
+	-- handbrake on (static friction = 50 % of the weight): the pull builds up until it comes loose
+	body.p, body.v = {x = 0, y = 0, z = 0}, {x = 0, y = 0, z = 0}
+	body.brake = MASS * 9.81 * 0.5
+	veh.handGrab(2, 0.8, 0.3, 1, 60)
+	veh.handRope(2, 4.8, 0.3, 1, 0, 1, 60)   -- anchor 4 m away, winch hauling in
+	run(1)
+	local stuckAfter1 = body.p.y
+	run(4)
+	check(stuckAfter1 < 0.05 and body.p.y > 0.5,
+		string.format("handbrake on: stuck at first, then the pull builds up and it comes loose (%.2f m)", body.p.y))
+	veh.handRelease()
+	-- only 30 %: weaker than the handbrake -> it stays, the strain shows the limit
+	body.p, body.v = {x = 0, y = 0, z = 0}, {x = 0, y = 0, z = 0}
+	veh.handGrab(2, 0.8, 0.3, 1, 30)
+	veh.handRope(2, 4.8, 0.3, 1, 0, 1, 30)
+	run(4)
+	local strain30 = lastState()
+	check(body.p.y < 0.01 and strain30 and strain30 > 0.95,
+		string.format("30 %% against a 50 %% handbrake: stays, strain at the limit (%.2f)", strain30 or -1))
+	veh.handRelease()
+	body.brake = nil
 end
 
 --== 7b5. Our own node grabber: GE side (picking, target, keys) ================
@@ -839,7 +871,7 @@ _G.core_nodegrabberGamepad = gpGrab
 extensions.hook("onWorldReadyState", 2)
 local cfgG = {}
 for k, v in pairs(config) do cfgG[k] = v end
-cfgG.allowGrab, cfgG.grabSpeed, cfgG.grabStrength = true, 1, 60
+cfgG.allowGrab, cfgG.grabSpeed, cfgG.grabStrength = true, 1, 150
 handlers.sc_config(json.encode(cfgG))
 update()
 extensions.core_nodegrabberGamepad = gpGrab
@@ -956,8 +988,27 @@ cfgG.grabSpeed, cfgG.grabStrength = 0.5, 200
 handlers.sc_configUpdate(json.encode(cfgG))
 frames(0.1)
 name, a = lastHand(truck)
-check(a[6] == 0.5 and a[7] == 150, "settings applied live; strength capped at 150 %")
-cfgG.grabSpeed, cfgG.grabStrength = 1, 60
+check(a[6] == 0.5 and a[7] == 60, "settings applied live; the player's pick (60 %) stays")
+-- pull strength picked in the Tow app, capped at the server's maximum
+sharedCareer_grab.uiStrength(150)
+frames(0.1)
+name, a = lastHand(truck)
+local st = sharedCareer_grab.appState()
+check(a[7] == 150 and st.strength == 150 and st.maxStrength == 150 and #st.strengths == 4,
+	"Tow app: 150 % picked, sent to the vehicle right away")
+cfgG.grabStrength = 100
+handlers.sc_configUpdate(json.encode(cfgG))
+frames(0.1)
+name, a = lastHand(truck)
+st = sharedCareer_grab.appState()
+check(a[7] == 100 and st.strength == 100 and #st.strengths == 3 and st.strengths[3] == 100,
+	"server maximum 100 %: the pick is capped, 150 % is not offered")
+cfgG.grabStrength = 80
+handlers.sc_configUpdate(json.encode(cfgG))
+st = sharedCareer_grab.appState()
+check(st.strengths[#st.strengths] == 80 and st.strength == 80, "odd server maximum (80 %) is offered as its own choice")
+sharedCareer_grab.uiStrength(60)
+cfgG.grabSpeed, cfgG.grabStrength = 1, 150
 handlers.sc_configUpdate(json.encode(cfgG))
 -- drawing: rope grey when slack, strain color when taut; anchor color shows the state
 local drawn = {}

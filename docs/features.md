@@ -189,7 +189,9 @@ What you see:
 
 It only works on your own vehicles and your own traffic: other players' vehicles are simulated on their PCs, and BeamMP would put them right back. Players on foot can't be roped, and neither can the vehicle you are sitting in (the camera would move with it). Get out, or use the free camera.
 
-All keys are rebindable under *Options → Controls → BeamMP* (entries starting with "SharedCareer:"); there you can also put "move rope anchor" on the right mouse button. Server admins can switch it off with `sc set client.allowGrab false`, and set how fast the winch hauls in (`client.grabSpeed`, m/s) and how strong it is (`client.grabStrength`, % of the vehicle's weight).
+All keys are rebindable under *Options → Controls → BeamMP* (entries starting with "SharedCareer:"); there you can also put "move rope anchor" on the right mouse button. Server admins can switch it off with `sc set client.allowGrab false`, and set how fast the winch hauls in (`client.grabSpeed`, m/s) and the highest pull strength a player may pick (`client.grabStrength`, % of the vehicle's weight).
+
+**Pull strength:** in the Tow app you pick 30, 60, 100 or 150 % of the vehicle's weight (60 % at first). If the vehicle doesn't follow – stuck, handbrake on, gear in Park – the pull builds up to that limit within about two seconds. If it still doesn't move, pick more; a handbrake or Park usually needs 100 % or more.
 
 ## Phone
 
