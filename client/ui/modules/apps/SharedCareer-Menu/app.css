@@ -1,0 +1,106 @@
+/* SharedCareer menu – styled like the BeamMP player list:
+   dark window with an orange top border, tab at the right edge to collapse/expand. */
+.scMenu {
+	width: 100%; height: 100%; display: flex; flex-direction: row; justify-content: flex-end;
+	align-items: flex-start; color: #fff; user-select: none; pointer-events: none;
+}
+.scMenu .scm-panel, .scMenu .scm-tab { pointer-events: auto; }
+
+.scMenu .scm-panel {
+	flex: 1; min-width: 0; background: rgba(30, 32, 40, 0.88); border-top: 2px solid #ff6600;
+	border-radius: 6px 0 6px 6px; overflow: hidden;
+}
+.scMenu .scm-header {
+	display: flex; align-items: center; gap: 6px; padding: 5px 10px;
+	background: rgba(255, 255, 255, 0.06); border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.scMenu .scm-title { font-size: 12px; font-weight: 700; letter-spacing: 0.5px; }
+.scMenu .scm-tabbtn {
+	background: transparent; color: rgba(255, 255, 255, 0.7); border: none; border-bottom: 2px solid transparent;
+	padding: 2px 4px; font-size: 11px; font-weight: 700; cursor: pointer; text-transform: uppercase; letter-spacing: 0.3px;
+}
+.scMenu .scm-tabbtn:hover { color: #fff; }
+.scMenu .scm-tabbtn.scm-active { color: #fff; border-bottom-color: #ff6600; }
+.scMenu .scm-badge {
+	font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 8px; background: #ff6600; color: #fff;
+}
+.scMenu .scm-badge-night { background: #3d5afe; }
+.scMenu .scm-gap { flex: 1; }
+.scMenu .scm-pause { padding: 2px 7px; font-size: 11px; }
+.scMenu .scm-btn.scm-paused { background: rgba(255, 102, 0, 0.75); border-color: #ff6600; }
+
+/* content fits the window height; longer lists scroll */
+.scMenu .scm-body { padding: 6px 10px 8px; display: flex; flex-direction: column; gap: 6px; max-height: 118px; overflow-y: auto; }
+.scMenu .scm-scroll { gap: 4px; }
+.scMenu .scm-player { font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scMenu .scm-status { font-size: 10px; padding: 1px 5px; border-radius: 8px; background: rgba(61, 90, 254, 0.8); white-space: nowrap; }
+.scMenu .scm-compact { gap: 3px; padding-top: 5px; }
+.scMenu .scm-compact .scm-btn { padding: 1px 6px; font-size: 11px; }
+.scMenu .scm-compact .scm-step { padding: 1px 0; }
+.scMenu .scm-station { gap: 4px; }
+.scMenu .scm-cheapest { background: rgba(46, 160, 67, 0.22); border-radius: 4px; }
+.scMenu .scm-price { font-size: 11px; white-space: nowrap; opacity: 0.7; font-variant-numeric: tabular-nums; }
+.scMenu .scm-price-main { opacity: 1; font-weight: 700; }
+.scMenu .scm-price-off { color: #7ee787; }
+.scMenu .scm-fuelkey { font-size: 9px; opacity: 0.7; margin-right: 2px; }
+.scMenu .scm-disc { font-size: 9px; margin-left: 2px; }
+.scMenu .scm-dist { font-size: 10px; opacity: 0.7; white-space: nowrap; min-width: 40px; text-align: right; }
+/* dialog in the middle of the screen */
+/* The host sits directly in <body>, without a size; only the card takes clicks, the backdrop
+   doesn't – so a dialog can never block the game or the tab. */
+.scMenu.scm-dialog-host { position: fixed; left: 0; top: 0; width: 0; height: 0; z-index: 100000; pointer-events: none; }
+.scMenu .scm-overlay {
+	position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; z-index: 100000; pointer-events: none;
+	display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.45);
+}
+.scMenu .scm-dialog {
+	pointer-events: auto;
+	width: 560px; max-width: 90vw; max-height: 85vh; overflow-y: auto; background: rgba(30, 32, 40, 0.97);
+	border-top: 3px solid #ff6600; border-radius: 6px; padding: 16px 20px; box-sizing: border-box;
+	box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); font-size: 14px; line-height: 1.45; color: #e8e8e8;
+}
+.scMenu .scm-dialog-warn { border-top-color: #e5534b; }
+.scMenu .scm-dialog-title { font-size: 19px; font-weight: 700; margin-bottom: 8px; color: #fff; }
+.scMenu .scm-dialog-text { white-space: pre-line; margin: 6px 0; }
+.scMenu .scm-dialog-muted { opacity: 0.75; }
+.scMenu .scm-dialog-list { margin: 6px 0; padding-left: 20px; }
+.scMenu .scm-dialog-list li { margin: 4px 0; }
+.scMenu .scm-dialog-buttons { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.scMenu .scm-dialog-btn { font-size: 13px; padding: 6px 14px; }
+.scMenu .scm-watchbar { background: rgba(255, 102, 0, 0.18); border-radius: 4px; padding: 2px 4px; }
+.scMenu .scm-top { display: flex; align-items: baseline; gap: 8px; }
+.scMenu .scm-icon { font-size: 20px; width: 22px; text-align: center; color: #ffcf5c; }
+.scMenu .scm-clock { font-size: 26px; font-weight: 700; letter-spacing: 1px; font-variant-numeric: tabular-nums; }
+.scMenu .scm-phase { margin-left: auto; font-size: 12px; opacity: 0.85; white-space: nowrap; }
+.scMenu .scm-top .scm-pause { align-self: center; }
+.scMenu .scm-row { display: flex; align-items: center; gap: 3px; }
+.scMenu .scm-gap { flex: 1; }
+.scMenu .scm-label { font-size: 12px; opacity: 0.8; margin-right: 2px; }
+.scMenu .scm-value { font-size: 12px; min-width: 46px; text-align: center; font-variant-numeric: tabular-nums; }
+.scMenu .scm-btn {
+	background: rgba(255, 255, 255, 0.12); color: #fff; border: 1px solid rgba(255, 255, 255, 0.18);
+	border-radius: 4px; padding: 3px 7px; font-size: 12px; cursor: pointer; line-height: 1.2; white-space: nowrap;
+}
+.scMenu .scm-btn:hover { background: rgba(255, 102, 0, 0.55); border-color: rgba(255, 102, 0, 0.9); }
+.scMenu .scm-small { padding: 3px 4px; font-size: 11px; }
+.scMenu .scm-step { width: 22px; padding: 3px 0; text-align: center; }
+.scMenu .scm-note { font-size: 12px; opacity: 0.75; }
+.scMenu .scm-wide { min-width: 52px; }
+.scMenu .scm-grow { flex: 1; }
+.scMenu .scm-hint { margin-left: auto; font-size: 11px; opacity: 0.7; white-space: nowrap; }
+.scMenu .scm-toggle { min-width: 40px; text-align: center; }
+.scMenu .scm-btn.scm-on { background: rgba(255, 102, 0, 0.75); border-color: #ff6600; }
+.scMenu .scm-btn[disabled] { opacity: 0.45; cursor: default; }
+
+.scMenu .scm-tab {
+	width: 22px; min-height: 72px; margin-left: 3px; display: flex; flex-direction: column;
+	align-items: center; justify-content: center; gap: 6px; cursor: pointer;
+	background: rgba(30, 32, 40, 0.88); border-left: 2px solid #ff6600; border-radius: 4px 0 0 4px;
+}
+.scMenu .scm-tab:hover { background: rgba(255, 102, 0, 0.45); }
+.scMenu .scm-tab-icon { display: flex; color: #ff6600; }
+.scMenu .scm-logo { width: 15px; height: 15px; display: block; }
+.scMenu .scm-brand { display: flex; color: #ff6600; margin-right: 1px; }
+.scMenu .scm-brand-click { cursor: pointer; }
+.scMenu .scm-brand-click:hover { color: #ffa060; }
+.scMenu .scm-tab-arrow { font-size: 13px; font-weight: 700; }

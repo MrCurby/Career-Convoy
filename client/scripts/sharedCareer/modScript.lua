@@ -20,7 +20,7 @@
 --
 -- Also in the mod: levels/west_coast_usa/.../garage_interactions/items.level.json –
 -- larger zones at the garage computers (replaces the map file of the same name),
--- and the UI apps ui/modules/apps/SharedCareer-Time/ (SharedCareer menu) and
+-- and the UI apps ui/modules/apps/SharedCareer-Menu/ (SharedCareer menu) and
 -- ui/modules/apps/SharedCareer-Phone/ (the phone, own tab; its apps: Tow, Fuel).
 --
 --   cleanup   UI layouts: removes Mileage leftovers (red "Unknown app" boxes) and adds the

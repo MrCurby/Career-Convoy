@@ -11,8 +11,8 @@
 -- BeamNG counts the time of day from 0 to 1 starting at NOON: 0 = 12:00, 0.25 = 18:00,
 -- 0.5 = 0:00, 0.75 = 6:00. Conversion happens only in toGame/fromGame.
 --
--- UI window "SharedCareer menu" (ui/modules/apps/SharedCareer-Time): see the section
--- below. Every player can change the time and the day/night length there for everyone.
+-- In the SharedCareer menu every player can change the time and the day/night length for
+-- everyone: see "Time controls" below.
 --
 -- Pause menu: the environment pages (time, weather, simulation/slow motion, traffic) are
 -- shown read-only by letting them read "restrictScenarios" = true during their call.
@@ -28,10 +28,6 @@ local MAX_DRIFT_HOURS = 0.05 -- 3 game minutes
 local function config()
 	local core = U.ext("sharedCareer_core")
 	return core and core.getConfig()
-end
-
-local function careerActive()
-	return career_career and type(career_career.isActive) == "function" and career_career.isActive() == true
 end
 
 --== Time of day ===============================================================
@@ -123,12 +119,11 @@ end
 
 local function rxTime(data)
 	local msg = U.decode(data)
-	if not msg or not careerActive() then return end
+	if not msg or not U.careerActive() then return end
 	M.applyTime(msg)
-	lastMsg = msg -- even if applyTime had nothing to change (for the UI window)
-	if guihooks and type(guihooks.trigger) == "function" then
-		guihooks.trigger("SharedCareerTime", M.uiState())
-	end
+	lastMsg = msg -- even if applyTime had nothing to change (for the menu window)
+	local menu = U.ext("sharedCareer_menu")
+	if menu then menu.push() end
 end
 
 --== Locking the pause menu ====================================================
@@ -140,7 +135,7 @@ local ENVIRONMENT_PAGES = {
 
 local function lockActive()
 	local cfg = config()
-	return cfg ~= nil and cfg.lockEnvironment ~= false and U.isMP() and careerActive()
+	return cfg ~= nil and cfg.lockEnvironment ~= false and U.isMP() and U.careerActive()
 end
 M.lockActive = lockActive
 
@@ -181,18 +176,18 @@ function M.ensurePauseLock()
 	U.replace(pause, "requestEnvironmentTrafficPayload", makeReadOnlyTraffic)
 end
 
---== UI window "SharedCareer menu" =============================================
--- ui/modules/apps/SharedCareer-Time/: shows the time and day/night, every player can
--- change the time and the day/night length. The window gets the state every second
--- (guihook "SharedCareerTime") and calls the ui* functions below to change things; they
--- go to the server (sc_timeControl). The server applies it and sends it to everyone.
+--== Time controls of the SharedCareer menu ======================================
+-- The menu window (ui/modules/apps/SharedCareer-Menu/, state from menu.lua) shows the time and
+-- day/night; every player can change the time and the day/night length. The window calls the
+-- ui* functions below; they go to the server (sc_timeControl), which applies the change and
+-- sends it to everyone.
 
-local function uiState()
+--- The time of day for the menu window: hour, day/night, lengths, who may change it.
+function M.timeState()
 	local tod = getTod()
 	local hour = tod and tonumber(tod.time) and M.fromGame(tod.time) or nil
 	local state = {
 		hour = hour,
-		connected = U.isMP() and careerActive(),
 		synced = syncEnabled() and lastMsg ~= nil,
 		canControl = lastMsg ~= nil and lastMsg.canControl == true and syncEnabled(),
 	}
@@ -211,41 +206,11 @@ local function uiState()
 			if state.running and length > 0 then state.secondsToSwitch = hoursLeft * length / 24 end
 		end
 	end
-	-- "Traffic" / "Options" tabs of the menu
-	local menu = U.ext("sharedCareer_menu")
-	if menu then state.settings = menu.settingsState() end
-	-- "Players" tab
-	local players = U.ext("sharedCareer_players")
-	if players then state.players = players.state() end
-	-- fuel prices (Fuel app on the phone)
-	local fuel = U.ext("sharedCareer_fuel")
-	if fuel then
-		local ok, overview = pcall(fuel.overview)
-		if ok then state.fuel = overview end
-	end
 	return state
-end
-M.uiState = uiState
-
-local function pushUi()
-	if guihooks and type(guihooks.trigger) == "function" then
-		guihooks.trigger("SharedCareerTime", uiState())
-	end
-end
-
--- Called by the window when it opens, so it isn't empty until the next second.
-function M.uiRequest()
-	pushUi()
-end
-
--- New settings from the server (someone changed something in the menu): show them right
--- away, not only on the next one-second tick. Called by core.lua (sc_configUpdate).
-function M.onSettingsChanged()
-	pushUi()
 end
 
 local function control(payload)
-	if not (U.isMP() and careerActive()) then return end
+	if not (U.isMP() and U.careerActive()) then return end
 	U.send("sc_timeControl", payload)
 end
 
@@ -257,7 +222,7 @@ end
 
 -- Relative to the current time (e.g. +1 / -1 hour).
 function M.uiShiftHour(delta)
-	local state = uiState()
+	local state = M.timeState()
 	delta = tonumber(delta)
 	if not state.hour or not delta then return end
 	M.uiSetHour((state.hour + delta) % 24)
@@ -284,8 +249,7 @@ function M.onUpdate(dtReal)
 	since = 0
 	if U.isMP() then
 		M.ensurePauseLock()
-		if careerActive() then M.updatePace() end
-		pushUi()
+		if U.careerActive() then M.updatePace() end
 	end
 end
 

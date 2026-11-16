@@ -30,10 +30,6 @@ local function config()
 	return core and core.getConfig()
 end
 
-local function careerActive()
-	return career_career and type(career_career.isActive) == "function" and career_career.isActive() == true
-end
-
 M.TITLE = "Welcome to SharedCareer"
 
 --- Content of the welcome dialog (plain text, no HTML – the window builds the layout).
@@ -163,7 +159,7 @@ end
 function M.onUpdate(dtReal)
 	if shownThisJoin or not U.isMP() then return end
 	local core = U.ext("sharedCareer_core")
-	if not core or type(core.isReady) ~= "function" or not core.isReady() or not careerActive() then
+	if not core or type(core.isReady) ~= "function" or not core.isReady() or not U.careerActive() then
 		waitTime = 0
 		return
 	end

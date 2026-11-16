@@ -1,8 +1,15 @@
--- SharedCareer :: settings in the SharedCareer menu ("Traffic" and "Options" tabs)
+-- SharedCareer :: the SharedCareer menu (the window with the steering wheel)
 --
--- The UI window (ui/modules/apps/SharedCareer-Time) shows these settings next to the time
--- of day. Every player may change them; the server checks the value, saves it and sends
--- it to EVERYONE (sc_configUpdate) – so it applies everywhere the same way.
+-- The window is ui/modules/apps/SharedCareer-Menu/. This extension gives it its state: every
+-- second and right after a change, guihook "SharedCareerState" with
+--   time of day        env.lua (timeState; the time controls are there too)
+--   "Traffic", "Options" tabs   the settings below (settingsState)
+--   "Players" tab      players.lua
+--   fuel prices        fuel.lua (for the Fuel app on the phone, which reads the same guihook)
+--
+-- Settings ("Traffic" and "Options" tabs): every player may change them; the server checks
+-- the value, saves it and sends it to EVERYONE (sc_configUpdate) – so it applies everywhere
+-- the same way.
 --
 -- What applies live:
 --   Driving / parked cars per player        immediately (shows/hides cars from the pool,
@@ -12,8 +19,7 @@
 --   Collision with cars / players on foot   within 1 s (vehicles.lua)
 --   Synced traffic lights, server limits    immediately (server)
 --
--- Sends: sc_setSetting {key, value}. The state for the window comes with the guihook
--- "SharedCareerTime" (env.lua calls settingsState).
+-- Sends: sc_setSetting {key, value}.
 
 local M = {}
 
@@ -62,6 +68,51 @@ end
 function M.uiSetSetting(key, value)
 	if not KEYS[key] or not U.isMP() then return end
 	U.send("sc_setSetting", {key = key, value = value})
+end
+
+--== Window state ================================================================
+
+--- Everything the menu window (and the phone) shows.
+function M.state()
+	local env = U.ext("sharedCareer_env")
+	local state = env and env.timeState() or {}
+	state.connected = U.isMP() and U.careerActive()
+	state.settings = M.settingsState()
+	local players = U.ext("sharedCareer_players")
+	if players then state.players = players.state() end
+	local fuel = U.ext("sharedCareer_fuel")
+	if fuel then
+		local ok, overview = pcall(fuel.overview)
+		if ok then state.fuel = overview end
+	end
+	return state
+end
+
+function M.push()
+	if guihooks and type(guihooks.trigger) == "function" then
+		guihooks.trigger("SharedCareerState", M.state())
+	end
+end
+
+-- Called by the window when it opens, so it isn't empty until the next second.
+function M.uiRequest()
+	M.push()
+end
+
+-- New settings from the server (someone changed something in the menu): show them right
+-- away, not only on the next one-second tick. Called by core.lua (sc_configUpdate) and
+-- players.lua.
+function M.onSettingsChanged()
+	M.push()
+end
+
+local since = 1
+
+function M.onUpdate(dtReal)
+	since = since + (tonumber(dtReal) or 0)
+	if since < 1 then return end
+	since = 0
+	if U.isMP() then M.push() end
 end
 
 function M.onExtensionLoaded()

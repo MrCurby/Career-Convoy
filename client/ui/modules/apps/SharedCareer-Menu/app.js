@@ -1,4 +1,4 @@
-// SharedCareer menu (formerly "time of day"): Time, Traffic, Options and Players tabs.
+// SharedCareer menu (the window with the steering wheel): Time, Traffic, Options and Players tabs.
 // Everything set here goes to the server and applies to ALL players immediately.
 //
 // Time tab: the server's time and whether it is day or night.
@@ -10,43 +10,44 @@
 // server limit.
 // Players tab: Navigate (route to the player), Watch (camera), Go (teleport, only if the
 // server allows it). Player names are passed to Lua as JSON strings.
-// Fuel prices: separate app SharedCareer-Fuel (uses the same data and styles).
+// Fuel prices are an app on the phone (SharedCareer-Phone, same data and styles).
 // Key F7 (can be changed under Options → Controls → BeamMP) collapses/expands the menu.
 // Numbers are only sent once you stop clicking for a moment (SEND_DELAY), so that not every
 // click triggers a notification for everyone.
 // The tab at the right edge collapses and expands the window (like the BeamMP player
 // list); the state is remembered in the game's browser storage.
 //
-// Data arrives every second via the guihook "SharedCareerTime" from
-// lua/ge/extensions/sharedCareer/env.lua (uiState); clicks go via bngApi.engineLua to
-// sharedCareer_env.uiSetHour / uiShiftHour / uiSetLengths.
+// Data arrives every second via the guihook "SharedCareerState" from
+// lua/ge/extensions/sharedCareer/menu.lua (state). Clicks go via bngApi.engineLua to
+// sharedCareer_env (time: uiSetHour / uiShiftHour / uiSetPaused / uiSetLengths),
+// sharedCareer_menu (settings) and sharedCareer_players (Players tab).
 //
 // Note: only var/function at the top level – the game evaluates app.js again in the same
 // scope when the apps are reloaded.
 
-var sharedCareerTimeApp = angular.module('beamng.apps');
+var sharedCareerMenuApp = angular.module('beamng.apps');
 
-sharedCareerTimeApp.directive('sharedCareerTime', [function () {
+sharedCareerMenuApp.directive('sharedCareerMenu', [function () {
 	return {
-		templateUrl: '/ui/modules/apps/SharedCareer-Time/app.html',
+		templateUrl: '/ui/modules/apps/SharedCareer-Menu/app.html',
 		replace: true,
 		restrict: 'EA',
 		scope: true
 	};
 }]);
 
-sharedCareerTimeApp.controller('SharedCareerTime', ['$scope', '$element', function ($scope, $element) {
+sharedCareerMenuApp.controller('SharedCareerMenu', ['$scope', '$element', function ($scope, $element) {
 	var LENGTH_STEP = 5;       // minutes per click for the day/night length
 	var LENGTH_MIN = 1, LENGTH_MAX = 600;
 
-	var STORAGE_KEY = "sharedCareerTimeCollapsed";
+	var STORAGE_KEY = "sharedCareerMenuCollapsed";
 
 	$scope.state = null;
 	// Collapsed (only the tab at the edge visible)? Remembered per player.
 	$scope.collapsed = false;
 	try { $scope.collapsed = window.localStorage.getItem(STORAGE_KEY) === "1"; } catch (e) {}
 
-	// Menu and fuel window sit at the right edge: when one opens, the other one collapses
+	// Menu and phone sit at the right edge: when one opens, the other one closes
 	// (window event "sharedCareerPanelOpen").
 	function setCollapsed(value) {
 		$scope.collapsed = value;
@@ -82,7 +83,7 @@ sharedCareerTimeApp.controller('SharedCareerTime', ['$scope', '$element', functi
 	var dialogHost = null;
 	setTimeout(function () {
 		try {
-			var host = $element[0].querySelector('.sct-dialog-host');
+			var host = $element[0].querySelector('.scm-dialog-host');
 			if (!host || $scope.$$destroyed) return;
 			document.body.appendChild(host);
 			dialogHost = host;
@@ -221,23 +222,24 @@ sharedCareerTimeApp.controller('SharedCareerTime', ['$scope', '$element', functi
 		};
 	};
 
-	function engine(cmd) {
+	// time controls: lua/ge/extensions/sharedCareer/env.lua
+	function timeControl(cmd) {
 		bngApi.engineLua('if sharedCareer_env then sharedCareer_env.' + cmd + ' end');
 	}
 
 	$scope.shift = function (delta) {
 		if (!$scope.state || !$scope.state.canControl) return;
-		engine('uiShiftHour(' + Number(delta) + ')');
+		timeControl('uiShiftHour(' + Number(delta) + ')');
 	};
 
 	$scope.setHour = function (hour) {
 		if (!$scope.state || !$scope.state.canControl) return;
-		engine('uiSetHour(' + Number(hour) + ')');
+		timeControl('uiSetHour(' + Number(hour) + ')');
 	};
 
 	$scope.togglePause = function () {
 		if (!$scope.state || !$scope.state.canControl) return;
-		engine('uiSetPaused(' + ($scope.state.paused ? 'false' : 'true') + ')');
+		timeControl('uiSetPaused(' + ($scope.state.paused ? 'false' : 'true') + ')');
 	};
 
 	$scope.changeLength = function (which, delta) {
@@ -246,10 +248,10 @@ sharedCareerTimeApp.controller('SharedCareerTime', ['$scope', '$element', functi
 		var next = {day: l.day, night: l.night};
 		next[which] = Math.max(LENGTH_MIN, Math.min(LENGTH_MAX, (Number(next[which]) || 0) + delta));
 		$scope.pending = next;
-		engine('uiSetLengths(' + next.day + ',' + next.night + ')');
+		timeControl('uiSetLengths(' + next.day + ',' + next.night + ')');
 	};
 
-	$scope.$on('SharedCareerTime', function (event, data) {
+	$scope.$on('SharedCareerState', function (event, data) {
 		$scope.$evalAsync(function () {
 			$scope.state = data || null;
 			// the server confirmed settings: remove pending values that are correct now
@@ -280,7 +282,7 @@ sharedCareerTimeApp.controller('SharedCareerTime', ['$scope', '$element', functi
 	}, 1000);
 	$scope.$on('$destroy', function () { clearInterval(pendingTimer); });
 
-	engine('uiRequest()');
+	bngApi.engineLua('if sharedCareer_menu then sharedCareer_menu.uiRequest() end');
 	// fetch an open dialog (e.g. if it arrived while the main menu had hidden the apps)
 	bngApi.engineLua('if sharedCareer_welcome then sharedCareer_welcome.uiRequestDialog() end');
 }]);

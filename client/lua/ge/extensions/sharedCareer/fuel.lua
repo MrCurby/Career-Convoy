@@ -27,10 +27,6 @@ local expected = {}        -- [station][fuel] = price the game should return aft
 local fallback = false     -- true if getFuelPrice had to be wrapped directly
 local sinceCheck = 1
 
-local function careerActive()
-	return career_career and type(career_career.isActive) == "function" and career_career.isActive() == true
-end
-
 local function gasStations()
 	local facilities = rawget(_G, "freeroam_facilities")
 	if type(facilities) ~= "table" or type(facilities.getFacilities) ~= "function" then return nil end
@@ -402,14 +398,14 @@ end
 function M.onUpdate(dtReal)
 	if not U.isMP() then return end
 	sinceCheck = sinceCheck + (tonumber(dtReal) or 0)
-	if applyPending and careerActive() then
+	if applyPending and U.careerActive() then
 		applyPending = false
 		local n = M.apply()
 		if n == 0 then applyPending = true end -- map/stations not ready yet
 	end
 	if sinceCheck >= 1 then
 		sinceCheck = 0
-		if careerActive() then ensurePatch() end
+		if U.careerActive() then ensurePatch() end
 	end
 end
 
@@ -427,7 +423,7 @@ function M.onClientStartMission()
 end
 
 -- The fuel prices are an app on the phone (phone.lua); its screen is in the phone window and
--- gets the data with "SharedCareerTime" (env.lua -> M.overview), like the old fuel window did.
+-- gets the data with "SharedCareerState" (menu.lua -> M.overview).
 local function registerPhoneApp()
 	local phone = U.ext("sharedCareer_phone")
 	if phone and type(phone.registerApp) == "function" then

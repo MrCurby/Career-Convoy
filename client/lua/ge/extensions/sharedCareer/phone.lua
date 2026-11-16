@@ -1,25 +1,24 @@
 -- SharedCareer :: the phone (client.phone)
 --
--- A phone in the game, as the home for future SharedCareer apps (jobs and more). For now it has
--- no apps: it shows a home screen with the server time, the number of players and an empty app
--- grid.
+-- A phone in the game, the home for SharedCareer apps. The home screen shows the server time,
+-- the number of players and the app grid. Apps so far: Tow (grab.lua) and Fuel (fuel.lua).
 --
 -- The UI is the app ui/modules/apps/SharedCareer-Phone/: a small tab with a phone icon at the
--- right screen edge (below the fuel tab); the phone itself opens above it. Key: F4 by default
+-- right screen edge (below the menu); the phone itself opens above it. Key: F4 by default
 -- (BeamMP key bindings, rebindable under Options → Controls → BeamMP).
 --
--- For apps (later): other SharedCareer extensions register themselves here:
+-- Apps: SharedCareer extensions register themselves here:
 --   sharedCareer_phone.registerApp({id = "taxi", title = "Taxi", icon = "T", color = "#f5b800",
 --                                   order = 10, onOpen = function() ... end, onClose = ...})
 -- The phone shows every registered app on the home screen; a tap calls uiOpenApp(id), which
 -- calls the app's onOpen; leaving the app (home, putting the phone away) calls uiCloseApp(id) ->
--- onClose. Apps are only listed while client.phone is on. The built-in "Tow" app (grab.lua) has
--- its own screen in the phone window (app.html).
+-- onClose. Apps are only listed while client.phone is on. Tow and Fuel have their own screens
+-- in the phone window (app.html).
 --
--- icon: a short text (letter), or the name of a built-in icon the window knows ("tow").
+-- icon: a short text (letter), or the name of a built-in icon the window knows ("tow", "fuel").
 --
 -- guihooks: SharedCareerPhone {enabled, apps = [{id, title, icon, color}]} (state),
---           SharedCareerPhoneToggle (key). Time and players come with "SharedCareerTime" (env.lua).
+--           SharedCareerPhoneToggle (key). Time and players come with "SharedCareerState" (menu.lua).
 
 local M = {}
 
@@ -28,7 +27,7 @@ local U
 local ACTION = "sharedCareerPhone"
 local KEY = "f4"
 
-local apps = {}            -- id -> {id, title, icon, color, order, onOpen}
+local apps = {}            -- id -> {id, title, icon, color, order, onOpen, onClose}
 local keyRegistered = false
 
 local function enabled()
@@ -58,7 +57,7 @@ local function push()
 	trigger("SharedCareerPhone", M.state())
 end
 
---- Registers an app on the phone. def = {id, title, icon (short text), color, order, onOpen}.
+--- Registers an app on the phone. def = {id, title, icon (short text), color, order, onOpen, onClose}.
 function M.registerApp(def)
 	if type(def) ~= "table" or type(def.id) ~= "string" or def.id == "" then return false end
 	apps[def.id] = {

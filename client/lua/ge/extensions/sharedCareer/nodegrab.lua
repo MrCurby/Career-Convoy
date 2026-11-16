@@ -43,10 +43,6 @@ local function allowed()
 	return config ~= nil and config.allowNodeGrabber == true
 end
 
-local function careerActive()
-	return career_career and type(career_career.isActive) == "function" and career_career.isActive() == true
-end
-
 -- the career's own rule (career.lua): blocked in a vehicle or in the free camera
 local function careerWouldBlock()
 	local freeCam = core_camera and type(core_camera.getActiveGlobalCameraName) == "function"
@@ -66,7 +62,7 @@ end
 
 --- Lifts the career's block if the server allows the node grabber.
 function M.update()
-	if left or not U.isMP() or not allowed() or not careerActive() then return end
+	if left or not U.isMP() or not allowed() or not U.careerActive() then return end
 	local f = filter()
 	if not f or not f.isActionBlocked(GRAB_ACTION) then return end
 	setCareerBlock(false)
@@ -80,7 +76,7 @@ end
 local function restore()
 	if not lifted then return end
 	lifted = false
-	if careerActive() and careerWouldBlock() then setCareerBlock(true) end
+	if U.careerActive() and careerWouldBlock() then setCareerBlock(true) end
 end
 
 --== Hooks =====================================================================

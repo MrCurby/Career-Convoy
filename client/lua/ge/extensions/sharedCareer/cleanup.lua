@@ -3,7 +3,7 @@
 -- Two jobs on join (after the career start):
 --   A) remove Mileage leftovers (client.cleanupMileageApps)
 --   B) add the apps "SharedCareer Menu" and "SharedCareer Phone" to the career layout ONCE each
---      (client.addTimeApp). Afterwards the mod remembers that in settings/sharedCareer/state.json;
+--      (client.addApps). Afterwards the mod remembers that in settings/sharedCareer/state.json;
 --      players who remove an app don't get it forced on them again.
 --
 -- A) Mileage leftovers:
@@ -40,7 +40,7 @@ local CAREER_LAYOUT = "settings/ui_apps/layouts/default/career.uilayout.json"
 local CAREER_ORIGINAL = "settings/ui_apps/originalLayouts/default/career.uilayout.json"
 local APPS = {
 	{
-		appName = "sharedCareerTime", stateKey = "timeAppAdded", label = "SharedCareer menu",
+		appName = "sharedCareerMenu", stateKey = "menuAppAdded", label = "SharedCareer menu",
 		-- right, below the BeamMP player list (which reaches down to about 590 px)
 		placement = {position = "absolute", right = "0px", top = "600px", width = "345px", height = "160px",
 			left = "", bottom = ""},
@@ -57,9 +57,21 @@ local APPS = {
 }
 M.APPS = APPS
 
+-- flags in state.json that were renamed: old -> new
+local STATE_RENAMED = {
+	timeAppAdded = "menuAppAdded", -- 0.15.0: the menu app was called sharedCareerTime
+}
+
 local function readState()
 	local ok, state = pcall(jsonReadFile, STATE_FILE)
-	return (ok and type(state) == "table") and state or {}
+	state = (ok and type(state) == "table") and state or {}
+	for old, new in pairs(STATE_RENAMED) do
+		if state[old] ~= nil then
+			if state[new] == nil then state[new] = state[old] end
+			state[old] = nil
+		end
+	end
+	return state
 end
 
 --- Adds the SharedCareer apps to the career layout if that never happened yet. Returns the
@@ -165,8 +177,37 @@ function M.moveAppsOnce()
 	return moved
 end
 
--- old name (tests, older callers)
-M.addTimeAppOnce = function() return M.addAppsOnce() > 0 end
+--== Renamed apps ================================================================
+-- An app whose name changed would show up as a red "Unknown app" box in every layout that still
+-- has the old name. Each rename runs once per PC, in all layout files.
+
+local RENAMES = {
+	-- 0.15.0: the menu does much more than the time of day
+	{stateKey = "menuAppRenamed", from = "sharedCareerTime", to = "sharedCareerMenu"},
+}
+
+--- Renames apps in a layout (the table is modified). Returns the number of changed apps.
+function M.renameInLayout(layout, from, to)
+	if type(layout) ~= "table" or type(layout.apps) ~= "table" then return 0 end
+	local hasNew = false
+	for _, app in ipairs(layout.apps) do
+		if type(app) == "table" and app.appName == to then hasNew = true end
+	end
+	local changed = 0
+	for i = #layout.apps, 1, -1 do
+		local app = layout.apps[i]
+		if type(app) == "table" and app.appName == from then
+			if hasNew then
+				table.remove(layout.apps, i) -- the new one is already there: don't show it twice
+			else
+				app.appName = to
+				hasNew = true
+			end
+			changed = changed + 1
+		end
+	end
+	return changed
+end
 
 local function isMileageApp(name)
 	return type(name) == "string" and name:lower():sub(1, 7) == "mileage"
@@ -219,6 +260,40 @@ local function layoutFiles()
 		if #files > 0 then break end
 	end
 	return files
+end
+
+function M.renameAppsOnce()
+	local state = readState()
+	local todo = {}
+	for _, rn in ipairs(RENAMES) do
+		if not state[rn.stateKey] then table.insert(todo, rn) end
+	end
+	if #todo == 0 then return 0 end
+	local paths, seen = {}, {}
+	for _, path in ipairs(layoutFiles()) do
+		paths[#paths + 1] = path
+		seen[tostring(path):gsub("^/", "")] = true
+	end
+	if not seen[CAREER_LAYOUT] then paths[#paths + 1] = CAREER_LAYOUT end
+	local total = 0
+	for _, path in ipairs(paths) do
+		local ok, layout = pcall(jsonReadFile, path)
+		if ok and type(layout) == "table" then
+			local changed = 0
+			for _, rn in ipairs(todo) do changed = changed + M.renameInLayout(layout, rn.from, rn.to) end
+			if changed > 0 then
+				if pcall(jsonWriteFile, path, layout, true) then
+					total = total + changed
+				else
+					U.log("E", "cleanup", "could not write " .. tostring(path))
+				end
+			end
+		end
+	end
+	for _, rn in ipairs(todo) do state[rn.stateKey] = true end
+	jsonWriteFile(STATE_FILE, state, true)
+	if total > 0 then U.log("I", "cleanup", "renamed " .. total .. " SharedCareer app(s) in the UI layouts") end
+	return total
 end
 
 local function notifyLayouts()
@@ -280,10 +355,13 @@ function M.onCareerActive(active)
 		local ok, removed = pcall(M.run)
 		if not ok then U.log("E", "cleanup", "cleanup failed: " .. tostring(removed)) end
 	end
+	local okRename, renamed = pcall(M.renameAppsOnce)
+	if not okRename then U.log("E", "cleanup", "renaming SharedCareer apps failed: " .. tostring(renamed))
+	elseif renamed > 0 then changed = true end
 	local okMove, moved = pcall(M.moveAppsOnce)
 	if not okMove then U.log("E", "cleanup", "moving SharedCareer apps failed: " .. tostring(moved))
 	elseif moved > 0 then changed = true end
-	if cfg.addTimeApp ~= false then
+	if cfg.addApps ~= false then
 		local ok, added = pcall(M.addAppsOnce)
 		if not ok then U.log("E", "cleanup", "SharedCareer apps: " .. tostring(added))
 		elseif added > 0 then changed = true end

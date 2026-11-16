@@ -1,5 +1,5 @@
 {
-  "domElement": "<shared-career-time></shared-career-time>",
+  "domElement": "<shared-career-menu></shared-career-menu>",
   "name": "SharedCareer Menu",
   "types": [
     "ui.apps.categories.beammp"
@@ -13,5 +13,5 @@
   "description": "SharedCareer server menu: time of day, traffic and options. Every change applies to all players at once.",
   "author": "SharedCareer",
   "version": "1.0",
-  "directive": "sharedCareerTime"
+  "directive": "sharedCareerMenu"
 }

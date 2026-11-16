@@ -154,10 +154,6 @@ end
 
 --== Starting the career =======================================================
 
-local function careerActive()
-	return career_career and type(career_career.isActive) == "function" and career_career.isActive() == true
-end
-
 local function callStart(profile)
 	if type(career_career.startingOptions) == "table" then
 		-- 0.39+
@@ -209,7 +205,7 @@ local function updateStart()
 	end
 	if not starting then return end
 	local open = openCareerScreens()
-	if careerActive() and #open == 0 then
+	if U.careerActive() and #open == 0 then
 		starting = nil
 		report(true)
 		local garage = U.ext("sharedCareer_garage")
@@ -219,7 +215,7 @@ local function updateStart()
 	if os.clockhp() - starting.since > JOIN_TIMEOUT then
 		starting = nil
 		releaseCareerScreens()
-		if careerActive() then
+		if U.careerActive() then
 			-- The career runs, only the loading screen hung (often: traffic never reports "ready").
 			report(true)
 		else
@@ -271,8 +267,8 @@ local function rxConfigUpdate(data)
 	local grab = U.ext("sharedCareer_grab")
 	if grab and grab.onConfigChanged then grab.onConfigChanged() end
 	-- Update the menu immediately (for everyone who has it open right now)
-	local env = U.ext("sharedCareer_env")
-	if env and env.onSettingsChanged then env.onSettingsChanged() end
+	local menu = U.ext("sharedCareer_menu")
+	if menu then menu.onSettingsChanged() end
 end
 
 local function rxSignals(data)

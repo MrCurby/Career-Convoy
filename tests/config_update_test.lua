@@ -87,7 +87,15 @@ check(cfg.server.dayMinutes == 55, "own setting (55) survives the update")
 check(cfg.client.roadTraffic == 8, "unchanged value gets the new default (6 -> 8)")
 check(cfg._defaults.client.roadTraffic == 8, "new defaults remembered")
 
---== 4. A broken file is not simply overwritten ==
+--== 4. A renamed setting takes over the old value ==
+f = json.decode(read(configFile))
+f.client.addApps = nil
+f.client.addTimeApp = false   -- name up to 0.14
+write(configFile, json.encode(f))
+cfg = startServer()
+check(cfg.client.addApps == false and cfg.client.addTimeApp == nil, "client.addTimeApp = false becomes client.addApps = false")
+
+--== 5. A broken file is not simply overwritten ==
 write(configFile, "{ this is not json")
 cfg = startServer()
 check(read(configFile .. ".broken") == "{ this is not json", "broken config is backed up as .broken")

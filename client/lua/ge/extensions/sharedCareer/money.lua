@@ -20,10 +20,6 @@ local function money()
 	return type(attribute) == "table" and tonumber(attribute.value) or nil
 end
 
-local function careerActive()
-	return career_career and type(career_career.isActive) == "function" and career_career.isActive() == true
-end
-
 local function save()
 	if career_saveSystem and type(career_saveSystem.saveCurrent) == "function" then
 		local ok, err = pcall(career_saveSystem.saveCurrent)
@@ -48,7 +44,7 @@ local function rxDebit(data)
 	local current = money()
 	if not amount then
 		reason = "invalid amount"
-	elseif not careerActive() or not current then
+	elseif not U.careerActive() or not current then
 		reason = "career not active"
 	elseif current < amount then
 		reason = "not enough money"
@@ -73,7 +69,7 @@ local function rxCredit(data)
 		U.send("sc_payCreditAck", {id = msg.id})
 		return
 	end
-	if not amount or not careerActive() then return end -- no confirmation -> the server refunds
+	if not amount or not U.careerActive() then return end -- no confirmation -> the server refunds
 	local label = msg.refund and "Refund" or ("Payment from " .. tostring(msg.from))
 	career_modules_playerAttributes.addAttributes({money = amount}, {tags = {"gameplay"}, label = label})
 	credited[msg.id] = true

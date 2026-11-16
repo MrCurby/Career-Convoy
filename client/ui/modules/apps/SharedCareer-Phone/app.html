@@ -1,6 +1,6 @@
-<div ng-controller="SharedCareerPhone" class="scTime scPhone" ng-show="enabled">
+<div ng-controller="SharedCareerPhone" class="scMenu scPhone" ng-show="enabled">
 	<!-- Style of the SharedCareer menu (tab) + the phone's own -->
-	<link rel="stylesheet" type="text/css" href="/ui/modules/apps/SharedCareer-Time/app.css">
+	<link rel="stylesheet" type="text/css" href="/ui/modules/apps/SharedCareer-Menu/app.css">
 	<link rel="stylesheet" type="text/css" href="/ui/modules/apps/SharedCareer-Phone/app.css">
 
 	<!-- The phone is attached to <body> on start (app.js), so the app frame (only the tab) never
@@ -146,8 +146,8 @@
 	</div></div>
 
 	<!-- tab at the right edge: takes the phone out / puts it away -->
-	<div class="sct-tab scp-tab" ng-class="{'scp-tab-open': open}" ng-click="toggle()" title="{{ open ? 'Put the phone away' : 'Take the phone out (F4)' }}">
-		<svg class="sct-logo" viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="2.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10.5 18.2h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-		<span class="sct-tab-arrow" ng-bind="open ? '>' : '<'"></span>
+	<div class="scm-tab scp-tab" ng-class="{'scp-tab-open': open}" ng-click="toggle()" title="{{ open ? 'Put the phone away' : 'Take the phone out (F4)' }}">
+		<svg class="scm-logo" viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="2.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10.5 18.2h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+		<span class="scm-tab-arrow" ng-bind="open ? '>' : '<'"></span>
 	</div>
 </div>

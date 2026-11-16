@@ -58,7 +58,7 @@
 --   Server -> Client: sc_fuelPrices {enabled, factors = {[station] = {gasoline = 0.9, ...}}}
 --                       (from the SharedCareer menu window)
 
-local VERSION = "0.14.4"
+local VERSION = "0.15.0"
 local TAG = "[SharedCareer] "
 
 local CONFIG_DIR = "Resources/Server/SharedCareer/config"
@@ -156,9 +156,9 @@ local DEFAULTS = {
 		-- On join, remove Mileage leftovers (red "Unknown app" boxes) from the players' UI
 		-- layouts and bring back the BeamMP player list. Files are backed up first.
 		cleanupMileageApps = true,
-		-- Add the SharedCareer menu and fuel app to the career layout automatically on the first
-		-- join (once; players who remove them don't get them back).
-		addTimeApp = true,
+		-- Add the SharedCareer menu and the phone tab to the career layout automatically on the
+		-- first join (once; players who remove them don't get them back).
+		addApps = true,
 		-- status after the players' names: [Mission], [On foot], [Loading]
 		showPlayerStatus = true,
 		-- welcome dialog on join with the most important features (everyone can choose "Don't show
@@ -300,6 +300,11 @@ local OLD_DEFAULTS = {
 	server = {dayMinutes = {45}, nightMinutes = {15}},
 }
 
+-- settings that were renamed: new name -> old name (the old value is taken over once)
+local RENAMED = {
+	client = {addApps = "addTimeApp"}, -- 0.15.0
+}
+
 local function wasDefault(section, key, value, recorded)
 	local rec = type(recorded) == "table" and type(recorded[section]) == "table" and recorded[section] or nil
 	if rec and rec[key] ~= nil then return rec[key] == value end
@@ -318,6 +323,8 @@ local function mergeConfig(loaded)
 		local values = type(loaded) == "table" and type(loaded[section]) == "table" and loaded[section] or {}
 		for key, default in pairs(defaults) do
 			local value = values[key]
+			local oldKey = (RENAMED[section] or {})[key]
+			if value == nil and oldKey then value = values[oldKey] end
 			if type(value) ~= type(default) then
 				result[section][key] = default
 			elseif value ~= default and wasDefault(section, key, value, loaded and loaded._defaults) then

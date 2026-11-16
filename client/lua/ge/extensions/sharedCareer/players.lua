@@ -50,14 +50,10 @@ local function myName()
 	return cfg and type(cfg.getNickname) == "function" and cfg.getNickname() or nil
 end
 
-local function careerActive()
-	return career_career and type(career_career.isActive) == "function" and career_career.isActive() == true
-end
-
 --== own status ================================================================
 
 function M.currentStatus()
-	if not careerActive() then return "loading" end
+	if not U.careerActive() then return "loading" end
 	local missions = rawget(_G, "gameplay_missions_missionManager")
 	if missions and type(missions.getForegroundMissionId) == "function" then
 		local ok, id = pcall(missions.getForegroundMissionId)
@@ -122,8 +118,8 @@ local function rxPlayers(data)
 		if not still then M.uiStopNavigate() end
 	end
 	applySuffixes()
-	local env = U.ext("sharedCareer_env")
-	if env and env.onSettingsChanged then env.onSettingsChanged() end
+	local menu = U.ext("sharedCareer_menu")
+	if menu then menu.onSettingsChanged() end
 end
 
 --== menu actions ==============================================================

@@ -1,0 +1,154 @@
+<div ng-controller="SharedCareerMenu" class="scMenu" ng-class="{'scm-collapsed': collapsed}">
+	<link rel="stylesheet" type="text/css" href="/ui/modules/apps/SharedCareer-Menu/app.css">
+
+	<!-- Expanded: SharedCareer menu with tabs (styled like the BeamMP player list) -->
+	<div class="scm-panel" ng-if="!collapsed">
+		<div class="scm-header">
+			<span class="scm-brand scm-brand-click" title="SharedCareer – click for the welcome overview" ng-click="showWelcome()"><svg class="scm-logo" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.3" fill="none" stroke="currentColor" stroke-width="2.6"/><circle cx="12" cy="12.6" r="2.7" fill="currentColor"/><path d="M3.2 11.2 Q12 8.2 20.8 11.2 M12 15.3 V21.2" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg></span>
+			<button class="scm-tabbtn" ng-class="{'scm-active': tab === 'time'}" ng-click="setTab('time')">Time</button>
+			<button class="scm-tabbtn" ng-class="{'scm-active': tab === 'traffic'}" ng-click="setTab('traffic')">Traffic</button>
+			<button class="scm-tabbtn" ng-class="{'scm-active': tab === 'options'}" ng-click="setTab('options')">Options</button>
+			<button class="scm-tabbtn" ng-class="{'scm-active': tab === 'players'}" ng-click="setTab('players')">Players</button>
+		</div>
+
+		<div class="scm-body" ng-if="!state || !state.connected">
+			<span class="scm-note">Only on a SharedCareer server</span>
+		</div>
+
+		<!-- Time tab -->
+		<div class="scm-body" ng-if="state && state.connected && tab === 'time'">
+			<div class="scm-top">
+				<span class="scm-icon" ng-bind="state.isDay ? '☀' : '☾'"></span>
+				<span class="scm-clock" ng-bind="clock()"></span>
+				<span class="scm-phase" ng-bind="phaseText()"></span>
+				<button class="scm-btn scm-pause" ng-if="state.canControl" ng-class="{'scm-paused': state.paused}" ng-click="togglePause()"
+					title="{{ state.paused ? 'Resume the clock for everyone' : 'Pause the clock for everyone at the current time' }}"
+					ng-bind="state.paused ? '▶' : '❚❚'"></button>
+			</div>
+			<div class="scm-row" ng-if="state.canControl">
+				<button class="scm-btn" ng-click="shift(-1)" title="One hour back">−1 h</button>
+				<button class="scm-btn" ng-click="shift(1)" title="One hour forward">+1 h</button>
+				<span class="scm-gap"></span>
+				<button class="scm-btn scm-small" ng-click="setHour(7)" title="7:00">Morning</button>
+				<button class="scm-btn scm-small" ng-click="setHour(12)" title="12:00">Noon</button>
+				<button class="scm-btn scm-small" ng-click="setHour(19)" title="19:00">Evening</button>
+				<button class="scm-btn scm-small" ng-click="setHour(23)" title="23:00">Night</button>
+			</div>
+			<div class="scm-row" ng-if="state.canControl">
+				<span class="scm-label">Day</span>
+				<button class="scm-btn scm-step" ng-click="changeLength('day', -5)">−</button>
+				<span class="scm-value" ng-bind="lengths().day + ' min'"></span>
+				<button class="scm-btn scm-step" ng-click="changeLength('day', 5)">+</button>
+				<span class="scm-gap"></span>
+				<span class="scm-label">Night</span>
+				<button class="scm-btn scm-step" ng-click="changeLength('night', -1)">−</button>
+				<span class="scm-value" ng-bind="lengths().night + ' min'"></span>
+				<button class="scm-btn scm-step" ng-click="changeLength('night', 1)">+</button>
+			</div>
+			<div class="scm-note" ng-if="!state.canControl && state.synced">The time of day is set by the server</div>
+			<div class="scm-note" ng-if="!state.synced">Time sync is switched off on this server</div>
+		</div>
+
+		<!-- Traffic tab -->
+		<div class="scm-body" ng-if="state && state.connected && state.settings && tab === 'traffic'">
+			<div class="scm-row">
+				<span class="scm-label scm-wide">Driving</span>
+				<button class="scm-btn scm-step" ng-disabled="!canEdit()" ng-click="step('client.roadTraffic', -1, 0, 50)">−</button>
+				<span class="scm-value" ng-bind="val('client.roadTraffic')"></span>
+				<button class="scm-btn scm-step" ng-disabled="!canEdit()" ng-click="step('client.roadTraffic', 1, 0, 50)">+</button>
+				<span class="scm-hint" ng-bind="trafficHint('road')"></span>
+			</div>
+			<div class="scm-row">
+				<span class="scm-label scm-wide">Parked</span>
+				<button class="scm-btn scm-step" ng-disabled="!canEdit()" ng-click="step('client.parkedTraffic', -1, 0, 50)">−</button>
+				<span class="scm-value" ng-bind="val('client.parkedTraffic')"></span>
+				<button class="scm-btn scm-step" ng-disabled="!canEdit()" ng-click="step('client.parkedTraffic', 1, 0, 50)">+</button>
+				<span class="scm-hint" ng-bind="trafficHint('parked')"></span>
+			</div>
+			<div class="scm-row">
+				<span class="scm-label scm-wide">AI style</span>
+				<button class="scm-btn scm-small" ng-disabled="!canEdit()" ng-class="{'scm-on': aggression() === 'careful'}" ng-click="setAggression(0.15)">Careful</button>
+				<button class="scm-btn scm-small" ng-disabled="!canEdit()" ng-class="{'scm-on': aggression() === 'normal'}" ng-click="setAggression(0.3)">Normal</button>
+				<button class="scm-btn scm-small" ng-disabled="!canEdit()" ng-class="{'scm-on': aggression() === 'fast'}" ng-click="setAggression(0.5)">Fast</button>
+			</div>
+			<div class="scm-note">Per player · applies to everyone · {{ state.settings.players || 1 }} online</div>
+		</div>
+
+		<!-- Options tab -->
+		<div class="scm-body scm-compact" ng-if="state && state.connected && state.settings && tab === 'options'">
+			<div class="scm-row">
+				<span class="scm-label scm-grow">Collision with other players' cars</span>
+				<button class="scm-btn scm-toggle" ng-disabled="!canEdit()" ng-class="{'scm-on': !val('client.remoteVehicleGhost')}"
+					ng-click="toggle('client.remoteVehicleGhost')" ng-bind="val('client.remoteVehicleGhost') ? 'Off' : 'On'"></button>
+			</div>
+			<div class="scm-row">
+				<span class="scm-label scm-grow">Collision with players on foot</span>
+				<button class="scm-btn scm-toggle" ng-disabled="!canEdit()" ng-class="{'scm-on': !val('client.remoteUnicycleGhost')}"
+					ng-click="toggle('client.remoteUnicycleGhost')" ng-bind="val('client.remoteUnicycleGhost') ? 'Off' : 'On'"></button>
+			</div>
+			<div class="scm-row">
+				<span class="scm-label scm-grow">Synced traffic lights</span>
+				<button class="scm-btn scm-toggle" ng-disabled="!canEdit()" ng-class="{'scm-on': val('server.trafficSignalSync')}"
+					ng-click="toggle('server.trafficSignalSync')" ng-bind="val('server.trafficSignalSync') ? 'On' : 'Off'"></button>
+			</div>
+			<div class="scm-row">
+				<span class="scm-label scm-grow">Player status on name tags</span>
+				<button class="scm-btn scm-toggle" ng-disabled="!canEdit()" ng-class="{'scm-on': val('client.showPlayerStatus')}"
+					ng-click="toggle('client.showPlayerStatus')" ng-bind="val('client.showPlayerStatus') ? 'On' : 'Off'"></button>
+			</div>
+			<div class="scm-row">
+				<span class="scm-label scm-grow">Server limit driving traffic</span>
+				<button class="scm-btn scm-step" ng-disabled="!canEdit()" ng-click="step('server.roadTrafficTotal', -2, 0, 400)">−</button>
+				<span class="scm-value" ng-bind="val('server.roadTrafficTotal') === 0 ? 'off' : val('server.roadTrafficTotal')"></span>
+				<button class="scm-btn scm-step" ng-disabled="!canEdit()" ng-click="step('server.roadTrafficTotal', 2, 0, 400)">+</button>
+			</div>
+			<div class="scm-note" ng-if="!canEdit()">Only the server owner can change settings on this server</div>
+		</div>
+
+		<!-- Players tab -->
+		<div class="scm-body scm-scroll" ng-if="state && state.connected && state.players && tab === 'players'">
+			<div class="scm-row scm-watchbar" ng-if="state.players.watching">
+				<span class="scm-label scm-grow">Watching {{ state.players.watching }}</span>
+				<button class="scm-btn scm-small scm-on" ng-click="back()">Back to my car</button>
+			</div>
+			<div class="scm-row" ng-repeat="p in state.players.list track by p.name">
+				<span class="scm-player scm-grow" ng-bind="p.name + (p.me ? ' (you)' : '')"></span>
+				<span class="scm-status" ng-if="statusText(p.status)" ng-bind="statusText(p.status)"></span>
+				<button class="scm-btn scm-small" ng-if="!p.me && state.players.navigating !== p.name" ng-click="navigate(p.name)"
+					title="Show the way to this player on the road">Navigate</button>
+				<button class="scm-btn scm-small scm-on" ng-if="!p.me && state.players.navigating === p.name" ng-click="stopNavigate()"
+					title="Stop navigation">Stop</button>
+				<button class="scm-btn scm-small" ng-if="!p.me" ng-click="watch(p.name)" title="Move the camera to this player">Watch</button>
+				<button class="scm-btn scm-small" ng-if="!p.me && state.players.canTeleport" ng-click="teleport(p.name)"
+					title="Teleport your current vehicle to this player">Go</button>
+			</div>
+			<div class="scm-note" ng-if="state.players.list.length <= 1">No other players online</div>
+		</div>
+	</div>
+
+	<!-- Dialog (welcome, messages from the server) as a card in the middle of the screen – even when
+	     the menu is collapsed. Text is only inserted as text (no HTML). -->
+	<!-- The host is attached to <body> on start (app.js), so the app frame can't clip or move the
+	     dialog (0.8.2: an invisible dialog blocked the tab). -->
+	<div class="scMenu scm-dialog-host" id="sharedCareerDialogHost"><div class="scm-overlay" ng-if="dialog">
+		<div class="scm-dialog" ng-class="{'scm-dialog-warn': dialog.warning}">
+			<div class="scm-dialog-title" ng-bind="dialog.title"></div>
+			<div class="scm-dialog-text" ng-if="dialog.intro" ng-bind="dialog.intro"></div>
+			<ul class="scm-dialog-list" ng-if="dialog.items && dialog.items.length">
+				<li ng-repeat="it in dialog.items"><b ng-bind="it.head"></b> <span ng-bind="it.text"></span></li>
+			</ul>
+			<div class="scm-dialog-text scm-dialog-muted" ng-if="dialog.outro" ng-bind="dialog.outro"></div>
+			<div class="scm-dialog-buttons">
+				<button class="scm-btn scm-dialog-btn" ng-repeat="b in dialog.buttons" ng-class="{'scm-on': b.primary}"
+					ng-click="dialogButton(b)" ng-bind="b.label"></button>
+			</div>
+		</div>
+	</div></div>
+
+	<!-- Tab at the right edge: collapses/expands. When collapsed, only the tab is visible. -->
+	<div class="scm-tab" ng-click="toggleCollapsed()" title="{{ collapsed ? 'Expand SharedCareer menu' : 'Collapse SharedCareer menu' }}">
+		<!-- SharedCareer logo (steering wheel) -->
+		<span class="scm-tab-icon" ng-if="collapsed"><svg class="scm-logo" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.3" fill="none" stroke="currentColor" stroke-width="2.6"/><circle cx="12" cy="12.6" r="2.7" fill="currentColor"/><path d="M3.2 11.2 Q12 8.2 20.8 11.2 M12 15.3 V21.2" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg></span>
+		<span class="scm-tab-arrow" ng-bind="collapsed ? '<' : '>'"></span>
+	</div>
+</div>

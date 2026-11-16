@@ -12,7 +12,7 @@
 
 local M = {}
 
-M.VERSION = "0.14.4"
+M.VERSION = "0.15.0"
 
 local unpack = table.unpack or unpack
 
@@ -23,6 +23,11 @@ M.unpack = unpack
 
 function M.log(level, tag, msg)
 	log(level, "sharedCareer." .. tag, msg)
+end
+
+--- The career is running (in single player too; combine with isMP for the multiplayer career).
+function M.careerActive()
+	return career_career and type(career_career.isActive) == "function" and career_career.isActive() == true
 end
 
 -- true while we are on a BeamMP server.

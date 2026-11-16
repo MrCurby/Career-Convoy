@@ -1386,7 +1386,7 @@ check(setCalls == calls, "no constant resetting")
 
 -- UI window: state and control
 local uiEvents = {}
-_G.guihooks = {trigger = function(name, data) if name == "SharedCareerTime" then table.insert(uiEvents, data) end end}
+_G.guihooks = {trigger = function(name, data) if name == "SharedCareerState" then table.insert(uiEvents, data) end end}
 handlers.sc_time(json.encode({hour = 19.5, play = true, dayLength = 3600, dayLengthDay = 3600, dayLengthNight = 720,
 	dayStart = 6, nightStart = 20, dayMinutes = 50, nightMinutes = 5, canControl = true}))
 local ui = uiEvents[#uiEvents]
@@ -1517,15 +1517,15 @@ local function joinWith(filesInit, cfgChange)
 end
 local CUSTOM = "settings/ui_apps/layouts/default/career.uilayout.json"
 local ORIGINAL = "settings/ui_apps/originalLayouts/default/career.uilayout.json"
-local function hasTimeApp(layout)
-	for _, a in ipairs(layout and layout.apps or {}) do if a.appName == "sharedCareerTime" then return true end end
+local function hasMenuApp(layout)
+	for _, a in ipairs(layout and layout.apps or {}) do if a.appName == "sharedCareerMenu" then return true end end
 	return false
 end
 -- 1) player without an own career layout: original + window
 joinWith({[ORIGINAL] = {apps = {{appName = "tacho2"}}, title = "career"}})
-check(hasTimeApp(files[CUSTOM]) and files[CUSTOM].apps[1].appName == "tacho2", "window added to the career layout (from the original)")
+check(hasMenuApp(files[CUSTOM]) and files[CUSTOM].apps[1].appName == "tacho2", "window added to the career layout (from the original)")
 check(files[CUSTOM].apps[2].placement.top == "600px", "placed right, below the player list")
-check(files["settings/sharedCareer/state.json"].timeAppAdded == true, "remembered: already added")
+check(files["settings/sharedCareer/state.json"].menuAppAdded == true, "remembered: already added")
 local phoneApp
 for _, a in ipairs(files[CUSTOM].apps) do if a.appName == "sharedCareerPhone" then phoneApp = a end end
 check(phoneApp and phoneApp.placement.top == "760px" and phoneApp.placement.width == "30px"
@@ -1533,53 +1533,75 @@ check(phoneApp and phoneApp.placement.top == "760px" and phoneApp.placement.widt
 	"phone tab added once, directly below the menu, only as big as the tab")
 -- 2) player removes it again -> NOT added again on the next join
 local removedLayout = {apps = {{appName = "tacho2"}}}
-joinWith({[CUSTOM] = removedLayout, ["settings/sharedCareer/state.json"] = {timeAppAdded = true}})
-check(not hasTimeApp(files[CUSTOM]), "removed window is not forced back")
+joinWith({[CUSTOM] = removedLayout, ["settings/sharedCareer/state.json"] = {menuAppAdded = true}})
+check(not hasMenuApp(files[CUSTOM]), "removed window is not forced back")
 -- 3) own layout is kept, a backup is created
 joinWith({[CUSTOM] = {apps = {{appName = "meineApp"}}}})
-check(files[CUSTOM].apps[1].appName == "meineApp" and hasTimeApp(files[CUSTOM]), "own layout stays, window is added")
+check(files[CUSTOM].apps[1].appName == "meineApp" and hasMenuApp(files[CUSTOM]), "own layout stays, window is added")
 check(files[CUSTOM .. ".sharedcareer-backup"].apps[1].appName == "meineApp", "backup of the own layout")
 -- 4) already there (added by the player) -> not twice
-joinWith({[CUSTOM] = {apps = {{appName = "sharedCareerTime"}}}})
-local timeCount, phoneCount = 0, 0
+joinWith({[CUSTOM] = {apps = {{appName = "sharedCareerMenu"}}}})
+local menuCount, phoneCount = 0, 0
 for _, a in ipairs(files[CUSTOM].apps) do
-	if a.appName == "sharedCareerTime" then timeCount = timeCount + 1 end
+	if a.appName == "sharedCareerMenu" then menuCount = menuCount + 1 end
 	if a.appName == "sharedCareerPhone" then phoneCount = phoneCount + 1 end
 end
-check(timeCount == 1 and phoneCount == 1, "menu not duplicated, phone tab is added")
+check(menuCount == 1 and phoneCount == 1, "menu not duplicated, phone tab is added")
 -- phone: own flag – players who remove the phone tab don't get it back
-joinWith({[CUSTOM] = {apps = {{appName = "sharedCareerTime"}}},
-	["settings/sharedCareer/state.json"] = {timeAppAdded = true, phoneAppAdded = true, fuelAppRetired = true, phoneTabUp = true}})
+joinWith({[CUSTOM] = {apps = {{appName = "sharedCareerMenu"}}},
+	["settings/sharedCareer/state.json"] = {menuAppAdded = true, phoneAppAdded = true, fuelAppRetired = true, phoneTabUp = true}})
 local phoneBack = 0
 for _, a in ipairs(files[CUSTOM].apps) do if a.appName == "sharedCareerPhone" then phoneBack = phoneBack + 1 end end
 check(phoneBack == 0, "removed phone tab is not forced back")
 -- update from 0.12: the separate fuel window is gone (it's on the phone now) -> taken out once,
 -- and the phone tab moves up to its place, directly below the menu
-joinWith({[CUSTOM] = {apps = {{appName = "sharedCareerTime", placement = {right = "0px", top = "600px"}},
+joinWith({[CUSTOM] = {apps = {{appName = "sharedCareerMenu", placement = {right = "0px", top = "600px"}},
 	{appName = "sharedCareerFuel", placement = {right = "0px", top = "760px"}},
 	{appName = "sharedCareerPhone", placement = {right = "0px", top = "920px"}}}},
-	["settings/sharedCareer/state.json"] = {timeAppAdded = true, fuelAppAdded = true, phoneAppAdded = true}})
+	["settings/sharedCareer/state.json"] = {menuAppAdded = true, fuelAppAdded = true, phoneAppAdded = true}})
 local names, phoneTop = {}, nil
 for _, a in ipairs(files[CUSTOM].apps) do
 	table.insert(names, a.appName)
 	if a.appName == "sharedCareerPhone" then phoneTop = a.placement.top end
 end
-check(table.concat(names, ",") == "sharedCareerTime,sharedCareerPhone",
+check(table.concat(names, ",") == "sharedCareerMenu,sharedCareerPhone",
 	"old fuel window removed from the layout (no red 'Unknown app' box): " .. table.concat(names, ","))
 check(phoneTop == "760px" and files[CUSTOM].apps[1].placement.top == "600px", "phone tab moved up below the menu; menu stays")
 local st = files["settings/sharedCareer/state.json"]
 check(st.fuelAppRetired == true and st.phoneTabUp == true, "both changes remembered (only once)")
 -- the player moved the phone tab somewhere else -> it stays there
 joinWith({[CUSTOM] = {apps = {{appName = "sharedCareerPhone", placement = {right = "120px", top = "300px"}}}},
-	["settings/sharedCareer/state.json"] = {timeAppAdded = true, phoneAppAdded = true}})
+	["settings/sharedCareer/state.json"] = {menuAppAdded = true, phoneAppAdded = true}})
 check(files[CUSTOM].apps[1].placement.right == "120px" and files[CUSTOM].apps[1].placement.top == "300px",
 	"the player's own position stays")
+-- 0.15.0: the menu app was renamed sharedCareerTime -> sharedCareerMenu
+do
+	local OTHER = "settings/ui_apps/layouts/default/freeroam.uilayout.json"
+	local oldMenu = {appName = "sharedCareerTime", placement = {right = "0px", top = "650px"}}
+	joinWith({}) -- fresh file mocks
+	files[CUSTOM] = {apps = {{appName = "tacho2"}, oldMenu, {appName = "sharedCareerPhone"}}}
+	files[OTHER] = {apps = {{appName = "sharedCareerTime"}, {appName = "sharedCareerMenu"}}}
+	files["settings/sharedCareer/state.json"] = {timeAppAdded = true, phoneAppAdded = true}
+	FS.findFiles = function(_, dir) return dir == "settings/ui_apps/layouts/" and {CUSTOM, OTHER} or {} end
+	check(sharedCareer_cleanup.renameAppsOnce() == 2, "rename: one in the career layout, one duplicate elsewhere")
+	local names = {}
+	for _, a in ipairs(files[CUSTOM].apps) do table.insert(names, a.appName) end
+	check(table.concat(names, ",") == "tacho2,sharedCareerMenu,sharedCareerPhone" and files[CUSTOM].apps[2].placement.top == "650px",
+		"career layout: renamed in place, the player's position stays (" .. table.concat(names, ",") .. ")")
+	check(#files[OTHER].apps == 1 and files[OTHER].apps[1].appName == "sharedCareerMenu", "other layout: the old duplicate is removed")
+	local st = files["settings/sharedCareer/state.json"]
+	check(st.menuAppRenamed == true and st.menuAppAdded == true and st.timeAppAdded == nil,
+		"state: rename remembered, old flag timeAppAdded becomes menuAppAdded")
+	check(sharedCareer_cleanup.addAppsOnce() == 0, "a menu the player once removed isn't added back after the rename")
+	files[CUSTOM] = {apps = {{appName = "sharedCareerTime"}}}
+	check(sharedCareer_cleanup.renameAppsOnce() == 0 and files[CUSTOM].apps[1].appName == "sharedCareerTime", "rename runs only once")
+end
 -- 5) switched off
-joinWith({[ORIGINAL] = {apps = {}}}, {addTimeApp = false})
-check(files[CUSTOM] == nil, "addTimeApp = false: nothing added")
+joinWith({[ORIGINAL] = {apps = {}}}, {addApps = false})
+check(files[CUSTOM] == nil, "addApps = false: nothing added")
 -- 6) no layout found -> nothing broken, try again later
 joinWith({})
-check(files["settings/sharedCareer/state.json"] == nil and lastSent("sc_careerResult").ok == true,
+check((files["settings/sharedCareer/state.json"] or {}).menuAppAdded == nil and lastSent("sc_careerResult").ok == true,
 	"without a layout: career starts, retry next time")
 
 --== 7f. Menu: live traffic with reserve ======================================
@@ -1607,7 +1629,7 @@ handlers.sc_configUpdate(json.encode(cfgM))
 check(activeRoad == 8 and activeParked == 7, "more than the pool: limited (rest on the next join)")
 -- menu updated immediately when someone else changes something
 local menuPushes = {}
-_G.guihooks = {trigger = function(name, data) if name == "SharedCareerTime" then table.insert(menuPushes, data) end end}
+_G.guihooks = {trigger = function(name, data) if name == "SharedCareerState" then table.insert(menuPushes, data) end end}
 cfgM.roadTraffic = 9
 handlers.sc_configUpdate(json.encode(cfgM))
 check(#menuPushes == 1 and menuPushes[1].settings.roadTraffic == 9, "menu shows another player's change immediately (without the 1 s tick)")

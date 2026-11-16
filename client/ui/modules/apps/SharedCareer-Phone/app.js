@@ -3,10 +3,11 @@
 // SharedCareer extensions registered (lua/ge/extensions/sharedCareer/phone.lua). Built-in app
 // screens: Tow (rope and winch, grab.lua) and Fuel (gas station prices, fuel.lua).
 //
-// Data: guihook "SharedCareerPhone" {enabled, apps} from phone.lua, "SharedCareerTime" (time,
-// players, connection) from env.lua every second, "SharedCareerPhoneToggle" from the key.
-// Like the menu and the fuel app, opening the phone collapses the other SharedCareer windows
-// (window event "sharedCareerPanelOpen").
+// Data: guihook "SharedCareerPhone" {enabled, apps} from phone.lua, "SharedCareerState" (time,
+// players, connection, fuel prices) from menu.lua every second, "SharedCareerTow" from grab.lua
+// while the Tow app is open, "SharedCareerPhoneToggle" from the key.
+// Opening the phone collapses the menu and the other way round (window event
+// "sharedCareerPanelOpen").
 //
 // Note: only var/function at the top level – the game evaluates app.js again in the same
 // scope when the apps are reloaded.
@@ -95,7 +96,7 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 		if (s < 0.9) return 'working hard';
 		return 'at the limit';
 	};
-	//== Fuel app (lua/ge/extensions/sharedCareer/fuel.lua, data with "SharedCareerTime") ==
+	//== Fuel app (lua/ge/extensions/sharedCareer/fuel.lua, data with "SharedCareerState") ==
 	var SORT_KEY = "sharedCareerFuelSort";
 	$scope.fuel = null;
 	$scope.fuelSort = "gasoline";
@@ -161,7 +162,7 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 	$scope.$on('SharedCareerPhoneToggle', function () {
 		$scope.$evalAsync(function () { if ($scope.enabled) setOpen(!$scope.open); });
 	});
-	$scope.$on('SharedCareerTime', function (event, data) {
+	$scope.$on('SharedCareerState', function (event, data) {
 		$scope.$evalAsync(function () {
 			if (!data) return;
 			$scope.time = typeof data.hour === 'number' ? data.hour : null;

@@ -16,7 +16,8 @@ client/                          client mod (packed into Resources/Client/Shared
   lua/ge/extensions/sharedCareer/  game-engine Lua, one file per area (see below)
   lua/vehicle/extensions/auto/     vehicle Lua
   scripts/sharedCareer/            mod entry point (loads the extensions)
-  ui/modules/apps/                 the two UI apps: SharedCareer-Time (menu), SharedCareer-Fuel
+  ui/modules/apps/                 the two UI apps: SharedCareer-Menu (the menu with the steering
+                                   wheel) and SharedCareer-Phone (phone with the Tow and Fuel apps)
   levels/west_coast_usa/…          enlarged garage-computer zones (generated, see tools/zones)
 Resources/Server/SharedCareer/   server plugin (main.lua)
 tests/                           mock-based tests for client and server
@@ -85,7 +86,7 @@ About a minute later the release is on GitHub, and `./server.sh update` installs
 | Different traffic light cycles | The server syncs the signal timer | `core.lua`, server |
 | Finding friends on the map | Players tab: navigate, watch, optional teleport, status on name tags, F7 | `players.lua` |
 | Fuel prices differ per player, and deliveries have no effect on the world | Shared base prices, deliveries lower prices for everyone | `fuel.lua`, server |
-| Settings can only be changed in the console | The SharedCareer menu syncs every change to all players | `ui/…/SharedCareer-Time`, `env.lua`, `menu.lua` |
+| Settings can only be changed in the console | The SharedCareer menu syncs every change to all players | `ui/…/SharedCareer-Menu`, `menu.lua`, `env.lua` (time) |
 | New players don't know the features | Welcome dialog with "Don't show again" | `welcome.lua` |
 | Red "Unknown app" boxes after switching from Mileage | Mileage apps are removed from the players' layouts, with a backup first | `cleanup.lua` |
 | The career blocks the node grabber in a vehicle and in the free camera | After every input filter change (hook `onActionFilterUpdated`) only the career's group `careerNodeGrabberActions` is lifted; other blocks (certification test) stay | `nodegrab.lua` |
