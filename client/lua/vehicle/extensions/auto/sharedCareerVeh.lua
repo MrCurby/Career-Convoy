@@ -4,7 +4,7 @@
 --   setGhost(enabled)              collisions with this vehicle on/off (vehicles.lua; ghost mode
 --                                  for other players' cars / players on foot)
 --   setAiTuning(gap, sightFactor)  traffic AI reacts earlier to obstacles (traffic.lua)
---   handGrabRay / handTarget / handRelease / handProbe   our own node grabber (grab.lua), see
+--   handGrabRay / handRope / handRelease / handProbe   our own node grabber as a rope (grab.lua), see
 --                                  "Hand" below
 --
 -- AI tuning: two values inside the game's lua/vehicle/ai.lua that have no official setter.
@@ -104,14 +104,17 @@ function M.setAiTuning(gap, sightFactor)
 	return true
 end
 
---== Hand: our own node grabber =================================================
--- Moves a vehicle by hand, slowly and with physics: a few nodes around the grab point are
--- pulled towards a target point (the GE side moves the target with the player's view).
---   * The grab point moves at most `speed` m/s.
---   * The total force is limited to `strength` % of the vehicle's weight: you can lift one end
---     and drag or push the vehicle, but not float it (with less than 100 %).
---   * The force is split over the grabbed nodes by their mass, so heavy frame nodes take most of
---     it and thin panels hardly any – nothing gets bent.
+--== Hand: our own node grabber, as a rope =======================================
+-- A rope from a grip on the vehicle (a few nodes around the point you aimed at) to an anchor
+-- point that the GE side places (grab.lua). It behaves like a real rope with a winch:
+--   * it only pulls when it is taut (distance grip -> anchor longer than the rope); it never pushes
+--   * while the anchor is being moved, the winch pays out rope, so the vehicle stays where it is
+--   * winch on: the rope is hauled in at most `speed` m/s and the vehicle is pulled to the anchor;
+--     the winch also brakes (up to half the force limit), so the vehicle doesn't roll past it
+--   * winch off: the rope length stays, the vehicle hangs on it
+--   * the pull is limited to `strength` % of the vehicle's weight: you can lift one end and drag
+--     the vehicle, but not float it (below 100 %)
+--   * the force is split over the grip nodes by their mass, so thin panels don't bend
 -- Forces are applied once per frame for that frame (obj:applyForceVectorTime in updateGFX, like
 -- the game's container locks do).
 
@@ -120,12 +123,15 @@ local HAND_MIN_NODES = 4  -- at least this many nodes, even if fewer are inside 
 local HAND_MAX_NODES = 24
 local HAND_KP = 2         -- 1/s: wanted speed = distance to the target * HAND_KP (then limited)
 local HAND_TAU = 0.4      -- s: how quickly the vehicle's speed follows the wanted speed
-local HAND_LIFT_RAMP = 0.5 -- m: target this much above the grip = carry the full weight
+local HAND_LIFT_RAMP = 0.3 -- m of stretch at which an upward rope carries the full weight
+local ROPE_MIN = 0.5       -- m: the winch doesn't haul in further than this
+local WINCH_BRAKE = 0.5    -- share of the force limit the running winch may use to brake
 local GRAVITY = 9.81
 
 local HAND_REPORT_EVERY = 0.1 -- s: how often the grip position and strain go back to the GE side
 
-local hand = nil -- {nodes = {{cid, m}}, gripMass, vehMass, tx, ty, tz, speed, strength, strain, since}
+local hand = nil -- {nodes = {{cid, m}}, gripMass, vehMass, ax, ay, az (anchor), length, winch,
+                 --  moving, speed, strength, strain, since}
 
 -- tell the GE side (grab.lua) something about this vehicle
 local function reportToGE(fn, fmt, ...)
@@ -165,7 +171,8 @@ function M.handGrab(x, y, z, speed, strength)
 		hand = nil
 		return false
 	end
-	hand = {nodes = nodes, gripMass = gripMass, vehMass = vehMass, tx = x, ty = y, tz = z,
+	hand = {nodes = nodes, gripMass = gripMass, vehMass = vehMass, ax = x, ay = y, az = z,
+		length = nil, winch = false, moving = false,
 		speed = tonumber(speed) or 1, strength = tonumber(strength) or 60, strain = 0,
 		since = HAND_REPORT_EVERY}
 	return true
@@ -209,10 +216,12 @@ function M.handProbe(cx, cy, cz, dx, dy, dz, maxDist)
 	if n then reportToGE("onProbe", "%.3f, %.3f, %.3f", n.x, n.y, n.z) end
 end
 
---- New target point (and optionally new speed / strength).
-function M.handTarget(x, y, z, speed, strength)
+--- Rope state from the GE side: anchor point, winch on/off, anchor being moved, settings.
+function M.handRope(ax, ay, az, winch, moving, speed, strength)
 	if not hand then return end
-	hand.tx, hand.ty, hand.tz = x, y, z
+	hand.ax, hand.ay, hand.az = ax, ay, az
+	hand.winch = winch == true or winch == 1
+	hand.moving = moving == true or moving == 1
 	if tonumber(speed) then hand.speed = tonumber(speed) end
 	if tonumber(strength) then hand.strength = tonumber(strength) end
 end
@@ -235,36 +244,46 @@ function M.updateGFX(dt)
 		cx, cy, cz = cx + p.x * w, cy + p.y * w, cz + p.z * w
 		vx, vy, vz = vx + vel.x * w, vy + vel.y * w, vz + vel.z * w
 	end
-	-- wanted speed towards the target, at most hand.speed
-	local wx, wy, wz = (hand.tx - cx) * HAND_KP, (hand.ty - cy) * HAND_KP, (hand.tz - cz) * HAND_KP
-	local wl = math.sqrt(wx * wx + wy * wy + wz * wz)
-	if wl > hand.speed then
-		local f = hand.speed / wl
-		wx, wy, wz = wx * f, wy * f, wz * f
+	local dx, dy, dz = hand.ax - cx, hand.ay - cy, hand.az - cz
+	local d = math.sqrt(dx * dx + dy * dy + dz * dz)
+	-- rope length: starts at the current distance; paid out while the anchor is moved; hauled in
+	-- by the winch
+	if not hand.length then hand.length = d end
+	if hand.moving and not hand.winch then
+		hand.length = math.max(hand.length, d)
+	elseif hand.winch then
+		hand.length = math.max(ROPE_MIN, math.min(hand.length, d) - hand.speed * dt)
 	end
-	-- force that brings the whole vehicle to that speed, limited to strength % of its weight
-	local k = hand.vehMass / HAND_TAU
-	local fx, fy, fz = (wx - vx) * k, (wy - vy) * k, (wz - vz) * k
-	-- lifting: when the target is above the grip, the hand also carries the weight (fully from
-	-- HAND_LIFT_RAMP meters up); at the same height all the force goes into pulling
-	local lift = math.max(0, math.min(1, (hand.tz - cz) / HAND_LIFT_RAMP))
-	fz = fz + hand.vehMass * GRAVITY * lift
-	local fl = math.sqrt(fx * fx + fy * fy + fz * fz)
+	local tension = 0
 	local limit = hand.vehMass * GRAVITY * hand.strength / 100
-	-- strain: share of the force limit that is needed (1 = at the limit), smoothed for the display
-	hand.strain = hand.strain + (math.min(1, fl / limit) - hand.strain) * math.min(1, dt * 6)
-	if fl > limit then
-		local f = limit / fl
-		fx, fy, fz = fx * f, fy * f, fz * f
+	-- a taut rope pulls; a running winch also brakes near its end (it holds on to the vehicle)
+	local active = d > 0.001 and (d > hand.length + 0.001 or hand.winch)
+	if active then
+		local ux, uy, uz = dx / d, dy / d, dz / d
+		local stretch = d - hand.length
+		-- wanted speed along the rope: towards the anchor, at most hand.speed (0 at the rope's end)
+		local want = math.max(0, math.min(hand.speed, stretch * HAND_KP))
+		local along = vx * ux + vy * uy + vz * uz
+		tension = hand.vehMass / HAND_TAU * (want - along)
+		-- an upward rope also carries the weight once it is stretched a bit
+		tension = tension + hand.vehMass * GRAVITY * math.max(0, uz) * math.min(1, math.max(0, stretch) / HAND_LIFT_RAMP)
+		-- a rope only pulls; the running winch may also brake a little
+		local minTension = hand.winch and -limit * WINCH_BRAKE or 0
+		tension = math.max(minTension, math.min(limit, tension))
+		if tension ~= 0 then
+			for _, n in ipairs(hand.nodes) do
+				local f = tension * n.m / hand.gripMass
+				obj:applyForceVectorTime(n.cid, vec3(ux * f, uy * f, uz * f), dt)
+			end
+		end
 	end
+	-- strain: share of the force limit in use (1 = at the limit), smoothed for the display
+	hand.strain = hand.strain + (math.abs(tension) / limit - hand.strain) * math.min(1, dt * 6)
 	hand.since = hand.since + dt
 	if hand.since >= HAND_REPORT_EVERY then
 		hand.since = 0
-		reportToGE("onHandState", "%.3f, %.3f, %.3f, %.2f", cx, cy, cz, hand.strain)
-	end
-	for _, n in ipairs(hand.nodes) do
-		local w = n.m / hand.gripMass
-		obj:applyForceVectorTime(n.cid, vec3(fx * w, fy * w, fz * w), dt)
+		local slack = d <= hand.length + 0.05 and 1 or 0
+		reportToGE("onHandState", "%.3f, %.3f, %.3f, %.2f, %d, %.2f", cx, cy, cz, hand.strain, slack, hand.length)
 	end
 end
 

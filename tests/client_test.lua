@@ -716,8 +716,11 @@ do
 			body.v.x = body.v.x + body.f.x / MASS * dt
 			body.v.y = body.v.y + body.f.y / MASS * dt
 			body.v.z = body.v.z + (body.f.z / MASS - 9.81) * dt
-			-- ground: friction-free, but it can't sink below it
+			-- ground: it can't sink below it; on the ground the wheels have a little rolling resistance
 			if body.p.z + body.v.z * dt < 0 then body.v.z = 0 end
+			if body.p.z < 0.01 then
+				body.v.x, body.v.y = body.v.x * (1 - 0.5 * dt), body.v.y * (1 - 0.5 * dt)
+			end
 			body.p.x = body.p.x + body.v.x * dt
 			body.p.y = body.p.y + body.v.y * dt
 			body.p.z = math.max(0, body.p.z + body.v.z * dt)
@@ -737,48 +740,70 @@ do
 	check(veh.handGrab(2, 0.8, 0.3, 1, 60) == true, "vehicle side: nodes around the grab point are taken")
 	local info = veh.handInfo()
 	check(#info.nodes >= 4 and #info.nodes <= 24 and info.vehMass == MASS, "grip of 4-24 nodes, vehicle mass known")
-	-- pull 5 m sideways: moves, but at most 1 m/s
-	veh.handTarget(2, 5.8, 0.3)
+	local function lastState()
+		local st = body.ge[#body.ge] or ""
+		local strain, slack, len = st:match("onHandState%(77, [-%d%.]+, [-%d%.]+, [-%d%.]+, ([%d%.]+), (%d), ([%d%.]+)%)")
+		return tonumber(strain), tonumber(slack), tonumber(len)
+	end
+	-- attached: the anchor is at the grip, the rope is slack, no force
+	run(0.5)
+	check(math.abs(body.p.x) < 0.001 and math.abs(body.p.y) < 0.001, "rope attached: the vehicle doesn't move by itself")
+	-- move the anchor 5 m to the side (moving, winch off): rope is paid out, the vehicle stays
+	for i = 1, 30 do
+		veh.handRope(2, 0.8 + 5 * i / 30, 0.3, 0, 1)
+		run(1 / 30)
+	end
+	run(1)
+	local _, slack, len = lastState()
+	check(math.abs(body.p.y) < 0.01 and slack == 1 and math.abs(len - 5) < 0.1,
+		string.format("moving the anchor pays out rope, the vehicle stays (y = %.3f, rope %.1f m)", body.p.y, len or -1))
+	-- anchor placed, winch on: pulled slowly towards the anchor
+	veh.handRope(2, 5.8, 0.3, 1, 0)
 	local maxSpeed = 0
+	body.forces = {}
 	for _ = 1, 30 do
 		run(0.1)
 		maxSpeed = math.max(maxSpeed, math.sqrt(body.v.x ^ 2 + body.v.y ^ 2))
 	end
-	check(maxSpeed <= 1.05 and maxSpeed > 0.8, string.format("moves slowly: at most 1 m/s (%.2f)", maxSpeed))
-	check(body.p.y > 2.5 and body.p.y < 3.6, string.format("after 3 s about 3 m pulled (%.1f m)", body.p.y))
-	run(6)
-	check(math.abs(body.p.y - 5) < 0.3, string.format("arrives at the target (%.2f m)", body.p.y))
-	local restState = body.ge[#body.ge] or ""
-	local restStrain = tonumber(restState:match("onHandState%(77, [-%d%.]+, [-%d%.]+, [-%d%.]+, ([%d%.]+)%)"))
-	check(restStrain and restStrain < 0.2, "strain low when it's easy (" .. tostring(restStrain) .. ")")
-	-- force split by mass: heavy chassis nodes carry most of it
-	body.forces = {}
-	veh.handTarget(2, 8, 0.3)
-	run(0.5)
+	check(maxSpeed <= 1.05 and maxSpeed > 0.8, string.format("winch pulls slowly: at most 1 m/s (%.2f)", maxSpeed))
+	check(body.p.y > 1.8 and body.p.y < 3.6, string.format("after 3 s about 2-3 m pulled (%.1f m)", body.p.y))
 	local heavyF, lightF = 0, 0
 	for cid, f in pairs(body.forces) do
 		if rel[cid].m >= 180 then heavyF = heavyF + f else lightF = lightF + f end
 	end
 	check(heavyF > 5 * lightF, "the force goes mostly to the heavy nodes (no bent panels)")
-	-- lifting: 60 % of the weight can't float the whole car
-	veh.handTarget(body.p.x + 2, body.p.y + 0.8, 4)
+	run(6)
+	check(math.abs(body.p.y - 4.5) < 0.3, string.format("winch hauls in until 0.5 m before the anchor, doesn't roll past (%.2f m)", body.p.y))
+	local strainNow = lastState()
+	check(strainNow and strainNow < 0.3, "strain low when it's easy (" .. tostring(strainNow) .. ")")
+	-- winch off: the rope keeps its length; a rope never pushes
+	veh.handRope(2, 5.8, 0.3, 0, 0)
+	run(2)
+	body.v = {x = 0, y = 0, z = 0}
+	local gy = body.p.y + 0.8
+	veh.handRope(2, gy + 3, 0.3, 0, 1)   -- move the anchor 3 m away: rope paid out to 3 m
+	run(0.5)
+	veh.handRope(2, gy + 1, 0.3, 0, 0)   -- anchor placed 1 m from the grip: shorter than the rope
+	local yHold = body.p.y
+	body.f = {x = 0, y = 0, z = 0}
+	veh.updateGFX(1 / 60)
+	check(body.f.x == 0 and body.f.y == 0 and body.f.z == 0, "a slack rope doesn't push")
+	run(1)
+	check(math.abs(body.p.y - yHold) < 0.05, "winch off, rope slack: nothing moves")
+	-- lifting: anchor high above, winch on; 60 % of the weight can't float the whole car
+	veh.handRope(body.p.x + 2, body.p.y + 0.8, 4, 1, 0)
 	run(4)
 	check(body.p.z < 0.05, string.format("60 %% of the weight doesn't lift the whole vehicle (z = %.2f)", body.p.z))
-	local lastState = body.ge[#body.ge] or ""
-	local strain = tonumber(lastState:match("onHandState%(77, [-%d%.]+, [-%d%.]+, [-%d%.]+, ([%d%.]+)%)"))
-	check(strain and strain > 0.95, "strain reported back: at the limit while lifting (" .. tostring(strain) .. ")")
-	-- force limit: never more than strength % of the weight
+	local strainLift = lastState()
+	check(strainLift and strainLift > 0.95, "strain reported back: at the limit while lifting (" .. tostring(strainLift) .. ")")
 	local peak = 0
 	for _ = 1, 20 do
-		body.forces = {}
 		run(1 / 60)
-		local total = math.sqrt(body.f.x ^ 2 + body.f.y ^ 2 + body.f.z ^ 2)
-		peak = math.max(peak, total)
+		peak = math.max(peak, math.sqrt(body.f.x ^ 2 + body.f.y ^ 2 + body.f.z ^ 2))
 	end
 	check(peak <= MASS * 9.81 * 0.6 + 1, string.format("force limited to 60 %% of the weight (%.0f N)", peak))
-	-- with more than 100 % it can lift it
-	veh.handTarget(body.p.x + 2, body.p.y + 0.8, 3, 1, 150)
-	run(5)
+	veh.handRope(body.p.x + 2, body.p.y + 0.8, 4, 1, 0, 1, 150)
+	run(6)
 	check(body.p.z > 1.5, string.format("with 150 %% it lifts the vehicle (z = %.2f)", body.p.z))
 	veh.handRelease()
 	body.f = {x = 0, y = 0, z = 0}
@@ -800,7 +825,9 @@ _G.pushActionMap = function(name) actionMaps[name] = (actionMaps[name] or 0) + 1
 _G.popActionMap = function(name) actionMaps[name] = (actionMaps[name] or 0) - 1 end
 -- the game's node grabber strength action (mouse wheel), see core/nodegrabberGamepad.lua
 local strengthCalls = 0
-local gpGrab = {changeStrength = function() strengthCalls = strengthCalls + 1 end}
+local grabCalls = 0
+local gpGrab = {changeStrength = function() strengthCalls = strengthCalls + 1 end,
+	grab = function() grabCalls = grabCalls + 1 end}
 _G.core_nodegrabberGamepad = gpGrab
 extensions.hook("onWorldReadyState", 2)
 local cfgG = {}
@@ -838,74 +865,128 @@ _G.cameraMouseRayCast = function()
 	return {pos = mouse.pos, distance = 10}   -- like in the game: no vehicle object reported
 end
 local truck = placedVeh(60, 10, 0, 1)
-check(keyG and keyG.default == "f6" and keyG.title:find("grab"), "grab key registered via BeamMP (F6)")
+check(keyG and keyG.default == "f6" and keyG.title:find("rope"), "rope key registered via BeamMP (F6)")
 check(grabKeys.sharedCareerGrabFarther and grabKeys.sharedCareerGrabFarther.default == "pageup"
 	and grabKeys.sharedCareerGrabCloser.default == "pagedown", "fallback keys for the distance (Page Up / Down)")
--- grab: the mouse ray passes the truck (it reports no vehicle, only the ground behind it)
+-- attach: the mouse ray passes the truck (it reports no vehicle, only the ground behind it)
 mouse.pos = {x = 20, y = 0, z = 0}
 keyG.onDown()
 local name, a = lastHand(truck)
-check(sharedCareer_grab.isHolding() and name == "handGrabRay", "own vehicle grabbed: the aim ray is sent to the vehicle")
+check(sharedCareer_grab.isHolding() and name == "handGrabRay", "rope attached: the aim ray is sent to the vehicle")
 check(a and a[1] == 0 and a[2] == 0 and a[3] == 2 and a[4] > 0.99 and a[7] == 120 and a[8] == 1 and a[9] == 60,
 	"camera position, aim direction, speed 1 m/s and strength 60 % sent along")
-check(#toasts > 0 and toasts[#toasts].msg:find("Mouse wheel"), "first grab: a short hint how it works")
--- the vehicle reports where it grabbed: the distance is taken from there
+check(#toasts > 0 and toasts[#toasts].msg:find("left mouse") and toasts[#toasts].msg:find("F8"), "first rope: a short hint how it works")
+check(actionMaps.Nodegrabber == 1, "the node grabber input layer is switched on (mouse button, wheel)")
+check(grabKeys.sharedCareerGrabAnchor and grabKeys.sharedCareerGrabAnchor.default == "f5"
+	and grabKeys.sharedCareerGrabAnchor.onUp and grabKeys.sharedCareerGrabWinch.default == "f8",
+	"keys: hold F5 to move the anchor (with release), F8 for the winch")
+-- the vehicle reports where it grabbed: the anchor starts there
 sharedCareer_grab.onGrip(60, 9.0, 9, 0, 1)
-check(actionMaps.Nodegrabber == 1, "the wheel input layer is switched on")
--- holding: the target follows the view direction at the grab distance
+frames(0.1)
+name, a = lastHand(truck)
+check(name == "handRope" and a[1] == 9 and a[2] == 0 and a[3] == 1 and a[4] == 0 and a[5] == 0,
+	"anchor starts at the grip; winch off, not moving")
+-- looking around without holding the mouse: the anchor stays
 fwd = {x = 0, y = 1, z = 0}
 frames(0.2)
 name, a = lastHand(truck)
-local grabDist = 9.0
-check(name == "handTarget" and math.abs(a[1]) < 0.01 and math.abs(a[2] - grabDist) < 0.4 and math.abs(a[3] - 2) < 0.01,
-	string.format("target in the middle of the view at the grab distance (%.1f/%.1f/%.1f)", a[1], a[2], a[3]))
+check(a[1] == 9 and a[2] == 0, "not holding the mouse: the anchor stays where it is")
+-- the wheel does nothing while not moving the anchor
+gpGrab.changeStrength(4, 0)
+check(strengthCalls == 0, "wheel while holding a rope: not the game's strength")
+-- hold the left mouse (the node grabber's mouse button): the anchor follows the view
+gpGrab.grab(1, "mouse0")
+frames(0.2)
+name, a = lastHand(truck)
+local anchorDist = math.sqrt(9 ^ 2 + 1)   -- distance camera -> anchor when moving started
+check(name == "handRope" and a[5] == 1 and math.abs(a[1]) < 0.01 and math.abs(a[2] - anchorDist) < 0.05
+	and math.abs(a[3] - 2) < 0.01, string.format("holding the mouse: the anchor follows the view (%.1f/%.1f/%.1f)", a[1], a[2], a[3]))
 local sent = #truck.lua
 frames(1)
-check(#truck.lua - sent >= 25 and #truck.lua - sent <= 35, "target sent about 30 times per second")
--- mouse wheel: 4 notches up = 6 m farther; the game's strength is not changed
+check(#truck.lua - sent >= 25 and #truck.lua - sent <= 35, "rope state sent about 30 times per second")
+-- wheel: 4 notches up = 6 m farther; Page Down closer; never closer than 3 m
 gpGrab.changeStrength(4, 0)
 frames(0.1)
 name, a = lastHand(truck)
-check(math.abs(a[2] - (grabDist + 6)) < 0.4 and strengthCalls == 0,
-	"mouse wheel up: target farther away, node grabber strength untouched")
+check(math.abs(a[2] - (anchorDist + 6)) < 0.05 and strengthCalls == 0, "mouse wheel: anchor farther away")
 grabKeys.sharedCareerGrabCloser.onDown()
 grabKeys.sharedCareerGrabCloser.onDown()
 frames(0.1)
 name, a = lastHand(truck)
-check(math.abs(a[2] - (grabDist + 3)) < 0.4, "Page Down: target closer")
+check(math.abs(a[2] - (anchorDist + 3)) < 0.05, "Page Down: anchor closer")
 for _ = 1, 30 do gpGrab.changeStrength(-1, 0) end
 frames(0.1)
 name, a = lastHand(truck)
 check(math.abs(a[2] - 3) < 0.01, "never closer than 3 m")
--- settings change live: new speed/strength in the next target
+-- walking carries the anchor along
+cam = {x = 5, y = 0, z = 2}
+frames(0.1)
+name, a = lastHand(truck)
+check(math.abs(a[1] - 5) < 0.01 and math.abs(a[2] - 3) < 0.01, "walking: the anchor comes along")
+-- let go of the mouse: the anchor stays in the air, whatever you do
+gpGrab.grab(0, "mouse0")
+fwd = {x = 1, y = 0, z = 0}
+cam = {x = 0, y = 0, z = 2}
+frames(0.2)
+name, a = lastHand(truck)
+check(a[5] == 0 and math.abs(a[1] - 5) < 0.01 and math.abs(a[2] - 3) < 0.01, "mouse released: the anchor stays in the air")
+-- F5 (hold) does the same as the mouse
+grabKeys.sharedCareerGrabAnchor.onDown()
+frames(0.1)
+name, a = lastHand(truck)
+check(a[5] == 1, "F5 held: moving the anchor")
+grabKeys.sharedCareerGrabAnchor.onUp()
+frames(0.1)
+name, a = lastHand(truck)
+check(a[5] == 0, "F5 released: anchor stays")
+-- winch on / off
+grabKeys.sharedCareerGrabWinch.onDown()
+frames(0.1)
+name, a = lastHand(truck)
+check(a[4] == 1 and toasts[#toasts].msg:find("Winch on"), "F8: winch on")
+-- settings change live
 cfgG.grabSpeed, cfgG.grabStrength = 0.5, 200
 handlers.sc_configUpdate(json.encode(cfgG))
 frames(0.1)
 name, a = lastHand(truck)
-check(a[4] == 0.5 and a[5] == 150, "settings applied live; strength capped at 150 %")
+check(a[6] == 0.5 and a[7] == 150, "settings applied live; strength capped at 150 %")
 cfgG.grabSpeed, cfgG.grabStrength = 1, 60
 handlers.sc_configUpdate(json.encode(cfgG))
--- drawing: rope from the grip to the target, crosses at both ends, color by strain
+-- drawing: rope grey when slack, strain color when taut; anchor color shows the state
 local drawn = {}
 -- like in the game: ColorF and vec3 are callable constructors, not Lua functions (0.10.1 bug)
 _G.ColorF = setmetatable({}, {__call = function(_, r, g, b, alpha) return {r = r, g = g, b = b, a = alpha} end})
 _G.vec3 = setmetatable({}, {__call = function(_, x, y, z) return {x = x, y = y, z = z} end})
 _G.debugDrawer = {drawLine = function(_, p1, p2, c) table.insert(drawn, {p1 = p1, p2 = p2, c = c}) end}
-sharedCareer_grab.onHandState(60, 0, 3, 2, 0.1)
+sharedCareer_grab.onHandState(60, 9, 0, 1, 0.1, 0, 4)
 drawn = {}
 frames(1 / 60)
-check(#drawn == 7 and drawn[1].p1.y == 3 and drawn[1].c.g > 0.8 and drawn[1].c.r < 0.4,
-	"holding: rope and two crosses drawn, green when it's easy")
-sharedCareer_grab.onHandState(60, 0, 3, 2, 1)
+check(#drawn == 7 and drawn[1].p1.x == 9 and drawn[1].c.g > 0.8 and drawn[1].c.r < 0.4,
+	"taut rope: line and two crosses, green when it's easy")
+check(drawn[5].c.r == 1 and drawn[5].c.g < 0.6, "winch running: orange anchor")
+sharedCareer_grab.onHandState(60, 9, 0, 1, 1, 0, 4)
 drawn = {}
 frames(1 / 60)
 check(drawn[1].c.r == 1 and drawn[1].c.g < 0.3, "red at the force limit")
+grabKeys.sharedCareerGrabWinch.onDown()
+sharedCareer_grab.onHandState(60, 9, 0, 1, 0, 1, 4)
+drawn = {}
+frames(1 / 60)
+check(drawn[1].c.r == 0.7 and drawn[1].c.g == 0.7 and drawn[5].c.r == 1 and drawn[5].c.g == 1,
+	"slack rope: grey line; winch off: white anchor")
+gpGrab.grab(1, "mouse0")
+drawn = {}
+frames(1 / 60)
+check(drawn[5].c.b > 0.9 and drawn[5].c.r < 0.5, "moving the anchor: cyan anchor")
+gpGrab.grab(0, "mouse0")
 -- let go
 keyG.onDown()
 check(not sharedCareer_grab.isHolding() and lastHand(truck) == "handRelease" and actionMaps.Nodegrabber == 0,
 	"second press lets go: handRelease sent, wheel layer off")
 gpGrab.changeStrength(1, 0)
-check(strengthCalls == 1, "not holding: the wheel is the game's node grabber strength again")
+check(strengthCalls == 1, "no rope: the wheel is the game's node grabber strength again")
+gpGrab.grab(1, "mouse0")
+check(grabCalls == 1, "no rope: the mouse button is the game's node grabber again")
 drawn = {}
 frames(1 / 60)
 check(#drawn == 0, "let go: nothing drawn")

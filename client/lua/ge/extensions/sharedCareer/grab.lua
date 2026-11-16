@@ -1,39 +1,38 @@
--- SharedCareer :: our own node grabber – move your own vehicles slowly, by hand
+-- SharedCareer :: our own node grabber as a rope with a winch – move vehicles slowly, by hand
 --
 -- The game's node grabber is weak in the career (the engine limits its force; a mod can't change
--- that). This is our own: it pulls a few nodes around a grab point towards a target point, with
--- a limited force and a slow speed, so the vehicle keeps its physics (it turns when you pull a
--- corner, the wheels roll, one end can be lifted). Goal: moving vehicles that can't drive, e.g.
--- onto a tow truck, by hand.
+-- that). This is our own, built for moving vehicles that can't drive, e.g. onto a tow truck:
 --
---   Key (default F6, rebindable under Options → Controls → BeamMP, "SharedCareer: grab vehicle"):
---     1st press  grabs your vehicle under the mouse cursor (or in the middle of the view if the
---                cursor points at the sky); the vehicle closest to that line is taken, and the
---                nodes around the point on that line closest to its center are the grip
---     2nd press  lets go
---   While holding, the target point is in the middle of your view at the grab distance
---   ("gravity gun"): look around and the vehicle is pulled there. Mouse wheel = farther / closer
---   (we push the game's "Nodegrabber" input layer while holding and take its wheel action; see
---   adjustDistance). Fallback keys: Page Up / Page Down. Without a camera view direction the
---   mouse ray is used. The vehicle you sit in can't be grabbed (the camera would move with it);
---   on foot or from the free camera it works.
+--   F6 (rebindable)          attach a rope where you point at one of your vehicles / remove it
+--   hold left mouse (or F5)  move the anchor: it follows the middle of your view; walk to carry
+--                            it along, mouse wheel / Page Up / Page Down = farther / closer.
+--                            Let go and the anchor stays where it is, in the air.
+--   F8                       winch on / off: on hauls the rope in and pulls the vehicle slowly
+--                            to the anchor; off keeps the rope length (the vehicle hangs on it)
 --
--- The force itself is computed in the vehicle (sharedCareerVeh.handGrabRay / handTarget /
+-- The rope only pulls when it is taut, never pushes; moving the anchor pays out rope, so the
+-- vehicle only moves when the winch runs. Keys are rebindable under Options → Controls →
+-- BeamMP. Left mouse and the wheel come from the game's node grabber input layer
+-- ("Nodegrabber"), which we push while a rope is attached; its grab and strength actions are
+-- redirected to the anchor (see wrapMouse).
+--
+-- The force itself is computed in the vehicle (sharedCareerVeh.handGrabRay / handRope /
 -- handRelease in lua/vehicle/extensions/auto/sharedCareerVeh.lua). Here we only pick the
--- vehicle and send the ray and target points. The vehicle grabs the node closest to the ray
+-- vehicle and send the aim ray and the anchor. The vehicle grabs the node closest to the ray
 -- (you hold the vehicle where you point at it) and reports back: onGrip (grip position and
 -- distance), onHandState (grip position and strain, 10 times per second), onProbe (preview).
 --
 -- What you see (debugDrawer lines, like the game's own markers):
---   holding   a rope from the grip to the target point and a small cross at both ends; the
---             color shows the strain: green = easy, yellow = working hard, red = at the limit
+--   rope      a line from the grip to the anchor: grey = slack; when taut, the color shows the
+--             strain: green = easy, yellow = working hard, red = at the force limit
+--   anchor    a cross: white = resting, cyan = being moved, orange = winch running
 --   preview   on foot or in the free camera, pointing at one of your vehicles: a small cross
 --             where F6 would grab
 --   hint      the first grab of a session shows how it works
 --
 -- Only your own vehicles (incl. your own traffic): other players' vehicles are simulated on
 -- their PCs, BeamMP would put them back immediately. Not the player on foot.
--- Server settings: client.allowGrab (on/off), client.grabSpeed (m/s the grip moves at most),
+-- Server settings: client.allowGrab (on/off), client.grabSpeed (m/s the winch hauls in at most),
 -- client.grabStrength (force limit in % of the vehicle's weight).
 
 local M = {}
@@ -50,7 +49,13 @@ local SEND_EVERY = 1 / 30  -- s: how often the target point is sent to the vehic
 local PROBE_EVERY = 0.2    -- s: how often the preview asks the vehicle where it would grab
 local PROBE_KEEP = 0.5     -- s: how long a preview answer is shown
 
-local held = nil           -- {id, dist, dx, dy, dz, since, grip = {x, y, z}, strain, target}
+local ANCHOR_ACTION = "sharedCareerGrabAnchor"
+local ANCHOR_KEY = "f5"
+local WINCH_ACTION = "sharedCareerGrabWinch"
+local WINCH_KEY = "f8"
+
+local held = nil           -- {id, dist, since, grip = {x, y, z}, target (= anchor), strain, slack,
+                           --  moving, winch, placed}
 local probe = nil          -- {id, x, y, z, age}
 local sinceProbe = 0
 local hintShown = false
@@ -143,16 +148,45 @@ function M.release()
 	U.log("D", "grab", "vehicle released")
 end
 
---- Moves the held vehicle farther away (positive) or closer (negative), in wheel notches.
+--- While moving the anchor: farther away (positive) or closer (negative), in wheel notches.
 function M.adjustDistance(notches)
-	if not held then return false end
+	if not held or not held.moving then return false end
 	local n = tonumber(notches) or 0
 	held.dist = math.max(MIN_DISTANCE, math.min(MAX_DISTANCE, held.dist + n * DISTANCE_STEP))
 	return true
 end
 
--- While holding, the mouse wheel (the game's node grabber strength action) changes the distance.
-local function wrapWheel()
+--- Start / stop moving the anchor (left mouse or F5 held).
+function M.setMoving(on)
+	if not held then return false end
+	on = on == true
+	if on and not held.moving then
+		-- keep the anchor's distance, so it doesn't jump away or towards you
+		local cam = cameraPos()
+		local t = held.target
+		if cam and t then
+			local dx, dy, dz = t.x - cam.x, t.y - cam.y, t.z - cam.z
+			held.dist = math.max(MIN_DISTANCE, math.min(MAX_DISTANCE, math.sqrt(dx * dx + dy * dy + dz * dz)))
+		end
+	end
+	held.moving = on
+	if on then held.placed = true end
+	held.since = SEND_EVERY -- send the change right away
+	return true
+end
+
+--- Winch on / off.
+function M.toggleWinch()
+	if not held then return false end
+	held.winch = not held.winch
+	held.since = SEND_EVERY
+	U.toast("info", held.winch and "Winch on: pulling the vehicle to the anchor" or "Winch off", 2)
+	return true
+end
+
+-- While a rope is attached, the game's node grabber input layer is on: its mouse button moves
+-- the anchor and its strength action (mouse wheel) changes the anchor's distance.
+local function wrapMouse()
 	local gp = U.ext("core_nodegrabberGamepad")
 	if not gp then return end
 	U.replace(gp, "changeStrength", function(original)
@@ -162,6 +196,15 @@ local function wrapWheel()
 				return
 			end
 			return original(value, filterType, ...)
+		end
+	end)
+	U.replace(gp, "grab", function(original)
+		return function(value, deviceName, ...)
+			if held and type(deviceName) == "string" and deviceName:find("^mouse") then
+				M.setMoving((tonumber(value) or 0) ~= 0)
+				return
+			end
+			return original(value, deviceName, ...)
 		end
 	end)
 end
@@ -256,17 +299,19 @@ local function grab()
 		return
 	end
 	-- the vehicle grabs the node closest to the aim line and reports it back (onGrip)
-	held = {id = id, dist = found.t, dx = dir.x, dy = dir.y, dz = dir.z, since = SEND_EVERY, strain = 0}
+	held = {id = id, dist = found.t, since = SEND_EVERY, strain = 0, slack = true, moving = false,
+		winch = false, placed = false,
+		target = {x = cam.x + dir.x * found.t, y = cam.y + dir.y * found.t, z = cam.z + dir.z * found.t}}
 	probe = nil
 	sendToVehicle(id, string.format("sharedCareerVeh.handGrabRay(%.3f, %.3f, %.3f, %.4f, %.4f, %.4f, %d, %.2f, %.1f)",
 		cam.x, cam.y, cam.z, dir.x, dir.y, dir.z, MAX_DISTANCE, grabSpeed(), grabStrength()))
 	if not hintShown then
 		hintShown = true
-		U.toast("info", "Holding: look where it should go · Mouse wheel: distance · F6: let go", 6)
+		U.toast("info", "Rope attached · Hold left mouse (or F5): move the anchor · F8: winch on/off · F6: remove", 8)
 	end
-	wrapWheel()
+	wrapMouse()
 	setWheelLayer(true)
-	U.log("I", "grab", string.format("grabbed vehicle %s at %.1f m (%s)", tostring(id), found.t,
+	U.log("I", "grab", string.format("rope attached to vehicle %s at %.1f m (anchor %s)", tostring(id), found.t,
 		viewDir() and "follows the view" or "follows the mouse"))
 end
 
@@ -274,7 +319,8 @@ function M.toggle()
 	if held then M.release() else grab() end
 end
 
--- One step: send the current target point to the vehicle (called every frame, sent ~30 times/s).
+-- One step (every frame): while moving, the anchor follows the view; the rope state goes to the
+-- vehicle about 30 times per second.
 function M.step(dt)
 	if not held then return end
 	dt = tonumber(dt) or 0
@@ -283,18 +329,20 @@ function M.step(dt)
 		M.release()
 		return
 	end
-	-- the view direction while holding ("gravity gun"), the mouse ray if there is none
-	local cam, dir = cameraPos(), viewDir()
-	if not dir then cam, dir = aimRay() end
-	if not cam then return end
-	held.dx, held.dy, held.dz = dir.x, dir.y, dir.z
-	local tx, ty, tz = cam.x + dir.x * held.dist, cam.y + dir.y * held.dist, cam.z + dir.z * held.dist
-	held.target = {x = tx, y = ty, z = tz}
+	if held.moving then
+		-- the view direction ("gravity gun"), the mouse ray if there is none
+		local cam, dir = cameraPos(), viewDir()
+		if not dir then cam, dir = aimRay() end
+		if cam then
+			held.target = {x = cam.x + dir.x * held.dist, y = cam.y + dir.y * held.dist, z = cam.z + dir.z * held.dist}
+		end
+	end
 	held.since = held.since + dt
-	if held.since < SEND_EVERY then return end
+	if held.since < SEND_EVERY or not held.target then return end
 	held.since = 0
-	sendToVehicle(held.id, string.format("sharedCareerVeh.handTarget(%.3f, %.3f, %.3f, %.2f, %.1f)",
-		tx, ty, tz, grabSpeed(), grabStrength()))
+	local t = held.target
+	sendToVehicle(held.id, string.format("sharedCareerVeh.handRope(%.3f, %.3f, %.3f, %d, %d, %.2f, %.1f)",
+		t.x, t.y, t.z, held.winch and 1 or 0, held.moving and 1 or 0, grabSpeed(), grabStrength()))
 end
 
 --== Replies from the vehicle ====================================================
@@ -303,13 +351,17 @@ function M.onGrip(id, t, x, y, z)
 	if not held or held.id ~= id then return end
 	held.dist = math.max(MIN_DISTANCE, math.min(MAX_DISTANCE, tonumber(t) or held.dist))
 	held.grip = {x = x, y = y, z = z}
+	-- the anchor starts at the grip (rope slack) until it is moved
+	if not held.placed then held.target = {x = x, y = y, z = z} end
 	U.log("D", "grab", string.format("vehicle reported its grip at %.1f m", held.dist))
 end
 
-function M.onHandState(id, x, y, z, strain)
+function M.onHandState(id, x, y, z, strain, slack, length)
 	if not held or held.id ~= id then return end
 	held.grip = {x = x, y = y, z = z}
 	held.strain = math.max(0, math.min(1, tonumber(strain) or 0))
+	held.slack = slack == 1 or slack == true
+	held.length = tonumber(length)
 end
 
 function M.onProbe(id, x, y, z)
@@ -362,11 +414,18 @@ function M.draw()
 	if not (held and held.grip and held.target) and not probe then return end
 	if not canDraw() then return end
 	if held and held.grip and held.target then
-		local r, g, b = M.strainColor(held.strain)
-		local color = ColorF(r, g, b, 0.9)
+		local color
+		if held.slack then
+			color = ColorF(0.7, 0.7, 0.7, 0.6)
+		else
+			local r, g, b = M.strainColor(held.strain)
+			color = ColorF(r, g, b, 0.9)
+		end
 		line(held.grip, held.target, color)
 		cross(held.grip, 0.15, color)
-		cross(held.target, 0.25, ColorF(1, 1, 1, 0.7))
+		local anchorColor = held.moving and ColorF(0.3, 0.9, 1, 0.9)
+			or held.winch and ColorF(1, 0.55, 0.1, 0.9) or ColorF(1, 1, 1, 0.7)
+		cross(held.target, 0.25, anchorColor)
 	elseif probe then
 		cross(probe, 0.2, ColorF(0.3, 0.8, 1, 0.9))
 	end
@@ -418,21 +477,34 @@ local function registerKey()
 		return
 	end
 	local ok, err = pcall(keys.addAction, ACTION, {
-		title = "SharedCareer: grab vehicle",
-		desc = "Grabs your vehicle under the mouse cursor and moves it slowly; press again to let go",
+		title = "SharedCareer: attach / remove rope",
+		desc = "Attaches a rope where you point at one of your vehicles; press again to remove it",
 		default = KEY,
 		onDown = function() M.toggle() end,
 	})
 	if not ok then U.log("E", "grab", "could not register the grab key: " .. tostring(err)) end
 	for _, k in ipairs({
-		{ACTION .. "Farther", "SharedCareer: grabbed vehicle farther", "pageup", 1},
-		{ACTION .. "Closer", "SharedCareer: grabbed vehicle closer", "pagedown", -1},
+		{ACTION .. "Farther", "SharedCareer: rope anchor farther", "pageup", 1},
+		{ACTION .. "Closer", "SharedCareer: rope anchor closer", "pagedown", -1},
 	}) do
 		pcall(keys.addAction, k[1], {
-			title = k[2], desc = "Moves the grabbed vehicle away from you or towards you",
+			title = k[2], desc = "While moving the anchor: away from you or towards you",
 			default = k[3], onDown = function() M.adjustDistance(k[4]) end,
 		})
 	end
+	pcall(keys.addAction, ANCHOR_ACTION, {
+		title = "SharedCareer: move rope anchor (hold)",
+		desc = "Hold to move the rope's anchor with your view; let go and it stays (same as holding left mouse)",
+		default = ANCHOR_KEY,
+		onDown = function() M.setMoving(true) end,
+		onUp = function() M.setMoving(false) end,
+	})
+	pcall(keys.addAction, WINCH_ACTION, {
+		title = "SharedCareer: winch on/off",
+		desc = "Hauls the rope in and pulls the vehicle slowly to the anchor",
+		default = WINCH_KEY,
+		onDown = function() M.toggleWinch() end,
+	})
 end
 
 --== Hooks =====================================================================

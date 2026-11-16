@@ -114,8 +114,8 @@ The file is `Resources/Server/SharedCareer/config/config.json`. It is created on
 |---|---|---|
 | `client.allowConsole` | `false` | Allow the in-game Lua console |
 | `client.allowWorldEditor` | `false` | Allow the world editor |
-| `client.allowGrab` | `true` | Our own node grabber (key F6): move your own vehicles slowly by hand, with physics |
-| `client.grabSpeed` | `1` | How fast the grabbed point moves at most, in m/s (0.2–5) |
+| `client.allowGrab` | `true` | Rope and winch (keys F6, F5 / left mouse, F8): move your own vehicles slowly by hand, with physics |
+| `client.grabSpeed` | `1` | How fast the winch hauls in at most, in m/s (0.2–5) |
 | `client.grabStrength` | `60` | Force limit in % of the vehicle's weight (10–150). Below 100 you can lift one end and drag or push the vehicle, but not float it. |
 | `client.allowNodeGrabber` | `true` | Node grabber (grab and pull vehicles with the mouse) also in a vehicle and in the free camera. The normal career only allows it while walking. The vehicle certification test still blocks it. `false` = the career's own rule. |
 

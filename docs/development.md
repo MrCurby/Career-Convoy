@@ -89,7 +89,7 @@ About a minute later the release is on GitHub, and `./server.sh update` installs
 | New players don't know the features | Welcome dialog with "Don't show again" | `welcome.lua` |
 | Red "Unknown app" boxes after switching from Mileage | Mileage apps are removed from the players' layouts, with a backup first | `cleanup.lua` |
 | The career blocks the node grabber in a vehicle and in the free camera | After every input filter change (hook `onActionFilterUpdated`) only the career's group `careerNodeGrabberActions` is lifted; other blocks (certification test) stay | `nodegrab.lua` |
-| The career's node grabber is too weak to move heavy vehicles (engine limit) | Own node grabber: the GE side picks the vehicle along the view/mouse line and sends grab and target points; the vehicle Lua pulls the nodes around the grip with `applyForceVectorTime` in `updateGFX`, speed and force limited, split by node mass | `grab.lua`, `sharedCareerVeh.lua` |
+| The career's node grabber is too weak to move heavy vehicles (engine limit) | Own rope and winch: the GE side picks the vehicle along the view/mouse line, places the anchor and sends the rope state; the vehicle Lua pulls the nodes around the grip with `applyForceVectorTime` in `updateGFX`: pull-only rope, pays out while the anchor moves, winch hauls in with limited speed and force (split by node mass) | `grab.lua`, `sharedCareerVeh.lua` |
 | Sending money to other players | `/pay` as a two-step transfer with refund | `money.lua`, server |
 
 ### Join flow

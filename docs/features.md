@@ -11,7 +11,7 @@ Everything players see and use in the game. All texts in the game are in English
 - [Time of day](#time-of-day)
 - [Garage](#garage)
 - [Node grabber](#node-grabber)
-- [Moving your vehicles by hand](#moving-your-vehicles-by-hand)
+- [Moving your vehicles by hand (rope and winch)](#moving-your-vehicles-by-hand-rope-and-winch)
 - [Sending money](#sending-money)
 
 ## Joining
@@ -155,23 +155,28 @@ Server admins can switch back to the career's rule with `sc set client.allowNode
 
 **The pull is weaker than in freeroam.** BeamNG limits the grab force in the career inside the game engine; the single-player career is just as weak. A mod can't change that, so in the career the node grabber is good for nudging and turning cars, but not for throwing them around. For heavier work, use SharedCareer's own grabber (F6), see below.
 
-## Moving your vehicles by hand
+## Moving your vehicles by hand (rope and winch)
 
-Because the game's node grabber is so weak in the career, SharedCareer has its own. It's made for moving vehicles that can't drive anymore, slowly and by hand, for example onto a tow truck.
+Because the game's node grabber is so weak in the career, SharedCareer has its own: a rope with a winch. It's made for moving vehicles that can't drive anymore, slowly and by hand, for example onto a tow truck.
 
-1. Point the mouse at one of your vehicles and press **F6**. You now hold it exactly where you pointed, for example at the front bumper. On foot or in the free camera, a small blue cross shows beforehand where F6 would grab.
-2. The vehicle is pulled towards the middle of your view, at the distance where you grabbed it. Look where it should go.
-3. **Mouse wheel** up moves the target farther away, down brings it closer (not closer than 3 m). If the wheel doesn't work for you, use **Page Up** / **Page Down**.
-4. Look up to lift the end you are holding, down to put it back.
-5. Press **F6** again to let go.
+| Step | Control | What happens |
+|---|---|---|
+| Attach the rope | Point at one of your vehicles, press **F6** | The rope is fixed exactly where you pointed (e.g. the front bumper). On foot or in the free camera, a small blue cross shows beforehand where it would go. |
+| Place the anchor | **Hold the left mouse button** (or **F5**) | The anchor follows the middle of your view. Walk to carry it along; the mouse wheel (or Page Up / Page Down) moves it farther or closer. The vehicle doesn't move, the rope just gets longer. |
+| | Let go | The anchor stays where it is, in the air, wherever you go or look. |
+| Pull | **F8** | Winch on: the rope is hauled in and the vehicle is pulled slowly (at most 1 m/s) to the anchor. It stops half a meter before it and doesn't roll past. Press F8 again to stop; the vehicle then hangs on the rope. |
+| Remove the rope | **F6** | |
 
-While you hold a vehicle, a line runs from your grip to the target point. Its color shows how hard the grabber works: **green** is easy, **yellow** is working hard, **red** means it's at its force limit (too heavy, stuck, or you're trying to lift too much).
+It behaves like a real rope: it only pulls when it's taut, never pushes. The force is limited to 60 % of the vehicle's weight, so you can lift one end (put the anchor up high) and drag the vehicle, but not float it. Pull a corner and the vehicle turns; the wheels roll. The force goes mostly to the heavy frame parts around the rope's end, so nothing gets bent.
 
-It feels like real handwork: the point you hold moves at most 1 m/s, and the force is limited to 60 % of the vehicle's weight. Pull a corner and the vehicle turns; the wheels roll; you can lift one end, but not float the whole vehicle. The force goes mostly to the heavy frame parts around your grip, so nothing gets bent.
+What you see:
 
-It only works on your own vehicles and your own traffic: other players' vehicles are simulated on their PCs, and BeamMP would put them right back. Players on foot can't be grabbed, and neither can the vehicle you are sitting in (the camera would move with it). Get out, or use the free camera.
+- **Rope:** grey when slack. When taut, the color shows how hard the winch works: **green** is easy, **yellow** is working hard, **red** means it's at its force limit (too heavy, stuck, or trying to lift too much).
+- **Anchor:** a cross; white when resting, cyan while you move it, orange while the winch runs.
 
-To use other keys: *Options → Controls → BeamMP*, entries "SharedCareer: grab vehicle", "… grabbed vehicle farther" and "… closer". Server admins can switch it off with `sc set client.allowGrab false`, and set how fast (`client.grabSpeed`, m/s) and how strong (`client.grabStrength`, % of the vehicle's weight) it is.
+It only works on your own vehicles and your own traffic: other players' vehicles are simulated on their PCs, and BeamMP would put them right back. Players on foot can't be roped, and neither can the vehicle you are sitting in (the camera would move with it). Get out, or use the free camera.
+
+All keys are rebindable under *Options → Controls → BeamMP* (entries starting with "SharedCareer:"); there you can also put "move rope anchor" on the right mouse button. Server admins can switch it off with `sc set client.allowGrab false`, and set how fast the winch hauls in (`client.grabSpeed`, m/s) and how strong it is (`client.grabStrength`, % of the vehicle's weight).
 
 ## Sending money
 
