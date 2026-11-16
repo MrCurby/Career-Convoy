@@ -6,14 +6,14 @@
 
 **Play the BeamNG.drive career together on a BeamMP server.**
 
-One shared world (same traffic, same time of day, same traffic lights), while every player keeps their **own save** on their own PC.
+One shared world (same traffic, same time of day, same traffic lights), while every player keeps their **own save** on their own PC. Plus optional extras for playing together.
 
 [![Latest release](https://img.shields.io/github/v/release/MrCurby/SharedCareer?label=release)](https://github.com/MrCurby/SharedCareer/releases/latest)
 [![Build](https://github.com/MrCurby/SharedCareer/actions/workflows/release.yml/badge.svg)](https://github.com/MrCurby/SharedCareer/actions/workflows/release.yml)
 ![BeamNG.drive 0.39+](https://img.shields.io/badge/BeamNG.drive-0.39%2B-orange)
 ![BeamMP](https://img.shields.io/badge/BeamMP-server%20mod-blue)
 
-[Features](#features) · [Quick start](#quick-start) · [Server setup](docs/server-setup.md) · [In-game guide](docs/features.md) · [Settings & commands](docs/configuration.md) · [Development](docs/development.md)
+[Features](#features) · [Roadmap](#roadmap) · [Quick start](#quick-start) · [Server setup](docs/server-setup.md) · [In-game guide](docs/features.md) · [Settings & commands](docs/configuration.md) · [Development](docs/development.md)
 
 </div>
 
@@ -32,7 +32,7 @@ The BeamNG career is made for playing alone. If you try it on a multiplayer serv
 
 **Made for small groups of friends.** SharedCareer is built for a few friends who just want to hang out on a BeamMP server and enjoy the career together, without stress and without things breaking. It's not made for big public servers.
 
-**What it is and what it isn't.** There are no new game modes like races or leaderboards. It's still the normal BeamNG career. Most of what SharedCareer does are fixes, so the career works at all with more than one player. On top of that there are a few small extras that only make sense when you play together. They are listed separately below, and you can switch most of them off. The idea came from [Mileage](https://github.com/norto22/Mileage), but SharedCareer is its own, much smaller mod.
+**How it's built.** At its heart, SharedCareer is the normal BeamNG career, made to work with more than one player. Those fixes always run. On top of that come **extras for playing together**, like shared fuel prices, finding your friends or grabbing and throwing your vehicles. Each extra is listed separately below and can be switched off by the server. Bigger additions like jobs are [planned](#roadmap); they will be off by default, so if you only want the career, you get just the career. The idea came from [Mileage](https://github.com/norto22/Mileage), but SharedCareer is its own mod.
 
 Players **don't need to install anything**. BeamMP downloads the mod for them when they join.
 
@@ -50,9 +50,9 @@ Without these, the career breaks or behaves strangely on a multiplayer server.
 | <img src="docs/icons/car.svg" width="20" height="20" alt=""> **Traffic that doesn't overload the server** | The server splits a total traffic limit across all players, and traffic uses simplified cars that are cheap to sync. Your traffic no longer carries your name tag. | Limit and simple cars: yes |
 | <img src="docs/icons/fuel.svg" width="20" height="20" alt=""> **Same fuel price for everyone** | Normally every player rolls their own random price at the same station. With SharedCareer everyone pays the same. | Yes (together with the fuel extra below) |
 
-### Extras: small things for playing together
+### Extras: more things to do together
 
-These go beyond the normal career. They are on by default unless noted.
+These go beyond the normal career. They are on by default unless noted, and each one can be switched off.
 
 | | What it does | Can be turned off? |
 |---|---|---|
@@ -148,6 +148,27 @@ The full guide, including manual installation, backups, rollback and switching f
 | [In-game guide](docs/features.md) | The menu, welcome dialog, players tab, fuel economy, traffic, garage computers |
 | [Settings & commands](docs/configuration.md) | Chat and console commands, every setting in `config.json` |
 | [Development](docs/development.md) | Building, tests, releases, how the mod works inside, known limitations, project status |
+
+## Roadmap
+
+SharedCareer is growing beyond the fixes, step by step. Planned, but **not in the mod yet**:
+
+| Idea | What it would be |
+|---|---|
+| Phone / job menu | One place in the game to find and accept jobs |
+| Taxi | Pick up passengers at random spots, tips for smooth driving |
+| Ambulance runs | Emergencies and patient transport to the hospital, against the clock |
+| Escort vehicles | Request or offer an escort for heavy transports, paid between players |
+| Stock market | Shares of in-game brands, prices the same for everyone |
+| Radio | Internet radio stations in the game |
+
+The rules for everything new:
+
+- **The career comes first.** New features must not make the career less stable.
+- **Off by default** for bigger systems like jobs, and every extra can be switched off.
+- **Listed honestly** in this README, with what it changes, once it is actually in the mod.
+
+What's realistic and how much work each idea is: see the feasibility notes in the [project status](docs/development.md#project-status).
 
 ## Status
 

@@ -167,6 +167,29 @@ Tested with BeamNG.drive 0.40.5, BeamMP 4.23.1 and BeamMP-Server 3.9.3 (Linux).
 - Clean re-join after a lost connection.
 - <img src="icons/status-done.svg" width="16" height="16" alt="tested"> Save safety: one profile per account, the same account never twice at once.
 
+**Planned features: feasibility**
+
+A first estimate of the ideas on the [roadmap](../README.md#roadmap) and a few more. Not verified in the game code yet for most of them.
+
+| Idea | Feasible? | Effort | Notes |
+|---|---|---|---|
+| Phone / job menu | Yes | medium | A UI app like the SharedCareer menu; the base for all jobs |
+| Taxi | Yes | medium | Random pickup/drop-off points, paid from the career money, tips from smooth driving (accelerations can be measured) |
+| Bus lines | Yes, with limits | high | Own stops and timetable per map; whether the line display on the bus can be set depends on the bus model |
+| Ambulance runs | Yes | medium | Like taxi with a time limit and a hospital drop-off; police AI should ignore you via the vehicle's traffic role; may need an ambulance vehicle mod |
+| Tow service | Partly | high | Placing broken-down cars and a drop-off zone: yes. Loading them depends on the node grabber or the tow truck's winch |
+| Getaway driver | Partly | high | Meeting point, pickup, then a police chase; starting a chase from outside is untested |
+| Police job | Partly | high | The game has a player police role in freeroam; in the career with several players it's a lot of work |
+| Escort vehicles | Yes | medium | Request/accept via the server, paid like `/pay`, check that the escort stays close |
+| Stock market | Yes | medium | Prices kept on the server, the same for everyone (like the fuel prices) |
+| Gambling | Yes | low | UI and money only |
+| Vehicle/part deals | Partly | medium | Depends on whether dealer prices can be changed cleanly (like the fuel prices) |
+| Radio | Probably | low–medium | The game UI is a browser that can play internet streams, if the station allows it |
+| Stalling learner cars in traffic | Yes | low | Rare and switchable, it gets annoying quickly |
+| Stealing cars | Partly | high | Taking a traffic car into the inventory probably works; police reaction and balancing are a lot of work |
+| Import cars at the port | Yes | medium | A dealer at the port with vehicles you can't buy elsewhere |
+| All trailers usable (pipes, logs, containers) | Hard | high | The delivery system would need new cargo types with real loads |
+
 **Maybe later**
 
 - Traffic AI briefly reverses when stuck in tight spots.
