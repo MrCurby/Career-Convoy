@@ -673,7 +673,101 @@ check(grabBlocked(), "leaving the server: blocked in a vehicle again")
 _G.core_input_actionFilter, _G.gameplay_walk, _G.core_camera = nil, nil, nil
 extensions.core_input_actionFilter = nil
 
---== 7b4. Our own grabber (move/throw own vehicles) ===========================
+--== 7b4. Our own node grabber: vehicle side (forces) =========================
+-- Rigid-body rebuild of a vehicle in the vehicle Lua: nodes with mass that all move together,
+-- gravity, and a flat ground at z = 0 that the lowest node can't go through.
+do
+	local function vec3(x, y, z) return {x = x, y = y, z = z} end
+	local body = {p = {x = 0, y = 0, z = 0}, v = {x = 0, y = 0, z = 0}, f = {x = 0, y = 0, z = 0}, forces = {}}
+	-- 2 t car: 20 nodes, chassis nodes heavy (180 kg), panel nodes light (20 kg)
+	local nodes, rel = {}, {}
+	for i = 0, 19 do
+		local heavy = i < 10
+		nodes[i] = {cid = i}
+		rel[i] = {x = (i % 5) - 2, y = (i % 2) * 1.6 - 0.8, z = heavy and 0.3 or 1.2, m = heavy and 180 or 20}
+	end
+	local env = {
+		v = {data = {nodes = nodes}},
+		vec3 = vec3,
+		obj = {
+			getNodeMass = function(_, cid) return rel[cid].m end,
+			getAbsNodePosition = function(_, cid)
+				return vec3(body.p.x + rel[cid].x, body.p.y + rel[cid].y, body.p.z + rel[cid].z)
+			end,
+			getNodeVelocityVector = function() return vec3(body.v.x, body.v.y, body.v.z) end,
+			applyForceVectorTime = function(_, cid, f, dt)
+				body.f.x, body.f.y, body.f.z = body.f.x + f.x, body.f.y + f.y, body.f.z + f.z
+				body.forces[cid] = (body.forces[cid] or 0) + math.sqrt(f.x * f.x + f.y * f.y + f.z * f.z)
+			end,
+		},
+	}
+	setmetatable(env, {__index = _G})
+	local chunk = assert(loadfile("client/lua/vehicle/extensions/auto/sharedCareerVeh.lua"))
+	setfenv(chunk, env)
+	local veh = chunk()
+	local MASS = 2000
+	local function run(seconds)
+		local dt = 1 / 60
+		for _ = 1, math.floor(seconds / dt + 0.5) do
+			body.f = {x = 0, y = 0, z = 0}
+			veh.updateGFX(dt)
+			body.v.x = body.v.x + body.f.x / MASS * dt
+			body.v.y = body.v.y + body.f.y / MASS * dt
+			body.v.z = body.v.z + (body.f.z / MASS - 9.81) * dt
+			-- ground: friction-free, but it can't sink below it
+			if body.p.z + body.v.z * dt < 0 then body.v.z = 0 end
+			body.p.x = body.p.x + body.v.x * dt
+			body.p.y = body.p.y + body.v.y * dt
+			body.p.z = math.max(0, body.p.z + body.v.z * dt)
+		end
+	end
+	check(veh.handGrab(2, 0.8, 0.3, 1, 60) == true, "vehicle side: nodes around the grab point are taken")
+	local info = veh.handInfo()
+	check(#info.nodes >= 4 and #info.nodes <= 24 and info.vehMass == MASS, "grip of 4-24 nodes, vehicle mass known")
+	-- pull 5 m sideways: moves, but at most 1 m/s
+	veh.handTarget(2, 5.8, 0.3)
+	local maxSpeed = 0
+	for _ = 1, 30 do
+		run(0.1)
+		maxSpeed = math.max(maxSpeed, math.sqrt(body.v.x ^ 2 + body.v.y ^ 2))
+	end
+	check(maxSpeed <= 1.05 and maxSpeed > 0.8, string.format("moves slowly: at most 1 m/s (%.2f)", maxSpeed))
+	check(body.p.y > 2.5 and body.p.y < 3.6, string.format("after 3 s about 3 m pulled (%.1f m)", body.p.y))
+	run(6)
+	check(math.abs(body.p.y - 5) < 0.3, string.format("arrives at the target (%.2f m)", body.p.y))
+	-- force split by mass: heavy chassis nodes carry most of it
+	body.forces = {}
+	veh.handTarget(2, 8, 0.3)
+	run(0.5)
+	local heavyF, lightF = 0, 0
+	for cid, f in pairs(body.forces) do
+		if rel[cid].m >= 180 then heavyF = heavyF + f else lightF = lightF + f end
+	end
+	check(heavyF > 5 * lightF, "the force goes mostly to the heavy nodes (no bent panels)")
+	-- lifting: 60 % of the weight can't float the whole car
+	veh.handTarget(body.p.x + 2, body.p.y + 0.8, 4)
+	run(4)
+	check(body.p.z < 0.05, string.format("60 %% of the weight doesn't lift the whole vehicle (z = %.2f)", body.p.z))
+	-- force limit: never more than strength % of the weight
+	local peak = 0
+	for _ = 1, 20 do
+		body.forces = {}
+		run(1 / 60)
+		local total = math.sqrt(body.f.x ^ 2 + body.f.y ^ 2 + body.f.z ^ 2)
+		peak = math.max(peak, total)
+	end
+	check(peak <= MASS * 9.81 * 0.6 + 1, string.format("force limited to 60 %% of the weight (%.0f N)", peak))
+	-- with more than 100 % it can lift it
+	veh.handTarget(body.p.x + 2, body.p.y + 0.8, 3, 1, 150)
+	run(5)
+	check(body.p.z > 1.5, string.format("with 150 %% it lifts the vehicle (z = %.2f)", body.p.z))
+	veh.handRelease()
+	body.f = {x = 0, y = 0, z = 0}
+	veh.updateGFX(1 / 60)
+	check(body.f.x == 0 and body.f.y == 0 and body.f.z == 0 and veh.handInfo() == nil, "released: no force any more")
+end
+
+--== 7b5. Our own node grabber: GE side (picking, target, keys) ================
 resetWorld()
 installCareer()
 local keyG
@@ -692,105 +786,93 @@ _G.core_nodegrabberGamepad = gpGrab
 extensions.hook("onWorldReadyState", 2)
 local cfgG = {}
 for k, v in pairs(config) do cfgG[k] = v end
-cfgG.allowGrab, cfgG.grabSpeed = true, 30
+cfgG.allowGrab, cfgG.grabSpeed, cfgG.grabStrength = true, 1, 60
 handlers.sc_config(json.encode(cfgG))
 update()
--- simple physics: position follows velocity, gravity pulls down
-local function physVeh(id, x, y, z, jbeam, remote)
+extensions.core_nodegrabberGamepad = gpGrab
+local function placedVeh(id, x, y, z, jbeam, remote)
 	local v = addVehicle(id, (remote and "7-" or "0-") .. id, not remote, jbeam)
 	v.p = {x = x, y = y, z = z}
-	v.v = {x = 0, y = 0, z = 0}
 	v.getPosition = function(self) return self.p end
-	v.getRefNodeId = function() return 0 end
-	v.getVelocityXYZ = function(self) return self.v.x, self.v.y, self.v.z end
-	v.applyClusterVelocityScaleAdd = function(self, _, scale, ax, ay, az)
-		self.v = {x = self.v.x * scale + ax, y = self.v.y * scale + ay, z = self.v.z * scale + az}
-	end
 	return v
 end
-local function simulate(v, seconds)
-	local dt = 1 / 60
-	for _ = 1, math.floor(seconds / dt) do
-		v.v.z = v.v.z - 9.81 * dt
-		v.p = {x = v.p.x + v.v.x * dt, y = v.p.y + v.v.y * dt, z = v.p.z + v.v.z * dt}
-		extensions.hook("onUpdate", dt)
+-- last hand command sent to a vehicle: name and numbers
+local function lastHand(v)
+	for i = #v.lua, 1, -1 do
+		local name, args = v.lua[i]:match("sharedCareerVeh%.(hand%a+)%(([^)]*)%)")
+		if name then
+			local nums = {}
+			for n in args:gmatch("[-%d%.]+") do table.insert(nums, tonumber(n)) end
+			return name, nums
+		end
 	end
 end
+local function frames(seconds)
+	for _ = 1, math.floor(seconds * 60 + 0.5) do extensions.hook("onUpdate", 1 / 60) end
+end
 local cam = {x = 0, y = 0, z = 2}
-local mouse = {objectId = nil, pos = nil}
-_G.core_camera = {getPosition = function() return cam end}
+local mouse = {pos = nil}
+local fwd = nil
+_G.core_camera = {getPosition = function() return cam end, getForward = function() return fwd end}
 _G.cameraMouseRayCast = function()
 	if not mouse.pos then return nil end
-	return {pos = mouse.pos, distance = 10,
-		object = mouse.objectId and {getID = function() return mouse.objectId end} or nil}
+	return {pos = mouse.pos, distance = 10}   -- like in the game: no vehicle object reported
 end
-local truck = physVeh(60, 10, 0, 0)
-extensions.core_nodegrabberGamepad = gpGrab
+local truck = placedVeh(60, 10, 0, 1)
 check(keyG and keyG.default == "f6" and keyG.title:find("grab"), "grab key registered via BeamMP (F6)")
 check(grabKeys.sharedCareerGrabFarther and grabKeys.sharedCareerGrabFarther.default == "pageup"
 	and grabKeys.sharedCareerGrabCloser.default == "pagedown", "fallback keys for the distance (Page Up / Down)")
--- grab the truck where the mouse points at it. Like in the game (0.9.0 bug): the ray cast
--- reports no vehicle object, only the point behind it on the ground.
-mouse.objectId, mouse.pos = nil, {x = 20, y = 0, z = -2}
+-- grab: the mouse ray passes the truck (it reports no vehicle, only the ground behind it)
+mouse.pos = {x = 20, y = 0, z = 0}
 keyG.onDown()
-check(sharedCareer_grab.isHolding(), "own vehicle grabbed although the ray cast reports no vehicle")
-sharedCareer_grab.release()
-mouse.pos = {x = 10, y = 0, z = 0}
-keyG.onDown()
--- move the mouse up: the truck follows and stays there against gravity
-mouse.objectId, mouse.pos = nil, {x = 10, y = 0, z = 6}
-simulate(truck, 4)
--- target: from the camera (0/0/2) towards the mouse (10/0/6), at the grab distance (10.2 m) = 9.5/0/5.8
-check(math.abs(truck.p.x - 9.47) < 0.6 and math.abs(truck.p.z - 5.79) < 0.6 and math.abs(truck.p.y) < 0.1,
-	string.format("grabbed vehicle follows the mouse and is held in the air (at %.1f/%.1f/%.1f)", truck.p.x, truck.p.y, truck.p.z))
--- swing: move the mouse quickly to the side, then let go -> it keeps flying
-cfgG.grabSpeed = 10
-handlers.sc_configUpdate(json.encode(cfgG))
-mouse.pos = {x = 0, y = 10, z = 2}
-simulate(truck, 0.5)
-local speedBefore = math.sqrt(truck.v.x ^ 2 + truck.v.y ^ 2 + truck.v.z ^ 2)
-check(speedBefore > 5 and speedBefore <= 10.5, string.format("pulled with at most grabSpeed (%.1f of 10 m/s)", speedBefore))
-cfgG.grabSpeed = 30
-handlers.sc_configUpdate(json.encode(cfgG))
-keyG.onDown()
-check(not sharedCareer_grab.isHolding(), "second press lets go")
-local vxBefore, vyBefore = truck.v.x, truck.v.y
-simulate(truck, 0.1)
-check(math.abs(truck.v.x - vxBefore) < 1e-9 and math.abs(truck.v.y - vyBefore) < 1e-9,
-	"after letting go the vehicle keeps its speed (thrown)")
--- "gravity gun": with a camera view direction the vehicle hangs in the middle of the view
-mouse.objectId, mouse.pos = nil, {x = truck.p.x, y = truck.p.y, z = truck.p.z}
-local fwd = {x = 1, y = 0, z = 0}
-core_camera.getForward = function() return fwd end
-truck.p, truck.v = {x = 10, y = 0, z = 2}, {x = 0, y = 0, z = 0}
-mouse.pos = {x = 10, y = 0, z = 2}
-keyG.onDown()
-check(sharedCareer_grab.isHolding() and actionMaps.Nodegrabber == 1, "grabbed; the wheel input layer is switched on")
-mouse.pos = {x = 0, y = -30, z = -5} -- the cursor points somewhere else: doesn't matter any more
-fwd = {x = 0, y = 1, z = 0}         -- look to the left
-simulate(truck, 3)
-check(math.abs(truck.p.x) < 0.8 and math.abs(truck.p.y - 10) < 0.8,
-	string.format("looking around: the vehicle swings with the view (at %.1f/%.1f)", truck.p.x, truck.p.y))
+local name, a = lastHand(truck)
+check(sharedCareer_grab.isHolding() and name == "handGrab", "own vehicle grabbed: handGrab sent to the vehicle")
+check(a and math.abs(a[1] - 10) < 0.3 and math.abs(a[3] - 1) < 0.6 and a[4] == 1 and a[5] == 60,
+	"grab point near the vehicle, speed 1 m/s and strength 60 % sent along")
+check(actionMaps.Nodegrabber == 1, "the wheel input layer is switched on")
+-- holding: the target follows the view direction at the grab distance
+fwd = {x = 0, y = 1, z = 0}
+frames(0.2)
+name, a = lastHand(truck)
+local grabDist = math.sqrt(10 ^ 2 + 1)
+check(name == "handTarget" and math.abs(a[1]) < 0.01 and math.abs(a[2] - grabDist) < 0.4 and math.abs(a[3] - 2) < 0.01,
+	string.format("target in the middle of the view at the grab distance (%.1f/%.1f/%.1f)", a[1], a[2], a[3]))
+local sent = #truck.lua
+frames(1)
+check(#truck.lua - sent >= 25 and #truck.lua - sent <= 35, "target sent about 30 times per second")
 -- mouse wheel: 4 notches up = 6 m farther; the game's strength is not changed
 gpGrab.changeStrength(4, 0)
-simulate(truck, 3)
-check(math.abs(truck.p.y - 16) < 1.0 and strengthCalls == 0,
-	string.format("mouse wheel up: farther away (at %.1f m), node grabber strength untouched", truck.p.y))
+frames(0.1)
+name, a = lastHand(truck)
+check(math.abs(a[2] - (grabDist + 6)) < 0.4 and strengthCalls == 0,
+	"mouse wheel up: target farther away, node grabber strength untouched")
 grabKeys.sharedCareerGrabCloser.onDown()
 grabKeys.sharedCareerGrabCloser.onDown()
-simulate(truck, 3)
-check(math.abs(truck.p.y - 13) < 1.0, string.format("Page Down: closer (at %.1f m)", truck.p.y))
-for _ = 1, 20 do gpGrab.changeStrength(-1, 0) end
-simulate(truck, 3)
-check(truck.p.y > 2.4 and truck.p.y < 3.8, string.format("never closer than 3 m (at %.1f m)", truck.p.y))
+frames(0.1)
+name, a = lastHand(truck)
+check(math.abs(a[2] - (grabDist + 3)) < 0.4, "Page Down: target closer")
+for _ = 1, 30 do gpGrab.changeStrength(-1, 0) end
+frames(0.1)
+name, a = lastHand(truck)
+check(math.abs(a[2] - 3) < 0.01, "never closer than 3 m")
+-- settings change live: new speed/strength in the next target
+cfgG.grabSpeed, cfgG.grabStrength = 0.5, 200
+handlers.sc_configUpdate(json.encode(cfgG))
+frames(0.1)
+name, a = lastHand(truck)
+check(a[4] == 0.5 and a[5] == 150, "settings applied live; strength capped at 150 %")
+cfgG.grabSpeed, cfgG.grabStrength = 1, 60
+handlers.sc_configUpdate(json.encode(cfgG))
+-- let go
 keyG.onDown()
-check(not sharedCareer_grab.isHolding() and actionMaps.Nodegrabber == 0, "let go: the wheel input layer is switched off")
+check(not sharedCareer_grab.isHolding() and lastHand(truck) == "handRelease" and actionMaps.Nodegrabber == 0,
+	"second press lets go: handRelease sent, wheel layer off")
 gpGrab.changeStrength(1, 0)
 check(strengthCalls == 1, "not holding: the wheel is the game's node grabber strength again")
-core_camera.getForward = nil
+fwd = nil
 -- the vehicle you sit in can't be grabbed (the camera would move with it)
 world.playerVeh = 60
-mouse.pos = {x = truck.p.x, y = truck.p.y, z = truck.p.z}
+mouse.pos = {x = 20, y = 0, z = 0}
 toasts = {}
 keyG.onDown()
 check(not sharedCareer_grab.isHolding() and toasts[#toasts].msg:find("Get out"), "the vehicle you are in can't be grabbed")
@@ -801,44 +883,40 @@ sharedCareer_grab.release()
 core_camera.getActiveGlobalCameraName = nil
 world.playerVeh = nil
 -- refusals
-local function tryGrab(objectId, pos)
-	mouse.objectId, mouse.pos = objectId, pos
+local function tryGrab(pos)
+	mouse.pos = pos
 	toasts = {}
 	keyG.onDown()
 	local held = sharedCareer_grab.isHolding()
 	sharedCareer_grab.release()
 	return held, toasts[#toasts] and toasts[#toasts].msg or ""
 end
-local other = physVeh(61, 5, 5, 0, nil, true)
-local held, msg = tryGrab(61, {x = 5, y = 5, z = 0})
+placedVeh(61, -10, 10, 1, nil, true)
+local held, msg = tryGrab({x = -20, y = 20, z = 0})
 check(not held and msg:find("your own"), "another player's vehicle can't be grabbed")
-physVeh(62, 3, 0, 0, "unicycle")
-held, msg = tryGrab(62, {x = 3, y = 0, z = 0})
+placedVeh(62, 0, -10, 1, "unicycle")
+held, msg = tryGrab({x = 0, y = -20, z = 0})
 check(not held and msg:find("on foot"), "a player on foot can't be grabbed")
-held, msg = tryGrab(nil, {x = -50, y = -50, z = 2})
+held, msg = tryGrab({x = -50, y = -50, z = 2})
 check(not held and msg:find("Point at"), "no vehicle near the aim line: hint")
--- mouse points at the sky (no hit): the view direction is used
-mouse.objectId, mouse.pos = nil, nil
-core_camera.getForward = function() return {x = truck.p.x - cam.x, y = truck.p.y - cam.y, z = truck.p.z - cam.z} end
+mouse.pos = nil
+fwd = {x = 1, y = 0, z = -0.1}
 keyG.onDown()
 check(sharedCareer_grab.isHolding(), "no ray hit: the view direction picks the vehicle")
 sharedCareer_grab.release()
-core_camera.getForward = nil
-held = tryGrab(60, {x = 500, y = 0, z = 0})
-check(not held, "too far away: not grabbed")
+fwd = nil
 cfgG.allowGrab = false
 handlers.sc_configUpdate(json.encode(cfgG))
-held, msg = tryGrab(60, {x = truck.p.x, y = truck.p.y, z = truck.p.z})
+held, msg = tryGrab({x = 20, y = 0, z = 0})
 check(not held and msg:find("switched off"), "switched off on the server: no grabbing")
--- switched off while holding: lets go
 cfgG.allowGrab = true
 handlers.sc_configUpdate(json.encode(cfgG))
-mouse.objectId, mouse.pos = 60, {x = truck.p.x, y = truck.p.y, z = truck.p.z}
+mouse.pos = {x = 20, y = 0, z = 0}
 keyG.onDown()
 cfgG.allowGrab = false
 handlers.sc_configUpdate(json.encode(cfgG))
-simulate(truck, 0.05)
-check(not sharedCareer_grab.isHolding(), "switched off while holding: lets go")
+frames(0.05)
+check(not sharedCareer_grab.isHolding() and lastHand(truck) == "handRelease", "switched off while holding: lets go")
 _G.core_camera, _G.cameraMouseRayCast, _G.MPKeybindsGE = nil, nil, nil
 _G.pushActionMap, _G.popActionMap, _G.core_nodegrabberGamepad = nil, nil, nil
 

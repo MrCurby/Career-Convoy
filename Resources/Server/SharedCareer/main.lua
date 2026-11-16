@@ -58,7 +58,7 @@
 --   Server -> Client: sc_fuelPrices {enabled, factors = {[station] = {gasoline = 0.9, ...}}}
 --                       (from the SharedCareer menu window)
 
-local VERSION = "0.9.2"
+local VERSION = "0.10.0"
 local TAG = "[SharedCareer] "
 
 local CONFIG_DIR = "Resources/Server/SharedCareer/config"
@@ -175,11 +175,14 @@ local DEFAULTS = {
 		-- camera. The normal career only allows it while walking. Makes cheating easy (flip cars,
 		-- push cargo), but handy among friends. false = the career's own rule.
 		allowNodeGrabber = true,
-		-- Our own grabber (key F6): move and throw your own vehicles with the mouse, without
-		-- damage and without the career's weak node grabber force. Only own vehicles.
+		-- Our own node grabber (key F6): move your own vehicles slowly by hand, with physics –
+		-- e.g. onto a tow truck. Only own vehicles.
 		allowGrab = true,
-		-- Highest speed (m/s) at which the grabber pulls a vehicle (5–80). Higher = throws further.
-		grabSpeed = 30,
+		-- How fast the grabbed point moves at most, in m/s (0.2–5).
+		grabSpeed = 1,
+		-- Force limit in % of the vehicle's weight (10–150). Below 100 you can lift one end and
+		-- drag or push the vehicle, but not float it.
+		grabStrength = 60,
 	},
 }
 

@@ -11,7 +11,7 @@ Everything players see and use in the game. All texts in the game are in English
 - [Time of day](#time-of-day)
 - [Garage](#garage)
 - [Node grabber](#node-grabber)
-- [Grabbing and throwing your vehicles](#grabbing-and-throwing-your-vehicles)
+- [Moving your vehicles by hand](#moving-your-vehicles-by-hand)
 - [Sending money](#sending-money)
 
 ## Joining
@@ -153,22 +153,23 @@ The normal career only lets you use the node grabber (grab and pull vehicles wit
 
 Server admins can switch back to the career's rule with `sc set client.allowNodeGrabber false`. It applies immediately.
 
-**The pull is weaker than in freeroam.** BeamNG limits the grab force in the career inside the game engine; the single-player career is just as weak. A mod can't change that, so in the career the node grabber is good for nudging and turning cars, but not for throwing them around. For that, use SharedCareer's own grabber (F6), see below.
+**The pull is weaker than in freeroam.** BeamNG limits the grab force in the career inside the game engine; the single-player career is just as weak. A mod can't change that, so in the career the node grabber is good for nudging and turning cars, but not for throwing them around. For heavier work, use SharedCareer's own grabber (F6), see below.
 
-## Grabbing and throwing your vehicles
+## Moving your vehicles by hand
 
-Because the game's node grabber is so weak in the career, SharedCareer has its own grabber:
+Because the game's node grabber is so weak in the career, SharedCareer has its own. It's made for moving vehicles that can't drive anymore, slowly and by hand, for example onto a tow truck.
 
-1. Point the mouse at one of your vehicles and press **F6**.
-2. The vehicle now hangs in the middle of your view, like a gravity gun. Look around and it swings with you.
-3. **Mouse wheel** up moves it farther away, down brings it closer (not closer than 3 m). If the wheel doesn't work for you, use **Page Up** / **Page Down**.
-4. Press **F6** again to let go. The vehicle keeps its speed, so a quick look to the side before letting go throws it.
+1. Point the mouse at one of your vehicles and press **F6**. You now hold it at that spot.
+2. The vehicle is pulled towards the middle of your view, at the distance where you grabbed it. Look where it should go.
+3. **Mouse wheel** up moves the target farther away, down brings it closer (not closer than 3 m). If the wheel doesn't work for you, use **Page Up** / **Page Down**.
+4. Look up to lift the end you are holding, down to put it back.
+5. Press **F6** again to let go.
 
-You can't grab the vehicle you are sitting in (the camera would move with it). Get out, or use the free camera.
+It feels like real handwork: the point you hold moves at most 1 m/s, and the force is limited to 60 % of the vehicle's weight. Pull a corner and the vehicle turns; the wheels roll; you can lift one end, but not float the whole vehicle. The force goes mostly to the heavy frame parts around your grip, so nothing gets bent.
 
-It moves the whole vehicle at once, so nothing bends, and a heavy truck flies as easily as a small car. It only works on your own vehicles and your own traffic: other players' vehicles are simulated on their PCs, and BeamMP would put them right back. Players on foot can't be grabbed.
+It only works on your own vehicles and your own traffic: other players' vehicles are simulated on their PCs, and BeamMP would put them right back. Players on foot can't be grabbed, and neither can the vehicle you are sitting in (the camera would move with it). Get out, or use the free camera.
 
-To use other keys: *Options → Controls → BeamMP*, entries "SharedCareer: grab vehicle", "… grabbed vehicle farther" and "… closer". Server admins can switch it off with `sc set client.allowGrab false` or change how hard it pulls with `client.grabSpeed` (m/s, default 30).
+To use other keys: *Options → Controls → BeamMP*, entries "SharedCareer: grab vehicle", "… grabbed vehicle farther" and "… closer". Server admins can switch it off with `sc set client.allowGrab false`, and set how fast (`client.grabSpeed`, m/s) and how strong (`client.grabStrength`, % of the vehicle's weight) it is.
 
 ## Sending money
 

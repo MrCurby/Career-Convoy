@@ -4,6 +4,7 @@
 --   setGhost(enabled)              collisions with this vehicle on/off (vehicles.lua; ghost mode
 --                                  for other players' cars / players on foot)
 --   setAiTuning(gap, sightFactor)  traffic AI reacts earlier to obstacles (traffic.lua)
+--   handGrab / handTarget / handRelease   our own node grabber (grab.lua), see "Hand" below
 --
 -- AI tuning: two values inside the game's lua/vehicle/ai.lua that have no official setter.
 --   ego.race_time_gap      safety gap in seconds that the AI keeps to a vehicle on its path
@@ -100,6 +101,115 @@ function M.setAiTuning(gap, sightFactor)
 	ego.race_time_gap = gap > 0 and gap or original.gap
 	traffic.Rfl_fun = sightFactor > 0 and sightFunction(sightFactor) or original.sight
 	return true
+end
+
+--== Hand: our own node grabber =================================================
+-- Moves a vehicle by hand, slowly and with physics: a few nodes around the grab point are
+-- pulled towards a target point (the GE side moves the target with the player's view).
+--   * The grab point moves at most `speed` m/s.
+--   * The total force is limited to `strength` % of the vehicle's weight: you can lift one end
+--     and drag or push the vehicle, but not float it (with less than 100 %).
+--   * The force is split over the grabbed nodes by their mass, so heavy frame nodes take most of
+--     it and thin panels hardly any – nothing gets bent.
+-- Forces are applied once per frame for that frame (obj:applyForceVectorTime in updateGFX, like
+-- the game's container locks do).
+
+local HAND_RADIUS = 0.8   -- m around the grab point
+local HAND_MIN_NODES = 4  -- at least this many nodes, even if fewer are inside the radius
+local HAND_MAX_NODES = 24
+local HAND_KP = 2         -- 1/s: wanted speed = distance to the target * HAND_KP (then limited)
+local HAND_TAU = 0.4      -- s: how quickly the vehicle's speed follows the wanted speed
+local HAND_LIFT_RAMP = 0.5 -- m: target this much above the grip = carry the full weight
+local GRAVITY = 9.81
+
+local hand = nil -- {nodes = {{cid, m}}, gripMass, vehMass, tx, ty, tz, speed, strength}
+
+local function allNodes()
+	local nodes = v and v.data and v.data.nodes
+	return type(nodes) == "table" and nodes or {}
+end
+
+--- Grabs the nodes around the world point x/y/z. speed in m/s, strength in % of the weight.
+function M.handGrab(x, y, z, speed, strength)
+	local found, vehMass = {}, 0
+	for _, node in pairs(allNodes()) do
+		local cid = type(node) == "table" and node.cid
+		if cid then
+			local m = tonumber(obj:getNodeMass(cid)) or 0
+			vehMass = vehMass + m
+			local p = obj:getAbsNodePosition(cid)
+			local dx, dy, dz = p.x - x, p.y - y, p.z - z
+			table.insert(found, {cid = cid, m = m, d2 = dx * dx + dy * dy + dz * dz})
+		end
+	end
+	table.sort(found, function(a, b) return a.d2 < b.d2 end)
+	local nodes, gripMass = {}, 0
+	for i, n in ipairs(found) do
+		if i > HAND_MAX_NODES or (i > HAND_MIN_NODES and n.d2 > HAND_RADIUS * HAND_RADIUS) then break end
+		if n.m > 0 then
+			table.insert(nodes, n)
+			gripMass = gripMass + n.m
+		end
+	end
+	if #nodes == 0 or gripMass <= 0 or vehMass <= 0 then
+		hand = nil
+		return false
+	end
+	hand = {nodes = nodes, gripMass = gripMass, vehMass = vehMass, tx = x, ty = y, tz = z,
+		speed = tonumber(speed) or 1, strength = tonumber(strength) or 60}
+	return true
+end
+
+--- New target point (and optionally new speed / strength).
+function M.handTarget(x, y, z, speed, strength)
+	if not hand then return end
+	hand.tx, hand.ty, hand.tz = x, y, z
+	if tonumber(speed) then hand.speed = tonumber(speed) end
+	if tonumber(strength) then hand.strength = tonumber(strength) end
+end
+
+function M.handRelease()
+	hand = nil
+end
+
+function M.handInfo()
+	return hand
+end
+
+function M.updateGFX(dt)
+	if not hand or not dt or dt <= 0 then return end
+	-- where the grip is and how fast it moves (mass-weighted)
+	local cx, cy, cz, vx, vy, vz = 0, 0, 0, 0, 0, 0
+	for _, n in ipairs(hand.nodes) do
+		local p, vel = obj:getAbsNodePosition(n.cid), obj:getNodeVelocityVector(n.cid)
+		local w = n.m / hand.gripMass
+		cx, cy, cz = cx + p.x * w, cy + p.y * w, cz + p.z * w
+		vx, vy, vz = vx + vel.x * w, vy + vel.y * w, vz + vel.z * w
+	end
+	-- wanted speed towards the target, at most hand.speed
+	local wx, wy, wz = (hand.tx - cx) * HAND_KP, (hand.ty - cy) * HAND_KP, (hand.tz - cz) * HAND_KP
+	local wl = math.sqrt(wx * wx + wy * wy + wz * wz)
+	if wl > hand.speed then
+		local f = hand.speed / wl
+		wx, wy, wz = wx * f, wy * f, wz * f
+	end
+	-- force that brings the whole vehicle to that speed, limited to strength % of its weight
+	local k = hand.vehMass / HAND_TAU
+	local fx, fy, fz = (wx - vx) * k, (wy - vy) * k, (wz - vz) * k
+	-- lifting: when the target is above the grip, the hand also carries the weight (fully from
+	-- HAND_LIFT_RAMP meters up); at the same height all the force goes into pulling
+	local lift = math.max(0, math.min(1, (hand.tz - cz) / HAND_LIFT_RAMP))
+	fz = fz + hand.vehMass * GRAVITY * lift
+	local fl = math.sqrt(fx * fx + fy * fy + fz * fz)
+	local limit = hand.vehMass * GRAVITY * hand.strength / 100
+	if fl > limit then
+		local f = limit / fl
+		fx, fy, fz = fx * f, fy * f, fz * f
+	end
+	for _, n in ipairs(hand.nodes) do
+		local w = n.m / hand.gripMass
+		obj:applyForceVectorTime(n.cid, vec3(fx * w, fy * w, fz * w), dt)
+	end
 end
 
 return M

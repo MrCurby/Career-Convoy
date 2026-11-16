@@ -12,7 +12,7 @@
 
 local M = {}
 
-M.VERSION = "0.9.2"
+M.VERSION = "0.10.0"
 
 local unpack = table.unpack or unpack
 
