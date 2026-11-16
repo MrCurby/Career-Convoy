@@ -66,7 +66,7 @@ On the first start the mod creates its settings in `Resources/Server/SharedCaree
 | `./server.sh follow` | Follow `Server.log` live (Ctrl+C only stops following) |
 | `./server.sh cmd "sc time"` | Send one command to the server console and show the answer |
 | `./server.sh check` | Show the installed version and the newest version on GitHub |
-| `./server.sh update` | Install the newest GitHub release, but only if it is newer than the installed one. Updates `server.sh` itself first. |
+| `./server.sh update` | Install the newest GitHub release, but only if it is newer than the installed one |
 | `./server.sh update --force` | Same, even if that version is already installed |
 | `./server.sh update file.zip` | Install a specific zip from the server folder |
 
@@ -84,14 +84,13 @@ Without a `REPO`, `update` installs the newest `SharedCareer-*.zip` it finds in 
 
 `./server.sh update` runs these steps, and stops at the first error so nothing is half-installed:
 
-1. Asks GitHub for the newest release. If that release has a different `server.sh`, the script replaces itself and runs the update again with the new version, so an update always runs with the steps of the release it installs.
-2. Compares the newest release with the installed version. If it is the same, it stops here with "Already up to date".
-3. Downloads the release zip and checks that it is a valid zip.
-4. Stops the server.
-5. Backs up the current mod **and your settings** to `sharedcareer-backup-<date>.tgz`.
-6. Unpacks the release. This replaces the mod code, the client mod and `server.sh` itself, but **never touches your settings**.
-7. Deletes old release zips (the newest three stay) and old backups (the newest `BACKUPS_KEEP` stay, 5 by default).
-8. Starts the server again and shows the SharedCareer startup lines.
+1. Asks GitHub for the newest release and compares it with the installed version. If it is the same, it stops here with "Already up to date".
+2. Downloads the release zip and checks that it is a valid zip.
+3. Stops the server.
+4. Backs up the current mod **and your settings** to `sharedcareer-backup-<date>.tgz`.
+5. Unpacks the release. This replaces the mod code, the client mod and `server.sh` itself, but **never touches your settings**.
+6. Deletes old release zips (the newest three stay) and old backups (the newest `BACKUPS_KEEP` stay, 5 by default).
+7. Starts the server again and shows the SharedCareer startup lines.
 
 After an update:
 
