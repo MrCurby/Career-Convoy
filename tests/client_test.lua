@@ -887,8 +887,9 @@ cfgG.grabSpeed, cfgG.grabStrength = 1, 60
 handlers.sc_configUpdate(json.encode(cfgG))
 -- drawing: rope from the grip to the target, crosses at both ends, color by strain
 local drawn = {}
-_G.ColorF = function(r, g, b, alpha) return {r = r, g = g, b = b, a = alpha} end
-_G.vec3 = function(x, y, z) return {x = x, y = y, z = z} end
+-- like in the game: ColorF and vec3 are callable constructors, not Lua functions (0.10.1 bug)
+_G.ColorF = setmetatable({}, {__call = function(_, r, g, b, alpha) return {r = r, g = g, b = b, a = alpha} end})
+_G.vec3 = setmetatable({}, {__call = function(_, x, y, z) return {x = x, y = y, z = z} end})
 _G.debugDrawer = {drawLine = function(_, p1, p2, c) table.insert(drawn, {p1 = p1, p2 = p2, c = c}) end}
 sharedCareer_grab.onHandState(60, 0, 3, 2, 0.1)
 drawn = {}

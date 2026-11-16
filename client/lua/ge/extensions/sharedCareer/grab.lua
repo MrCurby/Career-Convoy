@@ -54,6 +54,7 @@ local held = nil           -- {id, dist, dx, dy, dz, since, grip = {x, y, z}, st
 local probe = nil          -- {id, x, y, z, age}
 local sinceProbe = 0
 local hintShown = false
+local drawErrorLogged = false
 local keyRegistered = false
 local actionMapPushed = false
 
@@ -128,8 +129,8 @@ end
 
 local function setWheelLayer(on)
 	if on == actionMapPushed then return end
-	local push, pop = rawget(_G, "pushActionMap"), rawget(_G, "popActionMap")
-	if type(push) ~= "function" or type(pop) ~= "function" then return end
+	local ok, push, pop = pcall(function() return pushActionMap, popActionMap end)
+	if not ok or type(push) ~= "function" or type(pop) ~= "function" then return end
 	if on then pcall(push, "Nodegrabber") else pcall(pop, "Nodegrabber") end
 	actionMapPushed = on
 end
@@ -302,6 +303,7 @@ function M.onGrip(id, t, x, y, z)
 	if not held or held.id ~= id then return end
 	held.dist = math.max(MIN_DISTANCE, math.min(MAX_DISTANCE, tonumber(t) or held.dist))
 	held.grip = {x = x, y = y, z = z}
+	U.log("D", "grab", string.format("vehicle reported its grip at %.1f m", held.dist))
 end
 
 function M.onHandState(id, x, y, z, strain)
@@ -327,9 +329,23 @@ function M.strainColor(strain)
 	return 1, 0.85 - 0.6 * f, 0.2
 end
 
+-- debugDrawer, ColorF and vec3 are engine/library globals: they may be provided lazily (not
+-- visible to rawget) and ColorF/vec3 are constructors of type cdata/table, not "function" – so we
+-- only check that they exist (0.10.1 checked rawget + "function" and never drew anything).
+local canDrawCached = false -- only a positive result is kept; a negative one is checked again
+local drawWarned = false
 local function canDraw()
-	return type(rawget(_G, "debugDrawer")) ~= "nil" and type(rawget(_G, "ColorF")) == "function"
-		and type(rawget(_G, "vec3")) == "function"
+	if canDrawCached then return true end
+	local ok, dd, cf, v3 = pcall(function() return debugDrawer, ColorF, vec3 end)
+	canDrawCached = ok and dd ~= nil and cf ~= nil and v3 ~= nil
+	if canDrawCached then
+		U.log("I", "grab", "drawing available (debugDrawer)")
+	elseif not drawWarned then
+		drawWarned = true
+		U.log("W", "grab", "drawing not available: debugDrawer " .. tostring(dd) .. ", ColorF " .. tostring(cf)
+			.. ", vec3 " .. tostring(v3))
+	end
+	return canDrawCached
 end
 
 local function line(a, b, color)
@@ -343,6 +359,7 @@ local function cross(p, size, color)
 end
 
 function M.draw()
+	if not (held and held.grip and held.target) and not probe then return end
 	if not canDraw() then return end
 	if held and held.grip and held.target then
 		local r, g, b = M.strainColor(held.strain)
@@ -430,7 +447,11 @@ function M.onUpdate(dtReal)
 	elseif U.isMP() then
 		pcall(M.updatePreview, tonumber(dtReal) or 0)
 	end
-	pcall(M.draw)
+	local ok, err = pcall(M.draw)
+	if not ok and not drawErrorLogged then
+		drawErrorLogged = true
+		U.log("E", "grab", "drawing failed: " .. tostring(err))
+	end
 end
 
 function M.onCareerActive(active)
