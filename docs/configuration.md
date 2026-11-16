@@ -118,6 +118,7 @@ The file is `Resources/Server/SharedCareer/config/config.json`. It is created on
 | `client.allowGrab` | `true` | Rope and winch in the Tow app on the phone: move your own vehicles slowly, with physics |
 | `client.grabSpeed` | `1` | How fast the winch hauls in at most, in m/s (0.2–5) |
 | `client.grabStrength` | `150` | Highest pull strength a player may pick in the Tow app, in % of the vehicle's weight (10–150). Below 100 you can lift one end and drag or push the vehicle, but not float it. |
+| `client.allowTowToRoad` | `true` | "Tow to the road" in the Tow app: puts a vehicle the rope can't free on the last road it drove on, free of charge (the career's own recovery menu charges $75). The damage stays. |
 | `client.allowNodeGrabber` | `true` | Node grabber (grab and pull vehicles with the mouse) also in a vehicle and in the free camera. The normal career only allows it while walking. The vehicle certification test still blocks it. `false` = the career's own rule. |
 
 ### How settings survive updates

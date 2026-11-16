@@ -858,7 +858,7 @@ _G.MPKeybindsGE = {addAction = function(name, def) grabKeys[name] = def end}
 extensions.hook("onWorldReadyState", 2)
 local cfgG = {}
 for k, v in pairs(config) do cfgG[k] = v end
-cfgG.allowGrab, cfgG.grabSpeed, cfgG.grabStrength = true, 1, 150
+cfgG.allowGrab, cfgG.grabSpeed, cfgG.grabStrength, cfgG.allowTowToRoad = true, 1, 150, true
 handlers.sc_config(json.encode(cfgG))
 update()
 local function placedVeh(id, x, y, z, jbeam, remote)
@@ -1147,6 +1147,39 @@ frames(0.1)
 check(select(2, lastHand(truck))[5] == 0, "... only once")
 sharedCareer_grab.uiRelease()
 check(not sharedCareer_grab.isHolding() and lastHand(truck) == "handRelease", "remove rope from the app")
+-- tow to the road: the game's own recovery (damage stays), free, for the vehicle on the rope
+local towed = {}
+_G.spawn = {teleportToLastRoad = function(veh, opts) table.insert(towed, {id = veh:getID(), opts = opts}) end}
+local towToasts = {}
+local realToast = sharedCareer_util.toast
+sharedCareer_util.toast = function(_, msg) table.insert(towToasts, msg) end
+check(sharedCareer_grab.appState().towToRoad == true, "Tow app: tow to the road offered")
+check(not sharedCareer_grab.uiTowToRoad() and #towed == 0 and towToasts[#towToasts]:find("Attach"),
+	"tow to the road: needs the rope on a vehicle")
+fwd = {x = 1, y = 0, z = -0.1}
+sharedCareer_grab.uiAttachView()
+truck.getVelocity = function() return {x = 5, y = 0, z = 0} end
+check(not sharedCareer_grab.uiTowToRoad() and #towed == 0 and towToasts[#towToasts]:find("stand still"),
+	"tow to the road: not while the vehicle moves")
+truck.getVelocity = function() return {x = 0.1, y = 0, z = 0} end
+_G.gameplay_traffic = {getTrafficData = function() return {[60] = {pursuit = {mode = 1}}} end}
+check(not sharedCareer_grab.uiTowToRoad() and #towed == 0 and towToasts[#towToasts]:find("police"),
+	"tow to the road: not during a police chase")
+_G.gameplay_traffic = {getTrafficData = function() return {[60] = {pursuit = {mode = 0}}} end}
+check(sharedCareer_grab.uiTowToRoad() and #towed == 1 and towed[1].id == 60 and towed[1].opts.resetVehicle == false,
+	"tow to the road: the game's teleportToLastRoad, damage kept")
+check(not sharedCareer_grab.isHolding() and lastHand(truck) == "handRelease", "tow to the road: the rope comes off")
+sharedCareer_grab.uiAttachView()
+cfgG.allowTowToRoad = false
+handlers.sc_configUpdate(json.encode(cfgG))
+check(sharedCareer_grab.appState().towToRoad == false and not sharedCareer_grab.uiTowToRoad() and #towed == 1,
+	"tow to the road switched off on the server")
+cfgG.allowTowToRoad = true
+handlers.sc_configUpdate(json.encode(cfgG))
+sharedCareer_grab.release()
+truck.getVelocity, fwd = nil, nil
+_G.spawn, _G.gameplay_traffic = nil, nil
+sharedCareer_util.toast = realToast
 sharedCareer_phone.uiCloseApp("tow")
 fwd = nil
 -- switched off on the server: the app leaves the phone

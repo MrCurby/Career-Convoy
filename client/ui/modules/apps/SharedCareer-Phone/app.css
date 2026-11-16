@@ -95,6 +95,8 @@
 .scp-wide { width: 100%; padding: 10px; border-radius: 12px; border: none; font-size: 14px; font-weight: 600; color: #fff; cursor: pointer; font-family: inherit; margin-top: 4px; }
 .scp-primary { background: #e8730c; }
 .scp-primary:hover { background: #ff8a22; }
+.scp-secondary { background: rgba(255, 255, 255, 0.16); margin-top: 12px; }
+.scp-secondary:hover { background: rgba(255, 255, 255, 0.26); }
 .scp-danger { background: rgba(255, 59, 48, 0.85); margin-top: 12px; }
 .scp-danger:hover { background: #ff3b30; }
 .scp-row { width: 100%; display: flex; justify-content: space-between; padding: 9px 12px; margin-bottom: 6px; border: none; border-radius: 10px;

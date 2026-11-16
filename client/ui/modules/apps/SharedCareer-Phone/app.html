@@ -104,6 +104,8 @@
 							<button ng-repeat="s in tow.strengths" ng-class="{'scp-seg-on scp-seg-in': tow.strength === s}" ng-click="towCall('uiStrength(' + s + ')')">{{s}} %</button>
 						</div>
 						<div class="scp-hint">Stuck, handbrake or Park: try 100 % or more.</div>
+						<button class="scp-wide scp-secondary" ng-if="tow.towToRoad" ng-click="towCall('uiTowToRoad()')">Tow to the road</button>
+						<div class="scp-hint" ng-if="tow.towToRoad">Stuck for good? Puts the vehicle on the last road it drove on, free of charge. The damage stays.</div>
 						<button class="scp-wide scp-danger" ng-click="towCall('uiRelease()')">Remove rope</button>
 					</div>
 				</div>

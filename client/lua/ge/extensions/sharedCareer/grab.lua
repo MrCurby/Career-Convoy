@@ -11,6 +11,8 @@
 --   winch     haul in (pulls the vehicle slowly to the anchor) / stop (the vehicle hangs on the
 --             rope) / pay out
 --   strength  30/60/100/150 % of the vehicle's weight
+--   to road  the game's own recovery "Tow to road" for the vehicle on the rope, free of charge
+--             (see "Tow to the road" below)
 --   remove
 -- The blue preview of where a rope would attach only shows while the Tow app is open.
 --
@@ -41,6 +43,7 @@
 -- Server settings: client.allowGrab (on/off), client.grabSpeed (m/s the winch hauls in at most),
 -- client.grabStrength (the highest force limit a player may pick, in % of the vehicle's weight).
 -- Each player picks the strength in the Tow app (30/60/100/150 %, capped at client.grabStrength).
+-- client.allowTowToRoad (on/off): the "Tow to the road" button.
 
 local M = {}
 
@@ -72,6 +75,11 @@ local drawErrorLogged = false
 local function allowed()
 	local c = U.config()
 	return c ~= nil and c.allowGrab == true
+end
+
+local function towToRoadAllowed()
+	local c = U.config()
+	return allowed() and c.allowTowToRoad == true
 end
 
 local function numberSetting(key, default, lo, hi)
@@ -254,6 +262,55 @@ function M.step(dt)
 	held.payOutOnce = nil
 	sendToVehicle(held.id, string.format("sharedCareerVeh.handRope(%.3f, %.3f, %.3f, %d, %d, %.2f, %.1f)",
 		t.x, t.y, t.z, held.winch, paying and 1 or 0, grabSpeed() * (fine and FINE or 1), grabStrength()))
+end
+
+--== Tow to the road =============================================================
+-- For a vehicle the rope can't free (e.g. wrapped around a lamp post): the game's own recovery
+-- "Tow to road" (core/recoveryPrompt.lua, towToRoad) puts it on the last road it drove on and keeps
+-- the damage – spawn.teleportToLastRoad(veh, {resetVehicle = false}). The career charges $75 for
+-- it (free with roadside assistance); here it is free. Like in the game, only while the vehicle is
+-- (nearly) standing still and not in a police chase.
+
+local TOW_MAX_SPEED = 2 -- m/s: the vehicle must be slower than this
+
+local function speedOf(veh)
+	if type(veh.getVelocity) ~= "function" then return 0 end
+	local ok, v = pcall(veh.getVelocity, veh)
+	v = ok and vecOf(v)
+	if not v then return 0 end
+	return math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z)
+end
+
+-- true if the police chase this vehicle (the traffic system's pursuit data)
+local function inPursuit(id)
+	local traffic = rawget(_G, "gameplay_traffic")
+	if type(traffic) ~= "table" or type(traffic.getTrafficData) ~= "function" then return false end
+	local ok, data = pcall(traffic.getTrafficData)
+	local entry = ok and type(data) == "table" and data[id]
+	local pursuit = type(entry) == "table" and entry.pursuit
+	return type(pursuit) == "table" and (tonumber(pursuit.mode) or 0) > 0
+end
+
+--- Puts the vehicle on the rope on the last road it drove on. Returns true, or false and a message.
+function M.towToRoad()
+	if not towToRoadAllowed() then return false, "Towing to the road is switched off on this server" end
+	if not held then return false, "Attach the rope to the vehicle first" end
+	local id = held.id
+	local veh = be:getObjectByID(id)
+	if not veh then return false, "Vehicle not found" end
+	if not (spawn and type(spawn.teleportToLastRoad) == "function") then
+		return false, "Towing to the road isn't available in this game version"
+	end
+	if inPursuit(id) then return false, "Not during a police chase" end
+	if speedOf(veh) > TOW_MAX_SPEED then return false, "The vehicle must stand still" end
+	M.release()
+	local ok, err = pcall(spawn.teleportToLastRoad, veh, {resetVehicle = false})
+	if not ok then
+		U.log("E", "grab", "tow to the road failed: " .. tostring(err))
+		return false, "Towing to the road failed"
+	end
+	U.log("I", "grab", "vehicle " .. tostring(id) .. " towed to the road")
+	return true
 end
 
 --== Replies from the vehicle ====================================================
@@ -499,7 +556,7 @@ function M.appState()
 		if v <= max then table.insert(choices, v) end
 	end
 	if #choices == 0 or choices[#choices] < max then table.insert(choices, math.floor(max + 0.5)) end
-	local state = {allowed = allowed(), attached = held ~= nil, fine = fine,
+	local state = {allowed = allowed(), attached = held ~= nil, fine = fine, towToRoad = towToRoadAllowed(),
 		strength = grabStrength(), maxStrength = max, strengths = choices}
 	if held then
 		local veh = be:getObjectByID(held.id)
@@ -553,6 +610,12 @@ function M.uiAttachVehicle(id)
 	return true
 end
 function M.uiRelease() M.release(); pushApp() end
+function M.uiTowToRoad()
+	local ok, err = M.towToRoad()
+	message(ok and "Vehicle towed to the road" or err)
+	pushApp()
+	return ok
+end
 function M.uiWinch(mode) M.setWinch(mode); pushApp() end
 function M.uiFine(on) fine = on == true; pushApp() end
 --- Pull strength in % of the vehicle's weight (capped at the server's client.grabStrength).

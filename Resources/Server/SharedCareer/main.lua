@@ -185,6 +185,9 @@ local DEFAULTS = {
 		-- Highest pull strength a player may pick in the Tow app, in % of the vehicle's weight
 		-- (10–150). Below 100 you can lift one end and drag or push the vehicle, but not float it.
 		grabStrength = 150,
+		-- "Tow to the road" in the Tow app: the game's own recovery (puts the vehicle on the last
+		-- road it drove on, the damage stays), free instead of the career's $75.
+		allowTowToRoad = true,
 	},
 }
 
