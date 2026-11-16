@@ -134,7 +134,7 @@ The mod ships a modified copy of a West Coast USA level file (`career_garage/gar
 
 ## Project status
 
-SharedCareer brings the **normal BeamNG career** to multiplayer, nothing more and nothing less: no new game modes, but everything the career can do should work stably on a server.
+At its core, SharedCareer brings the **normal BeamNG career** to multiplayer: everything the career can do should work stably on a server. On top of that come extras for playing together (see [Features](../README.md#features)), each of which the server can switch off, and more are on the [roadmap](../README.md#roadmap).
 
 Tested with BeamNG.drive 0.40.5, BeamMP 4.23.1 and BeamMP-Server 3.9.3 (Linux).
 
