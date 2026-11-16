@@ -1641,7 +1641,7 @@ local n2 = #sentToServer
 sharedCareer_menu.uiSetSetting("client.saveSuffix", "x")
 check(#sentToServer == n2, "menu only sends allowed settings")
 
---== 7g. Players: navigate, watch, teleport, status, name tags, key ==========
+--== 7g. Players tab, name tags and the menu key =============================
 resetWorld()
 installCareer()
 local mpCalls = {}

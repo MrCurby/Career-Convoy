@@ -79,7 +79,7 @@ The file is `Resources/Server/SharedCareer/config/config.json`. It is created on
 | `server.allowTeleport` | `false` | **Go** in the Players tab: teleport your vehicle to another player |
 | `client.showPlayerStatus` | `true` | Status after other players' names: `[Mission]`, `[On foot]`, `[Loading]` |
 | `client.showWelcome` | `true` | Welcome dialog on join (everyone can still pick "Don't show again") |
-| `client.addApps` | `true` | Add the SharedCareer menu and the phone tab to the career UI once, on the first join (called `addTimeApp` up to 0.14; an old setting is taken over) |
+| `client.addApps` | `true` | Add the SharedCareer menu and the phone tab to the career UI once, on the first join |
 | `client.cleanupMileageApps` | `true` | Remove Mileage leftovers (red "Unknown app" boxes) from the players' UI layouts and bring back the BeamMP player list |
 
 ### Vehicles and collisions

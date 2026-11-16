@@ -25,11 +25,6 @@ local U
 
 local MAX_DRIFT_HOURS = 0.05 -- 3 game minutes
 
-local function config()
-	local core = U.ext("sharedCareer_core")
-	return core and core.getConfig()
-end
-
 --== Time of day ===============================================================
 
 function M.toGame(hour)
@@ -82,7 +77,7 @@ local function getTod()
 end
 
 local function syncEnabled()
-	local cfg = config()
+	local cfg = U.config()
 	return cfg ~= nil and cfg.syncTimeOfDay ~= false and U.isMP()
 end
 
@@ -134,7 +129,7 @@ local ENVIRONMENT_PAGES = {
 }
 
 local function lockActive()
-	local cfg = config()
+	local cfg = U.config()
 	return cfg ~= nil and cfg.lockEnvironment ~= false and U.isMP() and U.careerActive()
 end
 M.lockActive = lockActive

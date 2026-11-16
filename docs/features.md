@@ -113,8 +113,6 @@ Open the phone (**F4**) and tap **Fuel**:
 - Distance to you, and **Go** to set a route to the station. **Stop** ends it. The station's position is the middle of its pumps. The route is the game's own navigation on the map's road network.
 - The prices are exactly what you pay at the pump, before your insurance discount.
 
-(Up to 0.12 this was a separate window with a fuel-pump tab. On your first join with 0.13 the mod takes that window out of your layout once, and the phone tab moves to its place.)
-
 ## Traffic
 
 - Traffic spawns as **simplified vehicles** (`simple_traffic`). They look a bit plainer, but cost much less to sync between all players.

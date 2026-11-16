@@ -35,7 +35,6 @@ local done = false
 -- Every app is added exactly ONCE (flag in settings/sharedCareer/state.json);
 -- players who remove it afterwards don't get it forced on them again.
 
-local STATE_FILE = "settings/sharedCareer/state.json"
 local CAREER_LAYOUT = "settings/ui_apps/layouts/default/career.uilayout.json"
 local CAREER_ORIGINAL = "settings/ui_apps/originalLayouts/default/career.uilayout.json"
 local APPS = {
@@ -57,27 +56,10 @@ local APPS = {
 }
 M.APPS = APPS
 
--- flags in state.json that were renamed: old -> new
-local STATE_RENAMED = {
-	timeAppAdded = "menuAppAdded", -- 0.15.0: the menu app was called sharedCareerTime
-}
-
-local function readState()
-	local ok, state = pcall(jsonReadFile, STATE_FILE)
-	state = (ok and type(state) == "table") and state or {}
-	for old, new in pairs(STATE_RENAMED) do
-		if state[old] ~= nil then
-			if state[new] == nil then state[new] = state[old] end
-			state[old] = nil
-		end
-	end
-	return state
-end
-
 --- Adds the SharedCareer apps to the career layout if that never happened yet. Returns the
 --- number of apps added now.
 function M.addAppsOnce()
-	local state = readState()
+	local state = U.readState()
 	local todo = {}
 	for _, def in ipairs(APPS) do
 		if not state[def.stateKey] then table.insert(todo, def) end
@@ -122,7 +104,7 @@ function M.addAppsOnce()
 			U.log("I", "cleanup", def.label .. " added to the career layout")
 		end
 	end
-	jsonWriteFile(STATE_FILE, state, true)
+	U.writeState(state)
 	return #added
 end
 -- One-time corrections of apps that were already placed (each runs once per PC):
@@ -137,7 +119,7 @@ local MOVES = {
 }
 
 function M.moveAppsOnce()
-	local state = readState()
+	local state = U.readState()
 	local todo = {}
 	for _, mv in ipairs(MOVES) do
 		if not state[mv.stateKey] then table.insert(todo, mv) end
@@ -172,7 +154,7 @@ function M.moveAppsOnce()
 		U.log("E", "cleanup", "could not write " .. CAREER_LAYOUT)
 		return 0
 	end
-	jsonWriteFile(STATE_FILE, state, true)
+	U.writeState(state)
 	if moved > 0 then U.log("I", "cleanup", "updated " .. moved .. " SharedCareer app(s) in the career layout") end
 	return moved
 end
@@ -263,7 +245,7 @@ local function layoutFiles()
 end
 
 function M.renameAppsOnce()
-	local state = readState()
+	local state = U.readState()
 	local todo = {}
 	for _, rn in ipairs(RENAMES) do
 		if not state[rn.stateKey] then table.insert(todo, rn) end
@@ -291,7 +273,7 @@ function M.renameAppsOnce()
 		end
 	end
 	for _, rn in ipairs(todo) do state[rn.stateKey] = true end
-	jsonWriteFile(STATE_FILE, state, true)
+	U.writeState(state)
 	if total > 0 then U.log("I", "cleanup", "renamed " .. total .. " SharedCareer app(s) in the UI layouts") end
 	return total
 end
@@ -340,14 +322,9 @@ function M.run()
 	return total
 end
 
-local function config()
-	local core = U.ext("sharedCareer_core")
-	return core and core.getConfig()
-end
-
 -- After the career start (then the layout files exist and the UI is ready).
 function M.onCareerActive(active)
-	local cfg = config()
+	local cfg = U.config()
 	if not active or done or not cfg or not U.isMP() then return end
 	done = true
 	local changed = false

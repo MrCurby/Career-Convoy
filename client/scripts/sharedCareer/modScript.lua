@@ -10,8 +10,8 @@
 --   vehicles  other players' cars: visibility, name tags, collision (ghost)
 --   money     money transfers between players (/pay)
 --   env       time of day from the server, environment locked in the pause menu
---   menu      settings in the SharedCareer menu (traffic, options) – apply to everyone
---   players   Players tab (navigate, watch, teleport), status on name tags, menu key
+--   menu      settings in the SharedCareer menu (traffic, options) – apply to everyone; menu key
+--   players   Players tab (navigate, watch, teleport), status on name tags
 --   fuel      shared fuel prices; fuel deliveries make stations cheaper for everyone
 --   welcome   welcome dialog on join (with "Don't show again")
 --   nodegrab  node grabber in the career also in a vehicle / free camera (client.allowNodeGrabber)

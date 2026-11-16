@@ -185,8 +185,7 @@ M.onVehiclePaintingUiOpened = enterMenuVehicle
 local MIN_HEIGHT = 2.5
 
 local function accessRange()
-	local core = U.ext("sharedCareer_core")
-	local config = core and core.getConfig()
+	local config = U.config()
 	local r = config and tonumber(config.computerAccessRange)
 	if not r or r <= 0 or not U.isMP() then return 0 end
 	return math.min(r, 30)

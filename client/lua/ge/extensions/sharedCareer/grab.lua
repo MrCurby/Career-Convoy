@@ -85,18 +85,13 @@ local drawErrorLogged = false
 local keyRegistered = false
 local actionMapPushed = false
 
-local function config()
-	local core = U.ext("sharedCareer_core")
-	return core and core.getConfig()
-end
-
 local function allowed()
-	local c = config()
+	local c = U.config()
 	return c ~= nil and c.allowGrab == true
 end
 
 local function numberSetting(key, default, lo, hi)
-	local c = config()
+	local c = U.config()
 	local v = c and tonumber(c[key])
 	if not v or v <= 0 then return default end
 	return math.max(lo, math.min(hi, v))
@@ -764,35 +759,29 @@ end
 local function registerKey()
 	if keyRegistered then return end
 	keyRegistered = true
-	local keys = rawget(_G, "MPKeybindsGE")
-	if type(keys) ~= "table" or type(keys.addAction) ~= "function" then
-		U.log("W", "grab", "MPKeybindsGE.addAction not available – no grab key (BeamMP too old?)")
-		return
-	end
-	local ok, err = pcall(keys.addAction, ACTION, {
+	if not U.addKey("grab", ACTION, {
 		title = "SharedCareer: attach / remove rope",
 		desc = "Attaches a rope where you point at one of your vehicles; press again to remove it",
 		default = KEY,
 		onDown = function() M.toggle() end,
-	})
-	if not ok then U.log("E", "grab", "could not register the grab key: " .. tostring(err)) end
+	}) then return end
 	for _, k in ipairs({
 		{ACTION .. "Farther", "SharedCareer: rope anchor farther", "pageup", 1},
 		{ACTION .. "Closer", "SharedCareer: rope anchor closer", "pagedown", -1},
 	}) do
-		pcall(keys.addAction, k[1], {
+		U.addKey("grab", k[1], {
 			title = k[2], desc = "While moving the anchor: away from you or towards you",
 			default = k[3], onDown = function() M.adjustDistance(k[4]) end,
 		})
 	end
-	pcall(keys.addAction, ANCHOR_ACTION, {
+	U.addKey("grab", ANCHOR_ACTION, {
 		title = "SharedCareer: move rope anchor (hold)",
 		desc = "Hold to move the rope's anchor with your view; let go and it stays (same as holding left mouse)",
 		default = ANCHOR_KEY,
 		onDown = function() M.setMoving(true) end,
 		onUp = function() M.setMoving(false) end,
 	})
-	pcall(keys.addAction, WINCH_ACTION, {
+	U.addKey("grab", WINCH_ACTION, {
 		title = "SharedCareer: winch on/off",
 		desc = "Hauls the rope in and pulls the vehicle slowly to the anchor",
 		default = WINCH_KEY,

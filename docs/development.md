@@ -84,7 +84,7 @@ About a minute later the release is on GitHub, and `./server.sh update` installs
 | Traffic AI drives too close and rams players | Lower AI aggression and grip estimate; larger safety gap and sight range, set inside ai.lua through upvalues (no game files edited); police excluded | `traffic.lua`, `sharedCareerVeh.lua` |
 | Everybody has a different time of day | The server runs the clock, and the pause-menu environment controls are locked | `env.lua`, server |
 | Different traffic light cycles | The server syncs the signal timer | `core.lua`, server |
-| Finding friends on the map | Players tab: navigate, watch, optional teleport, status on name tags, F7 | `players.lua` |
+| Finding friends on the map | Players tab: navigate, watch, optional teleport, status on name tags | `players.lua` |
 | Fuel prices differ per player, and deliveries have no effect on the world | Shared base prices, deliveries lower prices for everyone | `fuel.lua`, server |
 | Settings can only be changed in the console | The SharedCareer menu syncs every change to all players | `ui/…/SharedCareer-Menu`, `menu.lua`, `env.lua` (time) |
 | New players don't know the features | Welcome dialog with "Don't show again" | `welcome.lua` |

@@ -13,22 +13,11 @@ local M = {}
 
 local U
 
-local STATE_FILE = "settings/sharedCareer/state.json"
 local DELAY = 3            -- seconds after the career has finished loading
 
 local shownThisJoin = false
 local pending = nil        -- dialog that is still waiting for a button press (see openDialog)
 local waitTime = 0         -- seconds since "career finished loading" while the dialog is pending
-
-local function readState()
-	local ok, state = pcall(jsonReadFile, STATE_FILE)
-	return (ok and type(state) == "table") and state or {}
-end
-
-local function config()
-	local core = U.ext("sharedCareer_core")
-	return core and core.getConfig()
-end
 
 M.TITLE = "Welcome to SharedCareer"
 
@@ -75,8 +64,8 @@ end
 --- Shows the dialog. force = true: even if "Don't show again" was chosen (click on the logo).
 function M.show(force)
 	if not force then
-		local cfg = config()
-		if not cfg or cfg.showWelcome == false or readState().welcomeHidden then return false end
+		local cfg = U.config()
+		if not cfg or cfg.showWelcome == false or U.readState().welcomeHidden then return false end
 	end
 	return openDialog(M.content())
 end
@@ -143,11 +132,9 @@ end
 
 -- "Don't show again" button (reported by BeamMP via extensions.hook)
 function M.sharedCareerWelcomeNever()
-	local state = readState()
+	local state = U.readState()
 	state.welcomeHidden = true
-	local ok, err = pcall(jsonWriteFile, STATE_FILE, state, true)
-	if ok then U.log("I", "welcome", "welcome dialog will not be shown again")
-	else U.log("E", "welcome", "could not save the welcome setting: " .. tostring(err)) end
+	if U.writeState(state) then U.log("I", "welcome", "welcome dialog will not be shown again") end
 end
 
 

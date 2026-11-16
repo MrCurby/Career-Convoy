@@ -31,8 +31,7 @@ local apps = {}            -- id -> {id, title, icon, color, order, onOpen, onCl
 local keyRegistered = false
 
 local function enabled()
-	local core = U.ext("sharedCareer_core")
-	local config = core and core.getConfig()
+	local config = U.config()
 	return config ~= nil and config.phone ~= false
 end
 
@@ -111,12 +110,7 @@ end
 local function registerKey()
 	if keyRegistered then return end
 	keyRegistered = true
-	local keys = rawget(_G, "MPKeybindsGE")
-	if type(keys) ~= "table" or type(keys.addAction) ~= "function" then
-		U.log("W", "phone", "MPKeybindsGE.addAction not available – no phone key (BeamMP too old?)")
-		return
-	end
-	local ok, err = pcall(keys.addAction, ACTION, {
+	U.addKey("phone", ACTION, {
 		title = "SharedCareer: phone",
 		desc = "Takes the phone out or puts it away",
 		default = KEY,
@@ -124,7 +118,6 @@ local function registerKey()
 			if enabled() then trigger("SharedCareerPhoneToggle") end
 		end,
 	})
-	if not ok then U.log("E", "phone", "could not register the phone key: " .. tostring(err)) end
 end
 
 --== Hooks =======================================================================

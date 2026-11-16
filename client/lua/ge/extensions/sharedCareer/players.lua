@@ -1,4 +1,4 @@
--- SharedCareer :: other players (Players tab in the menu, status on name tags, menu key)
+-- SharedCareer :: other players (Players tab in the menu, status on name tags)
 --
 -- Players tab:
 --   Navigate  route on the road to a player, follows them when they drive on
@@ -12,9 +12,6 @@
 -- Status on name tags (client.showPlayerStatus): every client reports its status every 2 s
 -- (sc_status: driving / walking / mission / loading); the server sends the list to everyone
 -- (sc_players), and here e.g. "[Mission]" is put after the other players' names.
---
--- Menu key: via BeamMP's key bindings (MPKeybindsGE.addAction) – shows up under
--- Options → Controls → BeamMP and can be rebound there. Default: F7.
 
 local M = {}
 
@@ -23,8 +20,6 @@ local U
 local STATUS_EVERY = 2
 local SUFFIX_SOURCE = "sharedCareer"
 local SUFFIX_TEXT = {mission = "[Mission]", walking = "[On foot]", loading = "[Loading]"}
-local MENU_ACTION = "sharedCareerMenu"
-local MENU_KEY = "f7"
 
 local list = {}          -- {{id, name, status}, ...} from the server
 local sentStatus = nil
@@ -32,17 +27,11 @@ local sinceStatus = STATUS_EVERY
 local navigating = nil   -- name of the player we navigate to
 local watching = nil     -- {name, ownVehId}
 local suffixed = {}      -- name -> text that was set (for cleaning up)
-local keyRegistered = false
 
 local function mp()
 	local m = rawget(_G, "MPVehicleGE")
 	if type(m) == "table" then return m end
 	return nil
-end
-
-local function config()
-	local core = U.ext("sharedCareer_core")
-	return core and core.getConfig()
 end
 
 local function myName()
@@ -86,7 +75,7 @@ local function setSuffix(name, text)
 end
 
 local function applySuffixes()
-	local cfg = config()
+	local cfg = U.config()
 	local show = cfg and cfg.showPlayerStatus ~= false
 	local me = myName()
 	local seen = {}
@@ -163,7 +152,7 @@ end
 
 function M.uiTeleport(name)
 	local m = mp()
-	local cfg = config()
+	local cfg = U.config()
 	local allowed = cfg and type(cfg.ui) == "table" and cfg.ui.allowTeleport == true
 	if not allowed or not m or type(name) ~= "string" or type(m.teleportVehToPlayer) ~= "function" then return end
 	pcall(m.teleportVehToPlayer, name)
@@ -171,7 +160,7 @@ end
 
 --- State for the Players tab.
 function M.state()
-	local cfg = config()
+	local cfg = U.config()
 	local me = myName()
 	local out = {}
 	for _, p in ipairs(list) do
@@ -185,32 +174,10 @@ function M.state()
 	}
 end
 
---== menu key ==================================================================
-
-local function registerKey()
-	if keyRegistered then return end
-	local keys = rawget(_G, "MPKeybindsGE")
-	if type(keys) ~= "table" or type(keys.addAction) ~= "function" then
-		U.log("W", "players", "MPKeybindsGE.addAction not available – no menu hotkey (BeamMP too old?)")
-		keyRegistered = true
-		return
-	end
-	local ok, err = pcall(keys.addAction, MENU_ACTION, {
-		title = "SharedCareer: show/hide menu",
-		desc = "Expands or collapses the SharedCareer menu",
-		default = MENU_KEY,
-		onDown = function()
-			if guihooks then guihooks.trigger("SharedCareerToggle", {}) end
-		end,
-	})
-	if not ok then U.log("E", "players", "could not register menu hotkey: " .. tostring(err)) end
-	keyRegistered = true
-end
-
 --== Hooks =====================================================================
 
 function M.onUpdate(dtReal)
-	if not U.isMP() or not config() then return end
+	if not U.isMP() or not U.config() then return end
 	sinceStatus = sinceStatus + (tonumber(dtReal) or 0)
 	if sinceStatus < STATUS_EVERY then return end
 	sinceStatus = 0
@@ -218,8 +185,7 @@ function M.onUpdate(dtReal)
 end
 
 function M.onCareerActive(active)
-	if not active or not U.isMP() or not config() then return end
-	registerKey()
+	if not active or not U.isMP() or not U.config() then return end
 	sendStatus(true)
 end
 
@@ -228,7 +194,7 @@ function M.onConfigChanged()
 end
 
 function M.onBeamMPServerLeave()
-	list, sentStatus, navigating, watching, suffixed, keyRegistered = {}, nil, nil, nil, {}, false
+	list, sentStatus, navigating, watching, suffixed = {}, nil, nil, nil, {}
 	sinceStatus = STATUS_EVERY
 end
 

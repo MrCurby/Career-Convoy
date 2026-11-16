@@ -35,11 +35,6 @@ local function mp()
 	return nil
 end
 
-local function config()
-	local core = U.ext("sharedCareer_core")
-	return core and core.getConfig()
-end
-
 -- props/trailers that should never have a name tag above them.
 local PROPS = {
 	barrels = true, barrier = true, barrier_plastic = true, blockwall = true, bollard = true,
@@ -124,7 +119,7 @@ end
 --   other players' traffic/parked cars    ALWAYS collide – like our own traffic, so that
 --                                         AI cars behave the same no matter who owns them
 local function applyGhosts()
-	local m, cfg = mp(), config()
+	local m, cfg = mp(), U.config()
 	if not m or not cfg then return end
 	for serverId, entry in pairs(m.getVehicles()) do
 		local gameId = entry.gameVehicleID
@@ -225,7 +220,7 @@ function M.onVehicleSwitched(oldId, newId)
 end
 
 function M.onUpdate(dtReal)
-	if not U.isMP() or not config() then return end
+	if not U.isMP() or not U.config() then return end
 	since = since + (tonumber(dtReal) or 0)
 	if since < EVERY then return end
 	since = 0

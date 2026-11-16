@@ -7,6 +7,11 @@
 --   decode           read JSON safely (broken data -> nil instead of a crash)
 --   toast            short notification in the game
 --   ext              get an extension without loading it by accident
+--   config           client settings from the server (core.lua), nil before they arrive
+--   readState / writeState
+--                    small file settings/sharedCareer/state.json on the player's PC
+--                    (one-time flags, "Don't show again")
+--   addKey           key binding via BeamMP (Options → Controls → BeamMP, rebindable)
 --   profileName      profile name the way the game builds it (lower case, only a-z0-9)
 --   replace / isOurs replace a game function safely without wrapping our own wrapper twice
 
@@ -70,6 +75,56 @@ function M.ext(name)
 	local m = (type(extensions) == "table" and rawget(extensions, name)) or rawget(_G, name)
 	if type(m) == "table" then return m end
 	return nil
+end
+
+--- Client settings from the server (nil until sc_config has arrived).
+function M.config()
+	local core = M.ext("sharedCareer_core")
+	return core and core.getConfig()
+end
+
+--== state.json =================================================================
+
+local STATE_FILE = "settings/sharedCareer/state.json"
+
+-- flags in state.json that were renamed: old -> new (taken over once on reading)
+local STATE_RENAMED = {
+	timeAppAdded = "menuAppAdded", -- 0.15.0: the menu app was called sharedCareerTime
+}
+
+--- The state file as a table (empty if it is missing or broken), with renamed flags migrated.
+function M.readState()
+	local ok, state = pcall(jsonReadFile, STATE_FILE)
+	state = (ok and type(state) == "table") and state or {}
+	for old, new in pairs(STATE_RENAMED) do
+		if state[old] ~= nil then
+			if state[new] == nil then state[new] = state[old] end
+			state[old] = nil
+		end
+	end
+	return state
+end
+
+--- Writes the state file. Returns true if it worked; logs the error otherwise.
+function M.writeState(state)
+	local ok, err = pcall(jsonWriteFile, STATE_FILE, state, true)
+	if not ok then M.log("E", "util", "could not write " .. STATE_FILE .. ": " .. tostring(err)) end
+	return ok
+end
+
+--== Keys ========================================================================
+
+--- Registers a key via BeamMP's key bindings (MPKeybindsGE.addAction). def = {title, desc,
+--- default, onDown, onUp}. Returns true if it worked; logs under `tag` otherwise.
+function M.addKey(tag, action, def)
+	local keys = rawget(_G, "MPKeybindsGE")
+	if type(keys) ~= "table" or type(keys.addAction) ~= "function" then
+		M.log("W", tag, "MPKeybindsGE.addAction not available – no key '" .. tostring(def.title) .. "' (BeamMP too old?)")
+		return false
+	end
+	local ok, err = pcall(keys.addAction, action, def)
+	if not ok then M.log("E", tag, "could not register the key '" .. tostring(def.title) .. "': " .. tostring(err)) end
+	return ok
 end
 
 -- Profile name from the BeamMP name. The game itself lowercases, keeps only a-z0-9 and

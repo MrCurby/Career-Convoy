@@ -38,8 +38,7 @@ local function filter()
 end
 
 local function allowed()
-	local core = U and U.ext("sharedCareer_core")
-	local config = core and core.getConfig()
+	local config = U and U.config()
 	return config ~= nil and config.allowNodeGrabber == true
 end
 

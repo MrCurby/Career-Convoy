@@ -112,8 +112,7 @@ end
 local function rxTraffic(data)
 	local share = U.decode(data)
 	if not share then return end
-	local core = U.ext("sharedCareer_core")
-	local config = core and core.getConfig()
+	local config = U.config()
 	if config then config.trafficShare = share end
 	M.applyLive(share.road, share.parked)
 	U.log("I", "traffic", string.format("new traffic share: %d / %d", clamp(share.road), clamp(share.parked)))
@@ -180,8 +179,7 @@ end
 M.aiCommand = aiCommand
 
 function M.applyAiCaution(now)
-	local core = U.ext("sharedCareer_core")
-	local config = core and core.getConfig()
+	local config = U.config()
 	if not config then return end
 	local aggression = tonumber(config.trafficAggression)
 	aggression = (aggression and aggression > 0) and math.max(0.05, math.min(1, aggression)) or nil

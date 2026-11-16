@@ -121,7 +121,7 @@ sharedCareerMenuApp.controller('SharedCareerMenu', ['$scope', '$element', functi
 	$scope.back = function () { players('uiBack()'); };
 	$scope.teleport = function (name) { players('uiTeleport(' + quote(name) + ')'); };
 
-	// menu key (default F7, see players.lua): collapse/expand
+	// menu key (default F7, see menu.lua): collapse/expand
 	$scope.$on('SharedCareerToggle', function () {
 		$scope.$evalAsync(function () { $scope.toggleCollapsed(); });
 	});

@@ -20,6 +20,9 @@
 --   Synced traffic lights, server limits    immediately (server)
 --
 -- Sends: sc_setSetting {key, value}.
+--
+-- Menu key (default F7, rebindable under Options → Controls → BeamMP): collapses/expands the
+-- window (guihook "SharedCareerToggle").
 
 local M = {}
 
@@ -33,14 +36,13 @@ local KEYS = {
 	["client.showPlayerStatus"] = true,
 }
 
-local function config()
-	local core = U.ext("sharedCareer_core")
-	return core and core.getConfig()
-end
+local KEY_ACTION = "sharedCareerMenu"
+local KEY = "f7"
+local keyRegistered = false
 
 --- State for the window, or nil without server settings.
 function M.settingsState()
-	local cfg = config()
+	local cfg = U.config()
 	if type(cfg) ~= "table" then return nil end
 	local ui = type(cfg.ui) == "table" and cfg.ui or {}
 	local traffic = U.ext("sharedCareer_traffic")
@@ -113,6 +115,29 @@ function M.onUpdate(dtReal)
 	if since < 1 then return end
 	since = 0
 	if U.isMP() then M.push() end
+end
+
+--== Key =======================================================================
+
+local function registerKey()
+	if keyRegistered then return end
+	keyRegistered = true
+	U.addKey("menu", KEY_ACTION, {
+		title = "SharedCareer: show/hide menu",
+		desc = "Expands or collapses the SharedCareer menu",
+		default = KEY,
+		onDown = function()
+			if guihooks then guihooks.trigger("SharedCareerToggle", {}) end
+		end,
+	})
+end
+
+function M.onCareerActive(active)
+	if active and U.isMP() and U.config() then registerKey() end
+end
+
+function M.onBeamMPServerLeave()
+	keyRegistered = false
 end
 
 function M.onExtensionLoaded()
