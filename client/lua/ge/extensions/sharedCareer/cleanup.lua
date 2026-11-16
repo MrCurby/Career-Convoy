@@ -53,6 +53,13 @@ local APPS = {
 		placement = {position = "absolute", right = "0px", top = "760px", width = "345px", height = "160px",
 			left = "", bottom = ""},
 	},
+	{
+		appName = "sharedCareerPhone", stateKey = "phoneAppAdded", label = "SharedCareer phone",
+		-- only the tab (below the fuel app): the phone itself opens on top of the page, so the app
+		-- frame never blocks clicks elsewhere
+		placement = {position = "absolute", right = "0px", top = "920px", width = "30px", height = "80px",
+			left = "", bottom = ""},
+	},
 }
 M.APPS = APPS
 

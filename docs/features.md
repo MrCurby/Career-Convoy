@@ -12,6 +12,7 @@ Everything players see and use in the game. All texts in the game are in English
 - [Garage](#garage)
 - [Node grabber](#node-grabber)
 - [Moving your vehicles by hand (rope and winch)](#moving-your-vehicles-by-hand-rope-and-winch)
+- [Phone](#phone)
 - [Sending money](#sending-money)
 
 ## Joining
@@ -177,6 +178,19 @@ What you see:
 It only works on your own vehicles and your own traffic: other players' vehicles are simulated on their PCs, and BeamMP would put them right back. Players on foot can't be roped, and neither can the vehicle you are sitting in (the camera would move with it). Get out, or use the free camera.
 
 All keys are rebindable under *Options → Controls → BeamMP* (entries starting with "SharedCareer:"); there you can also put "move rope anchor" on the right mouse button. Server admins can switch it off with `sc set client.allowGrab false`, and set how fast the winch hauls in (`client.grabSpeed`, m/s) and how strong it is (`client.grabStrength`, % of the vehicle's weight).
+
+## Phone
+
+<img src="images/phone.png" width="240" alt="The SharedCareer phone">
+
+Press **F4** or click the phone tab at the right screen edge (below the fuel tab) to take out your phone. It shows the server's time, whether it's day or night, how many players are on the server and whether you're connected.
+
+The phone is the home for future SharedCareer apps (jobs and more, see the [roadmap](../README.md#roadmap)). **It has no apps yet**, so for now it shows "No apps yet".
+
+- The bar at the bottom puts the phone away (or goes back to the home screen from an app).
+- Opening the phone collapses the SharedCareer menu and the fuel app, and the other way round.
+- The key is rebindable under *Options → Controls → BeamMP*, entry "SharedCareer: phone".
+- Server admins can switch it off with `sc set client.phone false`.
 
 ## Sending money
 

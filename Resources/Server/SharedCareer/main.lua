@@ -58,7 +58,7 @@
 --   Server -> Client: sc_fuelPrices {enabled, factors = {[station] = {gasoline = 0.9, ...}}}
 --                       (from the SharedCareer menu window)
 
-local VERSION = "0.11.0"
+local VERSION = "0.12.0"
 local TAG = "[SharedCareer] "
 
 local CONFIG_DIR = "Resources/Server/SharedCareer/config"
@@ -178,6 +178,8 @@ local DEFAULTS = {
 		-- Our own node grabber (key F6): move your own vehicles slowly by hand, with physics –
 		-- e.g. onto a tow truck. Only own vehicles.
 		allowGrab = true,
+		-- The phone (key F4, tab at the right screen edge): home for future SharedCareer apps.
+		phone = true,
 		-- How fast the grabbed point moves at most, in m/s (0.2–5).
 		grabSpeed = 1,
 		-- Force limit in % of the vehicle's weight (10–150). Below 100 you can lift one end and

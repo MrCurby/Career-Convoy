@@ -64,6 +64,7 @@ These go beyond the normal career. They are on by default unless noted, and each
 | <img src="docs/icons/monitor.svg" width="20" height="20" alt=""> **Garage computers from a distance** | Use the garage computer from anywhere in the room instead of standing right in front of it. | On other maps: yes. On West Coast USA it comes from a map file in the mod, so it's always on |
 | <img src="docs/icons/grab.svg" width="20" height="20" alt=""> **Node grabber everywhere** | The normal career only lets you grab and pull vehicles with the mouse while walking. SharedCareer also allows it in a vehicle and in the free camera. The pull stays as weak as in the normal career (the game engine limits it), so it's good for nudging and turning cars, not for throwing them. The vehicle certification test still blocks it. | Yes (back to the career's rule) |
 | <img src="docs/icons/grab.svg" width="20" height="20" alt=""> **Rope and winch** | Move vehicles that can't drive, for example onto a tow truck: **F6** attaches a rope where you point, **hold the left mouse button** to place the anchor, **F8** runs the winch and pulls the vehicle there slowly, with physics. A colored rope shows how hard it pulls. Only your own vehicles. | Yes |
+| <img src="docs/icons/phone.svg" width="20" height="20" alt=""> **Phone** | A phone in the game (key **F4**, or the tab at the right screen edge) with the server time and the number of players. It's the home for future SharedCareer apps; it has **no apps yet**. | Yes |
 | <img src="docs/icons/money.svg" width="20" height="20" alt=""> **Send money** | `/pay <name> <amount>` in chat, with an automatic refund if something goes wrong. | Yes |
 | <img src="docs/icons/message.svg" width="20" height="20" alt=""> **Welcome dialog** | A short overview when you join. Each player can pick "Don't show again". | Yes |
 
@@ -157,7 +158,7 @@ SharedCareer is growing beyond the fixes, step by step. Ideas, **not in the mod 
 
 | Idea | What it would be |
 |---|---|
-| Phone / job menu | One place in the game to find and accept jobs |
+| Job app on the phone | One place on the phone to find and accept jobs (the phone itself is already in the mod) |
 | Taxi | Pick up passengers at random spots, tips for smooth driving |
 | Ambulance runs | Emergencies and patient transport to the hospital, against the clock |
 | Escort vehicles | Request or offer an escort for heavy transports, paid between players |

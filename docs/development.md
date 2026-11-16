@@ -90,6 +90,7 @@ About a minute later the release is on GitHub, and `./server.sh update` installs
 | Red "Unknown app" boxes after switching from Mileage | Mileage apps are removed from the players' layouts, with a backup first | `cleanup.lua` |
 | The career blocks the node grabber in a vehicle and in the free camera | After every input filter change (hook `onActionFilterUpdated`) only the career's group `careerNodeGrabberActions` is lifted; other blocks (certification test) stay | `nodegrab.lua` |
 | The career's node grabber is too weak to move heavy vehicles (engine limit) | Own rope and winch: the GE side picks the vehicle along the view/mouse line, places the anchor and sends the rope state; the vehicle Lua pulls the nodes around the grip with `applyForceVectorTime` in `updateGFX`: pull-only rope, pays out while the anchor moves, winch hauls in with limited speed and force (split by node mass) | `grab.lua`, `sharedCareerVeh.lua` |
+| A place for future features (jobs and more) | The phone: `phone.lua` keeps an app registry (`registerApp({id, title, icon, color, order, onOpen})`), the UI app `SharedCareer-Phone` is only a tab at the edge and attaches the phone to the page body when opened | `phone.lua`, `ui/…/SharedCareer-Phone` |
 | Sending money to other players | `/pay` as a two-step transfer with refund | `money.lua`, server |
 
 ### Join flow
@@ -117,7 +118,7 @@ Client                                    Server
 The menu and the fuel app are AngularJS apps (`ui/modules/apps/…`). Lua pushes state via `guihooks.trigger`, and the apps call back with `bngApi.engineLua`. Two details matter in BeamNG:
 
 - **App frames catch clicks over their whole area**, even where they look transparent. The two apps therefore must never overlap. The fuel app sits below the menu.
-- Dialogs are attached to the page body, not to the app frame, so the frame can't clip them. Only the dialog card takes clicks.
+- Dialogs and the phone are attached to the page body, not to the app frame, so the frame can't clip them. Only the dialog card / the phone take clicks.
 
 ### Regenerating the garage zones
 

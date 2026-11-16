@@ -15,7 +15,8 @@
 --   fuel      shared fuel prices; fuel deliveries make stations cheaper for everyone
 --   welcome   welcome dialog on join (with "Don't show again")
 --   nodegrab  node grabber in the career also in a vehicle / free camera (client.allowNodeGrabber)
---   grab      our own "telekinesis" grabber: move/throw your own vehicles (client.allowGrab, key F6)
+--   grab      rope and winch: move your own vehicles slowly by hand (client.allowGrab, F6/F5/F8)
+--   phone     the phone: home for future SharedCareer apps (client.phone, key F4)
 --
 -- Also in the mod: levels/west_coast_usa/.../garage_interactions/items.level.json –
 -- larger zones at the garage computers (replaces the map file of the same name),
@@ -49,5 +50,6 @@ loadPersistent('sharedCareer/fuel')
 loadPersistent('sharedCareer/welcome')
 loadPersistent('sharedCareer/nodegrab')
 loadPersistent('sharedCareer/grab')
+loadPersistent('sharedCareer/phone')
 loadPersistent('sharedCareer/cleanup')
 loadPersistent('sharedCareer/core')

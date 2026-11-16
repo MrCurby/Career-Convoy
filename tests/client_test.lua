@@ -1073,6 +1073,55 @@ check(not sharedCareer_grab.isHolding() and lastHand(truck) == "handRelease", "s
 _G.core_camera, _G.cameraMouseRayCast, _G.MPKeybindsGE = nil, nil, nil
 _G.pushActionMap, _G.popActionMap, _G.core_nodegrabberGamepad = nil, nil, nil
 
+--== 7b6. Phone ===============================================================
+resetWorld()
+installCareer()
+local phoneKey
+_G.MPKeybindsGE = {addAction = function(name, def) if name == "sharedCareerPhone" then phoneKey = def end end}
+local phoneHooks = {}
+_G.guihooks = {trigger = function(name, data) table.insert(phoneHooks, {name = name, data = data}) end}
+extensions.hook("onWorldReadyState", 2)
+local cfgP = {}
+for k, v in pairs(config) do cfgP[k] = v end
+cfgP.phone = true
+handlers.sc_config(json.encode(cfgP))
+update()
+local function lastPhone(name)
+	for i = #phoneHooks, 1, -1 do if phoneHooks[i].name == name then return phoneHooks[i].data end end
+end
+check(phoneKey and phoneKey.default == "f4" and phoneKey.title:find("phone"), "phone key registered via BeamMP (F4)")
+local st = lastPhone("SharedCareerPhone")
+check(st and st.enabled == true and #st.apps == 0, "phone on, no apps yet")
+phoneHooks = {}
+phoneKey.onDown()
+check(lastPhone("SharedCareerPhoneToggle") ~= nil, "F4 takes the phone out / puts it away")
+-- apps register themselves (for later): sorted by order, then title; no functions in the window state
+local opened = 0
+check(sharedCareer_phone.registerApp({id = "taxi", title = "Taxi", icon = "T", color = "#e0a800", order = 20,
+	onOpen = function() opened = opened + 1 end}), "an app can register")
+sharedCareer_phone.registerApp({id = "jobs", title = "Jobs", order = 10})
+sharedCareer_phone.registerApp({id = "bank", title = "Bank", order = 10, onOpen = function() error("boom") end})
+check(not sharedCareer_phone.registerApp({title = "no id"}), "an app without an id is refused")
+st = lastPhone("SharedCareerPhone")
+check(#st.apps == 3 and st.apps[1].id == "bank" and st.apps[2].id == "jobs" and st.apps[3].id == "taxi",
+	"apps sorted by order, then title")
+check(st.apps[2].icon == "J" and st.apps[2].color == "#ff6600" and st.apps[1].onOpen == nil,
+	"defaults for icon and color; no functions sent to the window")
+check(sharedCareer_phone.uiOpenApp("taxi") == true and opened == 1, "a tap opens the app")
+check(sharedCareer_phone.uiOpenApp("bank") == true, "an app that fails to open doesn't break the phone")
+check(sharedCareer_phone.uiOpenApp("nope") == false, "unknown app: nothing happens")
+sharedCareer_phone.unregisterApp("bank")
+check(#lastPhone("SharedCareerPhone").apps == 2, "an app can be removed again")
+-- switched off on the server: hidden, key does nothing, apps don't open
+cfgP.phone = false
+handlers.sc_configUpdate(json.encode(cfgP))
+check(lastPhone("SharedCareerPhone").enabled == false, "switched off: the window hides the phone")
+phoneHooks = {}
+phoneKey.onDown()
+check(lastPhone("SharedCareerPhoneToggle") == nil, "switched off: F4 does nothing")
+check(sharedCareer_phone.uiOpenApp("taxi") == false and opened == 1, "switched off: apps don't open")
+_G.MPKeybindsGE = nil
+
 --== 7c. Time of day and pause menu ==========================================
 resetWorld()
 installCareer()
@@ -1262,6 +1311,11 @@ joinWith({[ORIGINAL] = {apps = {{appName = "tacho2"}}, title = "career"}})
 check(hasTimeApp(files[CUSTOM]) and files[CUSTOM].apps[1].appName == "tacho2", "window added to the career layout (from the original)")
 check(files[CUSTOM].apps[2].placement.top == "600px", "placed right, below the player list")
 check(files["settings/sharedCareer/state.json"].timeAppAdded == true, "remembered: already added")
+local phoneApp
+for _, a in ipairs(files[CUSTOM].apps) do if a.appName == "sharedCareerPhone" then phoneApp = a end end
+check(phoneApp and phoneApp.placement.top == "920px" and phoneApp.placement.width == "30px"
+	and files["settings/sharedCareer/state.json"].phoneAppAdded == true,
+	"phone tab added once, below the fuel app, only as big as the tab")
 -- 2) player removes it again -> NOT added again on the next join
 local removedLayout = {apps = {{appName = "tacho2"}}}
 joinWith({[CUSTOM] = removedLayout, ["settings/sharedCareer/state.json"] = {timeAppAdded = true}})
@@ -1281,7 +1335,9 @@ check(timeCount == 1 and fuelCount == 1, "menu not duplicated, fuel app is added
 -- fuel app: own flag – players who only remove the fuel app don't get it back
 joinWith({[CUSTOM] = {apps = {{appName = "sharedCareerTime"}}},
 	["settings/sharedCareer/state.json"] = {timeAppAdded = true, fuelAppAdded = true}})
-check(#files[CUSTOM].apps == 1, "removed fuel app is not forced back")
+local fuelBack = 0
+for _, a in ipairs(files[CUSTOM].apps) do if a.appName == "sharedCareerFuel" then fuelBack = fuelBack + 1 end end
+check(fuelBack == 0, "removed fuel app is not forced back")
 -- update from 0.7.1: menu already there (flag set), fuel app never -> added once
 joinWith({[CUSTOM] = {apps = {{appName = "sharedCareerTime"}}},
 	["settings/sharedCareer/state.json"] = {timeAppAdded = true}})
@@ -1362,7 +1418,7 @@ MPVehicleGE.teleportVehToPlayer = function(name) table.insert(mpCalls, {"tp", na
 local suffixes = {}
 MPVehicleGE.setPlayerNickSuffix = function(name, src, text) suffixes[name] = {src = src, text = text} end
 local keyAction
-_G.MPKeybindsGE = {addAction = function(name, def) if not name:find("^sharedCareerGrab") then keyAction = {name = name, def = def} end end}
+_G.MPKeybindsGE = {addAction = function(name, def) if name == "sharedCareerMenu" then keyAction = {name = name, def = def} end end}
 local toggled = 0
 _G.guihooks = {trigger = function(n) if n == "SharedCareerToggle" then toggled = toggled + 1 end end}
 local cfgPl = {}

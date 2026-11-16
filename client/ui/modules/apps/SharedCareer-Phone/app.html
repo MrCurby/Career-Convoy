@@ -1,0 +1,66 @@
+<div ng-controller="SharedCareerPhone" class="scTime scPhone" ng-show="enabled">
+	<!-- Style of the SharedCareer menu (tab) + the phone's own -->
+	<link rel="stylesheet" type="text/css" href="/ui/modules/apps/SharedCareer-Time/app.css">
+	<link rel="stylesheet" type="text/css" href="/ui/modules/apps/SharedCareer-Phone/app.css">
+
+	<!-- The phone is attached to <body> on start (app.js), so the app frame (only the tab) never
+	     clips it and never blocks clicks elsewhere. Only the phone itself takes clicks. -->
+	<div class="scp-host" id="sharedCareerPhoneHost"><div class="scp-phone" ng-if="open && enabled">
+		<div class="scp-screen">
+			<div class="scp-notch"></div>
+
+			<!-- status bar: server time, players, connection -->
+			<div class="scp-status">
+				<span class="scp-status-time" ng-bind="clock()"></span>
+				<span class="scp-status-right">
+					<span class="scp-players" title="Players on the server">
+						<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5" fill="currentColor"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0z" fill="currentColor"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M21.5 20a6.5 6.5 0 0 0-3.5-5.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+						<span ng-bind="playerCount()"></span>
+					</span>
+					<span class="scp-signal" ng-class="{'scp-offline': !connected}" title="{{ connected ? 'Connected to the server' : 'No connection' }}">
+						<i></i><i></i><i></i><i></i>
+					</span>
+				</span>
+			</div>
+
+			<!-- home screen -->
+			<div class="scp-home" ng-if="!currentApp">
+				<div class="scp-hero">
+					<div class="scp-big-clock" ng-bind="clock()"></div>
+					<div class="scp-sub" ng-bind="dayText()"></div>
+				</div>
+				<div class="scp-grid" ng-if="apps.length">
+					<button class="scp-app" ng-repeat="app in apps track by app.id" ng-click="openApp(app)" title="{{ app.title }}">
+						<span class="scp-app-icon" ng-style="{'background': app.color}" ng-bind="app.icon"></span>
+						<span class="scp-app-title" ng-bind="app.title"></span>
+					</button>
+				</div>
+				<div class="scp-empty" ng-if="!apps.length">
+					<svg class="scp-empty-logo" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.3" fill="none" stroke="currentColor" stroke-width="2.2"/><circle cx="12" cy="12.6" r="2.7" fill="currentColor"/><path d="M3.2 11.2 Q12 8.2 20.8 11.2 M12 15.3 V21.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+					<div class="scp-empty-title">No apps yet</div>
+					<div class="scp-empty-text">Apps for jobs and more will show up here.</div>
+				</div>
+			</div>
+
+			<!-- an open app (apps bring their own content later) -->
+			<div class="scp-appview" ng-if="currentApp">
+				<div class="scp-appbar">
+					<button class="scp-back" ng-click="goHome()">&#8249; Home</button>
+					<span class="scp-appbar-title" ng-bind="currentApp.title"></span>
+				</div>
+				<div class="scp-appbody">
+					<span class="scp-app-icon scp-app-icon-big" ng-style="{'background': currentApp.color}" ng-bind="currentApp.icon"></span>
+				</div>
+			</div>
+
+			<!-- home bar: back to the home screen; on the home screen it puts the phone away -->
+			<div class="scp-homebar" ng-click="homeBar()" title="{{ currentApp ? 'Home' : 'Put the phone away' }}"><i></i></div>
+		</div>
+	</div></div>
+
+	<!-- tab at the right edge: takes the phone out / puts it away -->
+	<div class="sct-tab scp-tab" ng-class="{'scp-tab-open': open}" ng-click="toggle()" title="{{ open ? 'Put the phone away' : 'Take the phone out (F4)' }}">
+		<svg class="sct-logo" viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="2.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10.5 18.2h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+		<span class="sct-tab-arrow" ng-bind="open ? '>' : '<'"></span>
+	</div>
+</div>
