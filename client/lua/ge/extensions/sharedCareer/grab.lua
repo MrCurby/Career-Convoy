@@ -5,7 +5,8 @@
 -- doesn't bend anything and isn't limited by vehicle weight.
 --
 --   Key (default F6, rebindable under Options → Controls → BeamMP, "SharedCareer: grab vehicle"):
---     1st press  grabs your vehicle under the mouse cursor (or in the middle of the view)
+--     1st press  grabs your vehicle under the mouse cursor (or in the middle of the view if
+--                the cursor points at the sky); the vehicle closest to that line is taken
 --     2nd press  lets go – the vehicle keeps its speed, so you can throw it
 --   While grabbed, the vehicle is pulled to the point on the line from the camera through the
 --   mouse cursor, at the distance where you grabbed it.
@@ -96,24 +97,68 @@ function M.release()
 	U.log("D", "grab", "vehicle released")
 end
 
+-- Direction from the camera through the mouse cursor (or the view direction if the ray hits
+-- nothing). Returns cam, dir (unit vector), or nil.
+local function aimRay()
+	local cam = cameraPos()
+	if not cam then return nil end
+	local hit = mouseRay()
+	if hit then
+		local h = vecOf(hit.pos)
+		local dx, dy, dz = h.x - cam.x, h.y - cam.y, h.z - cam.z
+		local len = math.sqrt(dx * dx + dy * dy + dz * dz)
+		if len > 0.01 then return cam, {x = dx / len, y = dy / len, z = dz / len} end
+	end
+	if core_camera and type(core_camera.getForward) == "function" then
+		local ok, f = pcall(core_camera.getForward)
+		f = ok and vecOf(f)
+		if f then
+			local len = math.sqrt(f.x * f.x + f.y * f.y + f.z * f.z)
+			if len > 0.01 then return cam, {x = f.x / len, y = f.y / len, z = f.z / len} end
+		end
+	end
+	return nil
+end
+M.aimRay = aimRay
+
+-- The vehicle closest to the aim line: {veh, id, t (distance along the line), miss (distance
+-- from the line)}, or nil. The ray cast itself doesn't report vehicles in every game version,
+-- so we search the vehicles ourselves.
+local function vehicleOnRay(cam, dir)
+	local best = nil
+	local count = type(be.getObjectCount) == "function" and be:getObjectCount() or 0
+	for i = 0, count - 1 do
+		local veh = be:getObject(i)
+		if veh and type(veh.getPosition) == "function" and type(veh.getID) == "function" then
+			local p = vecOf(veh:getPosition())
+			local rx, ry, rz = p.x - cam.x, p.y - cam.y, p.z - cam.z
+			local t = rx * dir.x + ry * dir.y + rz * dir.z
+			if t > 0.5 and t <= MAX_DISTANCE then
+				local mx, my, mz = rx - dir.x * t, ry - dir.y * t, rz - dir.z * t
+				local miss = math.sqrt(mx * mx + my * my + mz * mz)
+				-- a vehicle counts as "pointed at" within a few meters of its center
+				if miss <= math.max(3, 0.06 * t) and (not best or miss < best.miss) then
+					best = {veh = veh, id = veh:getID(), t = t, miss = miss}
+				end
+			end
+		end
+	end
+	return best
+end
+M.vehicleOnRay = vehicleOnRay
+
 local function grab()
 	if not allowed() then
 		message("Grabbing vehicles is switched off on this server")
 		return
 	end
-	local cam = cameraPos()
-	local hit = mouseRay()
-	local obj = hit and hit.object
-	if not cam or not obj or type(obj.getID) ~= "function" then
+	local cam, dir = aimRay()
+	local found = cam and vehicleOnRay(cam, dir)
+	if not found or type(found.veh.applyClusterVelocityScaleAdd) ~= "function" then
 		message("Point at one of your vehicles to grab it")
 		return
 	end
-	local id = obj:getID()
-	local veh = be:getObjectByID(id)
-	if not veh or type(veh.applyClusterVelocityScaleAdd) ~= "function" then
-		message("Point at one of your vehicles to grab it")
-		return
-	end
+	local veh, id = found.veh, found.id
 	local model = veh.JBeam
 	if model == nil and type(veh.getJBeamFilename) == "function" then model = veh:getJBeamFilename() end
 	if model == "unicycle" then
@@ -124,16 +169,12 @@ local function grab()
 		message("You can only grab your own vehicles")
 		return
 	end
-	local p, h = vecOf(veh:getPosition()), vecOf(hit.pos)
-	local dx, dy, dz = h.x - cam.x, h.y - cam.y, h.z - cam.z
-	local dist = math.sqrt(dx * dx + dy * dy + dz * dz)
-	if dist > MAX_DISTANCE or dist < 0.5 then
-		message("Too far away to grab")
-		return
-	end
-	held = {id = id, dist = dist, ox = h.x - p.x, oy = h.y - p.y, oz = h.z - p.z,
-		dx = dx / dist, dy = dy / dist, dz = dz / dist}
-	U.log("D", "grab", "grabbed vehicle " .. tostring(id) .. string.format(" at %.1f m", dist))
+	-- grab point: the point on the aim line closest to the vehicle's center
+	local p = vecOf(veh:getPosition())
+	local gx, gy, gz = cam.x + dir.x * found.t, cam.y + dir.y * found.t, cam.z + dir.z * found.t
+	held = {id = id, dist = found.t, ox = gx - p.x, oy = gy - p.y, oz = gz - p.z,
+		dx = dir.x, dy = dir.y, dz = dir.z}
+	U.log("I", "grab", string.format("grabbed vehicle %s at %.1f m", tostring(id), found.t))
 end
 
 function M.toggle()
@@ -150,16 +191,9 @@ function M.step(dt)
 		M.release()
 		return
 	end
-	local cam = cameraPos()
+	local cam, dir = aimRay()
 	if not cam then return end
-	-- direction from the camera through the mouse cursor; keep the last one if the ray hits nothing
-	local hit = mouseRay()
-	if hit then
-		local h = vecOf(hit.pos)
-		local dx, dy, dz = h.x - cam.x, h.y - cam.y, h.z - cam.z
-		local len = math.sqrt(dx * dx + dy * dy + dz * dz)
-		if len > 0.01 then held.dx, held.dy, held.dz = dx / len, dy / len, dz / len end
-	end
+	held.dx, held.dy, held.dz = dir.x, dir.y, dir.z
 	local p = vecOf(veh:getPosition())
 	local tx, ty, tz = cam.x + held.dx * held.dist, cam.y + held.dy * held.dist, cam.z + held.dz * held.dist
 	local ex, ey, ez = tx - (p.x + held.ox), ty - (p.y + held.oy), tz - (p.z + held.oz)

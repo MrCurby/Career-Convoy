@@ -715,10 +715,14 @@ _G.cameraMouseRayCast = function()
 end
 local truck = physVeh(60, 10, 0, 0)
 check(keyG and keyG.default == "f6" and keyG.title:find("grab"), "grab key registered via BeamMP (F6)")
--- grab the truck where the mouse points at it
-mouse.objectId, mouse.pos = 60, {x = 10, y = 0, z = 0}
+-- grab the truck where the mouse points at it. Like in the game (0.9.0 bug): the ray cast
+-- reports no vehicle object, only the point behind it on the ground.
+mouse.objectId, mouse.pos = nil, {x = 20, y = 0, z = -2}
 keyG.onDown()
-check(sharedCareer_grab.isHolding(), "own vehicle grabbed")
+check(sharedCareer_grab.isHolding(), "own vehicle grabbed although the ray cast reports no vehicle")
+sharedCareer_grab.release()
+mouse.pos = {x = 10, y = 0, z = 0}
+keyG.onDown()
 -- move the mouse up: the truck follows and stays there against gravity
 mouse.objectId, mouse.pos = nil, {x = 10, y = 0, z = 6}
 simulate(truck, 4)
@@ -755,8 +759,15 @@ check(not held and msg:find("your own"), "another player's vehicle can't be grab
 physVeh(62, 3, 0, 0, "unicycle")
 held, msg = tryGrab(62, {x = 3, y = 0, z = 0})
 check(not held and msg:find("on foot"), "a player on foot can't be grabbed")
-held, msg = tryGrab(nil, {x = 50, y = 0, z = 0})
-check(not held and msg:find("Point at"), "nothing under the mouse: hint")
+held, msg = tryGrab(nil, {x = -50, y = -50, z = 2})
+check(not held and msg:find("Point at"), "no vehicle near the aim line: hint")
+-- mouse points at the sky (no hit): the view direction is used
+mouse.objectId, mouse.pos = nil, nil
+core_camera.getForward = function() return {x = truck.p.x - cam.x, y = truck.p.y - cam.y, z = truck.p.z - cam.z} end
+keyG.onDown()
+check(sharedCareer_grab.isHolding(), "no ray hit: the view direction picks the vehicle")
+sharedCareer_grab.release()
+core_camera.getForward = nil
 held = tryGrab(60, {x = 500, y = 0, z = 0})
 check(not held, "too far away: not grabbed")
 cfgG.allowGrab = false
