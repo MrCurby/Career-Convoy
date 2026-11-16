@@ -850,31 +850,17 @@ do
 	body.brake = nil
 end
 
---== 7b5. Our own node grabber: GE side (picking, target, keys) ================
+--== 7b5. Our own node grabber: GE side (picking, anchor, Tow app) ===========
 resetWorld()
 installCareer()
-local keyG
 local grabKeys = {}
-_G.MPKeybindsGE = {addAction = function(name, def)
-	grabKeys[name] = def
-	if name == "sharedCareerGrab" then keyG = def end
-end}
-local actionMaps = {}
-_G.pushActionMap = function(name) actionMaps[name] = (actionMaps[name] or 0) + 1 end
-_G.popActionMap = function(name) actionMaps[name] = (actionMaps[name] or 0) - 1 end
--- the game's node grabber strength action (mouse wheel), see core/nodegrabberGamepad.lua
-local strengthCalls = 0
-local grabCalls = 0
-local gpGrab = {changeStrength = function() strengthCalls = strengthCalls + 1 end,
-	grab = function() grabCalls = grabCalls + 1 end}
-_G.core_nodegrabberGamepad = gpGrab
+_G.MPKeybindsGE = {addAction = function(name, def) grabKeys[name] = def end}
 extensions.hook("onWorldReadyState", 2)
 local cfgG = {}
 for k, v in pairs(config) do cfgG[k] = v end
 cfgG.allowGrab, cfgG.grabSpeed, cfgG.grabStrength = true, 1, 150
 handlers.sc_config(json.encode(cfgG))
 update()
-extensions.core_nodegrabberGamepad = gpGrab
 local function placedVeh(id, x, y, z, jbeam, remote)
 	local v = addVehicle(id, (remote and "7-" or "0-") .. id, not remote, jbeam)
 	v.p = {x = x, y = y, z = z}
@@ -896,93 +882,46 @@ local function frames(seconds)
 	for _ = 1, math.floor(seconds * 60 + 0.5) do extensions.hook("onUpdate", 1 / 60) end
 end
 local cam = {x = 0, y = 0, z = 2}
-local mouse = {pos = nil}
 local fwd = nil
 _G.core_camera = {getPosition = function() return cam end, getForward = function() return fwd end}
-_G.cameraMouseRayCast = function()
-	if not mouse.pos then return nil end
-	return {pos = mouse.pos, distance = 10}   -- like in the game: no vehicle object reported
-end
 local truck = placedVeh(60, 10, 0, 1)
-check(keyG and keyG.default == "f6" and keyG.title:find("rope"), "rope key registered via BeamMP (F6)")
-check(grabKeys.sharedCareerGrabFarther and grabKeys.sharedCareerGrabFarther.default == "pageup"
-	and grabKeys.sharedCareerGrabCloser.default == "pagedown", "fallback keys for the distance (Page Up / Down)")
--- attach: the mouse ray passes the truck (it reports no vehicle, only the ground behind it)
-mouse.pos = {x = 20, y = 0, z = 0}
-keyG.onDown()
+local ropeKeys = 0
+for keyName in pairs(grabKeys) do if keyName:find("Grab") then ropeKeys = ropeKeys + 1 end end
+check(ropeKeys == 0, "no keys for the rope: everything runs in the Tow app")
+-- attach where I look: the view ray passes the truck
+fwd = {x = 1, y = 0, z = -0.1}
+check(sharedCareer_grab.uiAttachView(), "attach where I look")
 local name, a = lastHand(truck)
-check(sharedCareer_grab.isHolding() and name == "handGrabRay", "rope attached: the aim ray is sent to the vehicle")
+check(sharedCareer_grab.isHolding() and name == "handGrabRay", "rope attached: the view ray is sent to the vehicle")
 check(a and a[1] == 0 and a[2] == 0 and a[3] == 2 and a[4] > 0.99 and a[7] == 120 and a[8] == 1 and a[9] == 60,
-	"camera position, aim direction, speed 1 m/s and strength 60 % sent along")
-check(#toasts > 0 and toasts[#toasts].msg:find("left mouse") and toasts[#toasts].msg:find("F8"), "first rope: a short hint how it works")
-check(actionMaps.Nodegrabber == 1, "the node grabber input layer is switched on (mouse button, wheel)")
-check(grabKeys.sharedCareerGrabAnchor and grabKeys.sharedCareerGrabAnchor.default == "f5"
-	and grabKeys.sharedCareerGrabAnchor.onUp and grabKeys.sharedCareerGrabWinch.default == "f8",
-	"keys: hold F5 to move the anchor (with release), F8 for the winch")
+	"camera position, view direction, speed 1 m/s and strength 60 % sent along")
 -- the vehicle reports where it grabbed: the anchor starts there
 sharedCareer_grab.onGrip(60, 9.0, 9, 0, 1)
 frames(0.1)
 name, a = lastHand(truck)
 check(name == "handRope" and a[1] == 9 and a[2] == 0 and a[3] == 1 and a[4] == 0 and a[5] == 0,
 	"anchor starts at the grip; winch off, not moving")
--- looking around without holding the mouse: the anchor stays
-fwd = {x = 0, y = 1, z = 0}
-frames(0.2)
-name, a = lastHand(truck)
-check(a[1] == 9 and a[2] == 0, "not holding the mouse: the anchor stays where it is")
--- the wheel does nothing while not moving the anchor
-gpGrab.changeStrength(4, 0)
-check(strengthCalls == 0, "wheel while holding a rope: not the game's strength")
--- hold the left mouse (the node grabber's mouse button): the anchor follows the view
-gpGrab.grab(1, "mouse0")
-frames(0.2)
-name, a = lastHand(truck)
-local anchorDist = math.sqrt(9 ^ 2 + 1)   -- distance camera -> anchor when moving started
-check(name == "handRope" and a[5] == 1 and math.abs(a[1]) < 0.01 and math.abs(a[2] - anchorDist) < 0.05
-	and math.abs(a[3] - 2) < 0.01, string.format("holding the mouse: the anchor follows the view (%.1f/%.1f/%.1f)", a[1], a[2], a[3]))
 local sent = #truck.lua
 frames(1)
 check(#truck.lua - sent >= 25 and #truck.lua - sent <= 35, "rope state sent about 30 times per second")
--- wheel: 4 notches up = 6 m farther; Page Down closer; never closer than 3 m
-gpGrab.changeStrength(4, 0)
-frames(0.1)
-name, a = lastHand(truck)
-check(math.abs(a[2] - (anchorDist + 6)) < 0.05 and strengthCalls == 0, "mouse wheel: anchor farther away")
-grabKeys.sharedCareerGrabCloser.onDown()
-grabKeys.sharedCareerGrabCloser.onDown()
-frames(0.1)
-name, a = lastHand(truck)
-check(math.abs(a[2] - (anchorDist + 3)) < 0.05, "Page Down: anchor closer")
-for _ = 1, 30 do gpGrab.changeStrength(-1, 0) end
-frames(0.1)
-name, a = lastHand(truck)
-check(math.abs(a[2] - 3) < 0.01, "never closer than 3 m")
--- walking carries the anchor along
-cam = {x = 5, y = 0, z = 2}
-frames(0.1)
-name, a = lastHand(truck)
-check(math.abs(a[1] - 5) < 0.01 and math.abs(a[2] - 3) < 0.01, "walking: the anchor comes along")
--- let go of the mouse: the anchor stays in the air, whatever you do
-gpGrab.grab(0, "mouse0")
-fwd = {x = 1, y = 0, z = 0}
-cam = {x = 0, y = 0, z = 2}
+-- looking around: the anchor stays
+fwd = {x = 0, y = 1, z = 0}
 frames(0.2)
 name, a = lastHand(truck)
-check(a[5] == 0 and math.abs(a[1] - 5) < 0.01 and math.abs(a[2] - 3) < 0.01, "mouse released: the anchor stays in the air")
--- F5 (hold) does the same as the mouse
-grabKeys.sharedCareerGrabAnchor.onDown()
+check(a[1] == 9 and a[2] == 0, "looking around: the anchor stays where it is")
+-- winch on
+sharedCareer_grab.uiWinch(1)
 frames(0.1)
 name, a = lastHand(truck)
-check(a[5] == 1, "F5 held: moving the anchor")
-grabKeys.sharedCareerGrabAnchor.onUp()
+check(a[4] == 1, "winch on")
+-- move the anchor 4 m towards you with the remote (seen from the camera: x is forward)
+fwd = {x = 1, y = 0, z = 0}
+sharedCareer_grab.uiNudge(-1, 0, 0)
+frames(4)
+sharedCareer_grab.uiNudgeStop()
 frames(0.1)
 name, a = lastHand(truck)
-check(a[5] == 0, "F5 released: anchor stays")
--- winch on / off
-grabKeys.sharedCareerGrabWinch.onDown()
-frames(0.1)
-name, a = lastHand(truck)
-check(a[4] == 1 and toasts[#toasts].msg:find("Winch on"), "F8: winch on")
+check(math.abs(a[1] - 5) < 0.1 and a[2] == 0 and a[5] == 0, string.format("anchor moved with the remote (x = %.2f)", a[1]))
 -- settings change live
 cfgG.grabSpeed, cfgG.grabStrength = 0.5, 200
 handlers.sc_configUpdate(json.encode(cfgG))
@@ -1026,17 +965,17 @@ sharedCareer_grab.onHandState(60, 9, 0, 1, 1, 0, 4)
 drawn = {}
 frames(1 / 60)
 check(drawn[1].c.r == 1 and drawn[1].c.g < 0.3, "red at the force limit")
-grabKeys.sharedCareerGrabWinch.onDown()
+sharedCareer_grab.uiWinch(0)
 sharedCareer_grab.onHandState(60, 9, 0, 1, 0, 1, 4)
 drawn = {}
 frames(1 / 60)
 check(drawn[1].c.r == 0.7 and drawn[1].c.g == 0.7 and drawn[#drawn - 2].c.r == 1 and drawn[#drawn - 2].c.g == 1,
 	"slack rope: grey line; winch off: white anchor")
-gpGrab.grab(1, "mouse0")
+sharedCareer_grab.uiNudge(0, 0, 0)
 drawn = {}
 frames(1 / 60)
 check(drawn[#drawn - 2].c.b > 0.9 and drawn[#drawn - 2].c.r < 0.5, "moving the anchor: cyan anchor")
-gpGrab.grab(0, "mouse0")
+sharedCareer_grab.uiNudgeStop()
 do
 -- sag: a slack rope is drawn as a curve below the straight line, a taut one straight
 check(sharedCareer_grab.sagDepth(4, 4, 4) == 0 and sharedCareer_grab.sagDepth(4, 4, 3) == 0,
@@ -1101,7 +1040,7 @@ local sg = find("text")
 check(sg and sg.t:find("^Anchor") and sg.t:find("%d+%.%d m"), "Tow app open: sign above the anchor with the distance (" .. tostring(sg and sg.t) .. ")")
 sharedCareer_grab.setAppOpen(false)
 -- winch hauling in: the pin's ball pulses
-grabKeys.sharedCareerGrabWinch.onDown()
+sharedCareer_grab.uiWinch(1)
 local radii = {}
 for _ = 1, 20 do
 	shapes = {}
@@ -1113,7 +1052,7 @@ end
 local lo, hi = math.huge, 0
 for _, r in ipairs(radii) do lo, hi = math.min(lo, r), math.max(hi, r) end
 check(hi - lo > 0.03, string.format("winch hauling in: the anchor ball pulses (%.3f-%.3f)", lo, hi))
-grabKeys.sharedCareerGrabWinch.onDown()
+sharedCareer_grab.uiWinch(0)
 -- a missing shape falls back to lines, without errors
 _G.debugDrawer.drawSphere = nil
 shapes = {}
@@ -1123,20 +1062,14 @@ _G.debugDrawer, _G.String, _G.ColorI = lineOnly, nil, nil
 sharedCareer_grab.resetShapes()
 end
 -- let go
-keyG.onDown()
-check(not sharedCareer_grab.isHolding() and lastHand(truck) == "handRelease" and actionMaps.Nodegrabber == 0,
-	"second press lets go: handRelease sent, wheel layer off")
-gpGrab.changeStrength(1, 0)
-check(strengthCalls == 1, "no rope: the wheel is the game's node grabber strength again")
-gpGrab.grab(1, "mouse0")
-check(grabCalls == 1, "no rope: the mouse button is the game's node grabber again")
+sharedCareer_grab.uiRelease()
+check(not sharedCareer_grab.isHolding() and lastHand(truck) == "handRelease", "remove rope: handRelease sent")
 drawn = {}
 frames(1 / 60)
 check(#drawn == 0, "let go: nothing drawn")
 -- preview: only while the Tow app is open (not just on foot); it aims with the view
 local walkingNow = true
 _G.gameplay_walk = {isWalking = function() return walkingNow end}
-mouse.pos = {x = 20, y = 0, z = 0}
 fwd = {x = 1, y = 0, z = -0.1}
 local function probeCount(from)
 	local c = 0
@@ -1214,11 +1147,6 @@ frames(0.1)
 check(select(2, lastHand(truck))[5] == 0, "... only once")
 sharedCareer_grab.uiRelease()
 check(not sharedCareer_grab.isHolding() and lastHand(truck) == "handRelease", "remove rope from the app")
--- attach where you look (the cursor is on the phone): uses the view direction
-fwd = {x = 1, y = 0, z = -0.1}
-mouse.pos = {x = 0, y = -30, z = 0}
-check(sharedCareer_grab.uiAttachView() and lastHand(truck) == "handGrabRay", "attach where I look: aims with the view, not the cursor")
-sharedCareer_grab.uiRelease()
 sharedCareer_phone.uiCloseApp("tow")
 fwd = nil
 -- switched off on the server: the app leaves the phone
@@ -1229,62 +1157,57 @@ for _, app in ipairs(sharedCareer_phone.state().apps) do if app.id == "tow" then
 check(not stillThere, "grabbing switched off: the Tow app leaves the phone")
 cfgG.allowGrab = true
 handlers.sc_configUpdate(json.encode(cfgG))
-toasts = {}
-mouse.pos = {x = 20, y = 0, z = 0}
-keyG.onDown()
-check(sharedCareer_grab.isHolding() and #toasts == 0, "the hint only comes on the first grab")
-sharedCareer_grab.release()
 _G.gameplay_walk, _G.debugDrawer, _G.ColorF, _G.vec3 = nil, nil, nil, nil
-fwd = nil
+-- the last toast message (the Tow app's state goes through the same guihooks mock)
+local function lastToast()
+	for i = #toasts, 1, -1 do if toasts[i].msg then return toasts[i].msg end end
+	return ""
+end
 -- the vehicle you sit in can't be grabbed (the camera would move with it)
+fwd = {x = 1, y = 0, z = -0.1}
 world.playerVeh = 60
-mouse.pos = {x = 20, y = 0, z = 0}
 toasts = {}
-keyG.onDown()
-check(not sharedCareer_grab.isHolding() and toasts[#toasts].msg:find("Get out"), "the vehicle you are in can't be grabbed")
+sharedCareer_grab.uiAttachView()
+check(not sharedCareer_grab.isHolding() and lastToast():find("Get out"), "the vehicle you are in can't be grabbed")
 core_camera.getActiveGlobalCameraName = function() return "free" end
-keyG.onDown()
+sharedCareer_grab.uiAttachView()
 check(sharedCareer_grab.isHolding(), "from the free camera it can")
 sharedCareer_grab.release()
 core_camera.getActiveGlobalCameraName = nil
 world.playerVeh = nil
--- refusals
-local function tryGrab(pos)
-	mouse.pos = pos
+-- refusals (attach where I look)
+local function tryGrab(dir)
+	fwd = dir
 	toasts = {}
-	keyG.onDown()
+	sharedCareer_grab.uiAttachView()
 	local held = sharedCareer_grab.isHolding()
 	sharedCareer_grab.release()
-	return held, toasts[#toasts] and toasts[#toasts].msg or ""
+	return held, lastToast()
 end
 placedVeh(61, -10, 10, 1, nil, true)
-local held, msg = tryGrab({x = -20, y = 20, z = 0})
+local held, msg = tryGrab({x = -1, y = 1, z = -0.1})
 check(not held and msg:find("your own"), "another player's vehicle can't be grabbed")
 placedVeh(62, 0, -10, 1, "unicycle")
-held, msg = tryGrab({x = 0, y = -20, z = 0})
+held, msg = tryGrab({x = 0, y = -1, z = -0.1})
 check(not held and msg:find("on foot"), "a player on foot can't be grabbed")
-held, msg = tryGrab({x = -50, y = -50, z = 2})
-check(not held and msg:find("Point at"), "no vehicle near the aim line: hint")
-mouse.pos = nil
-fwd = {x = 1, y = 0, z = -0.1}
-keyG.onDown()
-check(sharedCareer_grab.isHolding(), "no ray hit: the view direction picks the vehicle")
-sharedCareer_grab.release()
-fwd = nil
+held, msg = tryGrab({x = -1, y = -1, z = 0})
+check(not held and msg:find("Look at"), "no vehicle in view: hint")
+held, msg = tryGrab(nil)
+check(not held, "no view direction: nothing attached")
 cfgG.allowGrab = false
 handlers.sc_configUpdate(json.encode(cfgG))
-held, msg = tryGrab({x = 20, y = 0, z = 0})
+held, msg = tryGrab({x = 1, y = 0, z = -0.1})
 check(not held and msg:find("switched off"), "switched off on the server: no grabbing")
 cfgG.allowGrab = true
 handlers.sc_configUpdate(json.encode(cfgG))
-mouse.pos = {x = 20, y = 0, z = 0}
-keyG.onDown()
+fwd = {x = 1, y = 0, z = -0.1}
+sharedCareer_grab.uiAttachView()
 cfgG.allowGrab = false
 handlers.sc_configUpdate(json.encode(cfgG))
 frames(0.05)
 check(not sharedCareer_grab.isHolding() and lastHand(truck) == "handRelease", "switched off while holding: lets go")
-_G.core_camera, _G.cameraMouseRayCast, _G.MPKeybindsGE = nil, nil, nil
-_G.pushActionMap, _G.popActionMap, _G.core_nodegrabberGamepad = nil, nil, nil
+fwd = nil
+_G.core_camera, _G.MPKeybindsGE = nil, nil
 
 --== 7b6. Phone ===============================================================
 resetWorld()

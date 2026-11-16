@@ -105,7 +105,7 @@ function M.setAiTuning(gap, sightFactor)
 end
 
 --== Hand: our own node grabber, as a rope =======================================
--- A rope from a grip on the vehicle (a few nodes around the point you aimed at) to an anchor
+-- A rope from a grip on the vehicle (a few nodes around the point you looked at) to an anchor
 -- point that the GE side places (grab.lua). It behaves like a real rope with a winch:
 --   * it only pulls when it is taut (distance grip -> anchor longer than the rope); it never pushes
 --   * while the anchor is being moved, the winch pays out rope, so the vehicle stays where it is
@@ -208,7 +208,7 @@ local function nodeOnRay(cx, cy, cz, dx, dy, dz, maxDist)
 	return best
 end
 
---- Grabs the vehicle where the ray from the camera points at it (the node closest to the ray)
+--- Grabs the vehicle where the view ray from the camera meets it (the node closest to the ray)
 --- and reports the grip back: sharedCareer_grab.onGrip(id, t, x, y, z).
 function M.handGrabRay(cx, cy, cz, dx, dy, dz, maxDist, speed, strength)
 	local n = nodeOnRay(cx, cy, cz, dx, dy, dz, tonumber(maxDist) or 120)
@@ -235,7 +235,7 @@ function M.handGrabNearest(px, py, pz, speed, strength)
 	return true
 end
 
---- Preview: where would F6 grab? Reports sharedCareer_grab.onProbe(id, x, y, z).
+--- Preview: where would "attach where I look" grab? Reports sharedCareer_grab.onProbe(id, x, y, z).
 function M.handProbe(cx, cy, cz, dx, dy, dz, maxDist)
 	local n = nodeOnRay(cx, cy, cz, dx, dy, dz, tonumber(maxDist) or 120)
 	if n then reportToGE("onProbe", "%.3f, %.3f, %.3f", n.x, n.y, n.z) end

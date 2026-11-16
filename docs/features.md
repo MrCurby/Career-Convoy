@@ -150,13 +150,15 @@ The normal career only lets you use the node grabber (grab and pull vehicles wit
 
 Server admins can switch back to the career's rule with `sc set client.allowNodeGrabber false`. It applies immediately.
 
-**The pull is weaker than in freeroam.** BeamNG limits the grab force in the career inside the game engine; the single-player career is just as weak. A mod can't change that, so in the career the node grabber is good for nudging and turning cars, but not for throwing them around. For heavier work, use SharedCareer's own grabber (F6), see below.
+**The pull is weaker than in freeroam.** BeamNG limits the grab force in the career inside the game engine; the single-player career is just as weak. A mod can't change that, so in the career the node grabber is good for nudging and turning cars, but not for throwing them around. For heavier work, use SharedCareer's rope and winch in the Tow app, see below.
 
 ## Moving your vehicles by hand (rope and winch)
 
 Because the game's node grabber is so weak in the career, SharedCareer has its own: a rope with a winch. It's made for moving vehicles that can't drive anymore, slowly and by hand, for example onto a tow truck.
 
-### With the Tow app (remote control)
+Everything runs in the **Tow** app on the phone, as a remote control. There are no extra keys.
+
+### The Tow app
 
 <img src="images/phone-tow-attach.png" width="200" alt="Tow app: attach a rope"> <img src="images/phone-tow.png" width="200" alt="Tow app: remote control and winch">
 
@@ -164,19 +166,9 @@ Open the phone (**F4**) and tap **Tow**:
 
 - **Attach:** "Attach where I look" puts the rope where the middle of your screen points; a see-through blue ball shows where (only while the Tow app is open). Or tap one of **your vehicles nearby** in the list: the rope goes on the point of that vehicle closest to you.
 - **Anchor remote:** hold ▲ ▼ ◀ ▶ to move the anchor away/towards you and left/right (as seen from your view), **Up** / **Down** to raise or lower it. The vehicle doesn't move; the rope just gets longer. ◎ puts the anchor in the middle of your view. **Fine** makes everything four times slower, for exact placing.
-- **Winch:** **Pay out** (rope gets longer, e.g. to lower a lifted end), **Stop** (rope holds), **Haul in** (pulls the vehicle to the anchor).
+- **Winch:** **Pay out** (rope gets longer, e.g. to lower a lifted end), **Stop** (rope holds), **Haul in** (pulls the vehicle slowly to the anchor, by default at most 1 m/s; it stops half a meter before it and doesn't roll past).
 - The card at the top shows the vehicle, the rope length, the distance to the anchor and how hard the rope pulls.
 - **Remove rope** at the bottom.
-
-### With keys
-
-| Step | Control | What happens |
-|---|---|---|
-| Attach the rope | Point at one of your vehicles, press **F6** | The rope is fixed exactly where you pointed (e.g. the front bumper). |
-| Place the anchor | **Hold the left mouse button** (or **F5**) | The anchor follows the middle of your view. Walk to carry it along; the mouse wheel (or Page Up / Page Down) moves it farther or closer. The vehicle doesn't move, the rope just gets longer. |
-| | Let go | The anchor stays where it is, in the air, wherever you go or look. |
-| Pull | **F8** | Winch on: the rope is hauled in and the vehicle is pulled slowly (at most 1 m/s) to the anchor. It stops half a meter before it and doesn't roll past. Press F8 again to stop; the vehicle then hangs on the rope. |
-| Remove the rope | **F6** | |
 
 It behaves like a real rope: it only pulls when it's taut, never pushes. The force is limited to the pull strength picked in the Tow app (60 % of the vehicle's weight at first, see below). Below 100 % you can lift one end (put the anchor up high) and drag the vehicle, but not float it. Pull a corner and the vehicle turns; the wheels roll. The force goes mostly to the heavy frame parts around the rope's end, so nothing gets bent.
 
@@ -188,7 +180,7 @@ What you see:
 
 It only works on your own vehicles and your own traffic: other players' vehicles are simulated on their PCs, and BeamMP would put them right back. Players on foot can't be roped, and neither can the vehicle you are sitting in (the camera would move with it). Get out, or use the free camera.
 
-All keys are rebindable under *Options → Controls → BeamMP* (entries starting with "SharedCareer:"); there you can also put "move rope anchor" on the right mouse button. Server admins can switch it off with `sc set client.allowGrab false`, and set how fast the winch hauls in (`client.grabSpeed`, m/s) and the highest pull strength a player may pick (`client.grabStrength`, % of the vehicle's weight).
+Server admins can switch it off with `sc set client.allowGrab false`, and set how fast the winch hauls in (`client.grabSpeed`, m/s) and the highest pull strength a player may pick (`client.grabStrength`, % of the vehicle's weight).
 
 **Pull strength:** in the Tow app you pick 30, 60, 100 or 150 % of the vehicle's weight (60 % at first). If the vehicle doesn't follow – stuck, handbrake on, gear in Park – the pull builds up to that limit within about two seconds. If it still doesn't move, pick more; a handbrake or Park usually needs 100 % or more.
 

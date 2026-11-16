@@ -175,7 +175,7 @@ local DEFAULTS = {
 		-- camera. The normal career only allows it while walking. Makes cheating easy (flip cars,
 		-- push cargo), but handy among friends. false = the career's own rule.
 		allowNodeGrabber = true,
-		-- Our own node grabber (key F6): move your own vehicles slowly by hand, with physics –
+		-- Our own node grabber (rope and winch, Tow app on the phone): move your own vehicles slowly, with physics –
 		-- e.g. onto a tow truck. Only own vehicles.
 		allowGrab = true,
 		-- The phone (key F4, tab at the right screen edge) with the Tow and Fuel apps.

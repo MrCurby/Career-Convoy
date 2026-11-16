@@ -15,7 +15,7 @@
 --   fuel      shared fuel prices; fuel deliveries make stations cheaper for everyone
 --   welcome   welcome dialog on join (with "Don't show again")
 --   nodegrab  node grabber in the career also in a vehicle / free camera (client.allowNodeGrabber)
---   grab      rope and winch: move your own vehicles slowly by hand (client.allowGrab, F6/F5/F8)
+--   grab      rope and winch: move your own vehicles slowly by hand (Tow app, client.allowGrab)
 --   phone     the phone with its apps: Tow (grab.lua), Fuel (fuel.lua) (client.phone, key F4)
 --
 -- Also in the mod: levels/west_coast_usa/.../garage_interactions/items.level.json –
