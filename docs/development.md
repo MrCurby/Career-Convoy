@@ -138,31 +138,6 @@ SharedCareer brings the **normal BeamNG career** to multiplayer, nothing more an
 
 Tested with BeamNG.drive 0.40.5, BeamMP 4.23.1 and BeamMP-Server 3.9.3 (Linux).
 
-| Career feature | Status |
-|---|---|
-| Join, career start, own save | <img src="icons/status-done.svg" width="16" height="16" alt="tested"> tested |
-| Other players' cars survive the career start | <img src="icons/status-done.svg" width="16" height="16" alt="tested"> tested (2 instances) |
-| Vehicle and damage sync | <img src="icons/status-done.svg" width="16" height="16" alt="tested"> tested (BeamMP) |
-| Traffic (drives, simple vehicles, more careful AI) | <img src="icons/status-done.svg" width="16" height="16" alt="tested"> tested |
-| Buying cars | <img src="icons/status-done.svg" width="16" height="16" alt="tested"> tested |
-| Shared time of day | <img src="icons/status-done.svg" width="16" height="16" alt="tested"> tested |
-| Garage computers from a distance | <img src="icons/status-done.svg" width="16" height="16" alt="tested"> tested |
-| Welcome dialog | <img src="icons/status-done.svg" width="16" height="16" alt="tested"> tested |
-| SharedCareer menu: live traffic, options | <img src="icons/status-open.svg" width="16" height="16" alt="open"> open |
-| Shared fuel prices, deliveries lower prices | <img src="icons/status-open.svg" width="16" height="16" alt="open"> open |
-| Garage: parts, tuning, painting (no duplicates) | <img src="icons/status-open.svg" width="16" height="16" alt="open"> open |
-| Garage: storing/retrieving cars, visibility for others | <img src="icons/status-open.svg" width="16" height="16" alt="open"> open |
-| Saving, leaving, re-joining | <img src="icons/status-open.svg" width="16" height="16" alt="open"> open |
-| Deliveries (parcels, cargo, vehicles) | <img src="icons/status-open.svg" width="16" height="16" alt="open"> open |
-| Missions and challenges | <img src="icons/status-open.svg" width="16" height="16" alt="open"> open |
-| Police, chases, fines, speed cameras | <img src="icons/status-open.svg" width="16" height="16" alt="open"> open |
-| Insurance, repair, towing | <img src="icons/status-open.svg" width="16" height="16" alt="open"> open |
-| Refueling / charging | <img src="icons/status-open.svg" width="16" height="16" alt="open"> open |
-| Used car dealers, private sales | <img src="icons/status-open.svg" width="16" height="16" alt="open"> open |
-| Changing maps within a save | <img src="icons/status-open.svg" width="16" height="16" alt="open"> open |
-| 3+ players at the same time | <img src="icons/status-open.svg" width="16" height="16" alt="open"> open |
-| `/pay` between two players | <img src="icons/status-open.svg" width="16" height="16" alt="open"> open |
-
 **Stability goals**
 
 - Every game function the mod touches is checked on start. If one is missing after a BeamNG update, the log names it and the rest keeps running.
