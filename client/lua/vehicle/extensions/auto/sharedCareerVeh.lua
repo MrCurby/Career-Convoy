@@ -4,7 +4,8 @@
 --   setGhost(enabled)              collisions with this vehicle on/off (vehicles.lua; ghost mode
 --                                  for other players' cars / players on foot)
 --   setAiTuning(gap, sightFactor)  traffic AI reacts earlier to obstacles (traffic.lua)
---   handGrab / handTarget / handRelease   our own node grabber (grab.lua), see "Hand" below
+--   handGrabRay / handTarget / handRelease / handProbe   our own node grabber (grab.lua), see
+--                                  "Hand" below
 --
 -- AI tuning: two values inside the game's lua/vehicle/ai.lua that have no official setter.
 --   ego.race_time_gap      safety gap in seconds that the AI keeps to a vehicle on its path
@@ -122,7 +123,16 @@ local HAND_TAU = 0.4      -- s: how quickly the vehicle's speed follows the want
 local HAND_LIFT_RAMP = 0.5 -- m: target this much above the grip = carry the full weight
 local GRAVITY = 9.81
 
-local hand = nil -- {nodes = {{cid, m}}, gripMass, vehMass, tx, ty, tz, speed, strength}
+local HAND_REPORT_EVERY = 0.1 -- s: how often the grip position and strain go back to the GE side
+
+local hand = nil -- {nodes = {{cid, m}}, gripMass, vehMass, tx, ty, tz, speed, strength, strain, since}
+
+-- tell the GE side (grab.lua) something about this vehicle
+local function reportToGE(fn, fmt, ...)
+	if type(obj.queueGameEngineLua) ~= "function" then return end
+	obj:queueGameEngineLua(string.format("if sharedCareer_grab then sharedCareer_grab.%s(%d, " .. fmt .. ") end",
+		fn, obj:getId(), ...))
+end
 
 local function allNodes()
 	local nodes = v and v.data and v.data.nodes
@@ -156,8 +166,47 @@ function M.handGrab(x, y, z, speed, strength)
 		return false
 	end
 	hand = {nodes = nodes, gripMass = gripMass, vehMass = vehMass, tx = x, ty = y, tz = z,
-		speed = tonumber(speed) or 1, strength = tonumber(strength) or 60}
+		speed = tonumber(speed) or 1, strength = tonumber(strength) or 60, strain = 0,
+		since = HAND_REPORT_EVERY}
 	return true
+end
+
+-- The node closest to a ray (camera position + direction): {cid, t, x, y, z} or nil.
+-- t = distance along the ray, so the GE side holds the vehicle at that distance.
+local function nodeOnRay(cx, cy, cz, dx, dy, dz, maxDist)
+	local best = nil
+	for _, node in pairs(allNodes()) do
+		local cid = type(node) == "table" and node.cid
+		if cid then
+			local p = obj:getAbsNodePosition(cid)
+			local rx, ry, rz = p.x - cx, p.y - cy, p.z - cz
+			local t = rx * dx + ry * dy + rz * dz
+			if t > 0.3 and t <= maxDist then
+				local mx, my, mz = rx - dx * t, ry - dy * t, rz - dz * t
+				local miss = mx * mx + my * my + mz * mz
+				-- closest to the ray; among nearly equal ones the front-most (the one you see)
+				if not best or miss < best.miss - 0.01 or (miss < best.miss + 0.01 and t < best.t) then
+					best = {cid = cid, t = t, miss = miss, x = p.x, y = p.y, z = p.z}
+				end
+			end
+		end
+	end
+	return best
+end
+
+--- Grabs the vehicle where the ray from the camera points at it (the node closest to the ray)
+--- and reports the grip back: sharedCareer_grab.onGrip(id, t, x, y, z).
+function M.handGrabRay(cx, cy, cz, dx, dy, dz, maxDist, speed, strength)
+	local n = nodeOnRay(cx, cy, cz, dx, dy, dz, tonumber(maxDist) or 120)
+	if not n or not M.handGrab(n.x, n.y, n.z, speed, strength) then return false end
+	reportToGE("onGrip", "%.3f, %.3f, %.3f, %.3f", n.t, n.x, n.y, n.z)
+	return true
+end
+
+--- Preview: where would F6 grab? Reports sharedCareer_grab.onProbe(id, x, y, z).
+function M.handProbe(cx, cy, cz, dx, dy, dz, maxDist)
+	local n = nodeOnRay(cx, cy, cz, dx, dy, dz, tonumber(maxDist) or 120)
+	if n then reportToGE("onProbe", "%.3f, %.3f, %.3f", n.x, n.y, n.z) end
 end
 
 --- New target point (and optionally new speed / strength).
@@ -202,9 +251,16 @@ function M.updateGFX(dt)
 	fz = fz + hand.vehMass * GRAVITY * lift
 	local fl = math.sqrt(fx * fx + fy * fy + fz * fz)
 	local limit = hand.vehMass * GRAVITY * hand.strength / 100
+	-- strain: share of the force limit that is needed (1 = at the limit), smoothed for the display
+	hand.strain = hand.strain + (math.min(1, fl / limit) - hand.strain) * math.min(1, dt * 6)
 	if fl > limit then
 		local f = limit / fl
 		fx, fy, fz = fx * f, fy * f, fz * f
+	end
+	hand.since = hand.since + dt
+	if hand.since >= HAND_REPORT_EVERY then
+		hand.since = 0
+		reportToGE("onHandState", "%.3f, %.3f, %.3f, %.2f", cx, cy, cz, hand.strain)
 	end
 	for _, n in ipairs(hand.nodes) do
 		local w = n.m / hand.gripMass

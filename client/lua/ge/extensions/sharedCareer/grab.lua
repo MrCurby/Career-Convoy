@@ -18,9 +18,18 @@
 --   mouse ray is used. The vehicle you sit in can't be grabbed (the camera would move with it);
 --   on foot or from the free camera it works.
 --
--- The force itself is computed in the vehicle (sharedCareerVeh.handGrab / handTarget /
+-- The force itself is computed in the vehicle (sharedCareerVeh.handGrabRay / handTarget /
 -- handRelease in lua/vehicle/extensions/auto/sharedCareerVeh.lua). Here we only pick the
--- vehicle and send the grab and target points.
+-- vehicle and send the ray and target points. The vehicle grabs the node closest to the ray
+-- (you hold the vehicle where you point at it) and reports back: onGrip (grip position and
+-- distance), onHandState (grip position and strain, 10 times per second), onProbe (preview).
+--
+-- What you see (debugDrawer lines, like the game's own markers):
+--   holding   a rope from the grip to the target point and a small cross at both ends; the
+--             color shows the strain: green = easy, yellow = working hard, red = at the limit
+--   preview   on foot or in the free camera, pointing at one of your vehicles: a small cross
+--             where F6 would grab
+--   hint      the first grab of a session shows how it works
 --
 -- Only your own vehicles (incl. your own traffic): other players' vehicles are simulated on
 -- their PCs, BeamMP would put them back immediately. Not the player on foot.
@@ -38,7 +47,13 @@ local MIN_DISTANCE = 3     -- m, closest the mouse wheel brings a vehicle
 local DISTANCE_STEP = 1.5  -- m per mouse wheel notch / key press
 local SEND_EVERY = 1 / 30  -- s: how often the target point is sent to the vehicle
 
-local held = nil           -- {id, dist, dx, dy, dz, since}
+local PROBE_EVERY = 0.2    -- s: how often the preview asks the vehicle where it would grab
+local PROBE_KEEP = 0.5     -- s: how long a preview answer is shown
+
+local held = nil           -- {id, dist, dx, dy, dz, since, grip = {x, y, z}, strain, target}
+local probe = nil          -- {id, x, y, z, age}
+local sinceProbe = 0
+local hintShown = false
 local keyRegistered = false
 local actionMapPushed = false
 
@@ -239,12 +254,15 @@ local function grab()
 		message("Get out (or use the free camera) to grab the vehicle you are in")
 		return
 	end
-	-- grab point: the point on the aim line closest to the vehicle's center; the vehicle takes the
-	-- nodes around it
-	local gx, gy, gz = cam.x + dir.x * found.t, cam.y + dir.y * found.t, cam.z + dir.z * found.t
-	held = {id = id, dist = found.t, dx = dir.x, dy = dir.y, dz = dir.z, since = SEND_EVERY}
-	sendToVehicle(id, string.format("sharedCareerVeh.handGrab(%.3f, %.3f, %.3f, %.2f, %.1f)",
-		gx, gy, gz, grabSpeed(), grabStrength()))
+	-- the vehicle grabs the node closest to the aim line and reports it back (onGrip)
+	held = {id = id, dist = found.t, dx = dir.x, dy = dir.y, dz = dir.z, since = SEND_EVERY, strain = 0}
+	probe = nil
+	sendToVehicle(id, string.format("sharedCareerVeh.handGrabRay(%.3f, %.3f, %.3f, %.4f, %.4f, %.4f, %d, %.2f, %.1f)",
+		cam.x, cam.y, cam.z, dir.x, dir.y, dir.z, MAX_DISTANCE, grabSpeed(), grabStrength()))
+	if not hintShown then
+		hintShown = true
+		U.toast("info", "Holding: look where it should go · Mouse wheel: distance · F6: let go", 6)
+	end
 	wrapWheel()
 	setWheelLayer(true)
 	U.log("I", "grab", string.format("grabbed vehicle %s at %.1f m (%s)", tostring(id), found.t,
@@ -264,17 +282,108 @@ function M.step(dt)
 		M.release()
 		return
 	end
-	held.since = held.since + dt
-	if held.since < SEND_EVERY then return end
-	held.since = 0
 	-- the view direction while holding ("gravity gun"), the mouse ray if there is none
 	local cam, dir = cameraPos(), viewDir()
 	if not dir then cam, dir = aimRay() end
 	if not cam then return end
 	held.dx, held.dy, held.dz = dir.x, dir.y, dir.z
 	local tx, ty, tz = cam.x + dir.x * held.dist, cam.y + dir.y * held.dist, cam.z + dir.z * held.dist
+	held.target = {x = tx, y = ty, z = tz}
+	held.since = held.since + dt
+	if held.since < SEND_EVERY then return end
+	held.since = 0
 	sendToVehicle(held.id, string.format("sharedCareerVeh.handTarget(%.3f, %.3f, %.3f, %.2f, %.1f)",
 		tx, ty, tz, grabSpeed(), grabStrength()))
+end
+
+--== Replies from the vehicle ====================================================
+
+function M.onGrip(id, t, x, y, z)
+	if not held or held.id ~= id then return end
+	held.dist = math.max(MIN_DISTANCE, math.min(MAX_DISTANCE, tonumber(t) or held.dist))
+	held.grip = {x = x, y = y, z = z}
+end
+
+function M.onHandState(id, x, y, z, strain)
+	if not held or held.id ~= id then return end
+	held.grip = {x = x, y = y, z = z}
+	held.strain = math.max(0, math.min(1, tonumber(strain) or 0))
+end
+
+function M.onProbe(id, x, y, z)
+	probe = {id = id, x = x, y = y, z = z, age = 0}
+end
+
+--== Drawing =====================================================================
+
+-- green (easy) -> yellow -> red (at the limit)
+function M.strainColor(strain)
+	local s = math.max(0, math.min(1, tonumber(strain) or 0))
+	if s < 0.6 then
+		local f = s / 0.6
+		return 0.2 + 0.8 * f, 0.9 - 0.05 * f, 0.3 - 0.1 * f
+	end
+	local f = (s - 0.6) / 0.4
+	return 1, 0.85 - 0.6 * f, 0.2
+end
+
+local function canDraw()
+	return type(rawget(_G, "debugDrawer")) ~= "nil" and type(rawget(_G, "ColorF")) == "function"
+		and type(rawget(_G, "vec3")) == "function"
+end
+
+local function line(a, b, color)
+	debugDrawer:drawLine(vec3(a.x, a.y, a.z), vec3(b.x, b.y, b.z), color)
+end
+
+local function cross(p, size, color)
+	line({x = p.x - size, y = p.y, z = p.z}, {x = p.x + size, y = p.y, z = p.z}, color)
+	line({x = p.x, y = p.y - size, z = p.z}, {x = p.x, y = p.y + size, z = p.z}, color)
+	line({x = p.x, y = p.y, z = p.z - size}, {x = p.x, y = p.y, z = p.z + size}, color)
+end
+
+function M.draw()
+	if not canDraw() then return end
+	if held and held.grip and held.target then
+		local r, g, b = M.strainColor(held.strain)
+		local color = ColorF(r, g, b, 0.9)
+		line(held.grip, held.target, color)
+		cross(held.grip, 0.15, color)
+		cross(held.target, 0.25, ColorF(1, 1, 1, 0.7))
+	elseif probe then
+		cross(probe, 0.2, ColorF(0.3, 0.8, 1, 0.9))
+	end
+end
+
+-- on foot (or in the free camera) the preview shows where F6 would grab
+local function previewWanted()
+	if held or not allowed() then return false end
+	local freeCam = core_camera and type(core_camera.getActiveGlobalCameraName) == "function"
+		and core_camera.getActiveGlobalCameraName()
+	if freeCam then return true end
+	local walking = gameplay_walk and type(gameplay_walk.isWalking) == "function" and gameplay_walk.isWalking()
+	return walking == true
+end
+
+function M.updatePreview(dt)
+	if probe then
+		probe.age = probe.age + dt
+		if probe.age > PROBE_KEEP then probe = nil end
+	end
+	if not previewWanted() then
+		probe = nil
+		return
+	end
+	sinceProbe = sinceProbe + dt
+	if sinceProbe < PROBE_EVERY then return end
+	sinceProbe = 0
+	local cam, dir = aimRay()
+	local found = cam and vehicleOnRay(cam, dir)
+	if not found or not isOwnVehicle(found.id) then return end
+	local model = found.veh.JBeam
+	if model == "unicycle" or found.id == be:getPlayerVehicleID(0) then return end
+	sendToVehicle(found.id, string.format("sharedCareerVeh.handProbe(%.3f, %.3f, %.3f, %.4f, %.4f, %.4f, %d)",
+		cam.x, cam.y, cam.z, dir.x, dir.y, dir.z, MAX_DISTANCE))
 end
 
 function M.isHolding()
@@ -312,12 +421,16 @@ end
 --== Hooks =====================================================================
 
 function M.onUpdate(dtReal)
-	if not held then return end
-	local ok, err = pcall(M.step, dtReal)
-	if not ok then
-		U.log("E", "grab", "grab failed: " .. tostring(err))
-		M.release()
+	if held then
+		local ok, err = pcall(M.step, dtReal)
+		if not ok then
+			U.log("E", "grab", "grab failed: " .. tostring(err))
+			M.release()
+		end
+	elseif U.isMP() then
+		pcall(M.updatePreview, tonumber(dtReal) or 0)
 	end
+	pcall(M.draw)
 end
 
 function M.onCareerActive(active)
@@ -330,6 +443,7 @@ end
 
 function M.onBeamMPServerLeave()
 	M.release()
+	probe = nil
 end
 
 function M.onExtensionLoaded()

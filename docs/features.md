@@ -159,11 +159,13 @@ Server admins can switch back to the career's rule with `sc set client.allowNode
 
 Because the game's node grabber is so weak in the career, SharedCareer has its own. It's made for moving vehicles that can't drive anymore, slowly and by hand, for example onto a tow truck.
 
-1. Point the mouse at one of your vehicles and press **F6**. You now hold it at that spot.
+1. Point the mouse at one of your vehicles and press **F6**. You now hold it exactly where you pointed, for example at the front bumper. On foot or in the free camera, a small blue cross shows beforehand where F6 would grab.
 2. The vehicle is pulled towards the middle of your view, at the distance where you grabbed it. Look where it should go.
 3. **Mouse wheel** up moves the target farther away, down brings it closer (not closer than 3 m). If the wheel doesn't work for you, use **Page Up** / **Page Down**.
 4. Look up to lift the end you are holding, down to put it back.
 5. Press **F6** again to let go.
+
+While you hold a vehicle, a line runs from your grip to the target point. Its color shows how hard the grabber works: **green** is easy, **yellow** is working hard, **red** means it's at its force limit (too heavy, stuck, or you're trying to lift too much).
 
 It feels like real handwork: the point you hold moves at most 1 m/s, and the force is limited to 60 % of the vehicle's weight. Pull a corner and the vehicle turns; the wheels roll; you can lift one end, but not float the whole vehicle. The force goes mostly to the heavy frame parts around your grip, so nothing gets bent.
 

@@ -678,7 +678,7 @@ extensions.core_input_actionFilter = nil
 -- gravity, and a flat ground at z = 0 that the lowest node can't go through.
 do
 	local function vec3(x, y, z) return {x = x, y = y, z = z} end
-	local body = {p = {x = 0, y = 0, z = 0}, v = {x = 0, y = 0, z = 0}, f = {x = 0, y = 0, z = 0}, forces = {}}
+	local body = {p = {x = 0, y = 0, z = 0}, v = {x = 0, y = 0, z = 0}, f = {x = 0, y = 0, z = 0}, forces = {}, ge = {}}
 	-- 2 t car: 20 nodes, chassis nodes heavy (180 kg), panel nodes light (20 kg)
 	local nodes, rel = {}, {}
 	for i = 0, 19 do
@@ -695,6 +695,8 @@ do
 				return vec3(body.p.x + rel[cid].x, body.p.y + rel[cid].y, body.p.z + rel[cid].z)
 			end,
 			getNodeVelocityVector = function() return vec3(body.v.x, body.v.y, body.v.z) end,
+			getId = function() return 77 end,
+			queueGameEngineLua = function(_, cmd) table.insert(body.ge, cmd) end,
 			applyForceVectorTime = function(_, cid, f, dt)
 				body.f.x, body.f.y, body.f.z = body.f.x + f.x, body.f.y + f.y, body.f.z + f.z
 				body.forces[cid] = (body.forces[cid] or 0) + math.sqrt(f.x * f.x + f.y * f.y + f.z * f.z)
@@ -721,6 +723,17 @@ do
 			body.p.z = math.max(0, body.p.z + body.v.z * dt)
 		end
 	end
+	-- grab where you point: a ray from x = 10 along -x at the height/side of the upper right
+	-- panel nodes; the front-most node on it is at x = 2
+	check(veh.handGrabRay(10, 0.8, 1.2, -1, 0, 0, 120, 1, 60) == true, "vehicle side: grabbed via the aim ray")
+	local reply = body.ge[#body.ge] or ""
+	local rt, rx = reply:match("onGrip%(77, ([%d%.]+), ([-%d%.]+),")
+	check(reply:find("sharedCareer_grab.onGrip") and math.abs(tonumber(rt) - 8) < 0.01 and math.abs(tonumber(rx) - 2) < 0.01,
+		"grabs the node you point at (front-most on the ray) and reports grip and distance: " .. reply)
+	veh.handRelease()
+	body.ge = {}
+	veh.handProbe(10, 0.8, 1.2, -1, 0, 0, 120)
+	check((body.ge[1] or ""):find("onProbe%(77, 2%.000, 0%.800, 1%.200%)"), "preview: reports where it would grab")
 	check(veh.handGrab(2, 0.8, 0.3, 1, 60) == true, "vehicle side: nodes around the grab point are taken")
 	local info = veh.handInfo()
 	check(#info.nodes >= 4 and #info.nodes <= 24 and info.vehMass == MASS, "grip of 4-24 nodes, vehicle mass known")
@@ -735,6 +748,9 @@ do
 	check(body.p.y > 2.5 and body.p.y < 3.6, string.format("after 3 s about 3 m pulled (%.1f m)", body.p.y))
 	run(6)
 	check(math.abs(body.p.y - 5) < 0.3, string.format("arrives at the target (%.2f m)", body.p.y))
+	local restState = body.ge[#body.ge] or ""
+	local restStrain = tonumber(restState:match("onHandState%(77, [-%d%.]+, [-%d%.]+, [-%d%.]+, ([%d%.]+)%)"))
+	check(restStrain and restStrain < 0.2, "strain low when it's easy (" .. tostring(restStrain) .. ")")
 	-- force split by mass: heavy chassis nodes carry most of it
 	body.forces = {}
 	veh.handTarget(2, 8, 0.3)
@@ -748,6 +764,9 @@ do
 	veh.handTarget(body.p.x + 2, body.p.y + 0.8, 4)
 	run(4)
 	check(body.p.z < 0.05, string.format("60 %% of the weight doesn't lift the whole vehicle (z = %.2f)", body.p.z))
+	local lastState = body.ge[#body.ge] or ""
+	local strain = tonumber(lastState:match("onHandState%(77, [-%d%.]+, [-%d%.]+, [-%d%.]+, ([%d%.]+)%)"))
+	check(strain and strain > 0.95, "strain reported back: at the limit while lifting (" .. tostring(strain) .. ")")
 	-- force limit: never more than strength % of the weight
 	local peak = 0
 	for _ = 1, 20 do
@@ -826,15 +845,18 @@ check(grabKeys.sharedCareerGrabFarther and grabKeys.sharedCareerGrabFarther.defa
 mouse.pos = {x = 20, y = 0, z = 0}
 keyG.onDown()
 local name, a = lastHand(truck)
-check(sharedCareer_grab.isHolding() and name == "handGrab", "own vehicle grabbed: handGrab sent to the vehicle")
-check(a and math.abs(a[1] - 10) < 0.3 and math.abs(a[3] - 1) < 0.6 and a[4] == 1 and a[5] == 60,
-	"grab point near the vehicle, speed 1 m/s and strength 60 % sent along")
+check(sharedCareer_grab.isHolding() and name == "handGrabRay", "own vehicle grabbed: the aim ray is sent to the vehicle")
+check(a and a[1] == 0 and a[2] == 0 and a[3] == 2 and a[4] > 0.99 and a[7] == 120 and a[8] == 1 and a[9] == 60,
+	"camera position, aim direction, speed 1 m/s and strength 60 % sent along")
+check(#toasts > 0 and toasts[#toasts].msg:find("Mouse wheel"), "first grab: a short hint how it works")
+-- the vehicle reports where it grabbed: the distance is taken from there
+sharedCareer_grab.onGrip(60, 9.0, 9, 0, 1)
 check(actionMaps.Nodegrabber == 1, "the wheel input layer is switched on")
 -- holding: the target follows the view direction at the grab distance
 fwd = {x = 0, y = 1, z = 0}
 frames(0.2)
 name, a = lastHand(truck)
-local grabDist = math.sqrt(10 ^ 2 + 1)
+local grabDist = 9.0
 check(name == "handTarget" and math.abs(a[1]) < 0.01 and math.abs(a[2] - grabDist) < 0.4 and math.abs(a[3] - 2) < 0.01,
 	string.format("target in the middle of the view at the grab distance (%.1f/%.1f/%.1f)", a[1], a[2], a[3]))
 local sent = #truck.lua
@@ -863,12 +885,61 @@ name, a = lastHand(truck)
 check(a[4] == 0.5 and a[5] == 150, "settings applied live; strength capped at 150 %")
 cfgG.grabSpeed, cfgG.grabStrength = 1, 60
 handlers.sc_configUpdate(json.encode(cfgG))
+-- drawing: rope from the grip to the target, crosses at both ends, color by strain
+local drawn = {}
+_G.ColorF = function(r, g, b, alpha) return {r = r, g = g, b = b, a = alpha} end
+_G.vec3 = function(x, y, z) return {x = x, y = y, z = z} end
+_G.debugDrawer = {drawLine = function(_, p1, p2, c) table.insert(drawn, {p1 = p1, p2 = p2, c = c}) end}
+sharedCareer_grab.onHandState(60, 0, 3, 2, 0.1)
+drawn = {}
+frames(1 / 60)
+check(#drawn == 7 and drawn[1].p1.y == 3 and drawn[1].c.g > 0.8 and drawn[1].c.r < 0.4,
+	"holding: rope and two crosses drawn, green when it's easy")
+sharedCareer_grab.onHandState(60, 0, 3, 2, 1)
+drawn = {}
+frames(1 / 60)
+check(drawn[1].c.r == 1 and drawn[1].c.g < 0.3, "red at the force limit")
 -- let go
 keyG.onDown()
 check(not sharedCareer_grab.isHolding() and lastHand(truck) == "handRelease" and actionMaps.Nodegrabber == 0,
 	"second press lets go: handRelease sent, wheel layer off")
 gpGrab.changeStrength(1, 0)
 check(strengthCalls == 1, "not holding: the wheel is the game's node grabber strength again")
+drawn = {}
+frames(1 / 60)
+check(#drawn == 0, "let go: nothing drawn")
+-- preview: on foot, pointing at an own vehicle -> asks the vehicle 5 times per second
+local walkingNow = false
+_G.gameplay_walk = {isWalking = function() return walkingNow end}
+mouse.pos = {x = 20, y = 0, z = 0}
+local function probeCount(from)
+	local c = 0
+	for i = from + 1, #truck.lua do if truck.lua[i]:find("handProbe") then c = c + 1 end end
+	return c
+end
+local before = #truck.lua
+frames(1)
+check(probeCount(before) == 0, "driving: no preview")
+before = #truck.lua
+walkingNow = true
+frames(1)
+local probes = probeCount(before)
+check(probes >= 4 and probes <= 6, "on foot: the vehicle is asked where F6 would grab (" .. probes .. "x per second)")
+sharedCareer_grab.onProbe(60, 9, 0, 1)
+drawn = {}
+frames(1 / 60)
+check(#drawn == 3 and drawn[1].c.b > 0.9, "preview: a blue cross where F6 would grab")
+walkingNow = false
+frames(0.3)
+drawn = {}
+frames(1 / 60)
+check(#drawn == 0, "back in the vehicle: preview gone")
+toasts = {}
+mouse.pos = {x = 20, y = 0, z = 0}
+keyG.onDown()
+check(sharedCareer_grab.isHolding() and #toasts == 0, "the hint only comes on the first grab")
+sharedCareer_grab.release()
+_G.gameplay_walk, _G.debugDrawer, _G.ColorF, _G.vec3 = nil, nil, nil, nil
 fwd = nil
 -- the vehicle you sit in can't be grabbed (the camera would move with it)
 world.playerVeh = 60
