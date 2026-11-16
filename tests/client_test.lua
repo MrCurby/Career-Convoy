@@ -1753,6 +1753,57 @@ sharedCareer_fuel.uiNavigate("apex")
 check(type(pathSet) == "table" and pathSet.x == 300 and sharedCareer_fuel.overview().navigating == "apex", "Go: route to the station")
 sharedCareer_fuel.uiStopNavigate()
 check(pathSet == nil and sharedCareer_fuel.overview().navigating == nil, "Stop: route off")
+-- issue #1: the door function gives the same point for every gas station -> use the pumps
+do
+	local stationsNow = freeroam_facilities.getFacilities("west_coast_usa").gasStations
+	stationsNow[1].pumps = {{"apex_pump_area_1", "apex_pump_icon_1"}, {"apex_pump_area_2", "apex_pump_icon_2"}}
+	table.insert(stationsNow, {id = "trilobit", name = "Trilobit",
+		pumps = {{"tri_pump_area_1", "tri_pump_icon_1"}},
+		prices = {gasoline = {priceBaseline = 1.4, priceRandomnessGain = 0.2, priceRandomnessBias = 0.5}}})
+	table.insert(stationsNow, {id = "nodeolin", name = "Nodeolin", pumps = {},
+		prices = {gasoline = {priceBaseline = 1.45, priceRandomnessGain = 0.2, priceRandomnessBias = 0.5}}})
+	freeroam_facilities_fuelPrice.setDisplayPrices()
+	local objects = {
+		apex_pump_area_1 = {x = 1000, y = 0, z = 10}, apex_pump_area_2 = {x = 1010, y = 0, z = 10},
+		tri_pump_icon_1 = {x = 0, y = -2000, z = 20},   -- only the icon exists
+	}
+	local oldTree = _G.scenetree
+	_G.scenetree = {findObject = function(name)
+		local p = objects[name]
+		return p and {getPosition = function() return p end} or nil
+	end}
+	freeroam_facilities.getAverageDoorPositionForFacility = function() return {x = 300, y = 400, z = 0} end
+	sharedCareer_fuel.forgetPositions()
+	local byId = {}
+	for _, st in ipairs(sharedCareer_fuel.overview().stations) do byId[st.id] = st end
+	check(byId.apex and math.abs(byId.apex.distance - 1005) < 1e-6, "issue #1: position = middle of the pumps (1005 m)")
+	check(byId.trilobit and math.abs(byId.trilobit.distance - 2000) < 1e-6, "pump icon used when its area isn't there")
+	check(byId.nodeolin and byId.nodeolin.distance == nil and byId.nodeolin.canNavigate == false,
+		"no pumps found: the door point is shared by several stations, so it isn't used")
+	local src = sharedCareer_fuel.positionSources()
+	check(src.pumps == 2 and src.doors == 0 and src.none == 1, "position sources: 2 pumps, 1 unknown")
+	_G.core_groundMarkers = {setPath = function(pos) pathSet = pos end}
+	sharedCareer_fuel.uiNavigate("apex")
+	check(type(pathSet) == "table" and pathSet.x == 1005 and pathSet.z == 10, "Go: route to the pumps, at their height")
+	-- a believable door point of its own is still used as a fallback
+	freeroam_facilities.getAverageDoorPositionForFacility = function(st)
+		return st.id == "nodeolin" and {x = 0, y = 700, z = 5} or {x = 300, y = 400, z = 0}
+	end
+	sharedCareer_fuel.forgetPositions()
+	byId = {}
+	for _, st in ipairs(sharedCareer_fuel.overview().stations) do byId[st.id] = st end
+	check(byId.nodeolin.distance == 700 and byId.apex.distance > 1000, "fallback: a station's own door point")
+	-- the map origin is a placeholder, not a position
+	freeroam_facilities.getAverageDoorPositionForFacility = function() return {x = 0, y = 0, z = 0} end
+	sharedCareer_fuel.forgetPositions()
+	byId = {}
+	for _, st in ipairs(sharedCareer_fuel.overview().stations) do byId[st.id] = st end
+	check(byId.nodeolin.distance == nil, "door point at the map origin is ignored")
+	_G.scenetree = oldTree
+	table.remove(stationsNow); table.remove(stationsNow); stationsNow[1].pumps = nil
+	freeroam_facilities.getAverageDoorPositionForFacility = realPos
+	sharedCareer_fuel.forgetPositions()
+end
 _G.core_levels, _G.core_groundMarkers = nil, nil
 
 -- detecting deliveries

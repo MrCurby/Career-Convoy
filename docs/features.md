@@ -110,7 +110,7 @@ Open the phone (**F4**) and tap **Fuel**:
 - All stations of the map with gasoline (**G**) and diesel (**D**) prices, in the map's unit. On West Coast USA that is per gallon, like the signs.
 - **Sort** by gasoline or diesel price, cheapest first and highlighted in green, or by distance (**Nearest**).
 - A green *−10 %* means that fuel is currently cheaper there because of deliveries.
-- Distance to you, and **Go** to set a route to the station. **Stop** ends it.
+- Distance to you, and **Go** to set a route to the station. **Stop** ends it. The station's position is the middle of its pumps. The route is the game's own navigation on the map's road network.
 - The prices are exactly what you pay at the pump, before your insurance discount.
 
 (Up to 0.12 this was a separate window with a fuel-pump tab. On your first join with 0.13 the mod takes that window out of your layout once, and the phone tab moves to its place.)
