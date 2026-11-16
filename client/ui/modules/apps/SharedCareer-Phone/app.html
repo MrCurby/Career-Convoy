@@ -74,6 +74,8 @@
 							<span class="scp-row-name" ng-bind="v.name"></span><span class="scp-row-right" ng-bind="v.distance + ' m'"></span>
 						</button>
 						<div class="scp-hint" ng-if="!tow.nearby.length">None of your vehicles is nearby.</div>
+						<button class="scp-wide scp-secondary" ng-if="tow.towToRoad" ng-click="towCall('uiTowToRoad()')">Tow to the road</button>
+						<div class="scp-hint" ng-if="tow.towToRoad">For the vehicle you look at: puts it on the last road it drove on, free of charge. The damage stays.</div>
 					</div>
 
 					<div ng-if="tow.attached">

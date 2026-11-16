@@ -1154,9 +1154,13 @@ local towToasts = {}
 local realToast = sharedCareer_util.toast
 sharedCareer_util.toast = function(_, msg) table.insert(towToasts, msg) end
 check(sharedCareer_grab.appState().towToRoad == true, "Tow app: tow to the road offered")
-check(not sharedCareer_grab.uiTowToRoad() and #towed == 0 and towToasts[#towToasts]:find("Attach"),
-	"tow to the road: needs the rope on a vehicle")
+fwd = {x = -1, y = -1, z = 0}
+check(not sharedCareer_grab.uiTowToRoad() and #towed == 0 and towToasts[#towToasts]:find("Look at"),
+	"tow to the road without a rope: needs a vehicle in view")
 fwd = {x = 1, y = 0, z = -0.1}
+check(sharedCareer_grab.uiTowToRoad() and #towed == 1 and towed[1].id == 60 and towed[1].opts.resetVehicle == false,
+	"tow to the road without a rope: the vehicle you look at")
+towed = {}
 sharedCareer_grab.uiAttachView()
 truck.getVelocity = function() return {x = 5, y = 0, z = 0} end
 check(not sharedCareer_grab.uiTowToRoad() and #towed == 0 and towToasts[#towToasts]:find("stand still"),
@@ -1167,7 +1171,7 @@ check(not sharedCareer_grab.uiTowToRoad() and #towed == 0 and towToasts[#towToas
 	"tow to the road: not during a police chase")
 _G.gameplay_traffic = {getTrafficData = function() return {[60] = {pursuit = {mode = 0}}} end}
 check(sharedCareer_grab.uiTowToRoad() and #towed == 1 and towed[1].id == 60 and towed[1].opts.resetVehicle == false,
-	"tow to the road: the game's teleportToLastRoad, damage kept")
+	"tow to the road with a rope: the vehicle on the rope, damage kept")
 check(not sharedCareer_grab.isHolding() and lastHand(truck) == "handRelease", "tow to the road: the rope comes off")
 sharedCareer_grab.uiAttachView()
 cfgG.allowTowToRoad = false

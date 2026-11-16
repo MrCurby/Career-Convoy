@@ -11,8 +11,8 @@
 --   winch     haul in (pulls the vehicle slowly to the anchor) / stop (the vehicle hangs on the
 --             rope) / pay out
 --   strength  30/60/100/150 % of the vehicle's weight
---   to road  the game's own recovery "Tow to road" for the vehicle on the rope, free of charge
---             (see "Tow to the road" below)
+--   to road  the game's own recovery "Tow to road" for the vehicle on the rope, or without a rope
+--             for the vehicle you look at; free of charge (see "Tow to the road" below)
 --   remove
 -- The blue preview of where a rope would attach only shows while the Tow app is open.
 --
@@ -188,13 +188,14 @@ local function vehicleOnRay(cam, dir)
 end
 M.vehicleOnRay = vehicleOnRay
 
--- Can a rope go on this vehicle? Returns true, or false and a message.
+-- Can a rope go on this vehicle (and can it be towed to the road)? Returns true, or false and a
+-- message.
 local function canRope(veh, id)
-	if not veh or type(veh.queueLuaCommand) ~= "function" then return false, "Look at one of your vehicles to attach the rope" end
+	if not veh or type(veh.queueLuaCommand) ~= "function" then return false, "Look at one of your vehicles" end
 	local model = veh.JBeam
 	if model == nil and type(veh.getJBeamFilename) == "function" then model = veh:getJBeamFilename() end
 	if model == "unicycle" then return false, "Players on foot can't be grabbed" end
-	if not isOwnVehicle(id) then return false, "You can only grab your own vehicles" end
+	if not isOwnVehicle(id) then return false, "Only your own vehicles" end
 	local freeCam = core_camera and type(core_camera.getActiveGlobalCameraName) == "function"
 		and core_camera.getActiveGlobalCameraName()
 	if id == be:getPlayerVehicleID(0) and not freeCam then
@@ -265,7 +266,8 @@ function M.step(dt)
 end
 
 --== Tow to the road =============================================================
--- For a vehicle the rope can't free (e.g. wrapped around a lamp post): the game's own recovery
+-- For a vehicle the rope can't free (e.g. wrapped around a lamp post) – the one on the rope, or
+-- without a rope the one you look at (picked like "attach where I look"): the game's own recovery
 -- "Tow to road" (core/recoveryPrompt.lua, towToRoad) puts it on the last road it drove on and keeps
 -- the damage – spawn.teleportToLastRoad(veh, {resetVehicle = false}). The career charges $75 for
 -- it (free with roadside assistance); here it is free. Like in the game, only while the vehicle is
@@ -291,19 +293,33 @@ local function inPursuit(id)
 	return type(pursuit) == "table" and (tonumber(pursuit.mode) or 0) > 0
 end
 
---- Puts the vehicle on the rope on the last road it drove on. Returns true, or false and a message.
+-- The vehicle to tow: the one on the rope, otherwise the one in the middle of the view.
+-- Returns veh, id, or nil and a message.
+local function towTarget()
+	if held then
+		local veh = be:getObjectByID(held.id)
+		if not veh then return nil, "Vehicle not found" end
+		return veh, held.id
+	end
+	local cam, dir = cameraPos(), viewDir()
+	local found = cam and dir and vehicleOnRay(cam, dir)
+	local ok, err = canRope(found and found.veh, found and found.id)
+	if not ok then return nil, err end
+	return found.veh, found.id
+end
+
+--- Puts the vehicle on the rope (or the one you look at) on the last road it drove on.
+--- Returns true, or false and a message.
 function M.towToRoad()
 	if not towToRoadAllowed() then return false, "Towing to the road is switched off on this server" end
-	if not held then return false, "Attach the rope to the vehicle first" end
-	local id = held.id
-	local veh = be:getObjectByID(id)
-	if not veh then return false, "Vehicle not found" end
+	local veh, id = towTarget()
+	if not veh then return false, id end
 	if not (spawn and type(spawn.teleportToLastRoad) == "function") then
 		return false, "Towing to the road isn't available in this game version"
 	end
 	if inPursuit(id) then return false, "Not during a police chase" end
 	if speedOf(veh) > TOW_MAX_SPEED then return false, "The vehicle must stand still" end
-	M.release()
+	if held then M.release() end
 	local ok, err = pcall(spawn.teleportToLastRoad, veh, {resetVehicle = false})
 	if not ok then
 		U.log("E", "grab", "tow to the road failed: " .. tostring(err))
