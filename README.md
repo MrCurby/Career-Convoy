@@ -32,7 +32,7 @@ The BeamNG career is made for playing alone. If you try it on a multiplayer serv
 
 **Made for small groups of friends.** SharedCareer is built for a few friends who just want to hang out on a BeamMP server and enjoy the career together, without stress and without things breaking. It's not made for big public servers.
 
-**How it's built.** At its heart, SharedCareer is the normal BeamNG career, made to work with more than one player. Those fixes always run. On top of that come **extras for playing together**, like shared fuel prices, finding your friends or grabbing and throwing your vehicles. Each extra is listed separately below and can be switched off by the server. Bigger additions like jobs are [planned](#roadmap); they will be off by default, so if you only want the career, you get just the career. The idea came from [Mileage](https://github.com/norto22/Mileage), but SharedCareer is its own mod.
+**How it's built.** At its heart, SharedCareer is the normal BeamNG career, made to work with more than one player. Those fixes always run. On top of that come **extras for playing together**, like shared fuel prices, finding your friends or grabbing and throwing your vehicles. Each extra is listed separately below and can be switched off by the server. Bigger additions like jobs are [being considered](#roadmap); they will be off by default, so if you only want the career, you get just the career. The idea came from [Mileage](https://github.com/norto22/Mileage), but SharedCareer is its own mod.
 
 Players **don't need to install anything**. BeamMP downloads the mod for them when they join.
 
@@ -151,7 +151,9 @@ The full guide, including manual installation, backups, rollback and switching f
 
 ## Roadmap
 
-SharedCareer is growing beyond the fixes, step by step. Planned, but **not in the mod yet**:
+> **Unofficial and subject to change.** This roadmap is a collection of ideas, not a promise. Ideas may change, move, or be dropped, and there are no dates.
+
+SharedCareer is growing beyond the fixes, step by step. Ideas, **not in the mod yet**:
 
 | Idea | What it would be |
 |---|---|

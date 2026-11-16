@@ -169,7 +169,7 @@ Tested with BeamNG.drive 0.40.5, BeamMP 4.23.1 and BeamMP-Server 3.9.3 (Linux).
 
 **Planned features: feasibility**
 
-A first estimate of the ideas on the [roadmap](../README.md#roadmap) and a few more. Not verified in the game code yet for most of them.
+A first estimate of the ideas on the [roadmap](../README.md#roadmap) and a few more. The roadmap is unofficial and may change; most of these ideas are not verified in the game code yet.
 
 | Idea | Feasible? | Effort | Notes |
 |---|---|---|---|
