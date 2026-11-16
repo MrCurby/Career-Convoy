@@ -93,7 +93,7 @@ About a minute later the release is on GitHub, and `./server.sh update` installs
 | Red "Unknown app" boxes after switching from Mileage | Mileage apps are removed from the players' layouts, with a backup first | `cleanup.lua` |
 | The career blocks the node grabber in a vehicle and in the free camera | After every input filter change (hook `onActionFilterUpdated`) only the career's group `careerNodeGrabberActions` is lifted; other blocks (certification test) stay | `nodegrab.lua` |
 | The career's node grabber is too weak to move heavy vehicles (engine limit) | Own rope and winch, run from the Tow app: the GE side picks the vehicle along the view line (or the nearest own vehicle), places the anchor and sends the rope state; the vehicle Lua pulls the nodes around the grip with `applyForceVectorTime` in `updateGFX`: pull-only rope, pays out while the anchor moves, winch hauls in with limited speed and force (split by node mass) | `grab.lua`, `sharedCareerVeh.lua` |
-| A place for future features (jobs and more) | The phone: `phone.lua` keeps an app registry (`registerApp({id, title, icon, color, order, onOpen})`), the UI app `SharedCareer-Phone` is only a tab at the edge and attaches the phone to the page body when opened | `phone.lua`, `ui/…/SharedCareer-Phone` |
+| One place for SharedCareer apps | The phone: `phone.lua` keeps an app registry (`registerApp({id, title, icon, color, order, onOpen})`), the UI app `SharedCareer-Phone` is only a tab at the edge and attaches the phone to the page body when opened | `phone.lua`, `ui/…/SharedCareer-Phone` |
 | Sending money to other players | `/pay` as a two-step transfer with refund | `money.lua`, server |
 
 ### Join flow
@@ -137,7 +137,7 @@ The mod ships a modified copy of a West Coast USA level file (`career_garage/gar
 
 ## Project status
 
-At its core, SharedCareer brings the **normal BeamNG career** to multiplayer: everything the career can do should work stably on a server. On top of that come extras for playing together (see [Features](../README.md#features)), each of which the server can switch off, and more are on the [roadmap](../README.md#roadmap).
+At its core, SharedCareer brings the **normal BeamNG career** to multiplayer: everything the career can do should work stably on a server. On top of that come extras for playing together (see [Features](../README.md#features)), each of which the server can switch off.
 
 Tested with BeamNG.drive 0.40.5, BeamMP 4.23.1 and BeamMP-Server 3.9.3 (Linux).
 
@@ -146,30 +146,3 @@ Tested with BeamNG.drive 0.40.5, BeamMP 4.23.1 and BeamMP-Server 3.9.3 (Linux).
 - Every game function the mod touches is checked on start. If one is missing after a BeamNG update, the log names it and the rest keeps running.
 - Clean re-join after a lost connection.
 - <img src="icons/status-done.svg" width="16" height="16" alt="tested"> Save safety: one profile per account, the same account never twice at once.
-
-**Planned features: feasibility**
-
-A first estimate of the ideas on the [roadmap](../README.md#roadmap) and a few more. The roadmap is unofficial and may change; most of these ideas are not verified in the game code yet.
-
-| Idea | Feasible? | Effort | Notes |
-|---|---|---|---|
-| Phone / job menu | Yes | medium | A UI app like the SharedCareer menu; the base for all jobs |
-| Taxi | Yes | medium | Random pickup/drop-off points, paid from the career money, tips from smooth driving (accelerations can be measured) |
-| Bus lines | Yes, with limits | high | Own stops and timetable per map; whether the line display on the bus can be set depends on the bus model |
-| Ambulance runs | Yes | medium | Like taxi with a time limit and a hospital drop-off; police AI should ignore you via the vehicle's traffic role; may need an ambulance vehicle mod |
-| Tow service | Partly | high | Placing broken-down cars and a drop-off zone: yes. Loading them depends on the node grabber or the tow truck's winch |
-| Getaway driver | Partly | high | Meeting point, pickup, then a police chase; starting a chase from outside is untested |
-| Police job | Partly | high | The game has a player police role in freeroam; in the career with several players it's a lot of work |
-| Escort vehicles | Yes | medium | Request/accept via the server, paid like `/pay`, check that the escort stays close |
-| Stock market | Yes | medium | Prices kept on the server, the same for everyone (like the fuel prices) |
-| Gambling | Yes | low | UI and money only |
-| Vehicle/part deals | Partly | medium | Depends on whether dealer prices can be changed cleanly (like the fuel prices) |
-| Radio | Probably | low–medium | The game UI is a browser that can play internet streams, if the station allows it |
-| Stalling learner cars in traffic | Yes | low | Rare and switchable, it gets annoying quickly |
-| Stealing cars | Partly | high | Taking a traffic car into the inventory probably works; police reaction and balancing are a lot of work |
-| Import cars at the port | Yes | medium | A dealer at the port with vehicles you can't buy elsewhere |
-| All trailers usable (pipes, logs, containers) | Hard | high | The delivery system would need new cargo types with real loads |
-
-**Maybe later**
-
-- Traffic AI briefly reverses when stuck in tight spots.

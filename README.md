@@ -13,7 +13,7 @@ One shared world (same traffic, same time of day, same traffic lights), while ev
 ![BeamNG.drive 0.39+](https://img.shields.io/badge/BeamNG.drive-0.39%2B-orange)
 ![BeamMP](https://img.shields.io/badge/BeamMP-server%20mod-blue)
 
-[Features](#features) · [Roadmap](#roadmap) · [Quick start](#quick-start) · [Server setup](docs/server-setup.md) · [In-game guide](docs/features.md) · [Settings & commands](docs/configuration.md) · [Development](docs/development.md)
+[Features](#features) · [Quick start](#quick-start) · [Server setup](docs/server-setup.md) · [In-game guide](docs/features.md) · [Settings & commands](docs/configuration.md) · [Development](docs/development.md)
 
 </div>
 
@@ -32,7 +32,7 @@ The BeamNG career is made for playing alone. If you try it on a multiplayer serv
 
 **Made for small groups of friends.** SharedCareer is built for a few friends who just want to hang out on a BeamMP server and enjoy the career together, without stress and without things breaking. It's not made for big public servers.
 
-**How it's built.** At its heart, SharedCareer is the normal BeamNG career, made to work with more than one player. Those fixes always run. On top of that come **extras for playing together**, like shared fuel prices, finding your friends or a rope and winch to move vehicles that can't drive. Each extra is listed separately below and can be switched off by the server. Bigger additions like jobs are [being considered](#roadmap); they will be off by default, so if you only want the career, you get just the career. The idea came from [Mileage](https://github.com/norto22/Mileage), but SharedCareer is its own mod.
+**How it's built.** At its heart, SharedCareer is the normal BeamNG career, made to work with more than one player. Those fixes always run. On top of that come **extras for playing together**, like shared fuel prices, finding your friends or a rope and winch to move vehicles that can't drive. Each extra is listed separately below and can be switched off by the server. The idea came from [Mileage](https://github.com/norto22/Mileage), but SharedCareer is its own mod.
 
 Players **don't need to install anything**. BeamMP downloads the mod for them when they join.
 
@@ -64,7 +64,7 @@ These go beyond the normal career. They are on by default unless noted, and each
 | <img src="docs/icons/monitor.svg" width="20" height="20" alt=""> **Garage computers from a distance** | Use the garage computer from anywhere in the room instead of standing right in front of it. | On other maps: yes. On West Coast USA it comes from a map file in the mod, so it's always on |
 | <img src="docs/icons/grab.svg" width="20" height="20" alt=""> **Node grabber everywhere** | The normal career only lets you grab and pull vehicles with the mouse while walking. SharedCareer also allows it in a vehicle and in the free camera. The pull stays as weak as in the normal career (the game engine limits it), so it's good for nudging and turning cars, not for throwing them. The vehicle certification test still blocks it. | Yes (back to the career's rule) |
 | <img src="docs/icons/grab.svg" width="20" height="20" alt=""> **Rope and winch** | Move vehicles that can't drive, for example onto a tow truck, slowly and with physics. Everything runs in the **Tow** app on the phone, as a remote control: attach the rope, move the anchor, run the winch in or out. A colored rope shows how hard it pulls; the pull strength (30–150 % of the vehicle's weight) is picked in the app. Only your own vehicles. | Yes |
-| <img src="docs/icons/phone.svg" width="20" height="20" alt=""> **Phone** | A phone in the game (key **F4**, or the tab at the right screen edge) with the server time and the number of players, and two apps so far: **Tow** (rope and winch as a remote control) and **Fuel** (gas station prices). | Yes |
+| <img src="docs/icons/phone.svg" width="20" height="20" alt=""> **Phone** | A phone in the game (key **F4**, or the tab at the right screen edge) with the server time and the number of players, and two apps: **Tow** (rope and winch as a remote control) and **Fuel** (gas station prices). | Yes |
 | <img src="docs/icons/money.svg" width="20" height="20" alt=""> **Send money** | `/pay <name> <amount>` in chat, with an automatic refund if something goes wrong. | Yes |
 | <img src="docs/icons/message.svg" width="20" height="20" alt=""> **Welcome dialog** | A short overview when you join. Each player can pick "Don't show again". | Yes |
 
@@ -158,31 +158,8 @@ The full guide, including manual installation, backups, rollback and switching f
 | [Settings & commands](docs/configuration.md) | Chat and console commands, every setting in `config.json` |
 | [Development](docs/development.md) | Building, tests, releases, how the mod works inside, known limitations, project status |
 
-## Roadmap
-
-> **Unofficial and subject to change.** This roadmap is a collection of ideas, not a promise. Ideas may change, move, or be dropped, and there are no dates.
-
-SharedCareer is growing beyond the fixes, step by step. Ideas, **not in the mod yet**:
-
-| Idea | What it would be |
-|---|---|
-| Job app on the phone | One place on the phone to find and accept jobs (the phone itself is already in the mod) |
-| Taxi | Pick up passengers at random spots, tips for smooth driving |
-| Ambulance runs | Emergencies and patient transport to the hospital, against the clock |
-| Escort vehicles | Request or offer an escort for heavy transports, paid between players |
-| Stock market | Shares of in-game brands, prices the same for everyone |
-| Radio | Internet radio stations in the game |
-
-The rules for everything new:
-
-- **The career comes first.** New features must not make the career less stable.
-- **Off by default** for bigger systems like jobs, and every extra can be switched off.
-- **Listed honestly** in this README, with what it changes, once it is actually in the mod.
-
-What's realistic and how much work each idea is: see the feasibility notes in the [project status](docs/development.md#project-status).
-
 ## Status
 
-SharedCareer is under active development and was tested with **BeamNG.drive 0.40.5**, **BeamMP 4.23.1** and **BeamMP-Server 3.9.3** on Linux. Joining, the career start, traffic, vehicle and damage sync, buying cars, the shared time of day and the garage computers have been tested with real players. Other career features are listed with their test status in [docs/development.md](docs/development.md#project-status).
+SharedCareer is under active development and was tested with **BeamNG.drive 0.40.5**, **BeamMP 4.23.1** and **BeamMP-Server 3.9.3** on Linux. Joining, the career start, traffic, vehicle and damage sync, buying cars, the shared time of day and the garage computers have been tested with real players.
 
 Found a bug? Please [open an issue](https://github.com/MrCurby/SharedCareer/issues) and add the lines containing `sharedCareer` from your `beamng.log`.

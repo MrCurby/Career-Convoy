@@ -190,12 +190,10 @@ Server admins can switch it off with `sc set client.allowGrab false`, and set ho
 
 Press **F4** or click the phone tab at the right screen edge (directly below the SharedCareer menu's tab) to take out your phone. It shows the server's time, whether it's day or night, how many players are on the server and whether you're connected.
 
-Apps so far:
+Apps:
 
 - **Tow:** rope and winch as a remote control, see [Moving your vehicles by hand](#moving-your-vehicles-by-hand-rope-and-winch).
 - **Fuel:** gas station prices, see [Fuel app on the phone](#fuel-app-on-the-phone).
-
-More apps (jobs and more) may follow, see the [roadmap](../README.md#roadmap).
 
 - The bar at the bottom goes back to the home screen from an app, or puts the phone away.
 - Opening the phone collapses the SharedCareer menu, and the other way round.

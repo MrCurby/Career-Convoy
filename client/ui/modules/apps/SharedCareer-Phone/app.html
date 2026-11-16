@@ -41,12 +41,12 @@
 				</div>
 				<div class="scp-empty" ng-if="!apps.length">
 					<svg class="scp-empty-logo" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.3" fill="none" stroke="currentColor" stroke-width="2.2"/><circle cx="12" cy="12.6" r="2.7" fill="currentColor"/><path d="M3.2 11.2 Q12 8.2 20.8 11.2 M12 15.3 V21.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
-					<div class="scp-empty-title">No apps yet</div>
-					<div class="scp-empty-text">Apps for jobs and more will show up here.</div>
+					<div class="scp-empty-title">No apps</div>
+					<div class="scp-empty-text">There are no apps on this server.</div>
 				</div>
 			</div>
 
-			<!-- an open app (apps bring their own content later) -->
+			<!-- an open app -->
 			<div class="scp-appview" ng-if="currentApp">
 				<div class="scp-appbar">
 					<button class="scp-back" ng-click="goHome()">&#8249; Home</button>
