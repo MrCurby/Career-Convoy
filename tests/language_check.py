@@ -30,7 +30,7 @@ GERMAN_WORDS = re.compile(r"\b(" + "|".join([
     "wieder", "gibt", "hier", "jetzt", "danach", "dafür", "dass", "sich", "ohne", "zwischen",
     "Spieler", "Fahrzeug", "Fahrzeuge", "Einstellung", "Einstellungen", "Uhrzeit", "Karriere",
     "Spielstand", "Tankstelle", "Lieferung", "gesetzt", "geschickt", "gespeichert", "bleibt",
-    "Fehler", "Hinweis", "Ablauf", "Aufruf", "Ausführen",
+    "Fehler", "Hinweis", "Ablauf", "Aufruf", "Ausführen", "Befehl", "Befehle", "fehlt",
 ]) + r")\b")
 
 

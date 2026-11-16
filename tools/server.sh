@@ -14,7 +14,8 @@
 #   ./server.sh follow         follow Server.log live (Ctrl+C only stops following)
 #   ./server.sh cmd "sc time"  send a command to the server console, e.g. "sc get"
 #   ./server.sh update         install the newest GitHub release (stop, back up, unpack,
-#                              start) – only if it is newer than the installed version
+#                              start) – only if it is newer than the installed version.
+#                              First brings server.sh itself up to that release.
 #   ./server.sh update --force the same, even if that version is already installed
 #   ./server.sh update x.zip   install a specific zip from this folder
 #   ./server.sh check          show the installed version and the newest one on GitHub
@@ -22,6 +23,7 @@
 # Put the GitHub repository into server.conf (same folder):
 #   REPO="MrCurby/SharedCareer"
 #   GITHUB_TOKEN=""            only needed for a private repository (token with read access)
+#   BACKUPS_KEEP=5             update backups to keep (sharedcareer-backup-*.tgz); 0 = keep all
 # Without REPO, "update" installs the newest SharedCareer-*.zip in this folder.
 #
 # The screen session is named after the folder (e.g. "sctest"), so several servers in
@@ -37,6 +39,7 @@ STOP_WAIT=20   # seconds the server gets to shut down cleanly
 REPO="${SC_REPO:-}"
 API="${SC_API:-https://api.github.com}"   # only changed for testing
 GITHUB_TOKEN="${GITHUB_TOKEN:-}"
+BACKUPS_KEEP=5
 # shellcheck disable=SC1091
 [ -f "$DIR/server.conf" ] && . "$DIR/server.conf"
 
@@ -160,7 +163,7 @@ cmd_follow() {
 
 cmd_cmd() {
 	need_screen
-	if [ -z "${1:-}" ]; then red 'Befehl fehlt, z.B.: ./server.sh cmd "sc time"'; exit 1; fi
+	if [ -z "${1:-}" ]; then red 'Command missing, for example: ./server.sh cmd "sc time"'; exit 1; fi
 	if ! running; then red "Server is not running."; exit 1; fi
 	local before=0
 	[ -f "$LOG" ] && before="$(wc -l < "$LOG")"
@@ -193,7 +196,8 @@ fetch_latest() {
 		red "GitHub request failed ($REPO). Is the repository name in server.conf right? A private repository needs GITHUB_TOKEN."
 		exit 1
 	fi
-	LATEST_VERSION="$(printf '%s' "$json" | grep -o '"tag_name": *"[^"]*"' | head -n 1 | sed 's/.*"v\{0,1\}\([^"]*\)"$/\1/')"
+	LATEST_TAG="$(printf '%s' "$json" | grep -o '"tag_name": *"[^"]*"' | head -n 1 | sed 's/.*"\([^"]*\)"$/\1/')"
+	LATEST_VERSION="${LATEST_TAG#v}"
 	LATEST_ASSET="$(printf '%s' "$json" | grep -o '"url": *"[^"]*/releases/assets/[0-9]*"' | head -n 1 | sed 's/.*"\(http[^"]*\)"$/\1/')"
 	if [ -z "$LATEST_VERSION" ] || [ -z "$LATEST_ASSET" ]; then
 		red "The newest release of $REPO has no zip."; exit 1
@@ -209,10 +213,41 @@ cmd_check() {
 	if [ "$have" = "$LATEST_VERSION" ]; then green "Up to date."; else green "Update available: ./server.sh update"; fi
 }
 
-# Downloads the newest release into the folder; prints the file name (empty = already up to date).
+# Brings server.sh itself to the version of the newest release and restarts the command with
+# it, so an update always runs with the update steps of the release it installs. Does nothing
+# if server.sh is already the same, or if it has just been replaced (SC_SELF_UPDATED).
+self_update() {
+	[ -n "${SC_SELF_UPDATED:-}" ] && return 0
+	local new="$DIR/server.sh.new"
+	if ! gh_curl -H "Accept: application/vnd.github.raw" -o "$new" \
+		"$API/repos/$REPO/contents/tools/server.sh?ref=$LATEST_TAG"; then
+		rm -f "$new"; info "Could not check server.sh for updates – continuing with this one." >&2
+		return 0
+	fi
+	if [ "$(head -n 1 "$new")" != "#!/usr/bin/env bash" ] || ! bash -n "$new" 2>/dev/null; then
+		rm -f "$new"; red "The server.sh of release $LATEST_VERSION looks broken – continuing with this one." >&2
+		return 0
+	fi
+	if cmp -s "$new" "$DIR/server.sh"; then rm -f "$new"; return 0; fi
+	chmod +x "$new" && mv "$new" "$DIR/server.sh" || { rm -f "$new"; red "Could not replace server.sh." >&2; return 0; }
+	green "server.sh updated to release $LATEST_VERSION – running the update with the new version." >&2
+	SC_SELF_UPDATED=1 exec "$DIR/server.sh" "$@"
+}
+
+# Keeps the newest BACKUPS_KEEP update backups and deletes older ones (0 = keep all).
+clean_backups() {
+	[ "${BACKUPS_KEEP:-0}" -gt 0 ] 2>/dev/null || return 0
+	local old
+	old="$(ls -1 "$DIR"/sharedcareer-backup-*.tgz 2>/dev/null | sort | head -n "-$BACKUPS_KEEP")"
+	[ -z "$old" ] && return 0
+	printf '%s\n' "$old" | xargs -r rm -f
+	info "Old backups removed: $(printf '%s\n' "$old" | wc -l) (the newest $BACKUPS_KEEP stay)"
+}
+
+# Downloads the newest release (fetch_latest first) into the folder; prints the file name
+# (empty = already up to date).
 download_latest() {
 	local force="$1"
-	fetch_latest
 	local have; have="$(installed_version)"
 	if [ "$have" = "$LATEST_VERSION" ] && [ "$force" != 1 ]; then
 		green "Already up to date (version $have). To reinstall anyway: ./server.sh update --force" >&2
@@ -238,6 +273,8 @@ cmd_update() {
 		esac
 	done
 	if [ -z "$zip" ] && [ -n "$REPO" ]; then
+		fetch_latest
+		self_update update "$@"
 		zip="$(download_latest "$force")" || exit 1
 		[ -z "$zip" ] && return 0
 	elif [ -z "$zip" ]; then
@@ -261,6 +298,7 @@ cmd_update() {
 	chmod +x "$DIR/server.sh" 2>/dev/null
 	# clean up old zips (the newest 3 stay)
 	ls -1 "$DIR"/SharedCareer-*.zip 2>/dev/null | sort -V | head -n -3 | xargs -r rm -f
+	clean_backups
 	green "Unpacked (settings in Resources/Server/SharedCareer/config are kept)."
 	cmd_start
 	sleep 3
@@ -269,7 +307,7 @@ cmd_update() {
 }
 
 usage() {
-	sed -n '2,28p' "$DIR/server.sh" | sed 's/^# \{0,1\}//'
+	sed -n '2,30p' "$DIR/server.sh" | sed 's/^# \{0,1\}//'
 }
 
 main() {
