@@ -100,7 +100,8 @@
 .scp-row { width: 100%; display: flex; justify-content: space-between; padding: 9px 12px; margin-bottom: 6px; border: none; border-radius: 10px;
 	background: rgba(255, 255, 255, 0.08); color: #fff; font-size: 13px; cursor: pointer; font-family: inherit; }
 .scp-row:hover { background: rgba(232, 115, 12, 0.35); }
-.scp-row-right { opacity: 0.7; }
+.scp-row-right { opacity: 0.7; white-space: nowrap; flex: none; margin-left: 8px; }
+.scp-row-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; min-width: 0; }
 .scp-chip { text-transform: none; letter-spacing: 0; font-size: 11px; padding: 2px 9px; border-radius: 9px; cursor: pointer;
 	background: rgba(255, 255, 255, 0.12); opacity: 1; }
 .scp-chip-on { background: #2d7fd3; }

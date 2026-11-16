@@ -68,10 +68,10 @@
 
 					<div ng-if="!tow.attached && tow.allowed">
 						<button class="scp-wide scp-primary" ng-click="towCall('uiAttachView()')">Attach where I look</button>
-						<div class="scp-hint">Aim with the middle of the screen – a blue cross shows where.</div>
+						<div class="scp-hint">Aim with the middle of the screen – a blue ball shows where.</div>
 						<div class="scp-label" ng-if="tow.nearby.length">Your vehicles nearby</div>
 						<button class="scp-row" ng-repeat="v in tow.nearby track by v.id" ng-click="towCall('uiAttachVehicle(' + v.id + ')')">
-							<span ng-bind="v.name"></span><span class="scp-row-right" ng-bind="v.distance + ' m'"></span>
+							<span class="scp-row-name" ng-bind="v.name"></span><span class="scp-row-right" ng-bind="v.distance + ' m'"></span>
 						</button>
 						<div class="scp-hint" ng-if="!tow.nearby.length">None of your vehicles is nearby.</div>
 					</div>
