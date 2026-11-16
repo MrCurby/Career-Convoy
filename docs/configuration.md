@@ -126,4 +126,5 @@ New versions sometimes change a default. On startup the server compares your `co
 
 - If a value is still the **old default**, it moves to the **new default**.
 - If you **changed** a value, it stays as it is.
-- The console lists every value that was changed.
+- **Nothing is thrown away.** A setting the new version no longer uses, or a value of the wrong type, moves to `_retired` in `config.json`. If the setting was renamed, or comes back later, it gets that value again.
+- The console lists every value that was changed or retired.

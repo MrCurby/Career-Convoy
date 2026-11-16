@@ -28,6 +28,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # with tags: tests/config_update_test.lua compares the settings with the last release
 
       - name: Install tools
         run: sudo apt-get update -qq && sudo apt-get install -y -qq luajit lua5.3 zip

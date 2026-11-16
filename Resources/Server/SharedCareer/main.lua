@@ -189,6 +189,7 @@ local DEFAULTS = {
 }
 
 local Config
+local Retired = {} -- "section.name" -> value of settings this version doesn't use (see mergeConfig)
 
 -- player_id -> {name, counted (has received settings), careerActive, startFailed,
 --               account (BeamMP ID or nil), guest, profile, lastPaymentAt}
@@ -283,7 +284,8 @@ end
 -- That way simply installing an update is enough.
 local function saveConfig()
 	if FS and FS.CreateDirectory and not FS.Exists(CONFIG_DIR) then FS.CreateDirectory(CONFIG_DIR) end
-	local text = encode({server = Config.server, client = Config.client, _defaults = DEFAULTS, _version = VERSION})
+	local text = encode({server = Config.server, client = Config.client, _retired = next(Retired) and Retired or nil,
+		_defaults = DEFAULTS, _version = VERSION})
 	if Util.JsonPrettify then text = Util.JsonPrettify(text) end
 	local f = io.open(CONFIG_FILE, "w")
 	if not f then
@@ -295,48 +297,87 @@ local function saveConfig()
 	return true
 end
 
--- defaults of earlier versions, for config files without _defaults (up to 0.3.1).
-local OLD_DEFAULTS = {
-	server = {dayMinutes = {45}, nightMinutes = {15}},
-}
+--== Settings across versions ===================================================
+-- On every start the loaded config.json is merged with DEFAULTS:
+--   * a new setting gets its default
+--   * a value still on the default of the version that wrote the file (_defaults) moves to the
+--     new default; a value someone changed stays
+--   * nothing is thrown away: a setting this version doesn't know (removed or renamed), or a
+--     value of the wrong type, is kept in config.json under _retired ("section.name" -> value)
+--     and reported on the console. A rename (RENAMED) takes its value from there too, even
+--     several versions later, and so does a setting that comes back under its old name.
+-- tests/config_update_test.lua compares DEFAULTS with the last release: a setting that is gone
+-- must be listed in RENAMED (new name -> old name) or REMOVED, so no value is lost by accident.
 
 -- settings that were renamed: new name -> old name (the old value is taken over once)
 local RENAMED = {
 	client = {addApps = "addTimeApp"}, -- 0.15.0
 }
 
+-- settings that were dropped on purpose: name -> why (their values stay under _retired)
+local REMOVED = {
+	server = {},
+	client = {},
+}
+
 local function wasDefault(section, key, value, recorded)
 	local rec = type(recorded) == "table" and type(recorded[section]) == "table" and recorded[section] or nil
-	if rec and rec[key] ~= nil then return rec[key] == value end
-	for _, old in ipairs((OLD_DEFAULTS[section] or {})[key] or {}) do
-		if old == value then return true end
-	end
-	return false
+	return rec ~= nil and rec[key] ~= nil and rec[key] == value
 end
 
--- Takes over the loaded values; a value that is still on the old default gets the
--- new default. Returns the list of settings updated that way.
+-- Merges the loaded file with DEFAULTS (see above). Returns the settings, the retired values,
+-- the list of settings that moved to a new default and the list of newly retired ones.
 local function mergeConfig(loaded)
-	local result, updated = {}, {}
+	loaded = type(loaded) == "table" and loaded or {}
+	local retired = {}
+	if type(loaded._retired) == "table" then
+		for name, value in pairs(loaded._retired) do retired[name] = value end
+	end
+	local result, updated, newlyRetired = {}, {}, {}
+	local function retire(name, value, why)
+		retired[name] = value
+		table.insert(newlyRetired, string.format("%s = %s (%s)", name, tostring(value), why))
+	end
 	for section, defaults in pairs(DEFAULTS) do
 		result[section] = {}
-		local values = type(loaded) == "table" and type(loaded[section]) == "table" and loaded[section] or {}
+		local values = type(loaded[section]) == "table" and loaded[section] or {}
+		local renamedFrom = {}
 		for key, default in pairs(defaults) do
 			local value = values[key]
 			local oldKey = (RENAMED[section] or {})[key]
-			if value == nil and oldKey then value = values[oldKey] end
-			if type(value) ~= type(default) then
+			if oldKey then
+				renamedFrom[oldKey] = true
+				local oldName = section .. "." .. oldKey
+				if value == nil then value = values[oldKey] end
+				if value == nil then value = retired[oldName] end
+				retired[oldName] = nil
+			end
+			-- a setting that comes back gets its old value
+			local name = section .. "." .. key
+			if value == nil and retired[name] ~= nil and type(retired[name]) == type(default) then value = retired[name] end
+			if value ~= nil and type(value) ~= type(default) then
+				retire(name, value, "expected a " .. type(default))
+				value = nil
+			end
+			if value == nil then
 				result[section][key] = default
-			elseif value ~= default and wasDefault(section, key, value, loaded and loaded._defaults) then
+			elseif value ~= default and wasDefault(section, key, value, loaded._defaults) then
 				result[section][key] = default
 				table.insert(updated, string.format("%s.%s: %s -> %s", section, key, tostring(value), tostring(default)))
 			else
 				result[section][key] = value
 			end
+			if value ~= nil then retired[name] = nil end
+		end
+		for key, value in pairs(values) do
+			if defaults[key] == nil and not renamedFrom[key] then
+				retire(section .. "." .. key, value, "not used by this version")
+			end
 		end
 	end
 	table.sort(updated)
-	return result, updated
+	table.sort(newlyRetired)
+	return result, retired, updated, newlyRetired
 end
 
 local function loadConfig()
@@ -354,11 +395,15 @@ local function loadConfig()
 			log("config.json is not valid JSON – saved as config.json.broken, using default settings")
 		end
 	end
-	local updated
-	Config, updated = mergeConfig(loaded)
+	local updated, newlyRetired
+	Config, Retired, updated, newlyRetired = mergeConfig(loaded)
 	if #updated > 0 then
 		log("Update: " .. #updated .. " setting(s) moved to the new default (values you changed are kept):")
 		for _, line in ipairs(updated) do log("  " .. line) end
+	end
+	if #newlyRetired > 0 then
+		log("Update: " .. #newlyRetired .. " setting(s) this version doesn't use, kept in config.json under _retired:")
+		for _, line in ipairs(newlyRetired) do log("  " .. line) end
 	end
 	saveConfig() -- new settings and defaults show up in the file automatically this way
 end

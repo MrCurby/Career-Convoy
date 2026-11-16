@@ -27,7 +27,8 @@ The maintainer puts a lot of weight on tidy code. Keep it that way with every ch
 - No stale comments or docs: when behavior changes, fix every comment that describes it.
 - No leftovers: remove old names, aliases ("old name for older callers") and dead code instead of
   keeping them around. Data on players' PCs or servers is migrated once instead (layouts:
-  `cleanup.lua` RENAMES/MOVES, state flags: STATE_RENAMED in `util.lua`; server settings: RENAMED in `main.lua`).
+  `cleanup.lua` RENAMES/MOVES, state flags: STATE_RENAMED in `util.lua`; server settings: RENAMED / REMOVED in `main.lua`,
+  checked against the last release by `tests/config_update_test.lua`).
 
 ## Workflow
 
