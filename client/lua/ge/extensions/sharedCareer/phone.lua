@@ -1,14 +1,14 @@
 -- SharedCareer :: the phone (client.phone)
 --
 -- A phone in the game, the home for SharedCareer apps. The home screen shows the server time,
--- the number of players and the app grid. Apps: Tow (grab.lua) and Fuel (fuel.lua).
+-- the number of players and the app grid. Apps so far: Tow (grab.lua) and Fuel (fuel.lua).
 --
 -- The UI is the app ui/modules/apps/SharedCareer-Phone/: a small tab with a phone icon at the
 -- right screen edge (below the menu); the phone itself opens above it. Key: F4 by default
 -- (BeamMP key bindings, rebindable under Options → Controls → BeamMP).
 --
 -- Apps: SharedCareer extensions register themselves here:
---   sharedCareer_phone.registerApp({id = "tow", title = "Tow", icon = "tow", color = "#e8730c",
+--   sharedCareer_phone.registerApp({id = "taxi", title = "Taxi", icon = "T", color = "#f5b800",
 --                                   order = 10, onOpen = function() ... end, onClose = ...})
 -- The phone shows every registered app on the home screen; a tap calls uiOpenApp(id), which
 -- calls the app's onOpen; leaving the app (home, putting the phone away) calls uiCloseApp(id) ->
