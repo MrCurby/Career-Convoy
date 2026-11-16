@@ -58,7 +58,7 @@
 --   Server -> Client: sc_fuelPrices {enabled, factors = {[station] = {gasoline = 0.9, ...}}}
 --                       (from the SharedCareer menu window)
 
-local VERSION = "0.15.2"
+local VERSION = "0.15.3"
 local TAG = "[SharedCareer] "
 
 local CONFIG_DIR = "Resources/Server/SharedCareer/config"
