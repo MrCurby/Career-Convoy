@@ -13,11 +13,10 @@
 -- Switching it off again (or leaving the server) restores the career's own rule: blocked
 -- unless walking.
 --
--- Strength (client.nodeGrabberStrength, a multiplier): the game keeps the grab strength as
--- 0..100 % in core/nodegrabberGamepad.lua (state.strength) and passes it on with
--- be.nodeGrabber:setStrength. The 100 % cap only exists in that Lua file, so with a multiplier
--- above 1 we pass state.strength * multiplier to the engine after every change (addStrength,
--- fixCurrentNode) and when the setting changes. 1 = the game's own strength.
+-- Strength: the career's grab force is limited inside the engine (C++), not in Lua. Tested in
+-- 0.8.10: passing up to 10x the strength to be.nodeGrabber:setStrength changed nothing, and the
+-- single-player career is just as weak. So this extension only lifts the block, it can't make
+-- the grabber stronger.
 
 local M = {}
 
@@ -77,45 +76,6 @@ function M.update()
 	end
 end
 
---== Strength =================================================================
-
-local function multiplier()
-	local core = U and U.ext("sharedCareer_core")
-	local config = core and core.getConfig()
-	local m = config and tonumber(config.nodeGrabberStrength)
-	if not m or m <= 0 then return 1 end
-	return math.max(1, math.min(10, m))
-end
-
-local function grabber()
-	local ng = type(be) == "userdata" or type(be) == "table"
-	return ng and be.nodeGrabber or nil
-end
-
---- Sends the game's strength (0..100) times our multiplier to the engine.
-function M.applyStrength()
-	local gp = U.ext("core_nodegrabberGamepad")
-	local ng = grabber()
-	if not gp or type(gp.state) ~= "table" or not ng then return end
-	local strength = tonumber(gp.state.strength) or 30
-	pcall(ng.setStrength, ng, strength * (left and 1 or multiplier()))
-end
-
--- After the game set its own strength, replace it with ours.
-local function wrapStrength()
-	local gp = U.ext("core_nodegrabberGamepad")
-	if not gp then return end
-	for _, name in ipairs({"addStrength", "fixCurrentNode"}) do
-		U.replace(gp, name, function(original)
-			return function(...)
-				local result = U.pack(original(...))
-				M.applyStrength()
-				return U.unpack(result, 1, result.n)
-			end
-		end)
-	end
-end
-
 --- Puts the career's own rule back (setting switched off, leaving the server).
 local function restore()
 	if not lifted then return end
@@ -133,16 +93,12 @@ end
 -- new settings from the server (called by core.lua)
 function M.onConfigChanged()
 	if allowed() then M.update() else restore() end
-	wrapStrength()
-	M.applyStrength()
 end
 
 function M.onCareerActive(active)
 	if active then
 		left = false
 		M.update()
-		wrapStrength()
-		M.applyStrength()
 	end
 end
 
@@ -151,7 +107,6 @@ end
 function M.onBeamMPServerLeave()
 	left = true
 	restore()
-	M.applyStrength() -- back to the game's own strength
 end
 
 function M.onExtensionLoaded()
