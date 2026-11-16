@@ -60,11 +60,11 @@ These go beyond the normal career. They are on by default unless noted, and each
 | <img src="docs/icons/car.svg" width="20" height="20" alt=""> **More careful traffic AI** | The AI notices slow or standing vehicles earlier (for example your truck while you maneuver), keeps more distance and brakes earlier at intersections and traffic lights. It doesn't drive slower. The police are not affected. | Yes (back to the game's AI) |
 | <img src="docs/icons/sliders.svg" width="20" height="20" alt=""> **SharedCareer menu** | An in-game window (key **F7**) for time, traffic, options and players. Every change applies to everyone. | Changing things can be limited to the server console |
 | <img src="docs/icons/users.svg" width="20" height="20" alt=""> **Find your friends** | Navigate to a player or watch them, and see what others are doing on their name tags (*Mission*, *On foot*, *Loading*). Teleporting to a player is **off** by default. | Name tag status and teleport: yes |
-| <img src="docs/icons/fuel.svg" width="20" height="20" alt=""> **Cheaper fuel through deliveries** | Deliver gasoline or diesel to a station and it gets cheaper there for everyone for a while. A fuel app shows the cheapest station. | Yes |
+| <img src="docs/icons/fuel.svg" width="20" height="20" alt=""> **Cheaper fuel through deliveries** | Deliver gasoline or diesel to a station and it gets cheaper there for everyone for a while. The **Fuel** app on the phone shows the cheapest station. | Yes |
 | <img src="docs/icons/monitor.svg" width="20" height="20" alt=""> **Garage computers from a distance** | Use the garage computer from anywhere in the room instead of standing right in front of it. | On other maps: yes. On West Coast USA it comes from a map file in the mod, so it's always on |
 | <img src="docs/icons/grab.svg" width="20" height="20" alt=""> **Node grabber everywhere** | The normal career only lets you grab and pull vehicles with the mouse while walking. SharedCareer also allows it in a vehicle and in the free camera. The pull stays as weak as in the normal career (the game engine limits it), so it's good for nudging and turning cars, not for throwing them. The vehicle certification test still blocks it. | Yes (back to the career's rule) |
-| <img src="docs/icons/grab.svg" width="20" height="20" alt=""> **Rope and winch** | Move vehicles that can't drive, for example onto a tow truck: **F6** attaches a rope where you point, **hold the left mouse button** to place the anchor, **F8** runs the winch and pulls the vehicle there slowly, with physics. A colored rope shows how hard it pulls. Only your own vehicles. | Yes |
-| <img src="docs/icons/phone.svg" width="20" height="20" alt=""> **Phone** | A phone in the game (key **F4**, or the tab at the right screen edge) with the server time and the number of players. It's the home for future SharedCareer apps; it has **no apps yet**. | Yes |
+| <img src="docs/icons/grab.svg" width="20" height="20" alt=""> **Rope and winch** | Move vehicles that can't drive, for example onto a tow truck, slowly and with physics. Use the **Tow** app on the phone as a remote control (attach, move the anchor, winch in/out), or the keys: **F6** attaches a rope where you point, **hold the left mouse button** to place the anchor, **F8** runs the winch. A colored rope shows how hard it pulls. Only your own vehicles. | Yes |
+| <img src="docs/icons/phone.svg" width="20" height="20" alt=""> **Phone** | A phone in the game (key **F4**, or the tab at the right screen edge) with the server time and the number of players, and two apps so far: **Tow** (rope and winch as a remote control) and **Fuel** (gas station prices). | Yes |
 | <img src="docs/icons/money.svg" width="20" height="20" alt=""> **Send money** | `/pay <name> <amount>` in chat, with an automatic refund if something goes wrong. | Yes |
 | <img src="docs/icons/message.svg" width="20" height="20" alt=""> **Welcome dialog** | A short overview when you join. Each player can pick "Don't show again". | Yes |
 
@@ -76,7 +76,7 @@ The mod only runs while you are on a SharedCareer server (BeamMP only loads it t
 
 - **Console and world editor are locked**, and time, weather and traffic in the pause menu are display-only. This keeps the shared world the same for everyone. The server can allow both.
 - **Two game settings are set by the server** (simplified traffic cars, optionally simplified cars of other players). Your own values come back when you leave.
-- **Your UI layout gets the SharedCareer menu and the fuel app**, once. If you remove them, they don't come back. Leftover apps from Mileage are removed, after a backup of the layout file.
+- **Your UI layout gets the SharedCareer menu and the phone tab**, once. If you remove them, they don't come back. Leftover apps from Mileage are removed, after a backup of the layout file.
 - **On West Coast USA, the garage computer zones are bigger** (the mod ships a changed copy of that map file).
 
 These changes stay after you leave:
@@ -102,11 +102,18 @@ For server owners: settings move to new defaults automatically on updates, and `
 ![Welcome dialog](docs/images/welcome.png)
 
 </td>
-<td width="50%" valign="top">
+<td width="25%" valign="top">
 
-**Fuel prices**: every station, cheapest first, with a route there
+**Tow** app: rope and winch
 
-![Fuel prices app](docs/images/fuel.png)
+<img src="docs/images/phone-tow.png" alt="Tow app on the phone">
+
+</td>
+<td width="25%" valign="top">
+
+**Fuel** app: cheapest station
+
+<img src="docs/images/phone-fuel.png" alt="Fuel app on the phone">
 
 </td>
 </tr>

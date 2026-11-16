@@ -115,9 +115,9 @@ Client                                    Server
 
 ### UI apps
 
-The menu and the fuel app are AngularJS apps (`ui/modules/apps/…`). Lua pushes state via `guihooks.trigger`, and the apps call back with `bngApi.engineLua`. Two details matter in BeamNG:
+The menu and the phone are AngularJS apps (`ui/modules/apps/…`). Lua pushes state via `guihooks.trigger`, and the apps call back with `bngApi.engineLua`. Two details matter in BeamNG:
 
-- **App frames catch clicks over their whole area**, even where they look transparent. The two apps therefore must never overlap. The fuel app sits below the menu.
+- **App frames catch clicks over their whole area**, even where they look transparent. The apps therefore must never overlap. The phone's frame is only its tab, directly below the menu.
 - Dialogs and the phone are attached to the page body, not to the app frame, so the frame can't clip them. Only the dialog card / the phone take clicks.
 
 ### Regenerating the garage zones

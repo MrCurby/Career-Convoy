@@ -210,7 +210,7 @@ local function ensurePatch()
 end
 M.ensurePatch = ensurePatch
 
---== Overview for the fuel app =================================================
+--== Overview for the Fuel app on the phone =====================================
 -- All stations with the current price per fuel type (as when refueling: getFuelPrice), discount
 -- from deliveries, distance to the player. "Go" sets a route to the station.
 -- Prices in the map's unit (West Coast: per US gallon, like on the signs).
@@ -256,7 +256,7 @@ local function playerPosition()
 	return nil
 end
 
---- State for the fuel app, or nil without stations.
+--- State for the Fuel app on the phone, or nil without stations.
 function M.overview()
 	local stations = gasStations()
 	local priceModule = rawget(_G, "freeroam_facilities_fuelPrice")
@@ -334,10 +334,22 @@ function M.onClientStartMission()
 	applyPending = factors ~= nil
 end
 
+-- The fuel prices are an app on the phone (phone.lua); its screen is in the phone window and
+-- gets the data with "SharedCareerTime" (env.lua -> M.overview), like the old fuel window did.
+local function registerPhoneApp()
+	local phone = U.ext("sharedCareer_phone")
+	if phone and type(phone.registerApp) == "function" then
+		phone.registerApp({id = "fuel", title = "Fuel", icon = "fuel", color = "#2a9d55", order = 20})
+	end
+end
+
 function M.onCareerActive(active)
 	if active then
 		applyPending = factors ~= nil
-		if U.isMP() then ensurePatch() end
+		if U.isMP() then
+			ensurePatch()
+			registerPhoneApp()
+		end
 	end
 end
 

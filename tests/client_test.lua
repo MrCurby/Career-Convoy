@@ -805,6 +805,13 @@ do
 	veh.handRope(body.p.x + 2, body.p.y + 0.8, 4, 1, 0, 1, 150)
 	run(6)
 	check(body.p.z > 1.5, string.format("with 150 %% it lifts the vehicle (z = %.2f)", body.p.z))
+	-- pay out: the rope gets longer at the winch speed, the lifted vehicle comes down
+	local _, _, lenBefore = lastState()
+	veh.handRope(body.p.x + 2, body.p.y + 0.8, body.p.z + 0.3 + (lenBefore or 0), -1, 0, 1, 150)
+	run(1)
+	local _, _, lenAfter = lastState()
+	check(lenBefore and lenAfter and lenAfter - lenBefore > 0.8 and lenAfter - lenBefore < 1.2,
+		string.format("pay out: the rope gets 1 m/s longer (%.2f -> %.2f m)", lenBefore or -1, lenAfter or -1))
 	veh.handRelease()
 	body.f = {x = 0, y = 0, z = 0}
 	veh.updateGFX(1 / 60)
@@ -990,10 +997,11 @@ check(grabCalls == 1, "no rope: the mouse button is the game's node grabber agai
 drawn = {}
 frames(1 / 60)
 check(#drawn == 0, "let go: nothing drawn")
--- preview: on foot, pointing at an own vehicle -> asks the vehicle 5 times per second
-local walkingNow = false
+-- preview: only while the Tow app is open (not just on foot); it aims with the view
+local walkingNow = true
 _G.gameplay_walk = {isWalking = function() return walkingNow end}
 mouse.pos = {x = 20, y = 0, z = 0}
+fwd = {x = 1, y = 0, z = -0.1}
 local function probeCount(from)
 	local c = 0
 	for i = from + 1, #truck.lua do if truck.lua[i]:find("handProbe") then c = c + 1 end end
@@ -1001,21 +1009,90 @@ local function probeCount(from)
 end
 local before = #truck.lua
 frames(1)
-check(probeCount(before) == 0, "driving: no preview")
+check(probeCount(before) == 0, "on foot without the Tow app: no preview")
+sharedCareer_grab.setAppOpen(true)
 before = #truck.lua
-walkingNow = true
 frames(1)
 local probes = probeCount(before)
-check(probes >= 4 and probes <= 6, "on foot: the vehicle is asked where F6 would grab (" .. probes .. "x per second)")
+check(probes >= 4 and probes <= 6, "Tow app open: the vehicle is asked where the rope would attach (" .. probes .. "x per second)")
 sharedCareer_grab.onProbe(60, 9, 0, 1)
 drawn = {}
 frames(1 / 60)
-check(#drawn == 3 and drawn[1].c.b > 0.9, "preview: a blue cross where F6 would grab")
-walkingNow = false
-frames(0.3)
+check(#drawn == 3 and drawn[1].c.b > 0.9, "preview: a blue cross where the rope would attach")
+sharedCareer_grab.setAppOpen(false)
 drawn = {}
 frames(1 / 60)
-check(#drawn == 0, "back in the vehicle: preview gone")
+check(#drawn == 0, "Tow app closed: preview gone")
+fwd = nil
+-- Tow app on the phone
+local towApp
+for _, app in ipairs(sharedCareer_phone.state().apps) do if app.id == "tow" then towApp = app end end
+check(towApp and towApp.title == "Tow" and towApp.icon == "tow", "the Tow app is on the phone")
+sharedCareer_phone.uiOpenApp("tow")
+local appSt = sharedCareer_grab.appState()
+check(appSt.allowed and not appSt.attached and #appSt.nearby >= 1 and appSt.nearby[1].id == 60
+	and appSt.nearby[1].name == "Pickup", "not attached: own vehicles nearby are listed (" .. tostring(appSt.nearby[1] and appSt.nearby[1].name) .. ")")
+for _, v in ipairs(appSt.nearby) do check(v.id ~= 61 and v.id ~= 62, "no other players' vehicles or players on foot in the list") end
+-- attach from the list: at the vehicle's point closest to you
+check(sharedCareer_grab.uiAttachVehicle(60) and lastHand(truck) == "handGrabNearest", "attach from the list: rope at the closest point")
+sharedCareer_grab.onGrip(60, 9, 9, 0, 1)
+appSt = sharedCareer_grab.appState()
+check(appSt.attached and appSt.vehicle == "Pickup" and appSt.winch == 0, "app shows the roped vehicle, winch stopped")
+-- remote control: hold "forward" -> the anchor moves away (seen from the camera), rope pays out
+fwd = {x = 1, y = 0, z = 0}
+sharedCareer_grab.uiNudge(1, 0, 0)
+frames(1)
+name, a = lastHand(truck)
+check(math.abs(a[1] - 10) < 0.1 and a[5] == 1, string.format("hold forward: anchor 1 m/s away, rope pays out (x = %.2f)", a[1]))
+sharedCareer_grab.uiNudge(0, 1, 0)
+frames(1)
+name, a = lastHand(truck)
+check(math.abs(a[2] + 1) < 0.1, string.format("hold right: anchor 1 m to the right (y = %.2f)", a[2]))
+sharedCareer_grab.uiNudge(0, 0, 1)
+sharedCareer_grab.uiFine(true)
+frames(1)
+name, a = lastHand(truck)
+check(math.abs(a[3] - 1.25) < 0.05 and a[6] == 0.25, string.format("fine mode: up at a quarter speed, winch quarter speed (z = %.2f)", a[3]))
+sharedCareer_grab.uiFine(false)
+sharedCareer_grab.uiNudgeStop()
+frames(0.2)
+name, a = lastHand(truck)
+check(a[5] == 0, "button released: anchor stays, rope no longer pays out")
+-- winch: haul in / stop / pay out
+sharedCareer_grab.uiWinch(1)
+frames(0.1)
+check(select(2, lastHand(truck))[4] == 1, "winch: haul in")
+sharedCareer_grab.uiWinch(-1)
+frames(0.1)
+check(select(2, lastHand(truck))[4] == -1, "winch: pay out")
+sharedCareer_grab.uiWinch(0)
+frames(0.1)
+check(select(2, lastHand(truck))[4] == 0, "winch: stop")
+-- anchor to the middle of the view at its distance
+fwd = {x = 0, y = 1, z = 0}
+sharedCareer_grab.uiAnchorToView()
+frames(1 / 60)
+name, a = lastHand(truck)
+check(math.abs(a[1]) < 0.1 and a[2] > 3 and a[5] == 1, "anchor to my view: placed in the middle of the view, rope pays out once")
+frames(0.1)
+check(select(2, lastHand(truck))[5] == 0, "... only once")
+sharedCareer_grab.uiRelease()
+check(not sharedCareer_grab.isHolding() and lastHand(truck) == "handRelease", "remove rope from the app")
+-- attach where you look (the cursor is on the phone): uses the view direction
+fwd = {x = 1, y = 0, z = -0.1}
+mouse.pos = {x = 0, y = -30, z = 0}
+check(sharedCareer_grab.uiAttachView() and lastHand(truck) == "handGrabRay", "attach where I look: aims with the view, not the cursor")
+sharedCareer_grab.uiRelease()
+sharedCareer_phone.uiCloseApp("tow")
+fwd = nil
+-- switched off on the server: the app leaves the phone
+cfgG.allowGrab = false
+handlers.sc_configUpdate(json.encode(cfgG))
+local stillThere = false
+for _, app in ipairs(sharedCareer_phone.state().apps) do if app.id == "tow" then stillThere = true end end
+check(not stillThere, "grabbing switched off: the Tow app leaves the phone")
+cfgG.allowGrab = true
+handlers.sc_configUpdate(json.encode(cfgG))
 toasts = {}
 mouse.pos = {x = 20, y = 0, z = 0}
 keyG.onDown()
@@ -1083,7 +1160,7 @@ _G.guihooks = {trigger = function(name, data) table.insert(phoneHooks, {name = n
 extensions.hook("onWorldReadyState", 2)
 local cfgP = {}
 for k, v in pairs(config) do cfgP[k] = v end
-cfgP.phone = true
+cfgP.phone, cfgP.allowGrab = true, true
 handlers.sc_config(json.encode(cfgP))
 update()
 local function lastPhone(name)
@@ -1091,7 +1168,8 @@ local function lastPhone(name)
 end
 check(phoneKey and phoneKey.default == "f4" and phoneKey.title:find("phone"), "phone key registered via BeamMP (F4)")
 local st = lastPhone("SharedCareerPhone")
-check(st and st.enabled == true and #st.apps == 0, "phone on, no apps yet")
+check(st and st.enabled == true and #st.apps == 2 and st.apps[1].id == "tow" and st.apps[2].id == "fuel",
+	"phone on, with the built-in apps Tow and Fuel")
 phoneHooks = {}
 phoneKey.onDown()
 check(lastPhone("SharedCareerPhoneToggle") ~= nil, "F4 takes the phone out / puts it away")
@@ -1103,15 +1181,16 @@ sharedCareer_phone.registerApp({id = "jobs", title = "Jobs", order = 10})
 sharedCareer_phone.registerApp({id = "bank", title = "Bank", order = 10, onOpen = function() error("boom") end})
 check(not sharedCareer_phone.registerApp({title = "no id"}), "an app without an id is refused")
 st = lastPhone("SharedCareerPhone")
-check(#st.apps == 3 and st.apps[1].id == "bank" and st.apps[2].id == "jobs" and st.apps[3].id == "taxi",
-	"apps sorted by order, then title")
+local ids = {}
+for _, app in ipairs(st.apps) do table.insert(ids, app.id) end
+check(table.concat(ids, ",") == "bank,jobs,tow,fuel,taxi", "apps sorted by order, then title: " .. table.concat(ids, ","))
 check(st.apps[2].icon == "J" and st.apps[2].color == "#ff6600" and st.apps[1].onOpen == nil,
 	"defaults for icon and color; no functions sent to the window")
 check(sharedCareer_phone.uiOpenApp("taxi") == true and opened == 1, "a tap opens the app")
 check(sharedCareer_phone.uiOpenApp("bank") == true, "an app that fails to open doesn't break the phone")
 check(sharedCareer_phone.uiOpenApp("nope") == false, "unknown app: nothing happens")
 sharedCareer_phone.unregisterApp("bank")
-check(#lastPhone("SharedCareerPhone").apps == 2, "an app can be removed again")
+check(#lastPhone("SharedCareerPhone").apps == 4, "an app can be removed again")
 -- switched off on the server: hidden, key does nothing, apps don't open
 cfgP.phone = false
 handlers.sc_configUpdate(json.encode(cfgP))
@@ -1313,9 +1392,9 @@ check(files[CUSTOM].apps[2].placement.top == "600px", "placed right, below the p
 check(files["settings/sharedCareer/state.json"].timeAppAdded == true, "remembered: already added")
 local phoneApp
 for _, a in ipairs(files[CUSTOM].apps) do if a.appName == "sharedCareerPhone" then phoneApp = a end end
-check(phoneApp and phoneApp.placement.top == "920px" and phoneApp.placement.width == "30px"
+check(phoneApp and phoneApp.placement.top == "760px" and phoneApp.placement.width == "30px"
 	and files["settings/sharedCareer/state.json"].phoneAppAdded == true,
-	"phone tab added once, below the fuel app, only as big as the tab")
+	"phone tab added once, directly below the menu, only as big as the tab")
 -- 2) player removes it again -> NOT added again on the next join
 local removedLayout = {apps = {{appName = "tacho2"}}}
 joinWith({[CUSTOM] = removedLayout, ["settings/sharedCareer/state.json"] = {timeAppAdded = true}})
@@ -1326,43 +1405,39 @@ check(files[CUSTOM].apps[1].appName == "meineApp" and hasTimeApp(files[CUSTOM]),
 check(files[CUSTOM .. ".sharedcareer-backup"].apps[1].appName == "meineApp", "backup of the own layout")
 -- 4) already there (added by the player) -> not twice
 joinWith({[CUSTOM] = {apps = {{appName = "sharedCareerTime"}}}})
-local timeCount, fuelCount = 0, 0
+local timeCount, phoneCount = 0, 0
 for _, a in ipairs(files[CUSTOM].apps) do
 	if a.appName == "sharedCareerTime" then timeCount = timeCount + 1 end
-	if a.appName == "sharedCareerFuel" then fuelCount = fuelCount + 1 end
+	if a.appName == "sharedCareerPhone" then phoneCount = phoneCount + 1 end
 end
-check(timeCount == 1 and fuelCount == 1, "menu not duplicated, fuel app is added")
--- fuel app: own flag – players who only remove the fuel app don't get it back
+check(timeCount == 1 and phoneCount == 1, "menu not duplicated, phone tab is added")
+-- phone: own flag – players who remove the phone tab don't get it back
 joinWith({[CUSTOM] = {apps = {{appName = "sharedCareerTime"}}},
-	["settings/sharedCareer/state.json"] = {timeAppAdded = true, fuelAppAdded = true}})
-local fuelBack = 0
-for _, a in ipairs(files[CUSTOM].apps) do if a.appName == "sharedCareerFuel" then fuelBack = fuelBack + 1 end end
-check(fuelBack == 0, "removed fuel app is not forced back")
--- update from 0.7.1: menu already there (flag set), fuel app never -> added once
-joinWith({[CUSTOM] = {apps = {{appName = "sharedCareerTime"}}},
-	["settings/sharedCareer/state.json"] = {timeAppAdded = true}})
-local fuelApp
-for _, a in ipairs(files[CUSTOM].apps) do if a.appName == "sharedCareerFuel" then fuelApp = a end end
-check(fuelApp and fuelApp.placement.right == "0px" and files["settings/sharedCareer/state.json"].fuelAppAdded == true,
-	"fuel app placed at the right edge once on update")
--- layout from 0.7.2: fuel app 350 px left of the menu -> move to the edge once
+	["settings/sharedCareer/state.json"] = {timeAppAdded = true, phoneAppAdded = true, fuelAppRetired = true, phoneTabUp = true}})
+local phoneBack = 0
+for _, a in ipairs(files[CUSTOM].apps) do if a.appName == "sharedCareerPhone" then phoneBack = phoneBack + 1 end end
+check(phoneBack == 0, "removed phone tab is not forced back")
+-- update from 0.12: the separate fuel window is gone (it's on the phone now) -> taken out once,
+-- and the phone tab moves up to its place, directly below the menu
 joinWith({[CUSTOM] = {apps = {{appName = "sharedCareerTime", placement = {right = "0px", top = "600px"}},
-	{appName = "sharedCareerFuel", placement = {right = "350px", top = "600px"}}}},
-	["settings/sharedCareer/state.json"] = {timeAppAdded = true, fuelAppAdded = true}})
-check(files[CUSTOM].apps[2].placement.right == "0px" and files[CUSTOM].apps[2].placement.top == "760px",
-	"old fuel position (350 px) moved to the edge, below the menu")
-check(files[CUSTOM].apps[1].placement.top == "600px", "menu stays where it is")
--- layout from 0.8.0–0.8.3: fuel app exactly on top of the menu (covered the steering-wheel tab) -> below it
-joinWith({[CUSTOM] = {apps = {{appName = "sharedCareerTime", placement = {right = "0px", top = "600px"}},
-	{appName = "sharedCareerFuel", placement = {right = "0px", top = "600px"}}}},
-	["settings/sharedCareer/state.json"] = {timeAppAdded = true, fuelAppAdded = true, fuelAppAtEdge = true}})
-check(files[CUSTOM].apps[2].placement.top == "760px" and files["settings/sharedCareer/state.json"].fuelAppBelowMenu == true,
-	"fuel app no longer on top of the menu")
-check(files["settings/sharedCareer/state.json"].fuelAppAtEdge == true, "move remembered (only once)")
--- moved by the player (not 350 px) -> stays where the player put it
-joinWith({[CUSTOM] = {apps = {{appName = "sharedCareerFuel", placement = {right = "120px", top = "300px"}}}},
-	["settings/sharedCareer/state.json"] = {timeAppAdded = true, fuelAppAdded = true}})
-check(files[CUSTOM].apps[1].placement.right == "120px", "the player's own position stays")
+	{appName = "sharedCareerFuel", placement = {right = "0px", top = "760px"}},
+	{appName = "sharedCareerPhone", placement = {right = "0px", top = "920px"}}}},
+	["settings/sharedCareer/state.json"] = {timeAppAdded = true, fuelAppAdded = true, phoneAppAdded = true}})
+local names, phoneTop = {}, nil
+for _, a in ipairs(files[CUSTOM].apps) do
+	table.insert(names, a.appName)
+	if a.appName == "sharedCareerPhone" then phoneTop = a.placement.top end
+end
+check(table.concat(names, ",") == "sharedCareerTime,sharedCareerPhone",
+	"old fuel window removed from the layout (no red 'Unknown app' box): " .. table.concat(names, ","))
+check(phoneTop == "760px" and files[CUSTOM].apps[1].placement.top == "600px", "phone tab moved up below the menu; menu stays")
+local st = files["settings/sharedCareer/state.json"]
+check(st.fuelAppRetired == true and st.phoneTabUp == true, "both changes remembered (only once)")
+-- the player moved the phone tab somewhere else -> it stays there
+joinWith({[CUSTOM] = {apps = {{appName = "sharedCareerPhone", placement = {right = "120px", top = "300px"}}}},
+	["settings/sharedCareer/state.json"] = {timeAppAdded = true, phoneAppAdded = true}})
+check(files[CUSTOM].apps[1].placement.right == "120px" and files[CUSTOM].apps[1].placement.top == "300px",
+	"the player's own position stays")
 -- 5) switched off
 joinWith({[ORIGINAL] = {apps = {}}}, {addTimeApp = false})
 check(files[CUSTOM] == nil, "addTimeApp = false: nothing added")

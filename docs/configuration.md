@@ -79,7 +79,7 @@ The file is `Resources/Server/SharedCareer/config/config.json`. It is created on
 | `server.allowTeleport` | `false` | **Go** in the Players tab: teleport your vehicle to another player |
 | `client.showPlayerStatus` | `true` | Status after other players' names: `[Mission]`, `[On foot]`, `[Loading]` |
 | `client.showWelcome` | `true` | Welcome dialog on join (everyone can still pick "Don't show again") |
-| `client.addTimeApp` | `true` | Add the SharedCareer menu and the fuel app to the career UI once, on the first join |
+| `client.addTimeApp` | `true` | Add the SharedCareer menu and the phone tab to the career UI once, on the first join |
 | `client.cleanupMileageApps` | `true` | Remove Mileage leftovers (red "Unknown app" boxes) from the players' UI layouts and bring back the BeamMP player list |
 
 ### Vehicles and collisions
@@ -114,7 +114,7 @@ The file is `Resources/Server/SharedCareer/config/config.json`. It is created on
 |---|---|---|
 | `client.allowConsole` | `false` | Allow the in-game Lua console |
 | `client.allowWorldEditor` | `false` | Allow the world editor |
-| `client.phone` | `true` | The phone (key F4, tab at the right screen edge), home for future SharedCareer apps |
+| `client.phone` | `true` | The phone (key F4, tab at the right screen edge) with the Tow and Fuel apps |
 | `client.allowGrab` | `true` | Rope and winch (keys F6, F5 / left mouse, F8): move your own vehicles slowly by hand, with physics |
 | `client.grabSpeed` | `1` | How fast the winch hauls in at most, in m/s (0.2–5) |
 | `client.grabStrength` | `60` | Force limit in % of the vehicle's weight (10–150). Below 100 you can lift one end and drag or push the vehicle, but not float it. |

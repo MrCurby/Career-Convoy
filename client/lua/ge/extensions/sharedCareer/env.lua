@@ -217,7 +217,7 @@ local function uiState()
 	-- "Players" tab
 	local players = U.ext("sharedCareer_players")
 	if players then state.players = players.state() end
-	-- fuel prices (fuel app)
+	-- fuel prices (Fuel app on the phone)
 	local fuel = U.ext("sharedCareer_fuel")
 	if fuel then
 		local ok, overview = pcall(fuel.overview)

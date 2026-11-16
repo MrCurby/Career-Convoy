@@ -1,6 +1,7 @@
 // SharedCareer Phone: a tab at the right screen edge (key F4) that takes the phone out.
 // The phone shows the server time, the number of players, the connection and the apps that
-// SharedCareer extensions registered (lua/ge/extensions/sharedCareer/phone.lua). No apps yet.
+// SharedCareer extensions registered (lua/ge/extensions/sharedCareer/phone.lua). Built-in app
+// screens: Tow (rope and winch, grab.lua) and Fuel (gas station prices, fuel.lua).
 //
 // Data: guihook "SharedCareerPhone" {enabled, apps} from phone.lua, "SharedCareerTime" (time,
 // players, connection) from env.lua every second, "SharedCareerPhoneToggle" from the key.
@@ -45,9 +46,13 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 		if (host && host.parentNode) host.parentNode.removeChild(host);
 	});
 
+	function closeApp() {
+		if ($scope.currentApp) lua('uiCloseApp(' + JSON.stringify(String($scope.currentApp.id)) + ')');
+		$scope.currentApp = null;
+	}
 	function setOpen(value) {
 		$scope.open = value;
-		if (!value) $scope.currentApp = null;
+		if (!value) closeApp();
 		if (value) {
 			try { window.dispatchEvent(new CustomEvent("sharedCareerPanelOpen", {detail: "phone"})); } catch (e) {}
 		}
@@ -60,13 +65,74 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 	$scope.$on('$destroy', function () { window.removeEventListener("sharedCareerPanelOpen", onOtherOpened); });
 
 	$scope.openApp = function (app) {
+		closeApp();
 		$scope.currentApp = app;
 		lua('uiOpenApp(' + JSON.stringify(String(app.id)) + ')');
 	};
-	$scope.goHome = function () { $scope.currentApp = null; };
+	$scope.goHome = function () { closeApp(); };
 	$scope.homeBar = function () {
-		if ($scope.currentApp) $scope.currentApp = null; else setOpen(false);
+		if ($scope.currentApp) closeApp(); else setOpen(false);
 	};
+
+	//== Tow app (lua/ge/extensions/sharedCareer/grab.lua) ==
+	$scope.tow = {allowed: true, attached: false, nearby: []};
+	$scope.towCall = function (cmd) {
+		bngApi.engineLua('if sharedCareer_grab then sharedCareer_grab.' + cmd + ' end');
+	};
+	var nudging = false;
+	$scope.nudge = function (f, r, u) { nudging = true; $scope.towCall('uiNudge(' + f + ',' + r + ',' + u + ')'); };
+	$scope.nudgeStop = function () { if (nudging) { nudging = false; $scope.towCall('uiNudgeStop()'); } };
+	$scope.meters = function (v) { return typeof v === 'number' ? v.toFixed(1) + ' m' : '–'; };
+	$scope.strainColor = function (s) {
+		s = Math.max(0, Math.min(1, s || 0));
+		if (s < 0.6) return '#4cd964';
+		if (s < 0.9) return '#ffcc00';
+		return '#ff3b30';
+	};
+	$scope.strainText = function (s) {
+		s = s || 0;
+		if (s < 0.6) return 'easy';
+		if (s < 0.9) return 'working hard';
+		return 'at the limit';
+	};
+	//== Fuel app (lua/ge/extensions/sharedCareer/fuel.lua, data with "SharedCareerTime") ==
+	var SORT_KEY = "sharedCareerFuelSort";
+	$scope.fuel = null;
+	$scope.fuelSort = "gasoline";
+	try { $scope.fuelSort = window.localStorage.getItem(SORT_KEY) || "gasoline"; } catch (e) {}
+	$scope.setFuelSort = function (s) {
+		$scope.fuelSort = s;
+		try { window.localStorage.setItem(SORT_KEY, s); } catch (e) {}
+	};
+	// fuel type whose price is highlighted (gasoline for "Nearest")
+	$scope.mainFuel = function () { return $scope.fuelSort === 'diesel' ? 'diesel' : 'gasoline'; };
+	$scope.stations = function () {
+		var f = $scope.fuel;
+		if (!f || !f.stations) return [];
+		var list = f.stations.slice();
+		var sort = $scope.fuelSort;
+		list.sort(function (a, b) {
+			if (sort === 'distance') {
+				return (a.distance === undefined ? 1e12 : a.distance) - (b.distance === undefined ? 1e12 : b.distance);
+			}
+			var pa = a.fuels[sort] ? a.fuels[sort].price : 1e12, pb = b.fuels[sort] ? b.fuels[sort].price : 1e12;
+			return pa - pb;
+		});
+		return list;
+	};
+	$scope.formatPrice = function (p) { return "$" + Number(p.price).toFixed(2) + "/" + p.unit; };
+	$scope.formatDistance = function (m) { return m < 1000 ? Math.round(m) + " m" : (m / 1000).toFixed(1) + " km"; };
+	function fuelLua(cmd) { bngApi.engineLua('if sharedCareer_fuel then sharedCareer_fuel.' + cmd + ' end'); }
+	$scope.navigate = function (id) { fuelLua('uiNavigate(' + JSON.stringify(String(id)) + ')'); };
+	$scope.stopNavigate = function () { fuelLua('uiStopNavigate()'); };
+
+	$scope.$on('SharedCareerTow', function (event, data) {
+		$scope.$evalAsync(function () {
+			if (!data) return;
+			if (!Array.isArray(data.nearby)) data.nearby = [];
+			$scope.tow = data;
+		});
+	});
 
 	function pad(n) { return (n < 10 ? '0' : '') + n; }
 	$scope.clock = function () {
@@ -102,6 +168,7 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 			$scope.connected = data.connected === true;
 			var list = data.players && Array.isArray(data.players.list) ? data.players.list : null;
 			$scope.players = list ? list.length : '–';
+			$scope.fuel = data.fuel || null;
 		});
 	});
 

@@ -16,12 +16,12 @@
 --   welcome   welcome dialog on join (with "Don't show again")
 --   nodegrab  node grabber in the career also in a vehicle / free camera (client.allowNodeGrabber)
 --   grab      rope and winch: move your own vehicles slowly by hand (client.allowGrab, F6/F5/F8)
---   phone     the phone: home for future SharedCareer apps (client.phone, key F4)
+--   phone     the phone with its apps: Tow (grab.lua), Fuel (fuel.lua) (client.phone, key F4)
 --
 -- Also in the mod: levels/west_coast_usa/.../garage_interactions/items.level.json –
 -- larger zones at the garage computers (replaces the map file of the same name),
 -- and the UI apps ui/modules/apps/SharedCareer-Time/ (SharedCareer menu) and
--- ui/modules/apps/SharedCareer-Fuel/ (fuel prices, own tab with a fuel pump).
+-- ui/modules/apps/SharedCareer-Phone/ (the phone, own tab; its apps: Tow, Fuel).
 --
 --   cleanup   UI layouts: removes Mileage leftovers (red "Unknown app" boxes) and adds the
 --             SharedCareer apps to the career layout once

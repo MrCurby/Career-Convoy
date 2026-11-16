@@ -101,21 +101,19 @@ A small shared economy that makes delivery jobs matter for everyone:
 - Discounts are saved on the server and survive a restart.
 - Your insurance fuel discount still applies on top.
 
-### Fuel prices app
+### Fuel app on the phone
 
-![Fuel prices app](images/fuel.png)
+<img src="images/phone-fuel.png" width="240" alt="Fuel app on the phone">
 
-A separate window with a **fuel-pump tab**, right below the SharedCareer menu at the right screen edge. It starts collapsed. Opening it closes the menu and the other way round, so they never overlap.
-
-![Right screen edge: both collapsed, menu open, fuel prices open](images/screen-edge.png)
+Open the phone (**F4**) and tap **Fuel**:
 
 - All stations of the map with gasoline (**G**) and diesel (**D**) prices, in the map's unit. On West Coast USA that is per gallon, like the signs.
-- **Sort** by gasoline or diesel price, cheapest first and highlighted in green, or by distance (**Nearest**)
-- A green *−10 %* means that fuel is currently cheaper there because of deliveries
+- **Sort** by gasoline or diesel price, cheapest first and highlighted in green, or by distance (**Nearest**).
+- A green *−10 %* means that fuel is currently cheaper there because of deliveries.
 - Distance to you, and **Go** to set a route to the station. **Stop** ends it.
 - The prices are exactly what you pay at the pump, before your insurance discount.
 
-Added to your UI automatically on the first join. If you removed it: UI app menu → category **BeamMP** → **SharedCareer Fuel**.
+(Up to 0.12 this was a separate window with a fuel-pump tab. On your first join with 0.13 the mod takes that window out of your layout once, and the phone tab moves to its place.)
 
 ## Traffic
 
@@ -160,9 +158,23 @@ Server admins can switch back to the career's rule with `sc set client.allowNode
 
 Because the game's node grabber is so weak in the career, SharedCareer has its own: a rope with a winch. It's made for moving vehicles that can't drive anymore, slowly and by hand, for example onto a tow truck.
 
+### With the Tow app (remote control)
+
+<img src="images/phone-tow-attach.png" width="200" alt="Tow app: attach a rope"> <img src="images/phone-tow.png" width="200" alt="Tow app: remote control and winch">
+
+Open the phone (**F4**) and tap **Tow**:
+
+- **Attach:** "Attach where I look" puts the rope where the middle of your screen points; a blue cross shows where (only while the Tow app is open). Or tap one of **your vehicles nearby** in the list: the rope goes on the point of that vehicle closest to you.
+- **Anchor remote:** hold ▲ ▼ ◀ ▶ to move the anchor away/towards you and left/right (as seen from your view), **Up** / **Down** to raise or lower it. The vehicle doesn't move; the rope just gets longer. ◎ puts the anchor in the middle of your view. **Fine** makes everything four times slower, for exact placing.
+- **Winch:** **Pay out** (rope gets longer, e.g. to lower a lifted end), **Stop** (rope holds), **Haul in** (pulls the vehicle to the anchor).
+- The card at the top shows the vehicle, the rope length, the distance to the anchor and how hard the rope pulls.
+- **Remove rope** at the bottom.
+
+### With keys
+
 | Step | Control | What happens |
 |---|---|---|
-| Attach the rope | Point at one of your vehicles, press **F6** | The rope is fixed exactly where you pointed (e.g. the front bumper). On foot or in the free camera, a small blue cross shows beforehand where it would go. |
+| Attach the rope | Point at one of your vehicles, press **F6** | The rope is fixed exactly where you pointed (e.g. the front bumper). |
 | Place the anchor | **Hold the left mouse button** (or **F5**) | The anchor follows the middle of your view. Walk to carry it along; the mouse wheel (or Page Up / Page Down) moves it farther or closer. The vehicle doesn't move, the rope just gets longer. |
 | | Let go | The anchor stays where it is, in the air, wherever you go or look. |
 | Pull | **F8** | Winch on: the rope is hauled in and the vehicle is pulled slowly (at most 1 m/s) to the anchor. It stops half a meter before it and doesn't roll past. Press F8 again to stop; the vehicle then hangs on the rope. |
@@ -183,12 +195,17 @@ All keys are rebindable under *Options → Controls → BeamMP* (entries startin
 
 <img src="images/phone.png" width="240" alt="The SharedCareer phone">
 
-Press **F4** or click the phone tab at the right screen edge (below the fuel tab) to take out your phone. It shows the server's time, whether it's day or night, how many players are on the server and whether you're connected.
+Press **F4** or click the phone tab at the right screen edge (directly below the SharedCareer menu's tab) to take out your phone. It shows the server's time, whether it's day or night, how many players are on the server and whether you're connected.
 
-The phone is the home for future SharedCareer apps (jobs and more, see the [roadmap](../README.md#roadmap)). **It has no apps yet**, so for now it shows "No apps yet".
+Apps so far:
 
-- The bar at the bottom puts the phone away (or goes back to the home screen from an app).
-- Opening the phone collapses the SharedCareer menu and the fuel app, and the other way round.
+- **Tow:** rope and winch as a remote control, see [Moving your vehicles by hand](#moving-your-vehicles-by-hand-rope-and-winch).
+- **Fuel:** gas station prices, see [Fuel app on the phone](#fuel-app-on-the-phone).
+
+More apps (jobs and more) may follow, see the [roadmap](../README.md#roadmap).
+
+- The bar at the bottom goes back to the home screen from an app, or puts the phone away.
+- Opening the phone collapses the SharedCareer menu, and the other way round.
 - The key is rebindable under *Options → Controls → BeamMP*, entry "SharedCareer: phone".
 - Server admins can switch it off with `sc set client.phone false`.
 

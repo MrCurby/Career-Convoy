@@ -78,3 +78,58 @@
 .scp-homebar { height: 26px; display: flex; align-items: center; justify-content: center; cursor: pointer; flex: none; }
 .scp-homebar i { display: block; width: 110px; height: 5px; border-radius: 3px; background: rgba(255, 255, 255, 0.75); }
 .scp-homebar:hover i { background: #fff; }
+
+/* built-in svg icons on the home screen */
+.scp-svg { display: flex; }
+.scp-svg svg { width: 30px; height: 30px; }
+
+/* Tow app */
+.scp-tow { display: block; padding: 10px 12px; overflow-y: auto; align-items: stretch; }
+.scp-card { background: rgba(255, 255, 255, 0.08); border-radius: 14px; padding: 10px 12px; margin-bottom: 10px; }
+.scp-card-title { font-weight: 600; font-size: 15px; }
+.scp-card-sub { font-size: 12px; opacity: 0.8; margin-top: 4px; }
+.scp-strain { height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.12); margin-top: 8px; overflow: hidden; }
+.scp-strain i { display: block; height: 100%; border-radius: 3px; transition: width 0.2s; }
+.scp-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; opacity: 0.65; margin: 10px 2px 6px; display: flex; align-items: center; justify-content: space-between; }
+.scp-hint { font-size: 11px; opacity: 0.6; margin: 5px 2px 0; line-height: 1.35; }
+.scp-wide { width: 100%; padding: 10px; border-radius: 12px; border: none; font-size: 14px; font-weight: 600; color: #fff; cursor: pointer; font-family: inherit; margin-top: 4px; }
+.scp-primary { background: #e8730c; }
+.scp-primary:hover { background: #ff8a22; }
+.scp-danger { background: rgba(255, 59, 48, 0.85); margin-top: 12px; }
+.scp-danger:hover { background: #ff3b30; }
+.scp-row { width: 100%; display: flex; justify-content: space-between; padding: 9px 12px; margin-bottom: 6px; border: none; border-radius: 10px;
+	background: rgba(255, 255, 255, 0.08); color: #fff; font-size: 13px; cursor: pointer; font-family: inherit; }
+.scp-row:hover { background: rgba(232, 115, 12, 0.35); }
+.scp-row-right { opacity: 0.7; }
+.scp-chip { text-transform: none; letter-spacing: 0; font-size: 11px; padding: 2px 9px; border-radius: 9px; cursor: pointer;
+	background: rgba(255, 255, 255, 0.12); opacity: 1; }
+.scp-chip-on { background: #2d7fd3; }
+.scp-remote { display: grid; grid-template-columns: 46px 46px 46px 1fr; grid-template-rows: 40px 40px 40px; gap: 6px; }
+.scp-key { border: none; border-radius: 10px; background: rgba(255, 255, 255, 0.12); color: #fff; font-size: 15px; cursor: pointer; font-family: inherit; padding: 0; }
+.scp-key:hover { background: rgba(255, 255, 255, 0.2); }
+.scp-key:active { background: #2d9cdb; }
+.scp-key-center { background: rgba(45, 156, 219, 0.35); font-size: 18px; }
+.scp-key-side { font-size: 12px; margin-left: 10px; }
+.scp-seg { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; background: rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 4px; }
+.scp-seg button { border: none; border-radius: 9px; padding: 8px 0; background: none; color: #fff; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.scp-seg button:hover { background: rgba(255, 255, 255, 0.1); }
+.scp-seg .scp-seg-on { background: rgba(255, 255, 255, 0.22); }
+.scp-seg .scp-seg-in { background: #e8730c; }
+.scp-seg .scp-seg-out { background: #8e6bd8; }
+
+/* Fuel app */
+.scp-fuel .scp-seg { margin-bottom: 10px; }
+.scp-station { background: rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 8px 10px; margin-bottom: 6px; }
+.scp-cheapest { background: rgba(42, 157, 85, 0.3); }
+.scp-station-top { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; }
+.scp-station-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 6px; }
+.scp-station-bottom { display: flex; align-items: center; gap: 8px; margin-top: 5px; font-size: 12px; }
+.scp-price { opacity: 0.65; white-space: nowrap; }
+.scp-price-main { opacity: 1; font-weight: 600; }
+.scp-price-off { color: #5fd38a; }
+.scp-fuelkey { font-size: 10px; opacity: 0.7; margin-right: 2px; }
+.scp-disc { font-size: 10px; }
+.scp-gap { flex: 1; }
+.scp-go { border: none; border-radius: 8px; padding: 4px 10px; background: rgba(255, 255, 255, 0.15); color: #fff; font-size: 12px; cursor: pointer; font-family: inherit; }
+.scp-go:hover { background: rgba(42, 157, 85, 0.6); }
+.scp-go-on { background: #2a9d55; }

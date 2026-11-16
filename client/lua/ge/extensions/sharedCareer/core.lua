@@ -268,6 +268,8 @@ local function rxConfigUpdate(data)
 	if nodegrab and nodegrab.onConfigChanged then nodegrab.onConfigChanged() end
 	local phone = U.ext("sharedCareer_phone")
 	if phone and phone.onConfigChanged then phone.onConfigChanged() end
+	local grab = U.ext("sharedCareer_grab")
+	if grab and grab.onConfigChanged then grab.onConfigChanged() end
 	-- Update the menu immediately (for everyone who has it open right now)
 	local env = U.ext("sharedCareer_env")
 	if env and env.onSettingsChanged then env.onSettingsChanged() end

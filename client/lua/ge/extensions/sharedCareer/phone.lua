@@ -10,9 +10,13 @@
 --
 -- For apps (later): other SharedCareer extensions register themselves here:
 --   sharedCareer_phone.registerApp({id = "taxi", title = "Taxi", icon = "T", color = "#f5b800",
---                                   order = 10, onOpen = function() ... end})
+--                                   order = 10, onOpen = function() ... end, onClose = ...})
 -- The phone shows every registered app on the home screen; a tap calls uiOpenApp(id), which
--- calls the app's onOpen. Apps are only listed while client.phone is on.
+-- calls the app's onOpen; leaving the app (home, putting the phone away) calls uiCloseApp(id) ->
+-- onClose. Apps are only listed while client.phone is on. The built-in "Tow" app (grab.lua) has
+-- its own screen in the phone window (app.html).
+--
+-- icon: a short text (letter), or the name of a built-in icon the window knows ("tow").
 --
 -- guihooks: SharedCareerPhone {enabled, apps = [{id, title, icon, color}]} (state),
 --           SharedCareerPhoneToggle (key). Time and players come with "SharedCareerTime" (env.lua).
@@ -64,6 +68,7 @@ function M.registerApp(def)
 		color = type(def.color) == "string" and def.color or "#ff6600",
 		order = tonumber(def.order) or 100,
 		onOpen = type(def.onOpen) == "function" and def.onOpen or nil,
+		onClose = type(def.onClose) == "function" and def.onClose or nil,
 	}
 	push()
 	return true
@@ -92,6 +97,14 @@ function M.uiOpenApp(id)
 		if not ok then U.log("E", "phone", "app '" .. tostring(id) .. "' failed to open: " .. tostring(err)) end
 	end
 	return true
+end
+
+--- The app was left (home screen, phone put away).
+function M.uiCloseApp(id)
+	local app = apps[id]
+	if not app or not app.onClose then return end
+	local ok, err = pcall(app.onClose)
+	if not ok then U.log("E", "phone", "app '" .. tostring(id) .. "' failed to close: " .. tostring(err)) end
 end
 
 --== Key =========================================================================

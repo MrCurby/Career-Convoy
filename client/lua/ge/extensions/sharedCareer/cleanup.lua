@@ -2,7 +2,7 @@
 --
 -- Two jobs on join (after the career start):
 --   A) remove Mileage leftovers (client.cleanupMileageApps)
---   B) add the apps "SharedCareer Menu" and "SharedCareer Fuel" to the career layout ONCE each
+--   B) add the apps "SharedCareer Menu" and "SharedCareer Phone" to the career layout ONCE each
 --      (client.addTimeApp). Afterwards the mod remembers that in settings/sharedCareer/state.json;
 --      players who remove an app don't get it forced on them again.
 --
@@ -46,18 +46,12 @@ local APPS = {
 			left = "", bottom = ""},
 	},
 	{
-		appName = "sharedCareerFuel", stateKey = "fuelAppAdded", label = "SharedCareer fuel prices",
-		-- directly below the menu at the right edge, WITHOUT overlap: BeamNG's frame around an app
-		-- catches clicks over its whole area. When both apps lay on top of each other (0.8.0–0.8.3),
-		-- the menu's steering-wheel tab could no longer be clicked.
-		placement = {position = "absolute", right = "0px", top = "760px", width = "345px", height = "160px",
-			left = "", bottom = ""},
-	},
-	{
 		appName = "sharedCareerPhone", stateKey = "phoneAppAdded", label = "SharedCareer phone",
-		-- only the tab (below the fuel app): the phone itself opens on top of the page, so the app
-		-- frame never blocks clicks elsewhere
-		placement = {position = "absolute", right = "0px", top = "920px", width = "30px", height = "80px",
+		-- only the tab, directly below the menu: the phone itself opens on top of the page, so the
+		-- app frame never blocks clicks elsewhere. BeamNG's frame around an app catches clicks over
+		-- its whole area – apps must never overlap (0.8.0–0.8.3: the steering-wheel tab couldn't be
+		-- clicked).
+		placement = {position = "absolute", right = "0px", top = "760px", width = "30px", height = "80px",
 			left = "", bottom = ""},
 	},
 }
@@ -119,12 +113,15 @@ function M.addAppsOnce()
 	jsonWriteFile(STATE_FILE, state, true)
 	return #added
 end
--- One-time corrections of apps that were already placed: 0.7.2 put the fuel app 350 px to the
--- left of the menu – collapsed, its tab floated in the middle of the screen. Now at the edge.
+-- One-time corrections of apps that were already placed (each runs once per PC):
+--   remove = true   the app no longer exists: take it out of the layout (otherwise BeamNG shows a
+--                   red "Unknown app" box)
+--   from / to       move it, but only if it is still where the mod put it
 local MOVES = {
-	{stateKey = "fuelAppAtEdge", appName = "sharedCareerFuel", from = {right = "350px"}, to = {right = "0px", top = "600px"}},
-	-- 0.8.0–0.8.3: fuel app exactly on top of the menu -> covered the steering-wheel tab. Move it below.
-	{stateKey = "fuelAppBelowMenu", appName = "sharedCareerFuel", from = {right = "0px", top = "600px"}, to = {top = "760px"}},
+	-- 0.13.0: the fuel prices are an app on the phone now; the separate fuel window is gone
+	{stateKey = "fuelAppRetired", appName = "sharedCareerFuel", remove = true},
+	-- ... and the phone tab takes its place directly below the menu
+	{stateKey = "phoneTabUp", appName = "sharedCareerPhone", from = {right = "0px", top = "920px"}, to = {top = "760px"}},
 }
 
 function M.moveAppsOnce()
@@ -138,7 +135,16 @@ function M.moveAppsOnce()
 	if not ok or type(layout) ~= "table" or type(layout.apps) ~= "table" then return 0 end
 	local moved = 0
 	for _, mv in ipairs(todo) do
-		for _, app in ipairs(layout.apps) do
+		if mv.remove then
+			for i = #layout.apps, 1, -1 do
+				local app = layout.apps[i]
+				if type(app) == "table" and app.appName == mv.appName then
+					table.remove(layout.apps, i)
+					moved = moved + 1
+				end
+			end
+		end
+		for _, app in ipairs(mv.remove and {} or layout.apps) do
 			if type(app) == "table" and app.appName == mv.appName and type(app.placement) == "table" then
 				local matches = true
 				for k, v in pairs(mv.from) do if app.placement[k] ~= v then matches = false end end
@@ -155,7 +161,7 @@ function M.moveAppsOnce()
 		return 0
 	end
 	jsonWriteFile(STATE_FILE, state, true)
-	if moved > 0 then U.log("I", "cleanup", "moved " .. moved .. " SharedCareer app(s) to their new position") end
+	if moved > 0 then U.log("I", "cleanup", "updated " .. moved .. " SharedCareer app(s) in the career layout") end
 	return moved
 end
 

@@ -109,9 +109,10 @@ end
 -- point that the GE side places (grab.lua). It behaves like a real rope with a winch:
 --   * it only pulls when it is taut (distance grip -> anchor longer than the rope); it never pushes
 --   * while the anchor is being moved, the winch pays out rope, so the vehicle stays where it is
---   * winch on: the rope is hauled in at most `speed` m/s and the vehicle is pulled to the anchor;
---     the winch also brakes (up to half the force limit), so the vehicle doesn't roll past it
---   * winch off: the rope length stays, the vehicle hangs on it
+--   * winch 1 (haul in): the rope is hauled in at most `speed` m/s and the vehicle is pulled to
+--     the anchor; the winch also brakes (up to half the force limit), so it doesn't roll past it
+--   * winch 0 (stop): the rope length stays, the vehicle hangs on it
+--   * winch -1 (pay out): the rope gets longer at `speed` m/s, e.g. to lower a lifted end
 --   * the pull is limited to `strength` % of the vehicle's weight: you can lift one end and drag
 --     the vehicle, but not float it (below 100 %)
 --   * the force is split over the grip nodes by their mass, so thin panels don't bend
@@ -125,6 +126,7 @@ local HAND_KP = 2         -- 1/s: wanted speed = distance to the target * HAND_K
 local HAND_TAU = 0.4      -- s: how quickly the vehicle's speed follows the wanted speed
 local HAND_LIFT_RAMP = 0.3 -- m of stretch at which an upward rope carries the full weight
 local ROPE_MIN = 0.5       -- m: the winch doesn't haul in further than this
+local ROPE_MAX = 150       -- m: the winch doesn't pay out further than this
 local WINCH_BRAKE = 0.5    -- share of the force limit the running winch may use to brake
 local GRAVITY = 9.81
 
@@ -172,7 +174,7 @@ function M.handGrab(x, y, z, speed, strength)
 		return false
 	end
 	hand = {nodes = nodes, gripMass = gripMass, vehMass = vehMass, ax = x, ay = y, az = z,
-		length = nil, winch = false, moving = false,
+		length = nil, winch = 0, moving = false,
 		speed = tonumber(speed) or 1, strength = tonumber(strength) or 60, strain = 0,
 		since = HAND_REPORT_EVERY}
 	return true
@@ -210,17 +212,38 @@ function M.handGrabRay(cx, cy, cz, dx, dy, dz, maxDist, speed, strength)
 	return true
 end
 
+--- Grabs the vehicle at the node closest to a point (the player's camera) – for "attach" from the
+--- phone's vehicle list. Reports sharedCareer_grab.onGrip like handGrabRay.
+function M.handGrabNearest(px, py, pz, speed, strength)
+	local best = nil
+	for _, node in pairs(allNodes()) do
+		local cid = type(node) == "table" and node.cid
+		if cid then
+			local p = obj:getAbsNodePosition(cid)
+			local dx, dy, dz = p.x - px, p.y - py, p.z - pz
+			local d2 = dx * dx + dy * dy + dz * dz
+			if not best or d2 < best.d2 then best = {d2 = d2, x = p.x, y = p.y, z = p.z} end
+		end
+	end
+	if not best or not M.handGrab(best.x, best.y, best.z, speed, strength) then return false end
+	reportToGE("onGrip", "%.3f, %.3f, %.3f, %.3f", math.sqrt(best.d2), best.x, best.y, best.z)
+	return true
+end
+
 --- Preview: where would F6 grab? Reports sharedCareer_grab.onProbe(id, x, y, z).
 function M.handProbe(cx, cy, cz, dx, dy, dz, maxDist)
 	local n = nodeOnRay(cx, cy, cz, dx, dy, dz, tonumber(maxDist) or 120)
 	if n then reportToGE("onProbe", "%.3f, %.3f, %.3f", n.x, n.y, n.z) end
 end
 
---- Rope state from the GE side: anchor point, winch on/off, anchor being moved, settings.
+--- Rope state from the GE side: anchor point, winch (1 haul in, 0 stop, -1 pay out), anchor being
+--- moved, settings.
 function M.handRope(ax, ay, az, winch, moving, speed, strength)
 	if not hand then return end
 	hand.ax, hand.ay, hand.az = ax, ay, az
-	hand.winch = winch == true or winch == 1
+	if winch == true then winch = 1 elseif winch == false then winch = 0 end
+	winch = tonumber(winch) or 0
+	hand.winch = winch > 0 and 1 or (winch < 0 and -1 or 0)
 	hand.moving = moving == true or moving == 1
 	if tonumber(speed) then hand.speed = tonumber(speed) end
 	if tonumber(strength) then hand.strength = tonumber(strength) end
@@ -249,15 +272,17 @@ function M.updateGFX(dt)
 	-- rope length: starts at the current distance; paid out while the anchor is moved; hauled in
 	-- by the winch
 	if not hand.length then hand.length = d end
-	if hand.moving and not hand.winch then
-		hand.length = math.max(hand.length, d)
-	elseif hand.winch then
+	if hand.winch == 1 then
 		hand.length = math.max(ROPE_MIN, math.min(hand.length, d) - hand.speed * dt)
+	elseif hand.winch == -1 then
+		hand.length = math.min(ROPE_MAX, math.max(hand.length, hand.moving and d or 0) + hand.speed * dt)
+	elseif hand.moving then
+		hand.length = math.max(hand.length, d)
 	end
 	local tension = 0
 	local limit = hand.vehMass * GRAVITY * hand.strength / 100
 	-- a taut rope pulls; a running winch also brakes near its end (it holds on to the vehicle)
-	local active = d > 0.001 and (d > hand.length + 0.001 or hand.winch)
+	local active = d > 0.001 and (d > hand.length + 0.001 or hand.winch == 1)
 	if active then
 		local ux, uy, uz = dx / d, dy / d, dz / d
 		local stretch = d - hand.length
@@ -268,7 +293,7 @@ function M.updateGFX(dt)
 		-- an upward rope also carries the weight once it is stretched a bit
 		tension = tension + hand.vehMass * GRAVITY * math.max(0, uz) * math.min(1, math.max(0, stretch) / HAND_LIFT_RAMP)
 		-- a rope only pulls; the running winch may also brake a little
-		local minTension = hand.winch and -limit * WINCH_BRAKE or 0
+		local minTension = hand.winch == 1 and -limit * WINCH_BRAKE or 0
 		tension = math.max(minTension, math.min(limit, tension))
 		if tension ~= 0 then
 			for _, n in ipairs(hand.nodes) do
