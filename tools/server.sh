@@ -5,7 +5,7 @@
 # make it executable once:   chmod +x server.sh
 #
 #   ./server.sh start          start the server in the background
-#   ./server.sh stop           stop it cleanly ("exit" in the console, killed if needed)
+#   ./server.sh stop           stop it cleanly (SIGTERM, killed if it hangs)
 #   ./server.sh restart        stop + start
 #   ./server.sh status         is it running? (with PID and SharedCareer version)
 #   ./server.sh console        open the live console  –  leave with Ctrl+A, then D
@@ -34,8 +34,7 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$DIR" || exit 1
 SESSION="${SC_SESSION:-$(basename "$DIR")}"
 LOG="$DIR/Server.log"
-STOP_WAIT=20   # seconds the server gets to shut down cleanly after "exit"
-TERM_WAIT=10   # seconds after SIGTERM before SIGKILL
+STOP_WAIT=20   # seconds the server gets to shut down cleanly after SIGTERM
 REPO="${SC_REPO:-}"
 API="${SC_API:-https://api.github.com}"   # only changed for testing
 GITHUB_TOKEN="${GITHUB_TOKEN:-}"
@@ -86,15 +85,22 @@ send() {
 }
 
 terminate() {
-	# SIGTERM first (BeamMP shuts down like on Ctrl+C), SIGKILL only if that does not help.
-	# SharedCareer writes its data as soon as it changes, so a kill loses nothing.
-	local p="$1" i
+	# SIGTERM: BeamMP shuts down cleanly, like on Ctrl+C. This does not depend on the
+	# console, so it also works when screen does not deliver typed text.
+	# SIGKILL only if it hangs; SharedCareer writes its data as soon as it changes,
+	# so a kill loses nothing.
+	local p="$1" i logstart=0
+	[ -f "$LOG" ] && logstart="$(wc -c <"$LOG")"
 	kill "$p" 2>/dev/null
-	for ((i = 0; i < TERM_WAIT; i++)); do
+	for ((i = 0; i < STOP_WAIT; i++)); do
 		sleep 1
-		kill -0 "$p" 2>/dev/null || { info "Stopped with SIGTERM."; return 0; }
+		kill -0 "$p" 2>/dev/null || return 0
 	done
-	red "Still running after SIGTERM – killing it hard (SIGKILL)."
+	red "Server did not stop within ${STOP_WAIT}s after SIGTERM – killing it (PID $p)."
+	if [ -f "$LOG" ] && [ "$(wc -c <"$LOG")" -gt "$logstart" ]; then
+		info "Log since SIGTERM (the last line shows where the shutdown hangs):"
+		tail -c +"$((logstart + 1))" "$LOG" | tail -n 15 | sed 's/^/    /'
+	fi
 	kill -9 "$p" 2>/dev/null
 	sleep 1
 }
@@ -126,25 +132,8 @@ cmd_stop() {
 		info "Not running."; return 0
 	fi
 	info "Stopping server (session '$SESSION') ..."
-	# remember where the log ends, to show what the server wrote after "exit"
-	local logstart=0
-	[ -f "$LOG" ] && logstart="$(wc -c <"$LOG")"
-	send "exit"
-	local i p
-	for ((i = 0; i < STOP_WAIT; i++)); do
-		sleep 1
-		if ! server_pid >/dev/null; then break; fi
-	done
-	if p="$(server_pid)"; then
-		red "Server did not stop within ${STOP_WAIT}s after \"exit\" (PID $p)."
-		if [ -f "$LOG" ] && [ "$(wc -c <"$LOG")" -gt "$logstart" ]; then
-			info "Log since \"exit\" (the last line shows where the shutdown hangs):"
-			tail -c +"$((logstart + 1))" "$LOG" | tail -n 15 | sed 's/^/    /'
-		else
-			info "Nothing in the log since \"exit\" – the console did not receive the command."
-		fi
-		terminate "$p"
-	fi
+	local p
+	if p="$(server_pid)"; then terminate "$p"; fi
 	# the screen session waits for a key press -> close it
 	running && screen -S "$SESSION" -X quit
 	green "Stopped."
