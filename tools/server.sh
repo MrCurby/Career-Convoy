@@ -34,7 +34,8 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$DIR" || exit 1
 SESSION="${SC_SESSION:-$(basename "$DIR")}"
 LOG="$DIR/Server.log"
-STOP_WAIT=20   # seconds the server gets to shut down cleanly
+STOP_WAIT=20   # seconds the server gets to shut down cleanly after "exit"
+TERM_WAIT=10   # seconds after SIGTERM before SIGKILL
 REPO="${SC_REPO:-}"
 API="${SC_API:-https://api.github.com}"   # only changed for testing
 GITHUB_TOKEN="${GITHUB_TOKEN:-}"
@@ -84,6 +85,20 @@ send() {
 	screen -S "$SESSION" -p 0 -X stuff "$1$(printf '\r')"
 }
 
+terminate() {
+	# SIGTERM first (BeamMP shuts down like on Ctrl+C), SIGKILL only if that does not help.
+	# SharedCareer writes its data as soon as it changes, so a kill loses nothing.
+	local p="$1" i
+	kill "$p" 2>/dev/null
+	for ((i = 0; i < TERM_WAIT; i++)); do
+		sleep 1
+		kill -0 "$p" 2>/dev/null || { info "Stopped with SIGTERM."; return 0; }
+	done
+	red "Still running after SIGTERM – killing it hard (SIGKILL)."
+	kill -9 "$p" 2>/dev/null
+	sleep 1
+}
+
 cmd_start() {
 	need_screen
 	if running; then info "Already running (session '$SESSION'). Console: ./server.sh console"; return 0; fi
@@ -106,20 +121,29 @@ cmd_stop() {
 	if ! running; then
 		local p; if p="$(server_pid)"; then
 			info "No screen session, but server process $p is running – stopping it."
-			kill "$p"; sleep 3; kill -0 "$p" 2>/dev/null && kill -9 "$p"
+			terminate "$p"
 		fi
 		info "Not running."; return 0
 	fi
 	info "Stopping server (session '$SESSION') ..."
+	# remember where the log ends, to show what the server wrote after "exit"
+	local logstart=0
+	[ -f "$LOG" ] && logstart="$(wc -c <"$LOG")"
 	send "exit"
-	local i
+	local i p
 	for ((i = 0; i < STOP_WAIT; i++)); do
 		sleep 1
 		if ! server_pid >/dev/null; then break; fi
 	done
 	if p="$(server_pid)"; then
-		red "Server does not respond – killing it (PID $p)."
-		kill "$p"; sleep 3; kill -0 "$p" 2>/dev/null && kill -9 "$p"
+		red "Server did not stop within ${STOP_WAIT}s after \"exit\" (PID $p)."
+		if [ -f "$LOG" ] && [ "$(wc -c <"$LOG")" -gt "$logstart" ]; then
+			info "Log since \"exit\" (the last line shows where the shutdown hangs):"
+			tail -c +"$((logstart + 1))" "$LOG" | tail -n 15 | sed 's/^/    /'
+		else
+			info "Nothing in the log since \"exit\" – the console did not receive the command."
+		fi
+		terminate "$p"
 	fi
 	# the screen session waits for a key press -> close it
 	running && screen -S "$SESSION" -X quit
