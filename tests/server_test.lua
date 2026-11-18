@@ -148,6 +148,18 @@ onPlayerDisconnect(6)
 sc_damage(1, "broken{")
 check(true, "broken JSON is ignored")
 
+--== Couplings: passed on, kept for later players ==
+sc_couplings(1, json.encode({list = {{a = "1-7", an = 4, b = "1-8", bn = 9}, {a = "2-1", an = 1, b = "2-2", bn = 2}}}))
+local coup = lastTo(0, "sc_couplings")
+check(coup and coup.pid == 1 and #coup.list == 1 and coup.list[1].an == 4, "couplings passed on, only with own vehicles")
+check(countTo(1, "sc_couplings") == 0, "not back to the sender")
+join(7, "Hugo")
+check(lastTo(7, "sc_couplings") and lastTo(7, "sc_couplings").list[1].b == "1-8", "a player who joins later gets them")
+connected[7] = false
+onPlayerDisconnect(7)
+sc_couplings(1, "broken{")
+check(true, "broken JSON is ignored")
+
 --== Money transfer: success ==
 check(onChatMessage(0, "Anna", "/pay Ben 500") == 1, "/pay is filtered out of the chat")
 local debit = lastTo(0, "sc_payDebit")

@@ -2675,6 +2675,85 @@ end)()
 	check(ok, "without BeamMP: nothing happens")
 end)()
 
+--== 7m. Trailers stay coupled on every PC =====================================
+;(function()
+	resetWorld()
+	installCareer()
+	extensions.hook("onWorldReadyState", 2)
+	handlers.sc_config(json.encode(config))
+	local function at(v, x) v.getPosition = function() return {x = x, y = 0, z = 0} end end
+	local truck = addVehicle(50, "0-1", true); at(truck, 0)
+	local trailer = addVehicle(51, "0-2", true); at(trailer, 5)
+	local theirTruck = addVehicle(60, "1-1", false); at(theirTruck, 100)
+	local theirTrailer = addVehicle(61, "1-2", false); at(theirTrailer, 105)
+	local function hasCmd(v, pattern)
+		for _, cmd in ipairs(v.lua) do if cmd:find(pattern) then return true end end
+		return false
+	end
+	local function wait(seconds)
+		for _ = 1, math.ceil(seconds / 1.1) do update(1.1) end
+	end
+
+	-- own coupling: reported at once, with server ids and node ids
+	extensions.hook("onCouplerAttached", 50, 51, 7, 3)
+	update(1.1)
+	local msg = lastSent("sc_couplings")
+	check(msg and #msg.list == 1 and msg.list[1].a == "0-1" and msg.list[1].an == 7 and msg.list[1].b == "0-2" and msg.list[1].bn == 3,
+		"own coupling reported (server ids, node ids)")
+	sentToServer = {}
+	update(1.1)
+	check(lastSent("sc_couplings") == nil, "unchanged: not sent again right away")
+	extensions.hook("onCouplerDetached", 50, 51, 7, 3)
+	update(1.1)
+	msg = lastSent("sc_couplings")
+	check(msg and #msg.list == 0, "own decoupling reported")
+
+	-- another player's coupling that is missing here: tried from one side, then the other
+	handlers.sc_couplings(json.encode({pid = 1, list = {{a = "1-2", an = 3, b = "1-1", bn = 7}}}))
+	update(1.1)
+	check(hasCmd(theirTruck, "toggleCouplerState%(.*_nodetag..:7") and hasCmd(theirTruck, "state..:true"),
+		"missing coupling: coupled with BeamMP's coupling, first side")
+	wait(2.2)
+	check(hasCmd(theirTrailer, "toggleCouplerState%(.*_nodetag..:3"), "still missing: tried from the other side")
+	theirTruck.lua, theirTrailer.lua = {}, {}
+	extensions.hook("onCouplerAttached", 61, 60, 3, 7) -- it holds (seen from the other side)
+	wait(3.3)
+	check(not hasCmd(theirTruck, "toggleCouplerState") and not hasCmd(theirTrailer, "toggleCouplerState"),
+		"coupled here: no more tries")
+	-- the owner no longer reports it: undone
+	handlers.sc_couplings(json.encode({pid = 1, list = {}}))
+	update(1.1)
+	check(hasCmd(theirTruck, "state..:false"), "the owner decoupled: undone here")
+	-- coupled here just now, before the owner's report arrived: not undone at once
+	extensions.hook("onCouplerDetached", 60, 61, 7, 3)
+	theirTruck.lua = {}
+	extensions.hook("onCouplerAttached", 60, 61, 7, 3)
+	update(1.1)
+	check(not hasCmd(theirTruck, "state..:false"), "just coupled here: time for the owner's report")
+	wait(4.4)
+	check(hasCmd(theirTruck, "state..:false"), "still no owner reports it: undone")
+	-- too far apart: no try
+	theirTruck.lua = {}
+	extensions.hook("onCouplerDetached", 60, 61, 7, 3)
+	at(theirTrailer, 200)
+	handlers.sc_couplings(json.encode({pid = 1, list = {{a = "1-1", an = 7, b = "1-2", bn = 3}}}))
+	wait(3.3)
+	check(not hasCmd(theirTruck, "toggleCouplerState") and not hasCmd(theirTrailer, "state..:true"),
+		"vehicles far apart: no try")
+	-- a reset forgets the vehicle's couplings, so they are tried again
+	at(theirTrailer, 105)
+	extensions.hook("onCouplerAttached", 60, 61, 7, 3)
+	extensions.hook("onVehicleResetted", 61)
+	theirTruck.lua, theirTrailer.lua = {}, {}
+	wait(3.3)
+	check(hasCmd(theirTruck, "state..:true") or hasCmd(theirTrailer, "state..:true"), "after a reset: coupled again")
+	-- couplings with one of our own vehicles are left to our physics
+	theirTruck.lua = {}
+	handlers.sc_couplings(json.encode({pid = 1, list = {{a = "1-1", an = 7, b = "0-2", bn = 3}}}))
+	wait(3.3)
+	check(not hasCmd(theirTruck, "toggleCouplerState%(.*_nodetag..:7.*true"), "coupling to an own vehicle: left alone")
+end)()
+
 --== 8. Money ===================================================================
 resetWorld()
 installCareer({money = 1000})

@@ -51,6 +51,7 @@
 --   sc_vehStatesRequest               sc_signals     traffic light cycle (seconds)
 --   sc_damage           {id, damage}  sc_damage      {id, damage} a vehicle's damage | {id, cleared = true}
 --   sc_damageRequest    {id}          sc_damageRequest {id}  (to the owner) send it again
+--   sc_couplings        {list = [{a, an, b, bn}]}   sc_couplings {pid, list}  a player's couplings
 --   sc_payDebitResult   {id, ok}      sc_payDebit / sc_payCredit   money transfer
 --   sc_payCreditAck     {id}
 --   sc_timeControl      {action = "set", hour} | {action = "lengths", dayMinutes, nightMinutes}
@@ -224,6 +225,8 @@ local players = {}
 local vehicleStates = {}
 -- "<player_id>-<vehicle_id>" -> the last sc_damage message (JSON) of that vehicle
 local damageStates = {}
+-- player_id -> the last sc_couplings message (JSON, with pid) of that player
+local couplingStates = {}
 -- transfer id -> {from, to, fromName, toName, amount, stage, createdAt}
 local transfers = {}
 local transferSeq = 0
@@ -1181,6 +1184,7 @@ function sc_hello(player_id, data)
 	send(player_id, "sc_config", settings)
 	send(player_id, "sc_vehStates", vehicleStates)
 	for _, damage in pairs(damageStates) do MP.TriggerClientEvent(player_id, "sc_damage", damage) end
+	for _, couplings in pairs(couplingStates) do MP.TriggerClientEvent(player_id, "sc_couplings", couplings) end
 	-- On a full server the others get their smaller share immediately.
 	updateTrafficShares()
 	broadcastPlayers()
@@ -1282,6 +1286,35 @@ function sc_damageRequest(player_id, data)
 	if owner and owner ~= tonumber(player_id) and players[owner] and MP.IsPlayerConnected(owner) then
 		send(owner, "sc_damageRequest", {id = msg.id})
 	end
+end
+
+--== Couplings ===================================================================
+-- BeamMP sends a coupling (trailer, dolly) only once; copies that miss it stay uncoupled. Every
+-- client reports the couplings of its own vehicles (sc_couplings, see couplings.lua); the server
+-- passes each player's list on and keeps it for players who join later.
+
+local function broadcastCouplings(player_id, data)
+	for id in pairs(players) do
+		if id ~= player_id and MP.IsPlayerConnected(id) then MP.TriggerClientEvent(id, "sc_couplings", data) end
+	end
+end
+
+-- {list = {{a = "<pid>-<vid>", an = node, b = "<pid>-<vid>", bn = node}, ...}}: every coupling
+-- must involve one of the sender's vehicles
+function sc_couplings(player_id, data)
+	local msg = decodeTable(data)
+	if not msg or type(msg.list) ~= "table" then return end
+	local list = {}
+	for _, p in ipairs(msg.list) do
+		if type(p) == "table" and tonumber(p.an) and tonumber(p.bn)
+			and (ownsVehicle(player_id, p.a) or ownsVehicle(player_id, p.b))
+			and type(p.a) == "string" and type(p.b) == "string" then
+			table.insert(list, {a = p.a, an = tonumber(p.an), b = p.b, bn = tonumber(p.bn)})
+		end
+	end
+	local out = encode({pid = player_id, list = list})
+	couplingStates[player_id] = out
+	broadcastCouplings(player_id, out)
 end
 
 -- Control from the SharedCareer menu window (every player, if allowed):
@@ -1720,6 +1753,10 @@ function onPlayerDisconnect(player_id)
 			if transfer.stage ~= "credit" then transfers[id] = nil end
 		end
 	end
+	if couplingStates[player_id] then
+		couplingStates[player_id] = nil
+		broadcastCouplings(player_id, encode({pid = player_id, list = {}}))
+	end
 	jobsLeave(player_id)
 	players[player_id] = nil
 	sharesSent[player_id] = nil
@@ -1801,6 +1838,7 @@ function onInit()
 	MP.RegisterEvent("sc_vehReport", "sc_vehReport")
 	MP.RegisterEvent("sc_damage", "sc_damage")
 	MP.RegisterEvent("sc_damageRequest", "sc_damageRequest")
+	MP.RegisterEvent("sc_couplings", "sc_couplings")
 	MP.RegisterEvent("sc_vehStatesRequest", "sc_vehStatesRequest")
 	MP.RegisterEvent("sc_timeControl", "sc_timeControl")
 	MP.RegisterEvent("sc_setSetting", "sc_setSetting")
