@@ -619,9 +619,13 @@ end
 -- obj:getNodePosition is relative to the reference node in world axes, so positions are turned
 -- into the vehicle's frame and back with its direction vectors. A damage of a vehicle with other
 -- node or beam counts (other parts) is ignored.
+-- A bent beam is one whose rest length differs from the undamaged one: obj:getBeamDeformation
+-- reads 0 even on a crashed car. The undamaged rest lengths are read on the first frame after
+-- the vehicle spawned or was reset.
 
-local DEFORMED = 1e-4   -- a beam counts as deformed above this (obj:getBeamDeformation)
-local pendingDamage = nil -- the damage to load after the next reset: {data, armed}
+local BENT = 1e-3           -- m: a beam whose rest length changed more than this is bent
+local undamagedLengths = nil -- cid -> rest length of the undamaged beam
+local pendingDamage = nil    -- the damage to load after the next reset: {data, armed}
 
 local function count(list)
 	local n = 0
@@ -662,13 +666,14 @@ function M.damageSnapshot()
 	for _, beam in pairs(vehicleData("beams")) do
 		beamCount = beamCount + 1
 		local cid = beam.cid
+		local undamaged = undamagedLengths and undamagedLengths[cid]
 		if obj:beamIsBroken(cid) then
 			broken[#broken + 1] = cid
-		else
-			local ratio = obj:getBeamDeformation(cid)
-			if ratio > DEFORMED then
+		elseif undamaged then
+			local length = obj:getBeamRestLength(cid)
+			if math.abs(length - undamaged) > BENT then
 				local i = #deformed
-				deformed[i + 1], deformed[i + 2], deformed[i + 3] = cid, obj:getBeamRestLength(cid), ratio
+				deformed[i + 1], deformed[i + 2], deformed[i + 3] = cid, length, math.abs(length / math.max(undamaged, 1e-3) - 1)
 			end
 		end
 	end
@@ -708,7 +713,17 @@ local function loadDamage(data)
 end
 
 damageAfterReset = function()
+	undamagedLengths = nil
 	if pendingDamage then pendingDamage.armed = true end
+end
+
+-- the vehicle is undamaged (just spawned or reset): remember its rest lengths
+local function readUndamagedLengths()
+	if undamagedLengths then return end
+	undamagedLengths = {}
+	for _, beam in pairs(vehicleData("beams")) do
+		undamagedLengths[beam.cid] = obj:getBeamRestLength(beam.cid)
+	end
 end
 
 local function loadPendingDamage()
@@ -734,6 +749,7 @@ end
 
 function M.updateGFX(dt)
 	if not dt or dt <= 0 then return end
+	readUndamagedLengths()
 	loadPendingDamage()
 	if anchor then
 		if not physicsStep then anchorStep(math.min(dt, HAND_MAX_DT), true) end

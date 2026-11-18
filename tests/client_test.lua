@@ -2560,9 +2560,8 @@ end)()
 	local nodes = {[0] = {cid = 0}, [1] = {cid = 1}}
 	local beams = {[0] = {cid = 0}, [1] = {cid = 1}, [2] = {cid = 2}}
 	local pos = {[0] = vec(0, 0, 0), [1] = vec(0, 2, 0.5)} -- owner faces +y: node 1 is 2 m ahead
-	local rest = {[0] = 1, [1] = 0.8, [2] = 1}
-	local deform = {[0] = 0, [1] = 0.2, [2] = 0}
-	local broken = {[2] = true}
+	local rest = {[0] = 1, [1] = 1, [2] = 1}
+	local broken = {}
 	local dir, up = vec(0, 1, 0), vec(0, 0, 1)
 	local ge, setPos, setLen, broke, deformed, committed = {}, {}, {}, {}, {}, 0
 	local env = setmetatable({
@@ -2577,7 +2576,6 @@ end)()
 			getNodePosition = function(_, cid) return pos[cid] end,
 			setNodePosition = function(_, cid, p) setPos[cid] = p end,
 			beamIsBroken = function(_, cid) return broken[cid] == true end,
-			getBeamDeformation = function(_, cid) return deform[cid] end,
 			getBeamRestLength = function(_, cid) return rest[cid] end,
 			setBeamLength = function(_, cid, len) setLen[cid] = len end,
 			breakBeam = function(_, cid) broke[cid] = true end,
@@ -2587,14 +2585,16 @@ end)()
 	local chunk = assert(loadfile("client/lua/vehicle/extensions/auto/sharedCareerVeh.lua"))
 	setfenv(chunk, env)
 	local veh = chunk()
+	veh.updateGFX(0.016) -- first frame: the undamaged rest lengths are read
+	rest[1], broken[2] = 0.8, true -- the crash
 	veh.damageSnapshot()
 	local raw = ge[#ge] and ge[#ge]:match('onSnapshot%(90, "(.*)"%)')
 	local snap = raw and json.decode((raw:gsub('\\"', '"')))
 	check(snap and snap.nn == 2 and snap.bn == 3, "snapshot: node and beam counts")
 	check(snap and snap.n[5] == 1 and snap.n[6] == 0 and snap.n[7] == 2 and snap.n[8] == 0.5,
 		"snapshot: node position in the vehicle's frame (right, forward, up)")
-	check(snap and snap.d[1] == 1 and snap.d[2] == 0.8 and snap.d[3] == 0.2 and #snap.d == 3 and snap.b[1] == 2,
-		"snapshot: bent beam with its length and deformation, broken beam")
+	check(snap and snap.d[1] == 1 and snap.d[2] == 0.8 and math.abs(snap.d[3] - 0.2) < 1e-6 and #snap.d == 3 and snap.b[1] == 2,
+		"snapshot: bent beam (rest length changed) with its length and deformation, broken beam")
 
 	-- another PC, where the car faces +x: the shape is turned with it
 	dir = vec(1, 0, 0)
@@ -2608,7 +2608,7 @@ end)()
 	local p = setPos[1]
 	check(p and math.abs(p.x - 2) < 1e-9 and math.abs(p.y) < 1e-9 and math.abs(p.z - 0.5) < 1e-9,
 		"after the reset: node placed in this car's frame")
-	check(setLen[1] == 0.8 and deformed[1] == 0.2 and broke[2] and committed == 1,
+	check(setLen[1] == 0.8 and math.abs(deformed[1] - 0.2) < 1e-6 and broke[2] and committed == 1,
 		"bent beam, its deformation and the broken beam loaded, then committed")
 	committed = 0
 	veh.updateGFX(0.016)
