@@ -2430,6 +2430,8 @@ _G.MPGameNetwork = nil
 	theirs.setPositionRotation = function(self, x, y, z) self.resetAt = {x, y, z} end
 	theirs.resetBrokenFlexMesh = function(self) self.flexReset = true end
 	objects[40], objects[41] = {damage = 0}, {damage = 0}
+	handlers.sc_vehStates(json.encode({["1-5"] = {active = true, traffic = false}, ["1-6"] = {active = true, traffic = false},
+		["1-8"] = {active = true, traffic = true}}))
 	local function hasCmd(v, pattern)
 		for _, cmd in ipairs(v.lua) do if cmd:find(pattern) then return true end end
 		return false
@@ -2462,6 +2464,19 @@ _G.MPGameNetwork = nil
 	objects[42] = {damage = 0}
 	update(0.6)
 	check(hasCmd(late, "damageApply"), "damage for a vehicle spawned later: applied once it's here")
+	-- traffic is left alone: its simplified physics can blow up when its beams change
+	handlers.sc_damage(json.encode({id = "1-8", damage = {n = 2, d = {}, b = {}}}))
+	local traffic = addVehicle(43, "1-8", false)
+	objects[43] = {damage = 0}
+	update(0.6)
+	check(not hasCmd(traffic, "damageApply"), "another player's traffic: damage not applied")
+	local ownTraffic = addVehicle(44, "0-9", true)
+	ownTraffic.isTraffic = "true"
+	objects[44] = {damage = 0}
+	update(1.1)
+	objects[44].damage = 900
+	update(0.6); update(0.6); update(0.6); update(0.6)
+	check(not hasCmd(ownTraffic, "damageSnapshot"), "own traffic: damage not sent")
 
 	-- crashed only here: ask the owner once the crash is over, not again right away
 	sentToServer = {}

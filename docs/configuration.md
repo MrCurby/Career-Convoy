@@ -90,7 +90,7 @@ The file is `Resources/Server/SharedCareer/config/config.json`. It is created on
 |---|---|---|
 | `client.remoteVehicleGhost` | `false` | Other players' cars without collision (AI traffic always collides) |
 | `client.remoteUnicycleGhost` | `true` | Players on foot without collision |
-| `client.syncDamage` | `true` | Other players' vehicles show the damage their owner sees (BeamMP itself only syncs parts that break off) |
+| `client.syncDamage` | `true` | Other players' vehicles show the damage their owner sees (BeamMP itself only syncs parts that break off). Not for traffic and parked cars |
 | `client.simplifyRemoteVehicles` | `false` | Build other players' cars as simplified models locally (for weak PCs) |
 | `client.computerAccessRange` | `6` | Use garage computers from this distance in meters (max 30, 0 = right in front, like in single player) |
 

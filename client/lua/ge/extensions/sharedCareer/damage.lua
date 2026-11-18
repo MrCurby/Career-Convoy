@@ -2,7 +2,8 @@
 --
 -- BeamMP only syncs parts that break off. How a body bends is worked out by every PC on its own:
 -- when your friend drives through a car that only you see, his car crumples on your screen but
--- not on his. So the owner's damage counts, for every vehicle:
+-- not on his. So the owner's damage counts, for player vehicles (never traffic or parked cars:
+-- changing a simplified traffic car's beams made its physics blow up):
 --   * own vehicles: once a crash is over (the damage hasn't changed for SETTLE seconds), the
 --     vehicle sends its damage (sharedCareerVeh.damageSnapshot -> onSnapshot -> sc_damage)
 --   * other players' vehicles: an incoming damage is applied (sharedCareerVeh.damageApply); a
@@ -44,6 +45,11 @@ local function mp()
 	local m = rawget(_G, "MPVehicleGE")
 	if type(m) == "table" and type(m.getVehicles) == "function" then return m end
 	return nil
+end
+
+local function isPlayerVehicle(serverId)
+	local vehicles = extensions.sharedCareer_vehicles
+	return vehicles ~= nil and vehicles.isPlayerVehicle(serverId)
 end
 
 local function enabled()
@@ -122,7 +128,7 @@ local function check(now)
 	for serverId, entry in pairs(m.getVehicles()) do
 		local gameId = entry.gameVehicleID
 		local veh = gameId and gameId ~= -1 and be:getObjectByID(gameId)
-		if veh and veh:getActive() then
+		if veh and veh:getActive() and isPlayerVehicle(serverId) then
 			seen[gameId] = true
 			local damage = damageOf(gameId)
 			if m.isOwn(gameId) then
@@ -145,7 +151,7 @@ function M.onSnapshot(gameId, json)
 	if not m or not enabled() or not m.isOwn(gameId) then return end
 	local serverId = serverIdOf(m, gameId)
 	local damage = U.decode(json)
-	if serverId and damage then U.send("sc_damage", {id = serverId, damage = damage}) end
+	if serverId and damage and isPlayerVehicle(serverId) then U.send("sc_damage", {id = serverId, damage = damage}) end
 end
 
 -- other player's vehicle: a part broke only here, reset it in place
@@ -170,7 +176,7 @@ end
 local function rxDamage(data)
 	local msg = U.decode(data)
 	if not msg or type(msg.id) ~= "string" or type(msg.damage) ~= "table" then return end
-	received[msg.id] = msg.damage
+	received[msg.id] = msg.damage -- applied by check() once the vehicle is here and known as a player's
 end
 
 -- someone saw our vehicle crash where we didn't: send its damage again
@@ -180,7 +186,7 @@ local function rxRequest(data)
 	if not msg or not m or not enabled() or type(msg.id) ~= "string" then return end
 	local entry = m.getVehicles()[msg.id]
 	local gameId = entry and entry.gameVehicleID
-	local veh = gameId and m.isOwn(gameId) and be:getObjectByID(gameId)
+	local veh = gameId and m.isOwn(gameId) and isPlayerVehicle(msg.id) and be:getObjectByID(gameId)
 	if not veh then return end
 	local now = os.clockhp()
 	local st = own[gameId]
