@@ -82,7 +82,6 @@ The file is `Resources/Server/SharedCareer/config/config.json`. It is created on
 | `client.showPlayerStatus` | `true` | Status after other players' names: `[Mission]`, `[On foot]`, `[Loading]` |
 | `client.showWelcome` | `true` | Welcome dialog on join (everyone can still pick "Don't show again") |
 | `client.addApps` | `true` | Add the SharedCareer menu and the phone tab to the career UI once, on the first join |
-| `client.cleanupMileageApps` | `true` | For players who used the Mileage mod before: remove its apps that are left in their UI layouts (red "Unknown app" boxes) and bring back the BeamMP player list |
 
 ### Vehicles and collisions
 
