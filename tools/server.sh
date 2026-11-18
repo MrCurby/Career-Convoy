@@ -36,6 +36,11 @@
 
 set -u
 
+# Raise with every change of this script (tools/version_check.sh checks it): an update only
+# replaces server.sh with one of a higher revision, so installing an older package (or a release
+# built before a fix of this script) never brings back an old server.sh.
+SCRIPT_REVISION=2
+
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$DIR" || exit 1
 SESSION="${SC_SESSION:-$(basename "$DIR")}"
@@ -338,6 +343,32 @@ download_remote() {
 	echo "$file"
 }
 
+# The revision of a server.sh file (0 for one from before revisions were counted).
+script_revision() {
+	local r; r="$(sed -n 's/^SCRIPT_REVISION=\([0-9]*\).*/\1/p' "$1" 2>/dev/null | head -n 1)"
+	echo "${r:-0}"
+}
+
+# Replaces server.sh with the package's copy, but only if that one has a higher revision. That is
+# safe while this script runs: bash has already read it completely (everything sits in functions,
+# see main at the very bottom).
+update_script() {
+	local new="$DIR/server.sh.new"
+	unzip -p "$1" server.sh >"$new" 2>/dev/null
+	if [ ! -s "$new" ]; then rm -f "$new"; return 0; fi
+	local mine theirs
+	mine="$(script_revision "$DIR/server.sh")"
+	theirs="$(script_revision "$new")"
+	if [ "$theirs" -gt "$mine" ]; then
+		mv "$new" "$DIR/server.sh" && chmod +x "$DIR/server.sh"
+		info "server.sh updated (revision $mine -> $theirs)."
+	else
+		rm -f "$new"
+		[ "$theirs" -lt "$mine" ] && info "server.sh kept: this one (revision $mine) is newer than the package's ($theirs)."
+	fi
+	return 0
+}
+
 cmd_update() {
 	if ! command -v unzip >/dev/null 2>&1; then red "unzip is missing. Install it with:  sudo apt install unzip"; exit 1; fi
 	local zip="" force=0 channel="$CHANNEL" branch="$BRANCH" a
@@ -372,10 +403,8 @@ cmd_update() {
 	if [ "${#what[@]}" -gt 0 ]; then
 		if tar czf "$backup" "${what[@]}"; then info "Backup: $backup"; else red "Backup failed – aborting."; exit 1; fi
 	fi
-	# server.sh itself is replaced too; that is safe because bash has already read this script
-	# completely (everything sits in functions, see main at the very bottom).
-	unzip -o -q "$zip" || { red "Unpacking failed."; exit 1; }
-	chmod +x "$DIR/server.sh" 2>/dev/null
+	unzip -o -q "$zip" -x server.sh || { red "Unpacking failed."; exit 1; }
+	update_script "$zip"
 	# clean up old zips (the newest 3 stay)
 	ls -1 "$DIR"/SharedCareer-*.zip 2>/dev/null | sort -V | head -n -3 | xargs -r rm -f
 	clean_backups
