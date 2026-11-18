@@ -2585,5 +2585,207 @@ end)()
 	check(ok and table.concat(calls, ", ") == "parkingbrake 0", "missing parts of a vehicle: breaks down without them")
 end)()
 
+--== 11. Rope anchor on a vehicle (tow hitch) ======================================
+-- vehicle side: a roped car pulled by an anchor that drives off; the anchor vehicle's hitch and pull
+;(function()
+	local function vec(x, y, z) return {x = x, y = y, z = z} end
+	-- the roped car: rigid, 2 t, 20 nodes like in 7b4
+	local body = {p = vec(0, 0, 0), v = vec(0, 0, 0), f = vec(0, 0, 0), ge = {}}
+	local nodes, rel = {}, {}
+	for i = 0, 19 do
+		local heavy = i < 10
+		nodes[i] = {cid = i}
+		rel[i] = {x = (i % 5) - 2, y = (i % 2) * 1.6 - 0.8, z = heavy and 0.3 or 1.2, m = heavy and 180 or 20}
+	end
+	local env = setmetatable({
+		v = {data = {nodes = nodes}}, vec3 = vec, enablePhysicsStepHook = function() end,
+		obj = {
+			getNodeMass = function(_, cid) return rel[cid].m end,
+			getAbsNodePosition = function(_, cid) return vec(body.p.x + rel[cid].x, body.p.y + rel[cid].y, body.p.z + rel[cid].z) end,
+			getNodeVelocityVector = function() return vec(body.v.x, body.v.y, body.v.z) end,
+			getId = function() return 77 end,
+			queueGameEngineLua = function(_, cmd) table.insert(body.ge, cmd) end,
+			applyForceVector = function(_, cid, f) body.f.x, body.f.y, body.f.z = body.f.x + f.x, body.f.y + f.y, body.f.z + f.z end,
+			applyForceVectorTime = function(_, cid, f) body.f.x, body.f.y, body.f.z = body.f.x + f.x, body.f.y + f.y, body.f.z + f.z end,
+		},
+	}, {__index = _G})
+	local chunk = assert(loadfile("client/lua/vehicle/extensions/auto/sharedCareerVeh.lua"))
+	setfenv(chunk, env)
+	local veh = chunk()
+	local MASS, PHYS = 2000, 1 / 2000
+	-- grip on the front (y = 0.8 side, chassis height); the anchor (a pickup's hitch) 5 m ahead in +y
+	veh.handGrab(0, 0.8, 0.3, 1, 60)
+	local anchor = vec(0, 5.8, 0.3)
+	local anchorV = vec(0, 0, 0)
+	local function sendAnchor(moving) veh.handRope(anchor.x, anchor.y, anchor.z, 0, moving and 1 or 0, 1, 60, anchorV.x, anchorV.y, anchorV.z, 1) end
+	sendAnchor(true) -- fixed to the hitch: pays out to it once
+	local snapped, peak, lastPull = false, 0, nil
+	local function run(seconds)
+		for i = 1, math.floor(seconds / PHYS + 0.5) do
+			body.f = vec(0, 0, 0)
+			veh.onPhysicsStep(PHYS)
+			peak = math.max(peak, math.abs(body.f.y))
+			body.v.y = body.v.y + body.f.y / MASS * PHYS
+			body.v.y = body.v.y * (1 - 0.3 * PHYS) -- rolling resistance
+			body.p.y = body.p.y + body.v.y * PHYS
+			anchor.y = anchor.y + anchorV.y * PHYS
+			if i % 33 == 0 then
+				veh.updateGFX(33 * PHYS)
+				for _, cmd in ipairs(body.ge) do
+					if cmd:find("onHandLost") then snapped = true end
+					local fy = cmd:match("onRopePull%(77, [-%d%.]+, ([-%d%.]+),")
+					if fy then lastPull = tonumber(fy) end
+				end
+				body.ge = {}
+				if veh.handInfo() then sendAnchor(false) end -- the GE side, every frame
+			end
+		end
+	end
+	run(0.5)
+	check(veh.handInfo() and math.abs(veh.handInfo().length - 5) < 0.05 and math.abs(body.v.y) < 0.01,
+		"anchor fixed to a vehicle: the rope pays out to its hitch, nothing moves yet")
+	-- the pickup drives off: speeds up to 3 m/s within 2 s
+	for _ = 1, 20 do
+		anchorV.y = math.min(3, anchorV.y + 0.15)
+		run(0.1)
+	end
+	run(3)
+	check(not snapped and math.abs(body.v.y - 3) < 0.2, string.format("towing: the car follows the pickup on the rope (%.2f m/s)", body.v.y))
+	check(peak < 4 * MASS * 9.81, string.format("drove off gently: no jolt that snaps the rope (peak %.0f N)", peak))
+	check(lastPull and lastPull < -50, string.format("the pull on the pickup is reported every frame, towards the car (%.0f N)", lastPull or 0))
+	-- moving anchor + no extrapolation would jerk: between two messages the anchor moves on by itself
+	local ax = veh.handInfo().ay
+	veh.onPhysicsStep(PHYS * 100)
+	check(veh.handInfo().ay > ax, "between two messages the anchor moves on at the vehicle's speed")
+	-- a hard start from standstill to 8 m/s at once: the rope snaps
+	anchorV.y = 8
+	sendAnchor(false)
+	run(1)
+	check(snapped and veh.handInfo() == nil, "the pickup jerks off at 8 m/s: the rope snaps")
+end)()
+-- vehicle side: holding the anchor (tow hitch found, pull applied, it stops by itself)
+;(function()
+	local nodes = {[0] = {cid = 0}, {cid = 1}, {cid = 2, couplerTag = "tow_hitch"}, {cid = 3}}
+	local pos = {[0] = {x = 0, y = 0, z = 0}, {x = 0, y = -2, z = 0.5}, {x = 0, y = -2.6, z = 0.4}, {x = 0, y = 2, z = 0.5}}
+	local forces, ge = {}, {}
+	local env = setmetatable({
+		v = {data = {nodes = nodes}}, vec3 = function(x, y, z) return {x = x, y = y, z = z} end,
+		enablePhysicsStepHook = function() end,
+		obj = {
+			getNodeMass = function() return 50 end,
+			getAbsNodePosition = function(_, cid) return pos[cid] end,
+			getId = function() return 5 end,
+			queueGameEngineLua = function(_, cmd) table.insert(ge, cmd) end,
+			applyForceVector = function(_, cid, f) table.insert(forces, f) end,
+		},
+	}, {__index = _G})
+	local chunk = assert(loadfile("client/lua/vehicle/extensions/auto/sharedCareerVeh.lua"))
+	setfenv(chunk, env)
+	local veh = chunk()
+	-- the roped car is behind (y = -8): node 1 is closer to it than... the hitch is the pick anyway
+	veh.anchorFind(0, 2, 0)
+	check(ge[#ge]:find("onAnchorNode%(5, 2, 1%)"), "anchor: the tow hitch is picked, even if another node is closer")
+	nodes[2].couplerTag = nil
+	veh.anchorFind(0, 2, 0)
+	check(ge[#ge]:find("onAnchorNode%(5, 3, 0%)"), "no tow hitch: the node closest to the roped car")
+	nodes[2].couplerTag = "tow_hitch"
+	veh.anchorFind(0, -8, 0)
+	veh.anchorPull(0, -1000, 0)
+	forces = {}
+	veh.onPhysicsStep(1 / 2000)
+	local fy = 0
+	for _, f in ipairs(forces) do fy = fy + f.y end
+	check(math.abs(fy + 1000) < 1e-6 and #forces >= 2, "the rope's pull is applied to the anchor vehicle, spread over its nodes")
+	veh.updateGFX(0.3)
+	forces = {}
+	veh.onPhysicsStep(1 / 2000)
+	check(#forces == 0, "no new pull for 0.25 s: it stops by itself")
+	veh.anchorPull(0, -1000, 0)
+	veh.anchorRelease()
+	forces = {}
+	veh.onPhysicsStep(1 / 2000)
+	check(#forces == 0 and veh.anchorInfo() == nil, "released: nothing pulls any more")
+end)()
+-- GE side: fix the anchor to a vehicle, it follows the vehicle, the pull goes on to it, detach
+;(function()
+	resetWorld()
+	installCareer()
+	extensions.hook("onWorldReadyState", 2)
+	local cfgA = json.decode(json.encode(config))
+	cfgA.allowGrab, cfgA.grabSpeed, cfgA.grabStrength = true, 1, 150
+	handlers.sc_config(json.encode(cfgA))
+	update()
+	local function placed(id, x, y, z, remote)
+		local v = addVehicle(id, (remote and "7-" or "0-") .. id, not remote)
+		v.p = {x = x, y = y, z = z}
+		v.vel = {x = 0, y = 0, z = 0}
+		v.getPosition = function(self) return self.p end
+		v.getVelocity = function(self) return self.vel end
+		v.getNodePosition = function(self, cid) return cid == 2 and {x = 0, y = -2.6, z = 0.4} or {x = 0, y = 0, z = 0} end
+		return v
+	end
+	local function lastCall(v, fn)
+		for i = #v.lua, 1, -1 do
+			local args = v.lua[i]:match("sharedCareerVeh%." .. fn .. "%(([^)]*)%)")
+			if args then
+				local nums = {}
+				for n in args:gmatch("[-%d%.]+") do table.insert(nums, tonumber(n)) end
+				return nums
+			end
+		end
+	end
+	_G.core_camera = {getPosition = function() return {x = 0, y = -10, z = 2} end, getForward = function() return {x = 0, y = 1, z = 0} end}
+	local car = placed(60, 0, 0, 0.5)
+	local pickup = placed(61, 0, 10, 0.5)
+	local other = placed(62, 5, 5, 0.5, true)
+	local walker = addVehicle(63, "0-63", true, "unicycle")
+	walker.getPosition = function() return {x = 1, y = 1, z = 0} end
+	check(sharedCareer_grab.uiAttachVehicle(60), "rope on the car")
+	sharedCareer_grab.onGrip(60, 5, 0, 1, 0.5, 7)
+	sharedCareer_grab.onHandState(60, 0, 1, 0.5, 0, 1, 1)
+	local st = sharedCareer_grab.appState()
+	local ids = {}
+	for _, c in ipairs(st.anchorCandidates or {}) do ids[c.id] = true end
+	check(ids[61] and not ids[60] and not ids[62] and not ids[63],
+		"the anchor can go on your own other vehicles: not the roped one, no other player's, nobody on foot")
+	check(sharedCareer_grab.uiAnchorVehicle(61) and lastCall(pickup, "anchorFind")[2] == 1,
+		"fix to the pickup: it is asked for its hitch, near the rope's end")
+	check(sharedCareer_grab.appState().anchorPending, "the app shows that it is looking for the hitch")
+	sharedCareer_grab.onAnchorNode(61, 2, 1)
+	st = sharedCareer_grab.appState()
+	check(st.anchorVehicle and st.anchorHitch == true and not st.anchorPending, "the pickup named its tow hitch")
+	pickup.vel = {x = 0, y = 2, z = 0}
+	for _ = 1, 3 do extensions.hook("onUpdate", 1 / 60) sharedCareer_grab.onHandState(60, 0, 1, 0.5, 0, 1, 7) end
+	local a = lastCall(car, "handRope")
+	check(a and a[2] == 7.4 and a[9] == 2 and a[11] == 1, "the anchor sits on the hitch, with the pickup's speed, every frame")
+	local before = #car.lua
+	extensions.hook("onUpdate", 1 / 60)
+	check(#car.lua == before + 1, "anchor on a vehicle: sent every frame")
+	pickup.p = {x = 0, y = 12, z = 0.5}
+	extensions.hook("onUpdate", 1 / 60)
+	check(lastCall(car, "handRope")[2] == 9.4, "the anchor moves with the pickup")
+	sharedCareer_grab.onRopePull(60, 0, -1500, 0)
+	local pull = lastCall(pickup, "anchorPull")
+	check(pull and pull[2] == -1500, "the rope's pull goes on to the pickup")
+	sharedCareer_grab.uiNudge(1, 0, 0)
+	check(sharedCareer_grab.appState().moving == false, "on a vehicle the remote doesn't move the anchor")
+	-- the pickup is reset: the anchor stays where it was
+	extensions.hook("onVehicleResetted", 61)
+	check(sharedCareer_grab.appState().anchorVehicle == nil and pickup.lua[#pickup.lua]:find("anchorRelease"),
+		"the pickup is reset: the anchor comes off it and stays in the world")
+	sharedCareer_grab.uiAnchorVehicle(61)
+	sharedCareer_grab.onAnchorNode(61, 2, 1)
+	sharedCareer_grab.uiAnchorDetach()
+	extensions.hook("onUpdate", 1 / 60)
+	a = lastCall(car, "handRope")
+	check(a[11] == 0 and a[9] == 0 and pickup.lua[#pickup.lua]:find("anchorRelease"), "detach: the anchor stays put, the pickup is told")
+	sharedCareer_grab.uiAnchorVehicle(61)
+	sharedCareer_grab.onAnchorNode(61, 2, 1)
+	sharedCareer_grab.uiRelease()
+	check(pickup.lua[#pickup.lua]:find("anchorRelease"), "rope removed: the pickup lets go too")
+	check(not sharedCareer_grab.uiAnchorVehicle(61), "no rope: nothing to fix")
+	_G.core_camera = nil
+end)()
+
 print(string.format("Client: %d ok, %d failed", passed, failures))
 os.exit(failures == 0 and 0 or 1)

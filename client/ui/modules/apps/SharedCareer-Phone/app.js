@@ -197,6 +197,7 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 		$scope.$evalAsync(function () {
 			if (!data) return;
 			if (!Array.isArray(data.nearby)) data.nearby = [];
+			if (!Array.isArray(data.anchorCandidates)) data.anchorCandidates = [];
 			if (!Array.isArray(data.strengths)) data.strengths = [];
 			$scope.tow = data;
 		});

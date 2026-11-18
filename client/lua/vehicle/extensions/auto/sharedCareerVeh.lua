@@ -6,6 +6,8 @@
 --   setAiTuning(gap, sightFactor)  traffic AI reacts earlier to obstacles (traffic.lua)
 --   handGrabRay / handGrabNearest / handRope / handRelease / handProbe
 --                                  our own node grabber as a rope (grab.lua), see "Hand" below
+--   anchorFind / anchorPull / anchorRelease   this vehicle holds the other end of a rope (its tow
+--                                  hitch), see "Anchor on a vehicle" below
 --   jobBreakDown / jobReportDamage the broken-down vehicle of a towing job (jobs.lua), see
 --                                  "Towing jobs" below
 --
@@ -127,6 +129,11 @@ end
 --   * while the anchor is being moved, the drum turns freely: the rope pays out, the vehicle stays.
 --     An anchor that jumps more than ANCHOR_JUMP between two messages was placed somewhere else
 --     ("to my view"): the rope pays out to it as well – a jump is no shock load on the rope
+--   * the anchor can sit on another vehicle (its tow hitch, see "Anchor on a vehicle"): then it
+--     moves with that vehicle. The GE side sends its position and speed every frame; between two
+--     messages it moves on at that speed (so a fast tow doesn't jolt the rope), the rope's damping
+--     works on the speed between the two vehicles, and the pull on the anchor vehicle goes back
+--     every frame (onRopePull) – the GE side hands it on, so the towing vehicle feels the load
 --   * the brake (and the motor's gear while hauling in) holds BRAKE_HOLD times the pull limit;
 --     above that it slips and lets out rope at most BRAKE_SLIP m/s
 --   * the rope snaps above ROPE_BREAK times the vehicle's weight: only a shock load does that, e.g.
@@ -182,6 +189,8 @@ local HAND_REPORT_EVERY = 0.1 -- s: how often the rope state goes back to the GE
 
 local hand = nil -- {nodes = {{cid, m}}, velNodes = {{cid, w}}, tie (cid), ref (cid), refDist,
                  --  gripMass, vehMass, ax, ay, az (anchor), placed (it jumped: pay out to it),
+                 --  onVehicle (the anchor is on a vehicle), avx, avy, avz (the anchor's speed),
+                 --  pullX, pullY, pullZ (force on the anchor, summed over the frame's steps),
                  --  length, drum (m/s the rope runs out, < 0 = in), winch, moving, speed, strength,
                  --  tension (last step), tensionF (averaged for snapping), tensionSum, tensionTime
                  --  (since the last frame), strain, slack, since, last = {x, y, z} (tie node one
@@ -258,6 +267,7 @@ function M.handGrab(x, y, z, speed, strength)
 		length = nil, drum = 0, winch = 0, moving = false, slack = true,
 		speed = tonumber(speed) or 1, strength = tonumber(strength) or 60,
 		tension = 0, tensionF = 0, tensionSum = 0, tensionTime = 0, strain = 0,
+		avx = 0, avy = 0, avz = 0, pullX = 0, pullY = 0, pullZ = 0,
 		since = HAND_REPORT_EVERY}
 	-- the rope is computed at the physics rate from now on (see above)
 	if not physicsStep and type(enablePhysicsStepHook) == "function" then
@@ -337,12 +347,21 @@ function M.handProbe(cx, cy, cz, dx, dy, dz, maxDist)
 end
 
 --- Rope state from the GE side: anchor point, winch (1 haul in, 0 stop, -1 pay out), anchor being
---- moved, settings.
-function M.handRope(ax, ay, az, winch, moving, speed, strength)
+--- moved, settings; onVehicle = 1: the anchor sits on a vehicle and moves at avx/avy/avz m/s.
+function M.handRope(ax, ay, az, winch, moving, speed, strength, avx, avy, avz, onVehicle)
 	if not hand then return end
-	local jump = math.sqrt((ax - hand.ax) ^ 2 + (ay - hand.ay) ^ 2 + (az - hand.az) ^ 2)
-	if jump > ANCHOR_JUMP then hand.placed = true end
+	hand.onVehicle = onVehicle == 1 or onVehicle == true
+	-- an anchor on a vehicle moves by itself; only a jump elsewhere means it was placed
+	if not hand.onVehicle then
+		local jump = math.sqrt((ax - hand.ax) ^ 2 + (ay - hand.ay) ^ 2 + (az - hand.az) ^ 2)
+		if jump > ANCHOR_JUMP then hand.placed = true end
+	end
 	hand.ax, hand.ay, hand.az = ax, ay, az
+	if hand.onVehicle then
+		hand.avx, hand.avy, hand.avz = tonumber(avx) or 0, tonumber(avy) or 0, tonumber(avz) or 0
+	else
+		hand.avx, hand.avy, hand.avz = 0, 0, 0
+	end
 	if winch == true then winch = 1 elseif winch == false then winch = 0 end
 	winch = tonumber(winch) or 0
 	hand.winch = winch > 0 and 1 or (winch < 0 and -1 or 0)
@@ -378,6 +397,8 @@ end
 -- the anchor. perFrame: forces for the whole frame (no physics step).
 local function ropeStep(dt, perFrame)
 	local h = hand
+	-- an anchor on a vehicle moves on at its speed until the next message
+	h.ax, h.ay, h.az = h.ax + h.avx * dt, h.ay + h.avy * dt, h.az + h.avz * dt
 	local tie = obj:getAbsNodePosition(h.tie)
 	local dx, dy, dz = h.ax - tie.x, h.ay - tie.y, h.az - tie.z
 	local d = math.sqrt(dx * dx + dy * dy + dz * dz)
@@ -413,8 +434,9 @@ local function ropeStep(dt, perFrame)
 	if stretch > 0 and d > 0.001 then
 		local ux, uy, uz = dx / d, dy / d, dz / d
 		local vx, vy, vz = gripVelocity()
-		-- the stretch grows when the grip moves away from the anchor and when the drum winds in
-		local stretchRate = -(vx * ux + vy * uy + vz * uz) - h.drum
+		-- the stretch grows when the grip moves away from the anchor (or the anchor away from the
+		-- grip) and when the drum winds in
+		local stretchRate = -((vx - h.avx) * ux + (vy - h.avy) * uy + (vz - h.avz) * uz) - h.drum
 		local k = weight / math.max(ROPE_STRETCH_MIN, ROPE_STRAIN * h.length)
 		k = math.min(k, STABLE_K * h.gripMass / (dt * dt))
 		local c = math.min(ROPE_DAMPING * 2 * math.sqrt(k * h.vehMass), STABLE_C * h.gripMass / dt)
@@ -427,11 +449,101 @@ local function ropeStep(dt, perFrame)
 				obj:applyForceVector(n.cid, vec3(ux * f, uy * f, uz * f))
 			end
 		end
+		-- the same pull, the other way, on the anchor
+		h.pullX, h.pullY, h.pullZ = h.pullX - ux * tension * dt, h.pullY - uy * tension * dt, h.pullZ - uz * tension * dt
 	end
 	h.tension = tension
 	h.tensionSum, h.tensionTime = h.tensionSum + tension * dt, h.tensionTime + dt
 	h.tensionF = h.tensionF + (tension - h.tensionF) * math.min(1, dt / BREAK_FILTER)
 	if h.tensionF > ROPE_BREAK * weight then lose(LOST_SNAPPED) end
+end
+
+--== Anchor on a vehicle: this vehicle holds the other end of a rope ===============
+-- anchorFind(px, py, pz): the point where the rope is tied to this vehicle – its tow hitch (a
+-- coupler node whose tag names a hitch, fifth wheel or gooseneck), the one closest to the roped
+-- vehicle (px, py, pz) if there are several; without one, the node closest to it. Reports
+-- sharedCareer_grab.onAnchorNode(id, node, isHitch). anchorPull(fx, fy, fz): the rope's pull on
+-- this vehicle (N, from the roped vehicle, every frame), spread over the nodes around the anchor
+-- node by their mass like the grip; it stops by itself ANCHOR_PULL_KEEP s after the last message.
+-- anchorRelease(): no more rope on this vehicle.
+
+local ANCHOR_PULL_KEEP = 0.25 -- s a pull message is applied without a new one
+local HITCH_TAGS = {"hitch", "fifthwheel", "gooseneck"}
+
+local anchor = nil -- {node, nodes = {{cid, m}}, mass, fx, fy, fz, age}
+
+local function isHitch(node)
+	local tag = node.couplerTag or node.tag
+	if type(tag) ~= "string" then return false end
+	tag = tag:lower()
+	for _, t in ipairs(HITCH_TAGS) do
+		if tag:find(t, 1, true) then return true end
+	end
+	return false
+end
+
+function M.anchorFind(px, py, pz)
+	local target = {x = tonumber(px) or 0, y = tonumber(py) or 0, z = tonumber(pz) or 0}
+	local bestHitch, bestAny
+	for _, node in pairs(allNodes()) do
+		local cid = type(node) == "table" and node.cid
+		if cid then
+			local d = distance(obj:getAbsNodePosition(cid), target)
+			if isHitch(node) and (not bestHitch or d < bestHitch.d) then bestHitch = {cid = cid, d = d} end
+			if not bestAny or d < bestAny.d then bestAny = {cid = cid, d = d} end
+		end
+	end
+	local pick = bestHitch or bestAny
+	if not pick then return false end
+	-- the nodes around the anchor node carry the pull (like the grip of the roped vehicle)
+	local center = obj:getAbsNodePosition(pick.cid)
+	local found = {}
+	for _, node in pairs(allNodes()) do
+		local cid = type(node) == "table" and node.cid
+		if cid then
+			local m = tonumber(obj:getNodeMass(cid)) or 0
+			if m > 0 then table.insert(found, {cid = cid, m = m, d = distance(obj:getAbsNodePosition(cid), center)}) end
+		end
+	end
+	table.sort(found, function(a, b) return a.d < b.d end)
+	local nodes, mass = {}, 0
+	for i, n in ipairs(found) do
+		if i > HAND_MAX_NODES or (i > HAND_MIN_NODES and n.d > HAND_RADIUS) then break end
+		table.insert(nodes, n)
+		mass = mass + n.m
+	end
+	if mass <= 0 then return false end
+	anchor = {node = pick.cid, nodes = nodes, mass = mass, fx = 0, fy = 0, fz = 0, age = ANCHOR_PULL_KEEP}
+	if not physicsStep and type(enablePhysicsStepHook) == "function" then
+		local ok, err = pcall(enablePhysicsStepHook)
+		physicsStep = ok
+		if not ok then log("W", "sharedCareer.rope", "physics-step hook not available, anchor once per frame: " .. tostring(err)) end
+	end
+	reportToGE("onAnchorNode", "%d, %d", pick.cid, bestHitch and 1 or 0)
+	return true
+end
+
+function M.anchorPull(fx, fy, fz)
+	if not anchor then return end
+	anchor.fx, anchor.fy, anchor.fz = tonumber(fx) or 0, tonumber(fy) or 0, tonumber(fz) or 0
+	anchor.age = 0
+end
+
+function M.anchorRelease()
+	anchor = nil
+end
+
+function M.anchorInfo()
+	return anchor
+end
+
+local function anchorStep(dt, perFrame)
+	if not anchor or anchor.age >= ANCHOR_PULL_KEEP then return end
+	for _, n in ipairs(anchor.nodes) do
+		local share = n.m / anchor.mass
+		local f = vec3(anchor.fx * share, anchor.fy * share, anchor.fz * share)
+		if perFrame then obj:applyForceVectorTime(n.cid, f, dt) else obj:applyForceVector(n.cid, f) end
+	end
 end
 
 --== Towing jobs: the broken-down vehicle ========================================
@@ -470,8 +582,11 @@ function M.jobReportDamage()
 end
 
 function M.onPhysicsStep(dt)
-	if not (physicsStep and hand and dt and dt > 0) then return end
-	local ok, err = pcall(ropeStep, dt, false)
+	if not (physicsStep and (hand or anchor) and dt and dt > 0) then return end
+	local ok, err = pcall(function()
+		if hand then ropeStep(dt, false) end
+		anchorStep(dt, false)
+	end)
 	if not ok then
 		-- never take the vehicle down: log it once, the rope goes on once per frame
 		physicsStep = false
@@ -480,7 +595,12 @@ function M.onPhysicsStep(dt)
 end
 
 function M.updateGFX(dt)
-	if not hand or not dt or dt <= 0 then return end
+	if not dt or dt <= 0 then return end
+	if anchor then
+		if not physicsStep then anchorStep(math.min(dt, HAND_MAX_DT), true) end
+		anchor.age = anchor.age + dt
+	end
+	if not hand then return end
 	local tie = obj:getAbsNodePosition(hand.tie)
 	local tx, ty, tz = tie.x, tie.y, tie.z
 	-- jumped further than its speed explains: moved by the game (teleport), not by the rope
@@ -508,7 +628,12 @@ function M.updateGFX(dt)
 	-- what this frame's steps pulled on average
 	local weight = hand.vehMass * GRAVITY
 	local tension = hand.tensionTime > 0 and hand.tensionSum / hand.tensionTime or hand.tension
+	if hand.onVehicle and hand.tensionTime > 0 then
+		local t = hand.tensionTime
+		reportToGE("onRopePull", "%.1f, %.1f, %.1f", hand.pullX / t, hand.pullY / t, hand.pullZ / t)
+	end
 	hand.tensionSum, hand.tensionTime = 0, 0
+	hand.pullX, hand.pullY, hand.pullZ = 0, 0, 0
 	-- slack or taut, with a margin in between so the display doesn't flicker
 	if hand.slack then
 		hand.slack = tension <= TAUT_ABOVE * weight

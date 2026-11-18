@@ -187,22 +187,40 @@
 					</div>
 
 					<div ng-if="tow.attached">
-						<div class="scp-label">Anchor <span class="scp-chip" ng-class="{'scp-chip-on': tow.fine}" ng-click="towCall('uiFine(' + !tow.fine + ')')">Fine</span></div>
-						<div class="scp-remote">
-							<span></span>
-							<button class="scp-key" title="Away from me" ng-mousedown="nudge(1,0,0)" ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()">&#9650;</button>
-							<span></span>
-							<button class="scp-key scp-key-side" title="Up" ng-mousedown="nudge(0,0,1)" ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()">Up</button>
-							<button class="scp-key" title="Left" ng-mousedown="nudge(0,-1,0)" ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()">&#9664;</button>
-							<button class="scp-key scp-key-center" title="Anchor to the middle of my view" ng-click="towCall('uiAnchorToView()')">&#9678;</button>
-							<button class="scp-key" title="Right" ng-mousedown="nudge(0,1,0)" ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()">&#9654;</button>
-							<span></span>
-							<span></span>
-							<button class="scp-key" title="Towards me" ng-mousedown="nudge(-1,0,0)" ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()">&#9660;</button>
-							<span></span>
-							<button class="scp-key scp-key-side" title="Down" ng-mousedown="nudge(0,0,-1)" ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()">Down</button>
+						<!-- anchor on a vehicle: it moves with it (tow hitch) -->
+						<div class="scp-anchorcar" ng-if="tow.anchorVehicle">
+							<span class="scp-anchorcar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="17" cy="7" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M14.6 9.4L8 16M3 16h7v4H3z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+							<span class="scp-anchorcar-text">
+								<span class="scp-anchorcar-label">Anchor on</span>
+								<span class="scp-anchorcar-title" ng-bind="tow.anchorVehicle"></span>
+								<span class="scp-anchorcar-sub" ng-bind="tow.anchorPending ? 'Finding its tow hitch…' : (tow.anchorHitch ? 'At its tow hitch' : 'At its closest point – no hitch')"></span>
+							</span>
+							<button class="scp-go" ng-click="towCall('uiAnchorDetach()')" title="The anchor stays where it is, in the world">Detach</button>
 						</div>
-						<div class="scp-hint">Hold to move · &#9678; = to the middle of my view</div>
+						<div class="scp-hint" ng-if="tow.anchorVehicle && !tow.anchorPending">The anchor moves with it: drive off to tow on the rope, or haul in with the winch.</div>
+						<div ng-if="!tow.anchorVehicle">
+							<div class="scp-label">Anchor <span class="scp-chip" ng-class="{'scp-chip-on': tow.fine}" ng-click="towCall('uiFine(' + !tow.fine + ')')">Fine</span></div>
+							<div class="scp-remote">
+								<span></span>
+								<button class="scp-key" title="Away from me" ng-mousedown="nudge(1,0,0)" ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()">&#9650;</button>
+								<span></span>
+								<button class="scp-key scp-key-side" title="Up" ng-mousedown="nudge(0,0,1)" ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()">Up</button>
+								<button class="scp-key" title="Left" ng-mousedown="nudge(0,-1,0)" ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()">&#9664;</button>
+								<button class="scp-key scp-key-center" title="Anchor to the middle of my view" ng-click="towCall('uiAnchorToView()')">&#9678;</button>
+								<button class="scp-key" title="Right" ng-mousedown="nudge(0,1,0)" ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()">&#9654;</button>
+								<span></span>
+								<span></span>
+								<button class="scp-key" title="Towards me" ng-mousedown="nudge(-1,0,0)" ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()">&#9660;</button>
+								<span></span>
+								<button class="scp-key scp-key-side" title="Down" ng-mousedown="nudge(0,0,-1)" ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()">Down</button>
+							</div>
+							<div class="scp-hint">Hold to move · &#9678; = to the middle of my view</div>
+							<div class="scp-label" ng-if="tow.anchorCandidates.length">Fix the anchor to a vehicle</div>
+							<button class="scp-row scp-row-anchor" ng-repeat="v in tow.anchorCandidates track by v.id" ng-click="towCall('uiAnchorVehicle(' + v.id + ')')"
+								title="The anchor goes on its tow hitch and moves with it">
+								<span class="scp-row-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="17" cy="7" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M14.6 9.4L8 16M3 16h7v4H3z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="scp-row-name" ng-bind="v.name"></span><span class="scp-row-right" ng-bind="v.distance + ' m'"></span>
+							</button>
+						</div>
 						<div class="scp-label">Winch</div>
 						<div class="scp-seg">
 							<button ng-class="{'scp-seg-on scp-seg-out': tow.winch === -1}" ng-click="towCall('uiWinch(-1)')">Pay out</button>
