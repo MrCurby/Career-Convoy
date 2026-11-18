@@ -167,7 +167,7 @@ Open the phone (**F4**) and tap **Tow**:
 - **Attach:** "Attach where I look" puts the rope where the middle of your screen points; a see-through blue ball shows where (only while the Tow app is open). Or tap one of **your vehicles nearby** in the list: the rope goes on the point of that vehicle closest to you.
 - **Anchor remote:** hold ▲ ▼ ◀ ▶ to move the anchor away/towards you and left/right (as seen from your view), **Up** / **Down** to raise or lower it. The vehicle doesn't move; the rope just gets longer. ◎ puts the anchor in the middle of your view. **Fine** makes everything four times slower, for exact placing.
 - **Winch:** **Pay out** (rope gets longer, e.g. to lower a lifted end), **Stop** (rope holds), **Haul in** (pulls the vehicle slowly to the anchor, by default at most 1 m/s; it stops half a meter before it and doesn't roll past).
-- The card at the top shows the vehicle, the rope length, the distance to the anchor and how hard the rope pulls.
+- The card at the top shows the vehicle, the rope length, the distance to the anchor and how hard the rope pulls. If the rope has pulled at its limit for a couple of seconds, an orange hint below the strength buttons says so.
 - **Tow to the road:** for a vehicle the rope can't free, e.g. one wrapped around a lamp post. Without a rope it takes the vehicle you look at (like "Attach where I look"), with a rope the vehicle on the rope. It puts the vehicle on the last road it drove on, like "Tow to road" in the game's recovery menu, but free of charge; the damage stays. The vehicle must stand still, and it doesn't work during a police chase.
 - **Remove rope** at the bottom.
 
@@ -175,9 +175,11 @@ It behaves like a real rope: it only pulls when it's taut, never pushes. The for
 
 What you see:
 
-- **Rope:** grey when slack, and it sags – the more rope is out, the deeper; it straightens as it is pulled taut. When taut, the color shows how hard the winch works: **green** is easy, **yellow** is working hard, **red** means it's at its force limit (too heavy, stuck, or trying to lift too much).
-- **Anchor:** a pin (a post with a ball on top); white when resting, cyan while you move it, orange while the winch hauls in (the ball pulses), purple while it pays out. While the Tow app is open, a sign above it shows the distance to the vehicle.
-- **Grip:** a small ball on the vehicle, in the rope's color.
+- **Rope:** a thin rope from the vehicle to the anchor, grey when slack, and it sags – the more rope is out, the deeper; it straightens as it is pulled taut. When taut, the color shows how hard the winch works: **green** is easy, **yellow** is working hard, **red** means it's at its force limit (too heavy, stuck, or trying to lift too much). The colors fade smoothly into each other, and the rope stays on the vehicle while it moves.
+- **Anchor:** a pin (a post with a ball on top); white when resting, cyan while you move it, orange while the winch hauls in (the ball pulses), purple while it pays out. When it hangs in the air, a dashed line down to a disc on the ground shows where it is. While the Tow app is open, a sign above it shows the distance to the vehicle, and "at the limit" when the rope has been pulling as hard as it can for a while.
+- **Grip:** a small ball where the rope is tied – the point you aimed at, where the blue preview ball was.
+
+The rope comes off by itself, with a short message, when the vehicle is reset or moved by the game (e.g. recovery), when the part it is tied to tears off, or when the vehicle stops answering (e.g. after reloading it). Otherwise it would pull the vehicle back to the old anchor, or drag the loose part around.
 
 It only works on your own vehicles and your own traffic: other players' vehicles are simulated on their PCs, and BeamMP would put them right back. Players on foot can't be roped, and neither can the vehicle you are sitting in (the camera would move with it). Get out, or use the free camera.
 

@@ -4,8 +4,8 @@
 --   setGhost(enabled)              collisions with this vehicle on/off (vehicles.lua; ghost mode
 --                                  for other players' cars / players on foot)
 --   setAiTuning(gap, sightFactor)  traffic AI reacts earlier to obstacles (traffic.lua)
---   handGrabRay / handRope / handRelease / handProbe   our own node grabber as a rope (grab.lua), see
---                                  "Hand" below
+--   handGrabRay / handGrabNearest / handRope / handRelease / handProbe
+--                                  our own node grabber as a rope (grab.lua), see "Hand" below
 --
 -- AI tuning: two values inside the game's lua/vehicle/ai.lua that have no official setter.
 --   ego.race_time_gap      safety gap in seconds that the AI keeps to a vehicle on its path
@@ -105,9 +105,11 @@ function M.setAiTuning(gap, sightFactor)
 end
 
 --== Hand: our own node grabber, as a rope =======================================
--- A rope from a grip on the vehicle (a few nodes around the point you looked at) to an anchor
--- point that the GE side places (grab.lua). It behaves like a real rope with a winch:
---   * it only pulls when it is taut (distance grip -> anchor longer than the rope); it never pushes
+-- A rope from a vehicle to an anchor point that the GE side places (grab.lua). The rope is tied to
+-- one node (the one you aimed at, the "tie node"); its pull is spread over the nodes around it (the
+-- grip). It behaves like a real rope with a winch:
+--   * it only pulls when it is taut (distance tie node -> anchor longer than the rope); it never
+--     pushes
 --   * while the anchor is being moved, the winch pays out rope, so the vehicle stays where it is
 --   * winch 1 (haul in): the rope is hauled in at most `speed` m/s and the vehicle is pulled to
 --     the anchor; the winch also brakes (up to half the force limit), so it doesn't roll past it
@@ -120,7 +122,15 @@ end
 --     moves at the wanted speed it eases off again
 --   * the force is split over the grip nodes by their mass, so thin panels don't bend
 -- Forces are applied once per frame for that frame (obj:applyForceVectorTime in updateGFX, like
--- the game's container locks do).
+-- the game's container locks do). A long frame (a hitch) counts as at most HAND_MAX_DT, so the rope
+-- never gives a jolt in an old direction.
+--
+-- The rope comes off by itself and tells the GE side (sharedCareer_grab.onHandLost(id, reason)):
+--   LOST_NO_GRIP  nothing to grab where you aimed
+--   LOST_RESET    the vehicle was reset (onReset) – the rope would pull it back to the old anchor
+--   LOST_JUMP     the vehicle jumped (moved without a reset, e.g. teleported)
+--   LOST_TORN     the tie node moved far from the vehicle's reference node: the part tore off or
+--                 bent away; pulling on would only drag the loose part
 
 local HAND_RADIUS = 0.8   -- m around the grab point
 local HAND_MIN_NODES = 4  -- at least this many nodes, even if fewer are inside the radius
@@ -128,28 +138,54 @@ local HAND_MAX_NODES = 24
 local HAND_KP = 2         -- 1/s: wanted speed = distance to the target * HAND_KP (then limited)
 local HAND_TAU = 0.4      -- s: how quickly the vehicle's speed follows the wanted speed
 local HAND_LIFT_RAMP = 0.3 -- m of stretch at which an upward rope carries the full weight
+local HAND_MAX_DT = 0.05   -- s: the longest frame the rope works with
+local HAND_JUMP = 2        -- m the tie node may move in one frame beyond what its speed explains
+local HAND_TEAR = 2        -- m the tie node may move away from (or towards) the reference node
 local ROPE_MIN = 0.5       -- m: the winch doesn't haul in further than this
 local ROPE_MAX = 150       -- m: the winch doesn't pay out further than this
+local SLACK_BELOW = 0.02   -- m of stretch: a taut rope counts as slack again below this
+local TAUT_ABOVE = 0.08    -- m of stretch: a slack rope counts as taut above this (no flicker)
 local WINCH_BRAKE = 0.5    -- share of the force limit the running winch may use to brake
 local BOOST_RISE = 0.5     -- share of the force limit per second the pull builds up while stuck
 local BOOST_FALL = 2       -- share of the force limit per second it eases off once it moves
 local GRAVITY = 9.81
 
-local HAND_REPORT_EVERY = 0.1 -- s: how often the grip position and strain go back to the GE side
+local LOST_NO_GRIP, LOST_RESET, LOST_JUMP, LOST_TORN = 0, 1, 2, 3
 
-local hand = nil -- {nodes = {{cid, m}}, gripMass, vehMass, ax, ay, az (anchor), length, winch,
-                 --  moving, speed, strength, strain, since}
+local HAND_REPORT_EVERY = 0.1 -- s: how often the rope state goes back to the GE side
+
+local hand = nil -- {nodes = {{cid, m}}, tie (cid), ref (cid), refDist, gripMass, vehMass,
+                 --  ax, ay, az (anchor), length, winch, moving, speed, strength, strain, slack,
+                 --  boost, since, last = {x, y, z} (tie node one frame ago)}
 
 -- tell the GE side (grab.lua) something about this vehicle
 local function reportToGE(fn, fmt, ...)
 	if type(obj.queueGameEngineLua) ~= "function" then return end
-	obj:queueGameEngineLua(string.format("if sharedCareer_grab then sharedCareer_grab.%s(%d, " .. fmt .. ") end",
-		fn, obj:getId(), ...))
+	local args = fmt and (", " .. string.format(fmt, ...)) or ""
+	obj:queueGameEngineLua(string.format("if sharedCareer_grab then sharedCareer_grab.%s(%d%s) end",
+		fn, obj:getId(), args))
+end
+
+local function lose(reason)
+	hand = nil
+	reportToGE("onHandLost", "%d", reason)
 end
 
 local function allNodes()
 	local nodes = v and v.data and v.data.nodes
 	return type(nodes) == "table" and nodes or {}
+end
+
+-- the vehicle's reference node (the game's refNodes[0].ref), or nil
+local function refNode()
+	local refs = v and v.data and v.data.refNodes
+	local r = type(refs) == "table" and refs[0]
+	return type(r) == "table" and r.ref or nil
+end
+
+local function distance(a, b)
+	local dx, dy, dz = a.x - b.x, a.y - b.y, a.z - b.z
+	return math.sqrt(dx * dx + dy * dy + dz * dz)
 end
 
 --- Grabs the nodes around the world point x/y/z. speed in m/s, strength in % of the weight.
@@ -178,15 +214,17 @@ function M.handGrab(x, y, z, speed, strength)
 		hand = nil
 		return false
 	end
-	hand = {nodes = nodes, gripMass = gripMass, vehMass = vehMass, ax = x, ay = y, az = z,
-		length = nil, winch = 0, moving = false, boost = 0,
+	local tie, ref = nodes[1].cid, refNode()
+	hand = {nodes = nodes, tie = tie, ref = ref, gripMass = gripMass, vehMass = vehMass, ax = x, ay = y, az = z,
+		refDist = ref and distance(obj:getAbsNodePosition(tie), obj:getAbsNodePosition(ref)) or nil,
+		length = nil, winch = 0, moving = false, boost = 0, slack = true,
 		speed = tonumber(speed) or 1, strength = tonumber(strength) or 60, strain = 0,
 		since = HAND_REPORT_EVERY}
 	return true
 end
 
 -- The node closest to a ray (camera position + direction): {cid, t, x, y, z} or nil.
--- t = distance along the ray, so the GE side holds the vehicle at that distance.
+-- t = distance along the ray.
 local function nodeOnRay(cx, cy, cz, dx, dy, dz, maxDist)
 	local best = nil
 	for _, node in pairs(allNodes()) do
@@ -208,12 +246,21 @@ local function nodeOnRay(cx, cy, cz, dx, dy, dz, maxDist)
 	return best
 end
 
+-- after a grab: tell the GE side where the rope is tied (distance, position, tie node)
+local function reportGrip(t)
+	local p = obj:getAbsNodePosition(hand.tie)
+	reportToGE("onGrip", "%.3f, %.3f, %.3f, %.3f, %d", t, p.x, p.y, p.z, hand.tie)
+end
+
 --- Grabs the vehicle where the view ray from the camera meets it (the node closest to the ray)
---- and reports the grip back: sharedCareer_grab.onGrip(id, t, x, y, z).
+--- and reports the grip back: sharedCareer_grab.onGrip(id, t, x, y, z, tie node).
 function M.handGrabRay(cx, cy, cz, dx, dy, dz, maxDist, speed, strength)
 	local n = nodeOnRay(cx, cy, cz, dx, dy, dz, tonumber(maxDist) or 120)
-	if not n or not M.handGrab(n.x, n.y, n.z, speed, strength) then return false end
-	reportToGE("onGrip", "%.3f, %.3f, %.3f, %.3f", n.t, n.x, n.y, n.z)
+	if not n or not M.handGrab(n.x, n.y, n.z, speed, strength) then
+		lose(LOST_NO_GRIP)
+		return false
+	end
+	reportGrip(n.t)
 	return true
 end
 
@@ -230,8 +277,11 @@ function M.handGrabNearest(px, py, pz, speed, strength)
 			if not best or d2 < best.d2 then best = {d2 = d2, x = p.x, y = p.y, z = p.z} end
 		end
 	end
-	if not best or not M.handGrab(best.x, best.y, best.z, speed, strength) then return false end
-	reportToGE("onGrip", "%.3f, %.3f, %.3f, %.3f", math.sqrt(best.d2), best.x, best.y, best.z)
+	if not best or not M.handGrab(best.x, best.y, best.z, speed, strength) then
+		lose(LOST_NO_GRIP)
+		return false
+	end
+	reportGrip(math.sqrt(best.d2))
 	return true
 end
 
@@ -262,17 +312,39 @@ function M.handInfo()
 	return hand
 end
 
+-- the vehicle was reset (R, recovery, a new config): the rope must not pull it back
+function M.onReset()
+	if hand then lose(LOST_RESET) end
+end
+
 function M.updateGFX(dt)
 	if not hand or not dt or dt <= 0 then return end
-	-- where the grip is and how fast it moves (mass-weighted)
-	local cx, cy, cz, vx, vy, vz = 0, 0, 0, 0, 0, 0
+	local tie = obj:getAbsNodePosition(hand.tie)
+	local tx, ty, tz = tie.x, tie.y, tie.z
+	-- how fast the grip moves (mass-weighted)
+	local vx, vy, vz = 0, 0, 0
 	for _, n in ipairs(hand.nodes) do
-		local p, vel = obj:getAbsNodePosition(n.cid), obj:getNodeVelocityVector(n.cid)
+		local vel = obj:getNodeVelocityVector(n.cid)
 		local w = n.m / hand.gripMass
-		cx, cy, cz = cx + p.x * w, cy + p.y * w, cz + p.z * w
 		vx, vy, vz = vx + vel.x * w, vy + vel.y * w, vz + vel.z * w
 	end
-	local dx, dy, dz = hand.ax - cx, hand.ay - cy, hand.az - cz
+	-- jumped further than its speed explains: moved by the game (teleport), not by the rope
+	local last = hand.last
+	if last then
+		local jx, jy, jz = tx - last.x - vx * dt, ty - last.y - vy * dt, tz - last.z - vz * dt
+		if jx * jx + jy * jy + jz * jz > HAND_JUMP * HAND_JUMP then
+			lose(LOST_JUMP)
+			return
+		end
+	end
+	hand.last = {x = tx, y = ty, z = tz}
+	if hand.ref and hand.refDist
+		and math.abs(distance(tie, obj:getAbsNodePosition(hand.ref)) - hand.refDist) > HAND_TEAR then
+		lose(LOST_TORN)
+		return
+	end
+	dt = math.min(dt, HAND_MAX_DT)
+	local dx, dy, dz = hand.ax - tx, hand.ay - ty, hand.az - tz
 	local d = math.sqrt(dx * dx + dy * dy + dz * dz)
 	-- rope length: starts at the current distance; paid out while the anchor is moved; hauled in
 	-- by the winch
@@ -286,11 +358,11 @@ function M.updateGFX(dt)
 	end
 	local tension = 0
 	local limit = hand.vehMass * GRAVITY * hand.strength / 100
+	local stretch = d - hand.length
 	-- a taut rope pulls; a running winch also brakes near its end (it holds on to the vehicle)
-	local active = d > 0.001 and (d > hand.length + 0.001 or hand.winch == 1)
+	local active = d > 0.001 and (stretch > 0.001 or hand.winch == 1)
 	if active then
 		local ux, uy, uz = dx / d, dy / d, dz / d
-		local stretch = d - hand.length
 		-- wanted speed along the rope: towards the anchor, at most hand.speed (0 at the rope's end)
 		local want = math.max(0, math.min(hand.speed, stretch * HAND_KP))
 		local along = vx * ux + vy * uy + vz * uz
@@ -316,13 +388,19 @@ function M.updateGFX(dt)
 	else
 		hand.boost = 0
 	end
+	-- slack or taut, with a margin in between so the display doesn't flicker
+	if hand.slack then
+		hand.slack = stretch <= TAUT_ABOVE
+	else
+		hand.slack = stretch < SLACK_BELOW
+	end
 	-- strain: share of the force limit in use (1 = at the limit), smoothed for the display
 	hand.strain = hand.strain + (math.abs(tension) / limit - hand.strain) * math.min(1, dt * 6)
 	hand.since = hand.since + dt
 	if hand.since >= HAND_REPORT_EVERY then
 		hand.since = 0
-		local slack = d <= hand.length + 0.05 and 1 or 0
-		reportToGE("onHandState", "%.3f, %.3f, %.3f, %.2f, %d, %.2f", cx, cy, cz, hand.strain, slack, hand.length)
+		reportToGE("onHandState", "%.3f, %.3f, %.3f, %.2f, %d, %.2f", tx, ty, tz, hand.strain,
+			hand.slack and 1 or 0, hand.length)
 	end
 end
 

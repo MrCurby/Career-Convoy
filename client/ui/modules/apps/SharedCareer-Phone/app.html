@@ -105,7 +105,8 @@
 						<div class="scp-seg scp-seg-strength" ng-style="{'grid-template-columns': 'repeat(' + (tow.strengths.length || 1) + ', 1fr)'}">
 							<button ng-repeat="s in tow.strengths" ng-class="{'scp-seg-on scp-seg-in': tow.strength === s}" ng-click="towCall('uiStrength(' + s + ')')">{{s}} %</button>
 						</div>
-						<div class="scp-hint">Stuck, handbrake or Park: try 100 % or more.</div>
+						<div class="scp-hint scp-hint-warn" ng-if="tow.stuck">The rope has been pulling at its limit: pick more strength, release the handbrake or Park, or tow it to the road.</div>
+						<div class="scp-hint" ng-if="!tow.stuck">Stuck, handbrake or Park: try 100 % or more.</div>
 						<button class="scp-wide scp-hazard" ng-if="tow.towToRoad" ng-click="towCall('uiTowToRoad()')"><span class="scp-hazard-plate"><svg class="scp-btn-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3 L3 21 M16 3 L21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/><path d="M12 4v3M12 10.5v3M12 17v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Tow to the road</span></span></button>
 						<div class="scp-hint" ng-if="tow.towToRoad">Stuck for good? Puts the vehicle on the last road it drove on, free of charge. The damage stays.</div>
 						<button class="scp-wide scp-danger" ng-click="towCall('uiRelease()')"><svg class="scp-btn-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="18" r="2.6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="18" cy="18" r="2.6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M7.8 16 L17 4 M16.2 16 L7 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Remove rope</span></button>
