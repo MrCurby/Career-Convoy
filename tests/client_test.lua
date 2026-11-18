@@ -1729,21 +1729,43 @@ local before = #uiEvents
 menu.uiVisible("phone", true)
 check(#uiEvents == before + 1 and uiEvents[#uiEvents].fuel == false and uiEvents[#uiEvents].hour ~= nil,
 	"phone out: state at once, fuel = false (Fuel app closed)")
-check(pushesDuring(2) >= 1 and uiEvents[#uiEvents].fuel == false, "phone out: every second, still without fuel prices")
+check(pushesDuring(2) >= 1 and uiEvents[#uiEvents].fuel == false, "phone out: every second, still without the station list")
+check(uiEvents[#uiEvents].dayStart == 6 and uiEvents[#uiEvents].nightStart == 20,
+	"phone out: day and night start for the home screen's bar")
 -- the Fuel app open: fuel prices at once (nil: this test map has no gas stations)
 local fuelAsked = 0
 local realOverview = sharedCareer_fuel.overview
-sharedCareer_fuel.overview = function() fuelAsked = fuelAsked + 1; return {stations = {{id = "apex"}}} end
+sharedCareer_fuel.overview = function()
+	fuelAsked = fuelAsked + 1
+	return {stations = {
+		{id = "apex", name = "Apex", distance = 900, fuels = {gasoline = {price = 3.2, unit = "gal", discount = 0},
+			diesel = {price = 3.0, unit = "gal", discount = 10}}},
+		{id = "gas2", name = "Gas 2", distance = 400, fuels = {gasoline = {price = 3.2, unit = "gal", discount = 0}}},
+		{id = "gas3", name = "Gas 3", distance = 100, fuels = {gasoline = {price = 3.5, unit = "gal", discount = 0},
+			diesel = {price = 3.4, unit = "gal", discount = 0}}},
+	}}
+end
 before = #uiEvents
 menu.uiVisible("fuel", true)
-check(#uiEvents == before + 1 and type(uiEvents[#uiEvents].fuel) == "table" and fuelAsked == 1, "Fuel app open: prices at once")
+check(#uiEvents == before + 1 and type(uiEvents[#uiEvents].fuel) == "table" and fuelAsked == 1,
+	"Fuel app open: prices at once (the cheapest stations come from the same list)")
 local asked = fuelAsked
 pushesDuring(3, function() menu.uiVisible("phone", true); menu.uiVisible("fuel", true) end)
 check(fuelAsked - asked >= 2 and type(uiEvents[#uiEvents].fuel) == "table", "Fuel app open: prices every second")
 menu.uiVisible("fuel", false)
 asked = fuelAsked
 pushesDuring(3, function() menu.uiVisible("phone", true) end)
-check(fuelAsked == asked and uiEvents[#uiEvents].fuel == false, "Fuel app closed: no prices computed, phone still updated")
+local cheapest = uiEvents[#uiEvents].fuelCheapest
+check(fuelAsked > asked and uiEvents[#uiEvents].fuel == false and type(cheapest) == "table",
+	"Fuel app closed, phone out: no station list, but the cheapest station per fuel for the home screen")
+check(cheapest.diesel.id == "apex" and cheapest.diesel.discount == 10 and cheapest.diesel.unit == "gal",
+	"cheapest diesel, with its discount and unit")
+check(cheapest.gasoline.id == "gas2" and cheapest.gasoline.distance == 400, "same price: the nearer station")
+menu.uiVisible("phone", false)
+asked = fuelAsked
+pushesDuring(6)
+check(fuelAsked == asked, "phone away: no prices computed")
+menu.uiVisible("phone", true)
 sharedCareer_fuel.overview = function() return nil end
 menu.uiVisible("fuel", true)
 check(uiEvents[#uiEvents].fuel == nil, "Fuel app open on a map without stations: fuel = nil (empty list, not false)")

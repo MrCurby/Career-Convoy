@@ -2,9 +2,12 @@
 // The phone shows the server time, the number of players, the connection and the apps that
 // SharedCareer extensions registered (lua/ge/extensions/sharedCareer/phone.lua). Built-in app
 // screens: Tow (rope and winch, grab.lua) and Fuel (gas station prices, fuel.lua).
+// The home screen has, below the clock, how long until day or night (with a bar for the part
+// of it that is over), and two widgets below the apps: the other players with what they are
+// doing, and the cheapest station per fuel (a tap opens the Fuel app).
 //
 // Data: guihook "SharedCareerPhone" {enabled, apps} from phone.lua, "SharedCareerState" (time,
-// players, connection, fuel prices) from menu.lua every second, "SharedCareerTow" from grab.lua
+// players, connection, fuel prices, cheapest fuel) from menu.lua every second, "SharedCareerTow" from grab.lua
 // while the Tow app is open, "SharedCareerPhoneToggle" from the key.
 // menu.lua only sends "SharedCareerState" while someone looks: the phone reports "phone" (out)
 // and "fuel" (Fuel app open) with sharedCareer_menu.uiVisible on every change and every 2 s.
@@ -164,13 +167,58 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 		var total = Math.floor(((h % 24) + 24) % 24 * 60);
 		return pad(Math.floor(total / 60)) + ':' + pad(total % 60);
 	};
+	// below the big clock: "Night in 23 min", "Day · paused", ...
 	$scope.dayText = function () {
+		var t = $scope.timeInfo;
 		if (!$scope.connected) return 'Not connected';
-		if ($scope.isDay === true) return 'Day on the server';
-		if ($scope.isDay === false) return 'Night on the server';
-		return 'SharedCareer';
+		if (!t || typeof t.isDay !== 'boolean') return 'SharedCareer';
+		var phase = t.isDay ? 'Day' : 'Night';
+		if (t.paused) return phase + ' · paused';
+		if (typeof t.secondsToSwitch !== 'number') return phase + ' on the server';
+		var min = Math.max(0, Math.round(t.secondsToSwitch / 60));
+		return (t.isDay ? 'Night' : 'Day') + ' in ' + (min < 1 ? '< 1' : min) + ' min';
+	};
+	// share of the current day or night that is over (0..1), or null
+	$scope.phaseProgress = function () {
+		var t = $scope.timeInfo;
+		if (!$scope.connected || !t || typeof t.isDay !== 'boolean' || typeof $scope.time !== 'number'
+			|| typeof t.dayStart !== 'number' || typeof t.nightStart !== 'number') return null;
+		var start = t.isDay ? t.dayStart : t.nightStart, end = t.isDay ? t.nightStart : t.dayStart;
+		var length = ((end - start) % 24 + 24) % 24;
+		if (length <= 0) return null;
+		return Math.max(0, Math.min(1, ((($scope.time - start) % 24 + 24) % 24) / length));
 	};
 	$scope.playerCount = function () { return $scope.players; };
+
+	//== Home screen widgets ==
+	var STATUS = {
+		driving: {text: 'Driving', color: '#4cd964'},
+		mission: {text: 'Mission', color: '#ff9500'},
+		walking: {text: 'On foot', color: '#5ac8fa'},
+		loading: {text: 'Loading', color: '#8e8e93'}
+	};
+	var SHOWN_PLAYERS = 4;
+	$scope.others = [];
+	$scope.statusOf = function (p) { return STATUS[p.status] || {text: '', color: '#8e8e93'}; };
+	$scope.shownOthers = function () { return $scope.others.slice(0, SHOWN_PLAYERS); };
+	$scope.moreOthers = function () { return Math.max(0, $scope.others.length - SHOWN_PLAYERS); };
+	// the fuel widget's rows, built once per state (new objects on every digest would make
+	// ng-repeat loop)
+	$scope.cheapestFuels = [];
+	function cheapestRows(c) {
+		if (!c) return [];
+		return ['gasoline', 'diesel'].filter(function (f) { return c[f]; }).map(function (f) {
+			var e = c[f];
+			return {key: f === 'gasoline' ? 'G' : 'D', name: e.name, price: $scope.formatPrice(e), discount: e.discount,
+				distance: typeof e.distance === 'number' ? $scope.formatDistance(e.distance) : null};
+		});
+	}
+	function appById(id) {
+		for (var i = 0; i < $scope.apps.length; i++) if ($scope.apps[i].id === id) return $scope.apps[i];
+		return null;
+	}
+	$scope.hasApp = function (id) { return !!appById(id); };
+	$scope.openFuel = function () { var app = appById('fuel'); if (app) $scope.openApp(app); };
 
 	$scope.$on('SharedCareerPhone', function (event, data) {
 		$scope.$evalAsync(function () {
@@ -187,10 +235,13 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 		$scope.$evalAsync(function () {
 			if (!data) return;
 			$scope.time = typeof data.hour === 'number' ? data.hour : null;
-			$scope.isDay = data.isDay;
+			$scope.timeInfo = {isDay: data.isDay, paused: data.paused === true, secondsToSwitch: data.secondsToSwitch,
+				dayStart: data.dayStart, nightStart: data.nightStart};
 			$scope.connected = data.connected === true;
 			var list = data.players && Array.isArray(data.players.list) ? data.players.list : null;
 			$scope.players = list ? list.length : '–';
+			$scope.others = list ? list.filter(function (p) { return p && !p.me; }) : [];
+			$scope.cheapestFuels = cheapestRows(data.fuelCheapest);
 			// fuel is false while the Fuel app is closed: keep the last list until fresh prices arrive
 			if (data.fuel !== false) $scope.fuel = data.fuel || null;
 		});

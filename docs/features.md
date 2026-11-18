@@ -200,7 +200,11 @@ Server admins can switch it off with `sc set client.allowGrab false`, and set ho
 
 <img src="images/phone.png" width="240" alt="The SharedCareer phone">
 
-Press **F4** or click the phone tab at the right screen edge (directly below the SharedCareer menu's tab) to take out your phone. It shows the server's time, whether it's day or night, how many players are on the server and whether you're connected.
+Press **F4** or click the phone tab at the right screen edge (directly below the SharedCareer menu's tab) to take out your phone. It shows the server's time, how many players are on the server and whether you're connected. Its home screen also has:
+
+- **Day and night:** below the clock, how long until night (or day), and a bar for how much of the day or night is over.
+- **Players:** the other players with what they are doing right now (driving, mission, on foot, loading), each with a colored dot.
+- **Cheapest fuel:** the cheapest station for gasoline and for diesel, with the price, a discount from deliveries and the distance. Tap it to open the Fuel app.
 
 Apps:
 
