@@ -34,6 +34,9 @@ local SEND_EVERY = 2       -- at most one snapshot per own vehicle this often on
 local since = 0
 -- own vehicles: game id -> {damage, at, sent, sentAt}
 local own = {}
+-- own vehicles: game id -> the damage JSON sent last (the same damage isn't sent twice: every
+-- copy would be reset and loaded again for nothing)
+local sentJson = {}
 -- other players' vehicles: game id -> {damage, at, base, settling, askedAt, stillSince}
 --   base: damage that matches the owner's (only more than that is a crash seen only here)
 --   settling: the owner's damage was just loaded; the damage the car then shows becomes the new base
@@ -153,9 +156,13 @@ M.check = check
 function M.onSnapshot(gameId, json)
 	local m = mp()
 	if not m or not enabled() or not m.isOwn(gameId) then return end
+	if json == sentJson[gameId] then return end
 	local serverId = serverIdOf(m, gameId)
 	local damage = U.decode(json)
-	if serverId and damage and isPlayerVehicle(serverId) then U.send("sc_damage", {id = serverId, damage = damage}) end
+	if serverId and damage and isPlayerVehicle(serverId) then
+		sentJson[gameId] = json
+		U.send("sc_damage", {id = serverId, damage = damage})
+	end
 end
 
 -- other player's vehicle took the damage and stands still: reset it in place, it takes the
@@ -211,15 +218,15 @@ end
 
 -- a rebuilt vehicle is undamaged again: load the owner's damage once more
 function M.onVehicleSpawned(gameId)
-	own[gameId], remote[gameId], loaded[gameId] = nil, nil, nil
+	own[gameId], remote[gameId], loaded[gameId], sentJson[gameId] = nil, nil, nil, nil
 end
 
 function M.onVehicleDestroyed(gameId)
-	own[gameId], remote[gameId], loaded[gameId] = nil, nil, nil
+	own[gameId], remote[gameId], loaded[gameId], sentJson[gameId] = nil, nil, nil, nil
 end
 
 function M.onBeamMPServerLeave()
-	own, remote, received, loaded, since = {}, {}, {}, {}, 0
+	own, remote, received, loaded, sentJson, since = {}, {}, {}, {}, {}, 0
 end
 
 function M.onExtensionLoaded()

@@ -2464,6 +2464,8 @@ _G.MPGameNetwork = nil
 	local msg = lastSent("sc_damage")
 	check(msg and msg.id == "0-5" and msg.damage.bn == 3 and msg.damage.b[1] == 2, "own damage goes to the server")
 	sentToServer = {}
+	sharedCareer_damage.onSnapshot(40, '{"nn":2,"bn":3,"n":[0,0,1,0],"d":[1,0.5,0.1],"b":[2]}')
+	check(lastSent("sc_damage") == nil, "the same damage is not sent twice")
 	sharedCareer_damage.onSnapshot(41, '{"nn":2,"bn":3,"n":[],"d":[],"b":[]}')
 	check(lastSent("sc_damage") == nil, "never sends the damage of someone else's vehicle")
 
