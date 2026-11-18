@@ -45,10 +45,12 @@
 --   sc_hello            {version}     sc_config / sc_configUpdate   client settings
 --   sc_careerResult     {ok, reason,  sc_vehStates   {"<pid>-<vid>": {active, traffic}}
 --                        profile}     sc_traffic     {road, parked}  new traffic share
---   sc_vehActive        {id, active}  sc_time        {hour, play, dayLength, dayLengthDay,
---   sc_vehMarks         {id: bool}                    dayLengthNight, dayStart, nightStart,
+--   sc_vehReport        {id: {active, sc_time        {hour, play, dayLength, dayLengthDay,
+--                        traffic}}                    dayLengthNight, dayStart, nightStart,
 --                                                     dayMinutes, nightMinutes, canControl}
 --   sc_vehStatesRequest               sc_signals     traffic light cycle (seconds)
+--   sc_damage           {id, damage}  sc_damage      {id, damage = {n, d, b}}  a vehicle's damage
+--   sc_damageRequest    {id}          sc_damageRequest {id}  (to the owner) send it again
 --   sc_payDebitResult   {id, ok}      sc_payDebit / sc_payCredit   money transfer
 --   sc_payCreditAck     {id}
 --   sc_timeControl      {action = "set", hour} | {action = "lengths", dayMinutes, nightMinutes}
@@ -68,7 +70,7 @@
 --   sc_jobPaidAck {payout}
 --                       (from the SharedCareer menu window)
 
-local VERSION = "0.20.2"
+local VERSION = "0.21.0"
 local TAG = "[SharedCareer] "
 
 local CONFIG_DIR = "Resources/Server/SharedCareer/config"
@@ -146,6 +148,9 @@ local DEFAULTS = {
 		-- Other players on foot (unicycle) without collision – so nobody can run anyone
 		-- over by accident
 		remoteUnicycleGhost = true,
+		-- Other players' vehicles show the damage their owner sees (BeamMP itself only syncs
+		-- parts that break off). The owner sends it once a crash is over.
+		syncDamage = true,
 		-- Spawn traffic as simplified vehicles ("simple_traffic"). Because BeamMP sends the
 		-- owner's config to everyone, the traffic is then simple everywhere.
 		trafficSimpleVehicles = true,
@@ -217,6 +222,8 @@ local Retired = {} -- "section.name" -> value of settings this version doesn't u
 local players = {}
 -- "<player_id>-<vehicle_id>" -> {active = bool, traffic = bool|nil}
 local vehicleStates = {}
+-- "<player_id>-<vehicle_id>" -> the last sc_damage message (JSON) of that vehicle
+local damageStates = {}
 -- transfer id -> {from, to, fromName, toName, amount, stage, createdAt}
 local transfers = {}
 local transferSeq = 0
@@ -556,9 +563,9 @@ local function updateTrafficShares()
 end
 
 --== Vehicle states ============================================================
--- The career often hides your own cars (garage, dealer, missions); BeamMP doesn't sync
--- that. So every client reports hiding/showing and which of its cars are traffic;
--- the server keeps the list (vehicleStates) and sends changes to everyone else.
+-- The career often hides your own cars (garage, dealer, missions, the traffic reserve); BeamMP
+-- doesn't sync that. So every client reports its own cars regularly (visible, traffic);
+-- the server keeps the list (vehicleStates) and sends only real changes to everyone else.
 -- New players get the whole list on join.
 
 -- A client may only report its own vehicles ("<its player_id>-<vehicle_id>").
@@ -1173,6 +1180,7 @@ function sc_hello(player_id, data)
 	sharesSent[player_id] = settings.trafficShare
 	send(player_id, "sc_config", settings)
 	send(player_id, "sc_vehStates", vehicleStates)
+	for _, damage in pairs(damageStates) do MP.TriggerClientEvent(player_id, "sc_damage", damage) end
 	-- On a full server the others get their smaller share immediately.
 	updateTrafficShares()
 	broadcastPlayers()
@@ -1217,27 +1225,22 @@ function sc_careerResult(player_id, data)
 	end
 end
 
--- An own vehicle was hidden/shown: {id = "<pid>-<vid>", active = bool}
-function sc_vehActive(player_id, data)
-	local msg = decodeTable(data)
-	if not msg or type(msg.active) ~= "boolean" or not ownsVehicle(player_id, msg.id) then return end
-	local state = vehicleStates[msg.id]
-	if not state then return end
-	if state.active == msg.active then return end
-	state.active = msg.active
-	broadcastStates({[msg.id] = state}, player_id)
-end
-
--- Which own vehicles are traffic/parked: {["<pid>-<vid>"] = bool, ...}
-function sc_vehMarks(player_id, data)
-	local marks = decodeTable(data)
-	if not marks then return end
+-- The sender's own vehicles: {["<pid>-<vid>"] = {active = bool, traffic = bool}, ...}
+function sc_vehReport(player_id, data)
+	local report = decodeTable(data)
+	if not report then return end
 	local changed = {}
-	for id, mark in pairs(marks) do
+	for id, reported in pairs(report) do
 		local state = vehicleStates[id]
-		if type(mark) == "boolean" and state and ownsVehicle(player_id, id) and state.traffic ~= mark then
-			state.traffic = mark
-			changed[id] = state
+		if type(reported) == "table" and state and ownsVehicle(player_id, id) then
+			local differs = false
+			if type(reported.active) == "boolean" and state.active ~= reported.active then
+				state.active, differs = reported.active, true
+			end
+			if type(reported.traffic) == "boolean" and state.traffic ~= reported.traffic then
+				state.traffic, differs = reported.traffic, true
+			end
+			if differs then changed[id] = state end
 		end
 	end
 	if next(changed) then broadcastStates(changed, player_id) end
@@ -1245,6 +1248,29 @@ end
 
 function sc_vehStatesRequest(player_id)
 	if players[player_id] then send(player_id, "sc_vehStates", vehicleStates) end
+end
+
+--== Damage ====================================================================
+-- BeamMP only syncs parts that break off. So every owner sends the damage of its vehicles once a
+-- crash is over (sc_damage, see damage.lua); the server passes it on and keeps the latest one per
+-- vehicle for players who join later. A player whose copy of a vehicle crashed where the owner's
+-- didn't asks the owner for it (sc_damageRequest).
+
+function sc_damage(player_id, data)
+	local msg = decodeTable(data)
+	if not msg or type(msg.damage) ~= "table" or not ownsVehicle(player_id, msg.id) or not vehicleStates[msg.id] then return end
+	damageStates[msg.id] = data
+	for id in pairs(players) do
+		if id ~= player_id and MP.IsPlayerConnected(id) then MP.TriggerClientEvent(id, "sc_damage", data) end
+	end
+end
+
+function sc_damageRequest(player_id, data)
+	local msg = decodeTable(data)
+	local owner = msg and type(msg.id) == "string" and tonumber(msg.id:match("^(%d+)%-%d+$"))
+	if owner and owner ~= tonumber(player_id) and players[owner] and MP.IsPlayerConnected(owner) then
+		send(owner, "sc_damageRequest", {id = msg.id})
+	end
 end
 
 -- Control from the SharedCareer menu window (every player, if allowed):
@@ -1671,6 +1697,9 @@ function onPlayerDisconnect(player_id)
 	for id in pairs(vehicleStates) do
 		if id:sub(1, #prefix) == prefix then vehicleStates[id] = nil end
 	end
+	for id in pairs(damageStates) do
+		if id:sub(1, #prefix) == prefix then damageStates[id] = nil end
+	end
 	for id, transfer in pairs(transfers) do
 		if transfer.to == player_id and transfer.stage == "credit" then
 			refund(transfer, transfer.toName .. " left the server.")
@@ -1691,6 +1720,7 @@ end
 function onVehicleSpawn(player_id, vehicle_id, data)
 	local id = player_id .. "-" .. vehicle_id
 	vehicleStates[id] = {active = true}
+	damageStates[id] = nil
 	broadcastStates({[id] = vehicleStates[id]})
 end
 
@@ -1699,12 +1729,14 @@ function onVehicleEdited(player_id, vehicle_id, data)
 	local id = player_id .. "-" .. vehicle_id
 	local state = vehicleStates[id] or {}
 	state.active = true
+	damageStates[id] = nil -- a rebuilt vehicle is undamaged
 	vehicleStates[id] = state
 	broadcastStates({[id] = state})
 end
 
 function onVehicleDeleted(player_id, vehicle_id)
 	vehicleStates[player_id .. "-" .. vehicle_id] = nil
+	damageStates[player_id .. "-" .. vehicle_id] = nil
 end
 
 --== Timers ====================================================================
@@ -1755,8 +1787,9 @@ function onInit()
 
 	MP.RegisterEvent("sc_hello", "sc_hello")
 	MP.RegisterEvent("sc_careerResult", "sc_careerResult")
-	MP.RegisterEvent("sc_vehActive", "sc_vehActive")
-	MP.RegisterEvent("sc_vehMarks", "sc_vehMarks")
+	MP.RegisterEvent("sc_vehReport", "sc_vehReport")
+	MP.RegisterEvent("sc_damage", "sc_damage")
+	MP.RegisterEvent("sc_damageRequest", "sc_damageRequest")
 	MP.RegisterEvent("sc_vehStatesRequest", "sc_vehStatesRequest")
 	MP.RegisterEvent("sc_timeControl", "sc_timeControl")
 	MP.RegisterEvent("sc_setSetting", "sc_setSetting")
