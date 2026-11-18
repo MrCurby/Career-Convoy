@@ -2624,6 +2624,50 @@ end)()
 	check(#ge == 0, "different node count: ignored")
 end)()
 
+--== 7l. Other players' vehicles survive a pause (BeamMP positionVE) ==============
+;(function()
+	local calls = {}
+	local speed = 1
+	_G.positionVE = {
+		setGameSpeed = function(v) speed = v end,
+		updateGFX = function(dt) table.insert(calls, "gfx " .. dt .. " at speed " .. speed) end,
+		onPhysicsStep = function(dt) table.insert(calls, "phys") end,
+		getVehicleRotation = function() table.insert(calls, "send at speed " .. speed) end,
+		onReset = function() table.insert(calls, "reset") end,
+	}
+	local refreshed = {}
+	local savedExt = _G.extensions
+	_G.extensions = {hookUpdate = function(name) refreshed[name] = true end}
+	local guard = assert(loadfile("client/lua/vehicle/extensions/auto/sharedCareerPauseGuard.lua"))()
+	guard.onExtensionLoaded()
+	check(refreshed.updateGFX and refreshed.onPhysicsStep, "hook lists refreshed after wrapping")
+	positionVE.updateGFX(0.016)
+	check(calls[#calls] == "gfx 0.016 at speed 1", "running: positionVE works as before")
+	calls = {}
+	positionVE.setGameSpeed(0)
+	check(speed == 1 and calls[1] == "reset", "paused: positionVE never gets a speed of 0, prediction starts fresh")
+	positionVE.updateGFX(0.016)
+	positionVE.onPhysicsStep(0.0005)
+	check(#calls == 1, "paused: no prediction and no physics step")
+	positionVE.getVehicleRotation()
+	check(calls[2] == "send at speed 0" and speed == 1, "paused: own vehicle reports standing still")
+	positionVE.setGameSpeed(0 / 0)
+	check(speed == 1, "an invalid speed is never passed on")
+	calls = {}
+	positionVE.setGameSpeed(0.5)
+	check(speed == 0.5 and calls[1] == "reset", "resumed (slow motion): real speed, prediction starts fresh")
+	positionVE.updateGFX(0)
+	check(#calls == 1, "a frame without time is skipped")
+	positionVE.updateGFX(0.016)
+	check(calls[2] == "gfx 0.016 at speed 0.5", "resumed: positionVE works again")
+	local wrapped = positionVE.updateGFX
+	guard.updateGFX(0.016)
+	check(positionVE.updateGFX == wrapped, "installed only once")
+	_G.positionVE, _G.extensions = nil, savedExt
+	local ok = pcall(guard.updateGFX, 0.016)
+	check(ok, "without BeamMP: nothing happens")
+end)()
+
 --== 8. Money ===================================================================
 resetWorld()
 installCareer({money = 1000})

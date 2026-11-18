@@ -14,7 +14,8 @@
 ```
 client/                          client mod (packed into Resources/Client/SharedCareer.zip)
   lua/ge/extensions/sharedCareer/  game-engine Lua, one file per area (see below)
-  lua/vehicle/extensions/auto/     vehicle Lua
+  lua/vehicle/extensions/auto/     vehicle Lua (sharedCareerVeh: ghost, AI, rope, jobs, damage;
+                                   sharedCareerPauseGuard: BeamMP's position sync during a pause)
   scripts/sharedCareer/            mod entry point (loads the extensions)
   ui/modules/apps/                 the two UI apps: SharedCareer-Menu (the menu with the steering
                                    wheel) and SharedCareer-Phone (phone with the Tow and Fuel apps)
@@ -92,6 +93,7 @@ About a minute later the release is on GitHub, and `./server.sh update` installs
 | Your name tag above every one of your traffic cars | Traffic and parked cars are marked and their name tags hidden | `vehicles.lua` |
 | Your police or traffic "takes over" other players | Remote cars get `ignoreTraffic` | `vehicles.lua` |
 | Your traffic and parked cars appear on top of other players, or vanish right next to them | Other players' own vehicles (not their traffic) get the game's `trafficClearRadius` (40 m): traffic spawn points, traffic respawns and parking spots keep that distance | `vehicles.lua` |
+| Other players' vehicles blow up after someone pauses ("Instability detected", NaN) and wreck vehicles next to them | BeamMP sets the game speed of every vehicle to 0 on a pause, and its `positionVE` divides by it for other players' vehicles. `positionVE.setGameSpeed` never gets 0 now: while paused it keeps the last real speed and its prediction and physics step are skipped; own vehicles still report standing still; the prediction starts fresh when the pause starts and ends | `sharedCareerPauseGuard.lua` |
 | Every PC works out the deformation itself (BeamMP only syncs parts that break off): a car that hits something only one PC sees looks crashed there only | The owner's damage counts, for player vehicles only: once its damage hasn't changed for 1.5 s, an own vehicle sends its node positions (in its own frame), deformed beams and broken beams (`sharedCareerVeh.damageSnapshot`, `sc_damage`). The others load it the way the game loads a saved vehicle (`beamstate.load`), and only while their copy stands still: reset in place, node positions turned into the copy's frame, rest lengths, deformation, broken beams, `commitLoad` (`damageLoad`). Changing the beams of a moving car made its physics blow up. A copy that crashed only on one PC asks the owner (`sc_damageRequest`). The server keeps the latest damage per vehicle for players who join later and tells everyone to forget it when the vehicle is rebuilt or its id is used again | `damage.lua`, `sharedCareerVeh.lua`, server |
 | **Duplicate cars** when tuning, changing parts or painting | BeamMP rebuilds the wrong car, so `getPlayerVehicle(0)` points at the right one for that call | `garage.lua` |
 | Other players on foot are invisible | A visible BeamMP unicycle variant | `garage.lua` |
