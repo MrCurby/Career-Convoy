@@ -14,13 +14,17 @@
 #   ./server.sh follow         follow Server.log live (Ctrl+C only stops following)
 #   ./server.sh cmd "sc time"  send a command to the server console, e.g. "sc get"
 #   ./server.sh update         install the newest GitHub release (stop, back up, unpack,
-#                              start) – only if it is newer than the installed version
+#                              start) – only if it differs from the installed version
+#   ./server.sh update --dev   the same with the newest dev build (every push to the "dev"
+#                              branch, version like 0.16.0-dev.ab12cd3) – for a test server
+#   ./server.sh update --release  the newest release, also where CHANNEL="dev" is set
 #   ./server.sh update --force the same, even if that version is already installed
 #   ./server.sh update x.zip   install a specific zip from this folder
-#   ./server.sh check          show the installed version and the newest one on GitHub
+#   ./server.sh check          show the installed version and the newest release and dev build
 #
 # Put the GitHub repository into server.conf (same folder):
 #   REPO="MrCurby/SharedCareer"
+#   CHANNEL="release"          what "update" installs: "release" or "dev" (a test server)
 #   GITHUB_TOKEN=""            only needed for a private repository (token with read access)
 #   BACKUPS_KEEP=5             update backups to keep (sharedcareer-backup-*.tgz); 0 = keep all
 # Without REPO, "update" installs the newest SharedCareer-*.zip in this folder.
@@ -39,6 +43,8 @@ STOP_WAIT=20   # seconds the server gets to shut down cleanly after SIGTERM
 REPO="${SC_REPO:-}"
 API="${SC_API:-https://api.github.com}"   # only changed for testing
 GITHUB_TOKEN="${GITHUB_TOKEN:-}"
+CHANNEL="release"
+DEV_TAG="dev-build"   # the GitHub pre-release the dev workflow replaces on every push to "dev"
 BACKUPS_KEEP=5
 # shellcheck disable=SC1091
 [ -f "$DIR/server.conf" ] && . "$DIR/server.conf"
@@ -161,7 +167,7 @@ cmd_status() {
 		p="$(server_pid || true)"
 		green "Running (session '$SESSION'${p:+, PID $p})."
 		if [ -f "$LOG" ]; then
-			local v; v="$(grep -o 'SharedCareer\] Version [0-9.]*' "$LOG" | tail -n 1)"
+			local v; v="$(grep -o 'SharedCareer\] Version [0-9A-Za-z.-]*' "$LOG" | tail -n 1)"
 			[ -n "$v" ] && info "${v#*] }"
 		fi
 	else
@@ -220,18 +226,29 @@ gh_curl() {
 	fi
 }
 
-# Gets the newest release. Sets LATEST_VERSION and LATEST_ASSET (API address of the zip).
-fetch_latest() {
+# Gets the newest package of a channel ("release" or "dev"). Sets REMOTE_VERSION (from the zip's
+# name, SharedCareer-<version>.zip) and REMOTE_ASSET (API address of the zip). With "quiet", a
+# missing package returns 1 instead of stopping.
+fetch_remote() {
+	local channel="$1" quiet="${2:-}"
 	if ! command -v curl >/dev/null 2>&1; then red "curl is missing. Install it with:  sudo apt install curl"; exit 1; fi
+	local url="$API/repos/$REPO/releases/latest" what="release"
+	if [ "$channel" = dev ]; then url="$API/repos/$REPO/releases/tags/$DEV_TAG"; what="dev build"; fi
 	local json
-	if ! json="$(gh_curl -H "Accept: application/vnd.github+json" "$API/repos/$REPO/releases/latest")"; then
-		red "GitHub request failed ($REPO). Is the repository name in server.conf right? A private repository needs GITHUB_TOKEN."
+	if ! json="$(gh_curl -H "Accept: application/vnd.github+json" "$url")"; then
+		[ -n "$quiet" ] && return 1
+		if [ "$channel" = dev ]; then
+			red "No dev build on GitHub ($REPO) – it appears after the first push to the \"dev\" branch."
+		else
+			red "GitHub request failed ($REPO). Is the repository name in server.conf right? A private repository needs GITHUB_TOKEN."
+		fi
 		exit 1
 	fi
-	LATEST_VERSION="$(printf '%s' "$json" | grep -o '"tag_name": *"[^"]*"' | head -n 1 | sed 's/.*"v\{0,1\}\([^"]*\)"$/\1/')"
-	LATEST_ASSET="$(printf '%s' "$json" | grep -o '"url": *"[^"]*/releases/assets/[0-9]*"' | head -n 1 | sed 's/.*"\(http[^"]*\)"$/\1/')"
-	if [ -z "$LATEST_VERSION" ] || [ -z "$LATEST_ASSET" ]; then
-		red "The newest release of $REPO has no zip."; exit 1
+	REMOTE_VERSION="$(printf '%s' "$json" | grep -o '"name": *"SharedCareer-[^"]*\.zip"' | head -n 1 | sed 's/.*"SharedCareer-\(.*\)\.zip"$/\1/')"
+	REMOTE_ASSET="$(printf '%s' "$json" | grep -o '"url": *"[^"]*/releases/assets/[0-9]*"' | head -n 1 | sed 's/.*"\(http[^"]*\)"$/\1/')"
+	if [ -z "$REMOTE_VERSION" ] || [ -z "$REMOTE_ASSET" ]; then
+		[ -n "$quiet" ] && return 1
+		red "The newest $what of $REPO has no zip."; exit 1
 	fi
 }
 
@@ -239,9 +256,19 @@ cmd_check() {
 	local have; have="$(installed_version)"
 	info "Installed: ${have:-none}"
 	if [ -z "$REPO" ]; then info "No REPO in server.conf – GitHub is not checked."; return 0; fi
-	fetch_latest
-	info "Newest on GitHub ($REPO): $LATEST_VERSION"
-	if [ "$have" = "$LATEST_VERSION" ]; then green "Up to date."; else green "Update available: ./server.sh update"; fi
+	fetch_remote release
+	local release="$REMOTE_VERSION" dev=""
+	info "Newest release on GitHub ($REPO): $release"
+	if fetch_remote dev quiet; then dev="$REMOTE_VERSION"; info "Newest dev build: $dev"; fi
+	local want="$release"
+	[ "$CHANNEL" = dev ] && want="$dev"
+	if [ -n "$want" ] && [ "$have" = "$want" ]; then
+		green "Up to date ($CHANNEL)."
+	else
+		green "Update available: ./server.sh update"
+	fi
+	[ "$CHANNEL" != dev ] && [ -n "$dev" ] && [ "$have" != "$dev" ] && info "Dev build for testing: ./server.sh update --dev"
+	return 0
 }
 
 # Keeps the newest BACKUPS_KEEP update backups and deletes older ones (0 = keep all).
@@ -254,18 +281,19 @@ clean_backups() {
 	info "Old backups removed: $(printf '%s\n' "$old" | wc -l) (the newest $BACKUPS_KEEP stay)"
 }
 
-# Downloads the newest release into the folder; prints the file name (empty = already up to date).
-download_latest() {
-	local force="$1"
-	fetch_latest
+# Downloads the newest package of a channel into the folder; prints the file name (empty =
+# already up to date).
+download_remote() {
+	local channel="$1" force="$2"
+	fetch_remote "$channel"
 	local have; have="$(installed_version)"
-	if [ "$have" = "$LATEST_VERSION" ] && [ "$force" != 1 ]; then
+	if [ "$have" = "$REMOTE_VERSION" ] && [ "$force" != 1 ]; then
 		green "Already up to date (version $have). To reinstall anyway: ./server.sh update --force" >&2
 		return 0
 	fi
-	local file="$DIR/SharedCareer-$LATEST_VERSION.zip"
-	info "Downloading SharedCareer $LATEST_VERSION from GitHub ($REPO) ..." >&2
-	if ! gh_curl -H "Accept: application/octet-stream" -o "$file.part" "$LATEST_ASSET" || ! unzip -tq "$file.part" >/dev/null 2>&1; then
+	local file="$DIR/SharedCareer-$REMOTE_VERSION.zip"
+	info "Downloading SharedCareer $REMOTE_VERSION from GitHub ($REPO) ..." >&2
+	if ! gh_curl -H "Accept: application/octet-stream" -o "$file.part" "$REMOTE_ASSET" || ! unzip -tq "$file.part" >/dev/null 2>&1; then
 		rm -f "$file.part"; red "Download failed." >&2; exit 1
 	fi
 	mv "$file.part" "$file"
@@ -274,16 +302,21 @@ download_latest() {
 
 cmd_update() {
 	if ! command -v unzip >/dev/null 2>&1; then red "unzip is missing. Install it with:  sudo apt install unzip"; exit 1; fi
-	local zip="" force=0 a
+	local zip="" force=0 channel="$CHANNEL" a
 	for a in "$@"; do
 		case "$a" in
 			--force|-f) force=1 ;;
+			--dev) channel=dev ;;
+			--release) channel=release ;;
 			"") ;;
 			*) zip="$a" ;;
 		esac
 	done
+	if [ "$channel" != release ] && [ "$channel" != dev ]; then
+		red "CHANNEL in server.conf must be \"release\" or \"dev\" (it is \"$channel\")."; exit 1
+	fi
 	if [ -z "$zip" ] && [ -n "$REPO" ]; then
-		zip="$(download_latest "$force")" || exit 1
+		zip="$(download_remote "$channel" "$force")" || exit 1
 		[ -z "$zip" ] && return 0
 	elif [ -z "$zip" ]; then
 		zip="$(ls -1 "$DIR"/SharedCareer-*.zip 2>/dev/null | sort -V | tail -n 1)"
@@ -315,7 +348,7 @@ cmd_update() {
 }
 
 usage() {
-	sed -n '2,29p' "$DIR/server.sh" | sed 's/^# \{0,1\}//'
+	sed -n '2,33p' "$DIR/server.sh" | sed 's/^# \{0,1\}//'
 }
 
 main() {

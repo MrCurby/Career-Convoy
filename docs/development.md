@@ -24,6 +24,7 @@ tests/                           mock-based tests for client and server
 tools/                           build, test, package, release and server scripts
 docs/                            documentation
 .github/workflows/release.yml    automatic releases
+.github/workflows/dev.yml        dev builds of the dev branch (pre-release "dev-build")
 ```
 
 ## Building and testing
@@ -34,13 +35,21 @@ You need `luajit`, `lua5.3`, `python3`, `node` and `zip`. On Fedora: `sudo dnf i
 tools/test.sh      # syntax check, all tests and the English-only language check
 tools/build.sh     # build Resources/Client/SharedCareer.zip from client/
 tools/package.sh   # tests + build + release package SharedCareer-<version>.zip
+tools/package.sh --dev   # the same as a dev build, SharedCareer-<version>-dev.<commit>.zip
 ```
 
 The tests rebuild the BeamNG and BeamMP APIs as mocks and play through joining, career start, garage, visibility, traffic, time sync, the node grabber, rope and winch, the phone, UI layout cleanup, fuel prices, payments, the menu and the welcome dialog. The menu and phone windows (`app.js`) run in node with stand-ins for AngularJS and `bngApi` (`tests/ui_mock.js`, `tests/ui_test.js`); a timeline of random clicks on them is then replayed against the real `menu.lua` (`tests/ui_replay.lua`). They check the logic, but **they don't replace testing in the real game**. UI changes were additionally checked by rendering the apps in a headless browser.
 
+## Branches: dev, then main
+
+- **`dev`** is where changes are tested. Every push to it runs `.github/workflows/dev.yml`: all tests, then `tools/package.sh --dev`, which stamps the version as `<version>-dev.<commit>` only inside the package (the files in the repository keep their version). The zip replaces the GitHub pre-release `dev-build`. A test server installs it with `./server.sh update --dev` (see [Test server](server-setup.md#test-server-dev-builds)). No version bump is needed for this.
+- **`main`** is what players get. Once a change works in the game, raise the version (below) and merge `dev` into `main`; that builds the release.
+- Work on a change in its own branch and merge it into `dev` (a pull request into `dev`), not straight into `main`.
+- After a release, `dev` already contains everything on `main` when the release was merged from `dev`. If something went into `main` directly, merge `main` back into `dev`.
+
 ## Releasing a new version
 
-Releases are built by GitHub Actions. On every push to `main` the workflow runs all tests and builds the package. If no release exists for that version yet, it creates release `v<version>` with the zip attached.
+Releases are built by GitHub Actions (`.github/workflows/release.yml`). On every push to `main` the workflow runs all tests and builds the package. If no release exists for that version yet, it creates release `v<version>` with the zip attached.
 
 ```bash
 tools/bump.sh patch      # 0.8.4 -> 0.8.5 (bug fixes)
@@ -58,6 +67,7 @@ About a minute later the release is on GitHub, and `./server.sh update` installs
 
 - A push **without** a new version only builds and tests. No release is created.
 - If a test fails, no release is created and servers stay on the old version.
+- `tests/config_update_test.lua` compares with the last release tag (`v*`); the `dev-build` tag doesn't count.
 - Client and server versions must match. `package.sh` refuses to build otherwise, and players with a mismatching cached mod see a dialog.
 
 **Changing a default:** just change it in `DEFAULTS` in `main.lua`. Existing servers pick up the new default automatically, unless someone changed that value (see [How settings survive updates](configuration.md#how-settings-survive-updates)).
