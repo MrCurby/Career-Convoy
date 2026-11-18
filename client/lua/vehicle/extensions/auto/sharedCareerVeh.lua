@@ -466,6 +466,8 @@ function M.updateGFX(dt)
 		ropeStep(math.min(dt, HAND_MAX_DT), true)
 		if not hand then return end
 	end
+	-- a frame right after the grab, before the first physics step: the rope has no length yet
+	if not hand.length then return end
 	-- what this frame's steps pulled on average
 	local weight = hand.vehMass * GRAVITY
 	local tension = hand.tensionTime > 0 and hand.tensionSum / hand.tensionTime or hand.tension

@@ -783,6 +783,11 @@ do
 	veh.handProbe(10, 0.8, 1.2, -1, 0, 0, 120)
 	check((body.ge[1] or ""):find("onProbe%(77, 2%.000, 0%.800, 1%.200%)"), "preview: reports where it would grab")
 	check(veh.handGrab(2, 0.8, 0.3, 1, 60) == true, "vehicle side: nodes around the grab point are taken")
+	-- in the game a frame can come right after the grab, before the first physics step (the first dev build crashed
+	-- the vehicle's Lua there: the rope had no length yet)
+	body.ge = {}
+	local frameOk, frameErr = pcall(veh.updateGFX, 1 / 60)
+	check(frameOk and veh.handInfo() ~= nil, "a frame before the first physics step: no error (" .. tostring(frameErr) .. ")")
 	local info = veh.handInfo()
 	check(#info.nodes >= 4 and #info.nodes <= 24 and info.vehMass == MASS, "grip of 4-24 nodes, vehicle mass known")
 	local function lastState()
