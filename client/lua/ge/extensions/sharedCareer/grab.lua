@@ -24,7 +24,8 @@
 -- the vehicle and send the view ray and the anchor. The vehicle ties the rope to the node closest
 -- to the ray (the rope goes where you look at the vehicle) and reports back: onGrip (tie node,
 -- its position and distance), onHandState (tie position, strain, slack, rope length, 10 times per
--- second), onHandLost (the rope came off: reset, teleported, part torn off, nothing to grab),
+-- second), onHandLost (the rope came off: reset, teleported, part torn off, rope snapped, nothing
+-- to grab),
 -- onProbe (preview). The rope state only goes to the vehicle once it has reported its grip.
 --
 -- Staying in step with the vehicle:
@@ -91,7 +92,8 @@ local LOST_MESSAGES = {
 	[0] = "Couldn't attach the rope there",
 	[1] = "Vehicle reset: rope removed",
 	[2] = "The vehicle was moved: rope removed",
-	[3] = "The rope tore loose",
+	[3] = "The part the rope was tied to tore off",
+	[4] = "The rope snapped",
 }
 
 local held = nil           -- {id, since, silent, node (tie node), grip = {x, y, z}, target (= anchor),
