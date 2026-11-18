@@ -679,7 +679,10 @@ extensions.core_input_actionFilter = nil
 -- rope runs at the physics rate (onPhysicsStep, 2000 per second) and updateGFX at 60 per second.
 do
 	local function vec3(x, y, z) return {x = x, y = y, z = z} end
-	local body = {p = {x = 0, y = 0, z = 0}, v = {x = 0, y = 0, z = 0}, f = {x = 0, y = 0, z = 0}, forces = {}, ge = {}}
+	-- f: forces of this physics step (applyForceVector); frameF: forces for the whole frame
+	-- (applyForceVectorTime, set in updateGFX)
+	local body = {p = {x = 0, y = 0, z = 0}, v = {x = 0, y = 0, z = 0}, f = {x = 0, y = 0, z = 0},
+		frameF = {x = 0, y = 0, z = 0}, forces = {}, ge = {}}
 	-- 2 t car: 20 nodes, chassis nodes heavy (180 kg), panel nodes light (20 kg)
 	local nodes, rel = {}, {}
 	for i = 0, 19 do
@@ -687,8 +690,9 @@ do
 		nodes[i] = {cid = i}
 		rel[i] = {x = (i % 5) - 2, y = (i % 2) * 1.6 - 0.8, z = heavy and 0.3 or 1.2, m = heavy and 180 or 20}
 	end
-	local function addForce(cid, f)
-		body.f.x, body.f.y, body.f.z = body.f.x + f.x, body.f.y + f.y, body.f.z + f.z
+	local function addForce(cid, f, frame)
+		local into = frame and body.frameF or body.f
+		into.x, into.y, into.z = into.x + f.x, into.y + f.y, into.z + f.z
 		body.forces[cid] = (body.forces[cid] or 0) + math.sqrt(f.x * f.x + f.y * f.y + f.z * f.z)
 	end
 	local hookOn = false
@@ -706,7 +710,7 @@ do
 				getId = function() return 77 end,
 				queueGameEngineLua = function(_, cmd) table.insert(body.ge, cmd) end,
 				applyForceVector = function(_, cid, f) addForce(cid, f) end,
-				applyForceVectorTime = function(_, cid, f, dt) addForce(cid, f) end,
+				applyForceVectorTime = function(_, cid, f, dt) addForce(cid, f, true) end,
 			},
 		}
 		if not withHook then env.enablePhysicsStepHook = false end -- not offered by this game
@@ -724,8 +728,9 @@ do
 	local steps = 0
 	-- moves the body by the forces in body.f for dt
 	local function integrate(dt)
+		local fx, fy, fz = body.f.x + body.frameF.x, body.f.y + body.frameF.y, body.f.z + body.frameF.z
 		-- handbrake (body.brake, N): the vehicle only moves once the pull is stronger
-		local fhx, fhy = body.f.x, body.f.y
+		local fhx, fhy = fx, fy
 		if body.brake and body.p.z < 0.01 then
 			local vh = math.sqrt(body.v.x ^ 2 + body.v.y ^ 2)
 			local fh = math.sqrt(fhx ^ 2 + fhy ^ 2)
@@ -740,7 +745,7 @@ do
 		end
 		body.v.x = body.v.x + fhx / MASS * dt
 		body.v.y = body.v.y + fhy / MASS * dt
-		body.v.z = body.v.z + (body.f.z / MASS - 9.81) * dt
+		body.v.z = body.v.z + (fz / MASS - 9.81) * dt
 		-- ground: it can't sink below it; on the ground the wheels have a little rolling resistance
 		if body.p.z + body.v.z * dt < 0 then body.v.z = 0 end
 		if body.p.z < 0.01 then
@@ -758,7 +763,10 @@ do
 			if watch then watch() end
 			integrate(PHYS)
 			steps = steps + 1
-			if steps % GFX_EVERY == 0 then veh.updateGFX(GFX_EVERY * PHYS) end
+			if steps % GFX_EVERY == 0 then
+				body.frameF = {x = 0, y = 0, z = 0}
+				veh.updateGFX(GFX_EVERY * PHYS)
+			end
 		end
 	end
 	local function speed() return math.sqrt(body.v.x ^ 2 + body.v.y ^ 2 + body.v.z ^ 2) end
@@ -887,9 +895,11 @@ do
 		string.format("overloaded brake: it slips and lets the vehicle down slowly (%.2f -> %.2f m, %.2f m/s)", zHang, body.p.z, fastest))
 	veh.handRelease()
 	body.f = {x = 0, y = 0, z = 0}
+	body.frameF = {x = 0, y = 0, z = 0}
 	veh.onPhysicsStep(PHYS)
 	veh.updateGFX(1 / 60)
-	check(body.f.x == 0 and body.f.y == 0 and body.f.z == 0 and veh.handInfo() == nil, "released: no force any more")
+	check(body.f.x == 0 and body.f.y == 0 and body.f.z == 0 and body.frameF.x == 0 and body.frameF.y == 0
+		and body.frameF.z == 0 and veh.handInfo() == nil, "released: no force any more")
 	run(3)
 	-- the rope snaps on a shock load: a vehicle driving away from a taut rope; a gentle jerk holds
 	local function tautRope(away)
@@ -929,13 +939,28 @@ do
 	veh.handRope(2, 4.8, 0.3, 1, 0, 1, 60)
 	local fastestFrame = 0
 	for _ = 1, 180 do
-		body.f = {x = 0, y = 0, z = 0}
+		body.f, body.frameF = {x = 0, y = 0, z = 0}, {x = 0, y = 0, z = 0}
 		veh.updateGFX(1 / 60)
 		for _ = 1, GFX_EVERY do integrate(PHYS) end
 		fastestFrame = math.max(fastestFrame, speed())
 	end
 	check(body.p.y > 1.5 and fastestFrame < 1.1,
 		string.format("without the physics step: pulled once per frame, still steady (%.2f m, at most %.2f m/s)", body.p.y, fastestFrame))
+	veh.handRelease()
+	-- an error in the physics step (e.g. a changed game function): logged once, the rope goes on per
+	-- frame instead of taking the vehicle down
+	veh = loadVeh(true)
+	local env = getfenv(veh.onPhysicsStep)
+	local logged = {}
+	env.log = function(level, area, msg) table.insert(logged, level .. " " .. msg) end
+	env.obj.applyForceVector = function() error("applyForceVector changed") end
+	body.p, body.v, body.ge = {x = 0, y = 0, z = 0}, {x = 0, y = 0, z = 0}, {}
+	veh.handGrab(2, 0.8, 0.3, 1, 60)
+	veh.handRope(2, 4.8, 0.3, 1, 0, 1, 60)
+	local ok = pcall(run, 3)
+	check(ok and #logged == 1 and logged[1]:find("^E .*applyForceVector changed") and body.p.y > 1,
+		string.format("an error in the physics step is logged once, the rope goes on per frame (%d logs, %.2f m)", #logged, body.p.y))
+	env.obj.applyForceVector = function(_, cid, f) addForce(cid, f) end
 	veh.handRelease()
 end
 

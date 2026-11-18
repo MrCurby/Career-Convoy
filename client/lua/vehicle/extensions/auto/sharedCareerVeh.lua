@@ -134,6 +134,8 @@ end
 -- possible. If the game doesn't offer the hook, the same runs once per frame in updateGFX with
 -- forces for the whole frame (obj:applyForceVectorTime), and the rope is made as soft as a frame
 -- needs to stay stable (STABLE_K, STABLE_C). A long frame (a hitch) counts as at most HAND_MAX_DT.
+-- An error in the physics step is logged once and the rope goes on once per frame (never takes the
+-- vehicle down).
 --
 -- The rope comes off by itself and tells the GE side (sharedCareer_grab.onHandLost(id, reason)):
 --   LOST_NO_GRIP  nothing to grab where you aimed
@@ -257,7 +259,9 @@ function M.handGrab(x, y, z, speed, strength)
 		since = HAND_REPORT_EVERY}
 	-- the rope is computed at the physics rate from now on (see above)
 	if not physicsStep and type(enablePhysicsStepHook) == "function" then
-		physicsStep = pcall(enablePhysicsStepHook)
+		local ok, err = pcall(enablePhysicsStepHook)
+		physicsStep = ok
+		if not ok then log("W", "sharedCareer.rope", "physics-step hook not available, rope once per frame: " .. tostring(err)) end
 	end
 	return true
 end
@@ -429,7 +433,13 @@ local function ropeStep(dt, perFrame)
 end
 
 function M.onPhysicsStep(dt)
-	if hand and dt and dt > 0 then ropeStep(dt, false) end
+	if not (physicsStep and hand and dt and dt > 0) then return end
+	local ok, err = pcall(ropeStep, dt, false)
+	if not ok then
+		-- never take the vehicle down: log it once, the rope goes on once per frame
+		physicsStep = false
+		log("E", "sharedCareer.rope", "rope at the physics rate failed, going on once per frame: " .. tostring(err))
+	end
 end
 
 function M.updateGFX(dt)
