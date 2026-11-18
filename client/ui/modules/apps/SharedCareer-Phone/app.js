@@ -1,13 +1,15 @@
 // SharedCareer Phone: a tab at the right screen edge (key F4) that takes the phone out.
 // The phone shows the server time, the number of players, the connection and the apps that
 // SharedCareer extensions registered (lua/ge/extensions/sharedCareer/phone.lua). Built-in app
-// screens: Tow (rope and winch, grab.lua) and Fuel (gas station prices, fuel.lua).
+// screens: Jobs (towing jobs, beta, jobs.lua), Tow (rope and winch, grab.lua) and Fuel (gas station
+// prices, fuel.lua). Apps marked beta get a "BETA" badge on the icon and in the title bar.
 // The home screen has, below the clock, how long until day or night (with a bar for the part
 // of it that is over), and two widgets below the apps: the other players with what they are
 // doing, and the cheapest station per fuel (a tap opens the Fuel app).
 //
 // Data: guihook "SharedCareerPhone" {enabled, apps} from phone.lua, "SharedCareerState" (time,
-// players, connection, fuel prices, cheapest fuel) from menu.lua every second, "SharedCareerTow" from grab.lua
+// players, connection, fuel prices, cheapest fuel) from menu.lua every second, "SharedCareerTow" from grab.lua,
+// "SharedCareerJobs" (jobs and your job) from jobs.lua
 // while the Tow app is open, "SharedCareerPhoneToggle" from the key.
 // menu.lua only sends "SharedCareerState" while someone looks: the phone reports "phone" (out)
 // and "fuel" (Fuel app open) with sharedCareer_menu.uiVisible on every change and every 2 s.
@@ -150,6 +152,46 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 	function fuelLua(cmd) { bngApi.engineLua('if sharedCareer_fuel then sharedCareer_fuel.' + cmd + ' end'); }
 	$scope.navigate = function (id) { fuelLua('uiNavigate(' + JSON.stringify(String(id)) + ')'); };
 	$scope.stopNavigate = function () { fuelLua('uiStopNavigate()'); };
+
+	//== Jobs app (lua/ge/extensions/sharedCareer/jobs.lua) ==
+	$scope.jobs = {enabled: false, jobs: [], active: null};
+	$scope.jobSteps = ['Pick up', 'Tow', 'Paid'];
+	$scope.jobsCall = function (cmd) {
+		bngApi.engineLua('if sharedCareer_jobs then sharedCareer_jobs.' + cmd + ' end');
+	};
+	$scope.money = function (v) { return '$' + Math.round(Number(v) || 0).toLocaleString('en-US'); };
+	$scope.openJobCount = function () {
+		return $scope.jobs.jobs.filter(function (j) { return j.state === 'open'; }).length;
+	};
+	// 0 = drive to the vehicle, 1 = tow it (and the check at the shop), 2 = paid
+	$scope.jobStep = function () {
+		var a = $scope.jobs.active;
+		if (!a) return 0;
+		if (a.phase === 'paid') return 2;
+		return a.phase === 'toVehicle' ? 0 : 1;
+	};
+	$scope.jobText = function () {
+		var a = $scope.jobs.active;
+		if (!a) return '';
+		if (a.phase === 'paid') return 'Done – the pay is in your account';
+		if (a.phase === 'checking') return 'Handing it over at ' + a.dest + '…';
+		if (a.phase === 'toVehicle') return 'to the ' + a.vehicle;
+		return a.inZone ? 'In the drop-off ring – hold still' : 'to ' + a.dest;
+	};
+	// short, for the home screen widget and the strip in the Tow app
+	$scope.jobStepText = function () {
+		var a = $scope.jobs.active;
+		if (!a) return '';
+		if (a.phase === 'toVehicle') return 'Drive to the breakdown';
+		return a.inZone ? 'In the drop-off ring – hold still' : 'Tow to ' + a.dest;
+	};
+	$scope.openJobs = function () { var app = appById('jobs'); if (app) $scope.openApp(app); };
+	$scope.$on('SharedCareerJobs', function (event, data) {
+		$scope.$evalAsync(function () {
+			if (!data) return;
+			$scope.jobs = {enabled: data.enabled === true, jobs: Array.isArray(data.jobs) ? data.jobs : [], active: data.active || null};
+		});
+	});
 
 	$scope.$on('SharedCareerTow', function (event, data) {
 		$scope.$evalAsync(function () {

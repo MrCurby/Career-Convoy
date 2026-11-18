@@ -26,6 +26,8 @@ Type these into the server console, or send them with `./server.sh cmd "..."`.
 | `sc time stop` / `sc time start` | Pause / resume the clock |
 | `sc fuel` | Show the current fuel discounts per station |
 | `sc fuel reset` | Reset all stations to the normal price |
+| `sc jobs` | Show the towing jobs and who took them |
+| `sc jobs reset` | Drop all towing jobs (new ones follow) |
 | `sc players` | Players and their career status |
 | `sc reload` | Reload `config.json` from disk |
 
@@ -100,6 +102,16 @@ The file is `Resources/Server/SharedCareer/config/config.json`. It is created on
 | `server.fuelMaxDiscount` | `30` | Maximum discount in % |
 | `server.fuelRecoveryPercent` / `server.fuelRecoveryMinutes` | `1` / `5` | The discount drops by 1 percentage point every 5 minutes |
 
+### Towing jobs (beta)
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `server.jobs` | `true` | Towing jobs and the Jobs app on the phone |
+| `server.jobsOpen` | `3` | Open jobs at most; new ones are made up as needed |
+| `server.jobTimeoutMinutes` | `30` | A taken job is open again after this many minutes |
+| `server.jobPayMax` | `5000` | Highest pay of one job, in $ |
+| `client.jobPay` | `1` | Factor on the pay ($150 + $120 per km, 25 % more with a flat tire); `2` = double |
+
 ### Money
 
 | Setting | Default | Meaning |
@@ -114,7 +126,7 @@ The file is `Resources/Server/SharedCareer/config/config.json`. It is created on
 |---|---|---|
 | `client.allowConsole` | `false` | Allow the in-game Lua console |
 | `client.allowWorldEditor` | `false` | Allow the world editor |
-| `client.phone` | `true` | The phone (key F4, tab at the right screen edge) with the Tow and Fuel apps |
+| `client.phone` | `true` | The phone (key F4, tab at the right screen edge) with the Jobs, Tow and Fuel apps |
 | `client.allowGrab` | `true` | Rope and winch in the Tow app on the phone: move your own vehicles slowly, with physics |
 | `client.grabSpeed` | `1` | How fast the winch hauls in at most, in m/s (0.2–5) |
 | `client.grabStrength` | `150` | Highest pull strength a player may pick in the Tow app, in % of the vehicle's weight (10–150). Below 100 you can lift one end and drag or push the vehicle, but not float it. |

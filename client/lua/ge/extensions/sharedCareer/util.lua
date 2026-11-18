@@ -14,6 +14,9 @@
 --   addKey           key binding via BeamMP (Options → Controls → BeamMP, rebindable)
 --   profileName      profile name the way the game builds it (lower case, only a-z0-9)
 --   replace / isOurs replace a game function safely without wrapping our own wrapper twice
+--   translate        a game text key in the player's language (nil if there is no text for it)
+--   facilities       the map's facilities (gas stations, garages, ...) from freeroam_facilities
+--   facilityDoor     the middle of a facility's doors, or nil
 
 local M = {}
 
@@ -81,6 +84,41 @@ end
 function M.config()
 	local core = M.ext("sharedCareer_core")
 	return core and core.getConfig()
+end
+
+--== Game texts and map facilities ==============================================
+
+--- A game text key (e.g. a facility name) in the player's language, nil without a text for it.
+function M.translate(key)
+	if type(key) ~= "string" then return nil end
+	if type(translateLanguage) == "function" then
+		local ok, text = pcall(translateLanguage, key, key)
+		if ok and type(text) == "string" and text ~= key then return text end
+	end
+	return nil
+end
+
+--- The facilities of the current map ({gasStations = {...}, garages = {...}, ...}), or nil.
+function M.facilities()
+	local facilities = rawget(_G, "freeroam_facilities")
+	if type(facilities) ~= "table" or type(facilities.getFacilities) ~= "function" then return nil end
+	local level = type(getCurrentLevelIdentifier) == "function" and getCurrentLevelIdentifier() or nil
+	if not level then return nil end
+	local ok, data = pcall(facilities.getFacilities, level)
+	if not ok or type(data) ~= "table" then return nil end
+	return data
+end
+
+--- The middle of a facility's doors {x, y, z}, or nil (also for the map origin, which the game
+--- returns as a placeholder while it doesn't know the doors yet).
+function M.facilityDoor(facility)
+	local facilities = rawget(_G, "freeroam_facilities")
+	if not facilities or type(facilities.getAverageDoorPositionForFacility) ~= "function" then return nil end
+	local ok, p = pcall(facilities.getAverageDoorPositionForFacility, facility)
+	-- a vec3 in the game (LuaJIT cdata), a table in the tests: both have .x
+	if not ok or not p or not tonumber(p.x) then return nil end
+	if math.abs(p.x) + math.abs(p.y) + math.abs(p.z) < 1 then return nil end
+	return {x = p.x, y = p.y, z = p.z}
 end
 
 --== state.json =================================================================

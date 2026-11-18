@@ -412,6 +412,86 @@ sc_fuelDelivered(1, json.encode({station = "apex", fuel = "gasoline", amount = 1
 check(countTo(0, "sc_fuelPrices") == fpCount, "switched off: deliveries change nothing")
 onConsoleInput("sc set server.fuelEconomy true")
 
+--== Towing jobs (beta) ==
+do
+	local function offer(from, pay)
+		sc_jobOffer(from, json.encode({vehicle = {model = "fullsize", config = "base", name = "Gavril Grand Marshal"},
+			flatTire = true, pos = {x = 100, y = 200, z = 10}, dir = {x = 1, y = 0},
+			dest = {name = "Belasco Auto", pos = {x = 1100, y = 200, z = 12}}, length = 1300, pay = pay or 480}))
+	end
+	local function jobsOf(id) return lastTo(id, "sc_jobs") end
+	onConsoleInput("sc jobs reset")
+	check(jobsOf(0) and jobsOf(0).enabled == true and #jobsOf(0).jobs == 0, "jobs list sent to everyone (empty after reset)")
+	check(lastTo(0, "sc_configUpdate").ui.jobs == true, "the clients know that jobs are on")
+	-- missing jobs: one player is asked to make one up, not more often than every 15 s
+	local asked = countTo(0, "sc_jobGenerate") + countTo(1, "sc_jobGenerate")
+	fakeTime = fakeTime + 100
+	sc_tick(); sc_tick()
+	check(countTo(0, "sc_jobGenerate") + countTo(1, "sc_jobGenerate") == asked + 1, "one player asked for a new job")
+	offer(0)
+	local list = jobsOf(1).jobs
+	check(#list == 1 and list[1].state == "open" and list[1].pay == 480 and list[1].dest.name == "Belasco Auto"
+		and list[1].flatTire == true, "a made-up job goes to everyone")
+	local id = list[1].id
+	offer(0); offer(1)
+	offer(0) -- fourth: more than server.jobsOpen (3)
+	check(#jobsOf(1).jobs == 3, "at most server.jobsOpen open jobs")
+	local before = #jobsOf(1).jobs
+	sc_jobOffer(0, json.encode({vehicle = {model = "x"}, pos = {x = "a"}}))
+	sc_jobOffer(0, "broken{")
+	check(#jobsOf(1).jobs == before, "invalid offers are ignored")
+	onConsoleInput("sc jobs reset")
+	offer(0, 999999)
+	check(jobsOf(0).jobs[1].pay == 5000, "the pay is capped at server.jobPayMax")
+	onConsoleInput("sc jobs reset")
+	offer(0)
+	id = jobsOf(0).jobs[1].id
+	-- taking: the first one gets it, the others see it as taken
+	sc_jobTake(1, json.encode({id = id}))
+	check(jobsOf(1).jobs[1].state == "mine" and jobsOf(0).jobs[1].state == "taken" and jobsOf(0).jobs[1].takenBy == "Ben",
+		"Ben takes the job: his, taken for the others")
+	sc_jobTake(0, json.encode({id = id}))
+	check(jobsOf(1).jobs[1].state == "mine" and lastChat(0):find("faster") ~= nil, "a second player can't take it")
+	offer(0)
+	local second = jobsOf(1).jobs[2].id
+	sc_jobTake(1, json.encode({id = second}))
+	check(jobsOf(1).jobs[2].state == "open" and lastChat(1):find("first") ~= nil, "one job at a time")
+	-- done: paid once, only to the taker, at most the job's pay
+	sc_jobDone(0, json.encode({id = id, pay = 480}))
+	check(lastTo(0, "sc_jobPaid") == nil, "someone else can't finish it")
+	sc_jobDone(1, json.encode({id = id, pay = 999999}))
+	local paid = lastTo(1, "sc_jobPaid")
+	check(paid and paid.id == id and paid.pay == 480, "finished: paid to Ben, at most the job's pay")
+	check(lastChat(0):find("Ben towed a Gavril Grand Marshal to Belasco Auto") ~= nil, "the others hear about it")
+	local paidCount = countTo(1, "sc_jobPaid")
+	sc_jobDone(1, json.encode({id = id, pay = 480}))
+	check(countTo(1, "sc_jobPaid") == paidCount and #jobsOf(1).jobs == 1, "paid once; the job is gone")
+	sc_jobDone(1, json.encode({id = second, pay = 100}))
+	check(countTo(1, "sc_jobPaid") == paidCount, "a job that isn't yours isn't paid")
+	-- give up / time out / leave: open again
+	sc_jobTake(1, json.encode({id = second}))
+	sc_jobGiveUp(1, json.encode({id = second}))
+	check(jobsOf(0).jobs[1].state == "open", "given up: open again")
+	sc_jobTake(1, json.encode({id = second}))
+	fakeTime = fakeTime + 31 * 60
+	sc_tick()
+	check(jobsOf(0).jobs[1].state == "open" and lastChat(1):find("out of time") ~= nil, "out of time after 30 min: open again")
+	check(onConsoleInput("sc jobs"):find("Gavril Grand Marshal to Belasco Auto") ~= nil, "sc jobs lists them")
+	onConsoleInput("sc set server.jobs false")
+	check(jobsOf(0).enabled == false and #jobsOf(0).jobs == 0 and lastTo(0, "sc_configUpdate").ui.jobs == false,
+		"switched off: no jobs for anyone, at once")
+	offer(0)
+	sc_jobTake(1, json.encode({id = second}))
+	check(#jobsOf(0).jobs == 0, "switched off: no new jobs")
+	onConsoleInput("sc set server.jobs true")
+	join(5, "Eve")
+	check(jobsOf(5) and jobsOf(5).enabled == true, "a player who joins gets the jobs")
+	sc_jobTake(5, json.encode({id = second}))
+	connected[5] = false
+	onPlayerDisconnect(5)
+	check(jobsOf(0).jobs[1].state == "open", "the taker leaves: open again")
+end
+
 --== Config was saved and is valid JSON ==
 local saved = json.decode(assert(io.open(tmp)):read("*a"))
 check(saved.client.roadTraffic == 3 and saved.server.paymentMax == 1000000, "config.json saved")

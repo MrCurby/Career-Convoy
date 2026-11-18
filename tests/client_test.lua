@@ -2343,5 +2343,247 @@ check(sharedCareer_core.getConfig() == nil and not sharedCareer_core.isStarted()
 check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue("simplifyRemoteVehicles") == false,
 	"the player's own settings restored")
 
+--== 10. Towing jobs (beta) =====================================================
+-- (in a function of its own: the main chunk is at Lua's limit of 200 local variables)
+;(function()
+	resetWorld()
+	installCareer({money = 1000})
+	extensions.hook("onWorldReadyState", 2)
+	local cfgJ = json.decode(json.encode(config))
+	cfgJ.ui, cfgJ.jobPay, cfgJ.phone = {jobs = true}, 1, true
+	handlers.sc_config(json.encode(cfgJ))
+	update()
+	_G.vec3 = function(x, y, z) return {x = x, y = y, z = z} end
+	_G.quatFromDir = function(d) return {dir = d} end
+	_G.getCurrentLevelIdentifier = function() return "west_coast_usa" end
+	_G.castRayStatic = nil
+	local paths = {}
+	_G.core_groundMarkers = {setPath = function(p) table.insert(paths, p or false) end}
+	-- a straight road along x (nodes every 100 m, 4 m half width) and a dirt track that may not be used
+	local nodes = {}
+	for i = 0, 50 do nodes["n" .. i] = {pos = vec3(i * 100, 0, 10), radius = 4, links = {}} end
+	for i = 0, 49 do
+		nodes["n" .. i].links["n" .. (i + 1)] = {drivability = 1}
+		nodes["n" .. (i + 1)].links["n" .. i] = {drivability = 1}
+	end
+	nodes.dirt = {pos = vec3(0, 3000, 10), radius = 4, links = {dirt2 = {drivability = 0.2}}}
+	nodes.dirt2 = {pos = vec3(100, 3000, 10), radius = 4, links = {dirt = {drivability = 0.2}}}
+	_G.map = {getMap = function() return {nodes = nodes} end}
+	local doors = {belasco = {x = 4000, y = 50, z = 10}, home = {x = 0, y = 40, z = 10}}
+	_G.freeroam_facilities = {
+		getFacilities = function() return {garages = {{id = "belasco", name = "Belasco Auto"}, {id = "home", name = "Home Garage"}}, gasStations = {}} end,
+		getAverageDoorPositionForFacility = function(f) return doors[f.id] end,
+	}
+	_G.jsonReadFile = function(path) if path:find("deliveryVehicles") then return {junkerVehFilter = {filter = {}}} end end
+	_G.util_configListGenerator = {
+		getEligibleVehicles = function() return {} end,
+		getRandomVehicleInfos = function() return {{model_key = "fullsize", key = "base", Brand = "Gavril", Name = "Grand Marshal"}} end,
+	}
+	local me = addVehicle(70, "0-70", true)
+	me.p = {x = 0, y = -20, z = 10}
+	function me:getPosition() return self.p end
+	world.playerVeh = 70
+	local spawnedVeh
+	core_vehicles.spawnNewVehicle = function(model, opt)
+		spawnedVeh = addVehicle(80, "0-80", true, model)
+		spawnedVeh.p = {x = opt.pos.x, y = opt.pos.y, z = opt.pos.z}
+		spawnedVeh.v = {x = 0, y = 0, z = 0}
+		function spawnedVeh:getPosition() return self.p end
+		function spawnedVeh:getVelocity() return self.v end
+		world.spawned = {model, opt}
+		return spawnedVeh
+	end
+	local function lastCmd(v) return v.lua[#v.lua] or "" end
+	local function lastToastMsg()
+		for i = #toasts, 1, -1 do if toasts[i].msg then return toasts[i].msg end end
+		return ""
+	end
+	local jobs = sharedCareer_jobs
+
+	-- making up a job: on a normal road, off the road, far from every vehicle, a shop 0.8-6 km away
+	check(jobs.payFor(1000, false) == 270 and jobs.payFor(1000, true) == 340, "pay: $150 + $120 per km, a flat tire pays 25 % more")
+	handlers.sc_jobGenerate("")
+	check(lastSent("sc_jobOffer") == nil, "before the server's job list (jobs on?) no job is made up")
+	handlers.sc_jobs(json.encode({enabled = true, jobs = {}}))
+	handlers.sc_jobGenerate("")
+	local offer = lastSent("sc_jobOffer")
+	check(offer and offer.vehicle.model == "fullsize" and offer.vehicle.config == "base" and offer.vehicle.name == "Gavril Grand Marshal",
+		"made up a job with an old car from the career's delivery filter")
+	local okAll = true
+	for _ = 1, 60 do
+		local job = jobs.generate()
+		local destDist = math.sqrt((job.dest.pos.x - job.pos.x) ^ 2 + (job.dest.pos.y - job.pos.y) ^ 2)
+		if math.abs(math.abs(job.pos.y) - 5.8) > 1e-6 or job.pos.x < 350 or destDist < 800 or destDist > 6000
+			or job.pay ~= jobs.payFor(job.length, job.flatTire) then
+			okAll = false
+		end
+	end
+	check(okAll, "places: always beside the road (5.8 m from its middle), never near a vehicle or on a dirt track; shop 0.8-6 km away")
+	cfgJ.jobPay = 2
+	handlers.sc_configUpdate(json.encode(cfgJ))
+	check(jobs.payFor(1000, false) == 540, "client.jobPay doubles the pay")
+	cfgJ.jobPay = 1
+	handlers.sc_configUpdate(json.encode(cfgJ))
+	local sentBefore = #sentToServer
+	local realFacilities = freeroam_facilities.getFacilities
+	freeroam_facilities.getFacilities = function() return {} end
+	handlers.sc_jobGenerate("")
+	check(#sentToServer == sentBefore, "no repair shops on the map: no job")
+	freeroam_facilities.getFacilities = realFacilities
+
+	-- the list arrives: the Jobs app (beta) is on the phone
+	local job = {id = 7, vehicle = {model = "fullsize", config = "base", name = "Gavril Grand Marshal"}, flatTire = true,
+		pos = {x = 2000, y = -5.8, z = 10}, dir = {x = 1, y = 0}, dest = {name = "Belasco Auto", pos = doors.belasco},
+		length = 2600, pay = 600}
+	local function sendList(state)
+		local j = json.decode(json.encode(job))
+		j.state = state
+		handlers.sc_jobs(json.encode({enabled = true, jobs = state and {j} or {}}))
+	end
+	sendList("open")
+	local jobsApp
+	for _, app in ipairs(sharedCareer_phone.state().apps) do if app.id == "jobs" then jobsApp = app end end
+	check(jobsApp and jobsApp.beta == true and jobsApp.title == "Jobs", "the Jobs app is on the phone, marked as beta")
+	local st = jobs.appState()
+	check(st.enabled and #st.jobs == 1 and st.jobs[1].state == "open" and math.abs(st.jobs[1].distance - 2000) < 20,
+		"the app lists the job with its distance from you")
+	jobs.uiTake(7)
+	check(lastSent("sc_jobTake").id == 7, "take: asks the server")
+	sendList("mine")
+	check(jobs.getActive() and paths[#paths].x == 2000, "the job is yours: route to the breakdown")
+	-- far away: nothing spawned yet; within 400 m it appears there, broken down
+	for _ = 1, 10 do update(0.1) end
+	check(world.spawned == nil, "far away: the vehicle isn't there yet")
+	me.p = {x = 1700, y = -20, z = 10}
+	for _ = 1, 3 do update(0.1) end
+	check(world.spawned and world.spawned[1] == "fullsize" and world.spawned[2].config == "base" and world.spawned[2].pos.x == 2000
+		and world.spawned[2].autoEnterVehicle == false and world.spawned[2].rot, "within 400 m: the vehicle appears at its place")
+	check(lastCmd(spawnedVeh):find("jobBreakDown%(true%)"), "it breaks down, with the flat tire of the job")
+	local cmds = #spawnedVeh.lua
+	for _ = 1, 35 do update(0.1) end
+	check(#spawnedVeh.lua > cmds and lastCmd(spawnedVeh):find("jobBreakDown"), "no answer from the vehicle: broken down again")
+	jobs.onJobBrokenDown(80, 100)
+	-- close to it: the route goes to the shop
+	me.p = {x = 1990, y = -20, z = 10}
+	for _ = 1, 3 do update(0.1) end
+	check(paths[#paths].x == 4000 and jobs.appState().active.phase == "toDestination", "near the vehicle: route to the repair shop")
+	-- a reset repairs it: broken down again
+	cmds = #spawnedVeh.lua
+	extensions.hook("onVehicleResetted", 80)
+	check(#spawnedVeh.lua == cmds + 1 and lastCmd(spawnedVeh):find("jobBreakDown%(true%)"), "reset (R): broken down again")
+	jobs.onJobBrokenDown(80, 100)
+	-- at the shop: someone inside doesn't count; standing still and empty for 3 s does
+	spawnedVeh.p = {x = 4005, y = 52, z = 10}
+	world.playerVeh = 80
+	for _ = 1, 50 do update(0.1) end
+	check(lastSent("sc_jobDone") == nil, "somebody sits in it: not handed over")
+	world.playerVeh = 70
+	spawnedVeh.v = {x = 2, y = 0, z = 0}
+	for _ = 1, 50 do update(0.1) end
+	check(lastSent("sc_jobDone") == nil, "still rolling: not handed over")
+	spawnedVeh.v = {x = 0, y = 0, z = 0}
+	for _ = 1, 35 do update(0.1) end
+	check(lastCmd(spawnedVeh):find("jobReportDamage"), "standing still in the zone for 3 s: the vehicle is asked for its damage")
+	jobs.onJobDamage(80, 100 + 20000)
+	update(0.3)
+	local done = lastSent("sc_jobDone")
+	check(done and done.id == 7 and done.pay == 450, "new damage costs part of the pay (half the max: 25 %, $600 -> $450)")
+	-- paid by the server: money in the career, the vehicle goes away a few seconds later
+	handlers.sc_jobPaid(json.encode({id = 7, pay = 450}))
+	check(career_modules_playerAttributes.money() == 1450 and lastToastMsg():find("%+%$450") and lastToastMsg():find("%$150 less"),
+		"paid: +$450 in the career, the deduction is shown")
+	handlers.sc_jobPaid(json.encode({id = 7, pay = 450}))
+	check(career_modules_playerAttributes.money() == 1450, "paid once")
+	sendList(nil)
+	check(jobs.getActive() ~= nil and not spawnedVeh.deleted, "the server drops the job: the vehicle stays a moment")
+	for _ = 1, 70 do update(0.1) end
+	check(spawnedVeh.deleted and jobs.getActive() == nil, "a few seconds after paying the vehicle is removed")
+
+	-- no answer from the server after the drop-off: the job ends here after 15 s
+	job.id = 10
+	sendList("mine")
+	me.p = {x = 1990, y = -20, z = 10}
+	for _ = 1, 3 do update(0.1) end
+	local unpaid = spawnedVeh
+	jobs.onJobBrokenDown(80, 0)
+	update(0.3)
+	unpaid.p = {x = 4005, y = 52, z = 10}
+	for _ = 1, 40 do update(0.1) end
+	jobs.onJobDamage(80, 0)
+	update(0.3)
+	check(lastSent("sc_jobDone").id == 10 and jobs.getActive() ~= nil, "handed over, waiting for the server")
+	for _ = 1, 160 do update(0.1) end
+	check(jobs.getActive() == nil and unpaid.deleted and lastToastMsg():find("No answer"), "no answer within 15 s: ended here")
+	-- a vehicle removed right away (server's vehicle limit): not spawned again at once, the player is told
+	job.id = 11
+	sendList("mine")
+	for _ = 1, 3 do update(0.1) end
+	local refused = spawnedVeh
+	refused.deleted = true
+	update(0.3)
+	check(lastToastMsg():find("vehicle limit"), "removed right away: the player hears why")
+	local firstRetry = spawnedVeh
+	for _ = 1, 50 do update(0.1) end
+	check(spawnedVeh == firstRetry, "not spawned again within 10 s")
+	for _ = 1, 60 do update(0.1) end
+	check(spawnedVeh ~= firstRetry, "spawned again after 10 s")
+	jobs.uiGiveUp()
+
+	-- giving up: the vehicle goes, the server is told
+	job.id = 8
+	sendList("mine")
+	me.p = {x = 1900, y = -20, z = 10}
+	for _ = 1, 3 do update(0.1) end
+	local second = spawnedVeh
+	jobs.uiGiveUp()
+	check(lastSent("sc_jobGiveUp").id == 8 and second.deleted and jobs.getActive() == nil, "give up: vehicle removed, server told")
+	-- a job taken away by the server (out of time): ended here too
+	job.id = 9
+	sendList("mine")
+	for _ = 1, 3 do update(0.1) end
+	local third = spawnedVeh
+	sendList("open")
+	check(jobs.getActive() == nil and third.deleted, "taken away by the server: ended, vehicle removed")
+	-- switched off on the server: the app goes away
+	cfgJ.ui.jobs = false
+	handlers.sc_configUpdate(json.encode(cfgJ))
+	local still = false
+	for _, app in ipairs(sharedCareer_phone.state().apps) do if app.id == "jobs" then still = true end end
+	check(not still, "switched off on the server: no Jobs app")
+	_G.map, _G.freeroam_facilities, _G.jsonReadFile, _G.util_configListGenerator, _G.core_groundMarkers = nil, nil, nil, nil, nil
+end)()
+
+-- the vehicle side: breaking down and reporting the damage
+;(function()
+	local calls, ge = {}, {}
+	local env = setmetatable({
+		powertrain = {getDevices = function()
+			return {
+				{type = "combustionEngine", disable = function() table.insert(calls, "engine off") end},
+				{type = "gearbox", disable = function() table.insert(calls, "gearbox!") end},
+			}
+		end},
+		controller = {mainController = {shiftToGearIndex = function(i) table.insert(calls, "gear " .. i) end}},
+		input = {event = function(name, v) table.insert(calls, name .. " " .. v) end},
+		electrics = {set_warn_signal = function(on) table.insert(calls, "hazard " .. tostring(on)) end},
+		beamstate = {damage = 1234.5, deflateRandomTire = function() table.insert(calls, "flat") end},
+		obj = {getId = function() return 80 end, queueGameEngineLua = function(_, cmd) table.insert(ge, cmd) end},
+	}, {__index = _G})
+	local chunk = assert(loadfile("client/lua/vehicle/extensions/auto/sharedCareerVeh.lua"))
+	setfenv(chunk, env)
+	local veh = chunk()
+	veh.jobBreakDown(true)
+	local all = table.concat(calls, ", ")
+	check(all == "engine off, gear 0, parkingbrake 0, hazard true, flat",
+		"breakdown: engine off, neutral, parking brake off, hazard lights, flat tire (" .. all .. ")")
+	check(ge[#ge]:find("sharedCareer_jobs.onJobBrokenDown%(80, 1234%.5%)"), "reports the damage so far")
+	veh.jobReportDamage()
+	check(ge[#ge]:find("onJobDamage%(80, 1234%.5%)"), "reports the damage at the drop-off")
+	env.powertrain, env.controller, env.electrics = nil, nil, nil
+	calls = {}
+	local ok = pcall(veh.jobBreakDown, false)
+	check(ok and table.concat(calls, ", ") == "parkingbrake 0", "missing parts of a vehicle: breaks down without them")
+end)()
+
 print(string.format("Client: %d ok, %d failed", passed, failures))
 os.exit(failures == 0 and 0 or 1)

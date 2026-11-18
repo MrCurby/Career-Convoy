@@ -3,7 +3,7 @@
 -- A phone in the game, the home for SharedCareer apps. The home screen shows the server time,
 -- how long until day or night (with a bar), the number of players, the app grid and two widgets:
 -- the other players with what they are doing, and the cheapest station per fuel (a tap opens the
--- Fuel app). Apps so far: Tow (grab.lua) and Fuel (fuel.lua).
+-- Fuel app). Apps so far: Jobs (jobs.lua, beta), Tow (grab.lua) and Fuel (fuel.lua).
 --
 -- The UI is the app ui/modules/apps/SharedCareer-Phone/: a small tab with a phone icon at the
 -- right screen edge (below the menu); the phone itself opens above it. Key: F4 by default
@@ -11,15 +11,16 @@
 --
 -- Apps: SharedCareer extensions register themselves here:
 --   sharedCareer_phone.registerApp({id = "taxi", title = "Taxi", icon = "T", color = "#f5b800",
---                                   order = 10, onOpen = function() ... end, onClose = ...})
+--                                   order = 10, beta = true, onOpen = function() ... end, onClose = ...})
+-- beta = true marks the app as experimental (a "BETA" badge on its icon and in its title bar).
 -- The phone shows every registered app on the home screen; a tap calls uiOpenApp(id), which
 -- calls the app's onOpen; leaving the app (home, putting the phone away) calls uiCloseApp(id) ->
 -- onClose. Apps are only listed while client.phone is on. Tow and Fuel have their own screens
 -- in the phone window (app.html).
 --
--- icon: a short text (letter), or the name of a built-in icon the window knows ("tow", "fuel").
+-- icon: a short text (letter), or the name of a built-in icon the window knows ("jobs", "tow", "fuel").
 --
--- guihooks: SharedCareerPhone {enabled, apps = [{id, title, icon, color}]} (state),
+-- guihooks: SharedCareerPhone {enabled, apps = [{id, title, icon, color, beta}]} (state),
 --           SharedCareerPhoneToggle (key). Time, players and the cheapest fuel come with
 --           "SharedCareerState" (menu.lua).
 
@@ -30,7 +31,7 @@ local U
 local ACTION = "sharedCareerPhone"
 local KEY = "f4"
 
-local apps = {}            -- id -> {id, title, icon, color, order, onOpen, onClose}
+local apps = {}            -- id -> {id, title, icon, color, order, beta, onOpen, onClose}
 local keyRegistered = false
 
 local function enabled()
@@ -46,7 +47,8 @@ end
 function M.state()
 	local list = {}
 	for _, app in pairs(apps) do
-		table.insert(list, {id = app.id, title = app.title, icon = app.icon, color = app.color, order = app.order})
+		table.insert(list, {id = app.id, title = app.title, icon = app.icon, color = app.color, order = app.order,
+			beta = app.beta})
 	end
 	table.sort(list, function(a, b)
 		if a.order ~= b.order then return a.order < b.order end
@@ -59,7 +61,7 @@ local function push()
 	trigger("SharedCareerPhone", M.state())
 end
 
---- Registers an app on the phone. def = {id, title, icon (short text), color, order, onOpen, onClose}.
+--- Registers an app on the phone. def = {id, title, icon (short text), color, order, beta, onOpen, onClose}.
 function M.registerApp(def)
 	if type(def) ~= "table" or type(def.id) ~= "string" or def.id == "" then return false end
 	apps[def.id] = {
@@ -68,6 +70,7 @@ function M.registerApp(def)
 		icon = tostring(def.icon or string.upper(def.id:sub(1, 1))),
 		color = type(def.color) == "string" and def.color or "#ff6600",
 		order = tonumber(def.order) or 100,
+		beta = def.beta == true,
 		onOpen = type(def.onOpen) == "function" and def.onOpen or nil,
 		onClose = type(def.onClose) == "function" and def.onClose or nil,
 	}

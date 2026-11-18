@@ -28,13 +28,8 @@ local fallback = false     -- true if getFuelPrice had to be wrapped directly
 local sinceCheck = 1
 
 local function gasStations()
-	local facilities = rawget(_G, "freeroam_facilities")
-	if type(facilities) ~= "table" or type(facilities.getFacilities) ~= "function" then return nil end
-	local level = type(getCurrentLevelIdentifier) == "function" and getCurrentLevelIdentifier() or nil
-	if not level then return nil end
-	local ok, data = pcall(facilities.getFacilities, level)
-	if not ok or type(data) ~= "table" or type(data.gasStations) ~= "table" then return nil end
-	return data.gasStations
+	local data = U.facilities()
+	return data and type(data.gasStations) == "table" and data.gasStations or nil
 end
 
 --== Applying prices ===========================================================
@@ -145,15 +140,6 @@ function M.stationFor(deliveryFacId)
 	return nil
 end
 
-local function translate(key)
-	if type(key) ~= "string" then return nil end
-	if type(translateLanguage) == "function" then
-		local ok, text = pcall(translateLanguage, key, key)
-		if ok and type(text) == "string" and text ~= key then return text end
-	end
-	return nil
-end
-
 --- Pick the fuel deliveries out of the delivered cargo items and report them.
 function M.reportDelivered(cargoItems)
 	if not enabled or type(cargoItems) ~= "table" then return end
@@ -165,7 +151,7 @@ function M.reportDelivered(cargoItems)
 			local station, stationName = M.stationFor(facId)
 			if station then
 				totals[station] = totals[station] or {}
-				local t = totals[station][fuel] or {amount = 0, name = translate(stationName)}
+				local t = totals[station][fuel] or {amount = 0, name = U.translate(stationName)}
 				t.amount = t.amount + (tonumber(cargo.slots) or 0)
 				totals[station][fuel] = t
 			else
@@ -256,19 +242,13 @@ local doorPoints = nil    -- [station id] = believable door point; nil = not loo
 -- The door point of every station, once per map; points shared by two stations are dropped.
 local function lookUpDoorPoints()
 	if doorPoints then return doorPoints end
-	local facilities = rawget(_G, "freeroam_facilities")
-	if not facilities or type(facilities.getAverageDoorPositionForFacility) ~= "function" then return {} end
 	local found, any = {}, false
 	for _, station in pairs(gasStations() or {}) do
 		if type(station) == "table" and station.id then
-			local ok, p = pcall(facilities.getAverageDoorPositionForFacility, station)
-			-- a vec3 in the game (LuaJIT cdata), a table in the tests: both have .x
-			if ok and p and tonumber(p.x) then
+			local p = U.facilityDoor(station)
+			if p then
 				any = true
-				-- the map origin is a placeholder, not a position
-				if math.abs(p.x) + math.abs(p.y) + math.abs(p.z) >= 1 then
-					found[station.id] = {x = p.x, y = p.y, z = p.z, source = "doors"}
-				end
+				found[station.id] = {x = p.x, y = p.y, z = p.z, source = "doors"}
 			end
 		end
 	end
@@ -340,7 +320,7 @@ function M.overview()
 	local list = {}
 	for _, station in pairs(stations) do
 		if type(station) == "table" and station.id and type(station.prices) == "table" then
-			local entry = {id = station.id, name = translate(station.name) or station.id, fuels = {}}
+			local entry = {id = station.id, name = U.translate(station.name) or station.id, fuels = {}}
 			for fuel in pairs(station.prices) do
 				local ok, price = pcall(priceModule.getFuelPrice, station.id, fuel)
 				if ok and tonumber(price) then

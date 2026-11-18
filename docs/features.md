@@ -12,6 +12,7 @@ Everything players see and use in the game. All texts in the game are in English
 - [Garage](#garage)
 - [Node grabber](#node-grabber)
 - [Moving your vehicles by hand (rope and winch)](#moving-your-vehicles-by-hand-rope-and-winch)
+- [Towing jobs (beta)](#towing-jobs-beta)
 - [Phone](#phone)
 - [Sending money](#sending-money)
 
@@ -196,6 +197,25 @@ Server admins can switch it off with `sc set client.allowGrab false`, and set ho
 
 **Pull strength:** in the Tow app you pick 30, 60, 100 or 150 % of the vehicle's weight (60 % at first). If the vehicle doesn't follow – stuck, handbrake on, gear in Park – the winch pulls up to that limit and stalls there. Pick more; a handbrake or Park usually needs 100 % or more.
 
+## Towing jobs (beta)
+
+<img src="images/phone-jobs.png" width="240" alt="Jobs app: your job and the open jobs">
+
+> **Experimental.** Towing jobs are new; pay, places and rules may still change. The Jobs app is marked **BETA** on the phone.
+
+Cars break down at the roadside, and somebody has to tow them to a repair shop. There is **one list for everyone** on the server: whoever takes a job first gets it.
+
+1. **Find a job:** phone (**F4**) → **Jobs**. Every job shows the vehicle, what's wrong (engine failure, sometimes a flat tire too), how far it is from you, the repair shop, the length of the tow and the pay.
+2. **Take it:** the route leads you to the breakdown. A marker floats above the car when you are close. It's yours now: the others see the job as taken.
+3. **Pick it up:** the car stands beside the road with the hazard lights on. Its engine won't start (resetting it doesn't help), it's in neutral with the parking brake off, so you can tow it: on a flatbed, on a trailer, or with the rope and winch from the Tow app. Close to it, the route switches to the repair shop.
+4. **Deliver it:** at the shop a ring on the ground shows the drop-off zone. Leave the car standing in it for 3 seconds, with nobody inside. The pay goes to your account and the car is taken away.
+
+- **Pay:** $150 plus $120 per km of the tow, 25 % more with a flat tire. The server can change it (`client.jobPay`).
+- **Damage costs:** new damage on the way costs part of the pay, up to half of it. Dragging the car along on the rope is allowed, but it usually costs more than loading it.
+- **Your job on the phone:** the Jobs app shows your job with its steps (*Pick up → Tow → Paid*), the distance and **Route** to set the route again. The home screen and the Tow app show it too.
+- **Give up** in the Jobs app removes the car; the job is open again for everyone. If you leave the server or don't finish within 30 minutes, it is open again too.
+- New jobs come in by themselves, at most 3 open at a time. They appear only on normal roads and never right next to a player.
+
 ## Phone
 
 <img src="images/phone.png" width="240" alt="The SharedCareer phone">
@@ -203,11 +223,13 @@ Server admins can switch it off with `sc set client.allowGrab false`, and set ho
 Press **F4** or click the phone tab at the right screen edge (directly below the SharedCareer menu's tab) to take out your phone. It shows the server's time, how many players are on the server and whether you're connected. Its home screen also has:
 
 - **Day and night:** below the clock, how long until night (or day), and a bar for how much of the day or night is over.
+- **Your job:** while you have a towing job, what to do next and how far it is. Tap it to open the Jobs app.
 - **Players:** the other players with what they are doing right now (driving, mission, on foot, loading), each with a colored dot.
 - **Cheapest fuel:** the cheapest station for gasoline and for diesel, with the price, a discount from deliveries and the distance. Tap it to open the Fuel app.
 
 Apps:
 
+- **Jobs** *(beta)*: towing jobs, see [Towing jobs](#towing-jobs-beta). Apps that are still experimental carry a **BETA** badge.
 - **Tow:** rope and winch as a remote control, see [Moving your vehicles by hand](#moving-your-vehicles-by-hand-rope-and-winch).
 - **Fuel:** gas station prices, see [Fuel app on the phone](#fuel-app-on-the-phone).
 

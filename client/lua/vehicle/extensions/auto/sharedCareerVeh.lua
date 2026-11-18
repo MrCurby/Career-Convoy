@@ -6,6 +6,8 @@
 --   setAiTuning(gap, sightFactor)  traffic AI reacts earlier to obstacles (traffic.lua)
 --   handGrabRay / handGrabNearest / handRope / handRelease / handProbe
 --                                  our own node grabber as a rope (grab.lua), see "Hand" below
+--   jobBreakDown / jobReportDamage the broken-down vehicle of a towing job (jobs.lua), see
+--                                  "Towing jobs" below
 --
 -- AI tuning: two values inside the game's lua/vehicle/ai.lua that have no official setter.
 --   ego.race_time_gap      safety gap in seconds that the AI keeps to a vehicle on its path
@@ -430,6 +432,41 @@ local function ropeStep(dt, perFrame)
 	h.tensionSum, h.tensionTime = h.tensionSum + tension * dt, h.tensionTime + dt
 	h.tensionF = h.tensionF + (tension - h.tensionF) * math.min(1, dt / BREAK_FILTER)
 	if h.tensionF > ROPE_BREAK * weight then lose(LOST_SNAPPED) end
+end
+
+--== Towing jobs: the broken-down vehicle ========================================
+-- jobBreakDown(flatTire): engines off and disabled (they don't start again), neutral, parking brake
+-- off (so it can be towed or rolled), hazard lights on, optionally a flat tire. Reports
+-- sharedCareer_jobs.onJobBrokenDown(id, damage) with the damage so far (beamstate.damage), so the
+-- job can tell new damage at the drop-off (jobReportDamage -> onJobDamage). Every step is
+-- optional: a vehicle without one of them breaks down without it.
+
+local function damageNow()
+	return tonumber(beamstate and beamstate.damage) or 0
+end
+
+local function reportToJobs(fn, value)
+	if type(obj.queueGameEngineLua) ~= "function" then return end
+	obj:queueGameEngineLua(string.format("if sharedCareer_jobs then sharedCareer_jobs.%s(%d, %.1f) end", fn, obj:getId(), value))
+end
+
+function M.jobBreakDown(flatTire)
+	pcall(function()
+		for _, device in pairs(powertrain.getDevices()) do
+			if (device.type == "combustionEngine" or device.type == "electricMotor") and type(device.disable) == "function" then
+				device:disable()
+			end
+		end
+	end)
+	pcall(function() controller.mainController.shiftToGearIndex(0) end)
+	pcall(function() input.event("parkingbrake", 0, FILTER_DIRECT) end)
+	pcall(function() electrics.set_warn_signal(true) end)
+	if flatTire then pcall(function() beamstate.deflateRandomTire() end) end
+	reportToJobs("onJobBrokenDown", damageNow())
+end
+
+function M.jobReportDamage()
+	reportToJobs("onJobDamage", damageNow())
 end
 
 function M.onPhysicsStep(dt)

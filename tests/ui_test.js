@@ -109,6 +109,26 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 		&& phone.cheapestFuels.length === 0, 'night, clock paused: bar over midnight; no players, no fuel widget');
 	phone.emit('SharedCareerState', {hour: 2, connected: false});
 	check(phone.dayText() === 'Not connected' && phone.phaseProgress() === null, 'not connected: no bar');
+	// Jobs app (beta): list, your job, the steps; the widget and the Tow strip open it
+	phone.emit('SharedCareerPhone', {enabled: true, apps: [{id: 'jobs', title: 'Jobs', beta: true}, {id: 'tow'}, {id: 'fuel'}]});
+	phone.emit('SharedCareerJobs', {enabled: true, jobs: [
+		{id: 1, vehicle: 'Gavril Grand Marshal', dest: 'Belasco Auto', pay: 600, state: 'open', length: 2600, distance: 1200},
+		{id: 2, vehicle: 'Ibishu Covet', dest: 'Firwood', pay: 400, state: 'taken', takenBy: 'Ben'}]});
+	check(phone.jobs.enabled && phone.openJobCount() === 1 && phone.money(1234.4) === '$1,234' && phone.jobStep() === 0,
+		'jobs list: one open, money formatted, no job of your own');
+	phone.emit('SharedCareerJobs', {enabled: true, jobs: [], active: {id: 3, vehicle: 'Gavril D-Series', dest: 'Belasco Auto',
+		pay: 820, phase: 'toVehicle', distance: 900}});
+	check(phone.jobStep() === 0 && phone.jobText() === 'to the Gavril D-Series' && phone.jobStepText() === 'Drive to the breakdown',
+		'your job, step 1: drive to the breakdown');
+	phone.emit('SharedCareerJobs', {enabled: true, jobs: [], active: {id: 3, vehicle: 'Gavril D-Series', dest: 'Belasco Auto',
+		pay: 820, phase: 'toDestination', inZone: true}});
+	check(phone.jobStep() === 1 && phone.jobStepText().indexOf('hold still') > 0, 'step 2: tow it; in the drop-off ring: hold still');
+	phone.emit('SharedCareerJobs', {enabled: true, jobs: [], active: {id: 3, vehicle: 'Gavril D-Series', dest: 'Belasco Auto',
+		pay: 820, phase: 'paid'}});
+	check(phone.jobStep() === 2 && phone.jobText().indexOf('Done') === 0, 'step 3: paid');
+	phone.openJobs();
+	check(phone.currentApp && phone.currentApp.id === 'jobs' && phone.currentApp.beta === true, 'the job widget opens the Jobs app (beta)');
+	phone.goHome();
 	phone.destroy();
 	check(last(env, 'phone') === false && last(env, 'fuel') === false, 'phone window removed: not visible');
 }
