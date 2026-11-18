@@ -43,10 +43,32 @@
 .scp-signal.scp-offline i { background: rgba(255, 255, 255, 0.3); }
 
 /* home screen */
-.scp-home { flex: 1; display: flex; flex-direction: column; padding: 0 16px; min-height: 0; }
-.scp-hero { text-align: center; padding: 26px 0 22px; }
+.scp-home { flex: 1; display: flex; flex-direction: column; padding: 0 16px; min-height: 0; overflow-y: auto; }
+.scp-hero { text-align: center; padding: 20px 0 18px; }
 .scp-big-clock { font-size: 56px; font-weight: 300; letter-spacing: 1px; line-height: 1; font-variant-numeric: tabular-nums; }
 .scp-sub { margin-top: 8px; font-size: 13px; opacity: 0.75; }
+/* how much of the day / night is over: sun -> moon (by day), moon -> sun (by night) */
+.scp-phase { display: flex; align-items: center; gap: 6px; margin: 9px 34px 0; font-size: 11px; }
+.scp-phase-icon { opacity: 0.8; width: 12px; text-align: center; }
+.scp-phase-bar { flex: 1; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.15); overflow: hidden; }
+.scp-phase-bar i { display: block; height: 100%; border-radius: 2px; background: #ffb340; transition: width 1s linear; }
+.scp-phase-night .scp-phase-bar i { background: #7a8cff; }
+
+/* widgets below the apps */
+.scp-widgets { margin-top: 16px; padding-bottom: 10px; display: flex; flex-direction: column; gap: 8px; }
+.scp-widget {
+	display: block; width: 100%; box-sizing: border-box; text-align: left; padding: 9px 12px 8px; border: none; border-radius: 16px;
+	background: rgba(255, 255, 255, 0.08); backdrop-filter: blur(6px); color: #fff; font-family: inherit; font-size: 12px;
+}
+.scp-widget-tap { cursor: pointer; }
+.scp-widget-tap:hover { background: rgba(255, 255, 255, 0.13); }
+.scp-widget-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; opacity: 0.6; margin-bottom: 4px; }
+.scp-widget-row { display: flex; align-items: center; gap: 7px; padding: 2px 0; min-width: 0; }
+.scp-widget-row .scp-row-name { flex: 1; }
+.scp-widget-row .scp-row-right { margin-left: 0; font-size: 11px; }
+.scp-widget-price { white-space: nowrap; font-weight: 600; font-variant-numeric: tabular-nums; }
+.scp-widget-more, .scp-widget-empty { font-size: 11px; opacity: 0.6; padding-top: 2px; }
+.scp-dot { display: block; width: 8px; height: 8px; border-radius: 50%; flex: none; box-shadow: 0 0 6px currentColor; }
 .scp-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px 6px; align-content: start; }
 .scp-app {
 	display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 0;

@@ -192,6 +192,7 @@ function M.timeState()
 		state.running = lastMsg.play == true
 		state.paused = lastMsg.paused == true
 		local dayStart, nightStart = tonumber(lastMsg.dayStart) or 6, tonumber(lastMsg.nightStart) or 20
+		state.dayStart, state.nightStart = dayStart, nightStart
 		if hour then
 			state.isDay = hour >= dayStart and hour < nightStart
 			-- real seconds until the next day <-> night switch
