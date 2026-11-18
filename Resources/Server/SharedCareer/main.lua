@@ -19,6 +19,7 @@
 --                  with (_defaults; for automatic updates)
 --   profiles.json  BeamMP account ID -> profile name
 --   fuelprices.json station discounts from fuel deliveries (station -> fuel -> %)
+--   payouts.json   pay of finished towing jobs the player's client hasn't confirmed yet
 --
 -- SERVER CONSOLE COMMANDS
 --   sc help                           short help
@@ -62,8 +63,9 @@
 --   sc_jobsRequest                    sc_jobs        {enabled, jobs = [job, with state "open" |
 --   sc_jobOffer   {a new job}                         "taken" | "mine", takenBy (name)]}
 --   sc_jobTake    {id}                sc_jobGenerate {}  please make up a new job (sc_jobOffer)
---   sc_jobDone    {id, pay}           sc_jobPaid     {id, pay}  the job is done: credit this
---   sc_jobGiveUp  {id}
+--   sc_jobDone    {id, pay}           sc_jobPaid     {payout, job, pay, vehicle}  credit this
+--   sc_jobGiveUp  {id}                               (again until sc_jobPaidAck)
+--   sc_jobPaidAck {payout}
 --                       (from the SharedCareer menu window)
 
 local VERSION = "0.20.0"
@@ -300,23 +302,28 @@ local function readFile(path)
 	return text
 end
 
--- Besides the settings, the file contains the defaults it was last written with
--- (_defaults). From that, loadConfig recognizes after an update which values are still
--- on the old default (-> they get the new one) and which someone changed (-> they stay).
--- That way simply installing an update is enough.
-local function saveConfig()
+-- Writes `value` as readable JSON to a file in the config folder. Returns true if it worked.
+local function writeJson(path, value)
 	if FS and FS.CreateDirectory and not FS.Exists(CONFIG_DIR) then FS.CreateDirectory(CONFIG_DIR) end
-	local text = encode({server = Config.server, client = Config.client, _retired = next(Retired) and Retired or nil,
-		_defaults = DEFAULTS, _version = VERSION})
+	local text = encode(value)
 	if Util.JsonPrettify then text = Util.JsonPrettify(text) end
-	local f = io.open(CONFIG_FILE, "w")
+	local f = io.open(path, "w")
 	if not f then
-		log("Could not write " .. CONFIG_FILE)
+		log("Could not write " .. path)
 		return false
 	end
 	f:write(text)
 	f:close()
 	return true
+end
+
+-- Besides the settings, the file contains the defaults it was last written with
+-- (_defaults). From that, loadConfig recognizes after an update which values are still
+-- on the old default (-> they get the new one) and which someone changed (-> they stay).
+-- That way simply installing an update is enough.
+local function saveConfig()
+	return writeJson(CONFIG_FILE, {server = Config.server, client = Config.client,
+		_retired = next(Retired) and Retired or nil, _defaults = DEFAULTS, _version = VERSION})
 end
 
 --== Settings across versions ===================================================
@@ -461,15 +468,7 @@ local function loadProfiles()
 end
 
 local function saveProfiles()
-	local text = encode(next(profiles) and profiles or {})
-	if Util.JsonPrettify then text = Util.JsonPrettify(text) end
-	local f = io.open(PROFILES_FILE, "w")
-	if not f then
-		log("Could not write " .. PROFILES_FILE)
-		return
-	end
-	f:write(text)
-	f:close()
+	writeJson(PROFILES_FILE, next(profiles) and profiles or {})
 end
 
 -- {account = "<id>"|nil, guest = bool}
@@ -771,12 +770,7 @@ local function loadFuel()
 end
 
 local function saveFuel()
-	local text = encode(next(fuelDiscounts) and fuelDiscounts or {})
-	if Util.JsonPrettify then text = Util.JsonPrettify(text) end
-	local f = io.open(FUEL_FILE, "w")
-	if not f then log("Could not write " .. FUEL_FILE) return end
-	f:write(text)
-	f:close()
+	writeJson(FUEL_FILE, next(fuelDiscounts) and fuelDiscounts or {})
 end
 
 local function fuelPayload()
@@ -851,8 +845,8 @@ end
 --== Towing jobs (beta) =========================================================
 -- The server keeps one list for everyone; the clients make the jobs up (they know the map: road
 -- network, repair shops, vehicles) when the server asks one of them (sc_jobGenerate). A job goes
--- to the first player who takes it, is paid once (sc_jobPaid, credited by that client in its own
--- career) and is open again if that player leaves, gives up or runs out of time.
+-- to the first player who takes it, is paid once (a payout, see "Payouts of towing jobs") and is
+-- open again if that player leaves, gives up or runs out of time.
 -- job = {id, vehicle = {model, config, name}, flatTire, pos = {x, y, z}, dir = {x, y},
 --        dest = {name, pos = {x, y, z}}, length (m), pay, takenBy (player id), takenAt}
 local JOB_ASK_EVERY = 15       -- s between two requests for a new job
@@ -978,15 +972,98 @@ function sc_jobGiveUp(player_id, data)
 	sendJobsToAll()
 end
 
+--== Payouts of towing jobs ===================================================
+-- A finished job becomes a payout for the taker's save (profile). It is kept in
+-- config/payouts.json and sent (sc_jobPaid) until that player's client confirms that it credited
+-- and saved it (sc_jobPaidAck): every PAYOUT_RESEND s while they play, and at once on their next
+-- career start. So a crash, a lost connection or a loading screen never costs the pay; the
+-- client credits each payout id only once.
+-- payout = {id (string, unique across server restarts), job (job id), pay, profile, vehicle, sentAt}
+local PAYOUTS_FILE = CONFIG_DIR .. "/payouts.json"
+local PAYOUT_RESEND = 10
+local payouts = {}
+local payoutSeq = 0
+
+local function savePayouts()
+	local stored = {}
+	for id, p in pairs(payouts) do
+		stored[id] = {job = p.job, pay = p.pay, profile = p.profile, vehicle = p.vehicle}
+	end
+	writeJson(PAYOUTS_FILE, stored)
+end
+
+local function loadPayouts()
+	local raw = readFile(PAYOUTS_FILE)
+	if not raw then return end
+	local ok, value = pcall(Util.JsonDecode, raw)
+	if not ok or type(value) ~= "table" then
+		local f = io.open(PAYOUTS_FILE .. ".broken", "w")
+		if f then f:write(raw); f:close() end
+		log("payouts.json is not valid JSON – saved as payouts.json.broken, open towing payouts are not sent")
+		return
+	end
+	payouts = {}
+	for id, p in pairs(value) do
+		local pay = type(p) == "table" and tonumber(p.pay)
+		if type(id) == "string" and pay and pay >= 0 and type(p.profile) == "string" then
+			payouts[id] = {id = id, job = tonumber(p.job), pay = pay, profile = p.profile, vehicle = text(p.vehicle)}
+		end
+	end
+end
+
+local function sendPayout(player_id, p)
+	p.sentAt = now()
+	send(player_id, "sc_jobPaid", {payout = p.id, job = p.job, pay = p.pay, vehicle = p.vehicle})
+end
+
+-- Sends this player every payout of their save that is still open.
+local function deliverPayouts(player_id)
+	local entry = players[player_id]
+	if not entry or not entry.careerActive or not entry.profile then return end
+	for _, p in pairs(payouts) do
+		if p.profile == entry.profile then sendPayout(player_id, p) end
+	end
+end
+
+-- Every second: payouts without confirmation go out again.
+local function payoutsTick()
+	if not next(payouts) then return end
+	local byProfile = {}
+	for id, entry in pairs(players) do
+		if entry.careerActive and entry.profile and MP.IsPlayerConnected(id) then byProfile[entry.profile] = id end
+	end
+	for _, p in pairs(payouts) do
+		local id = byProfile[p.profile]
+		if id and now() - (p.sentAt or -math.huge) >= PAYOUT_RESEND then sendPayout(id, p) end
+	end
+end
+
+-- The client credited and saved a payout: {payout}
+function sc_jobPaidAck(player_id, data)
+	local entry = players[player_id]
+	local msg = decodeTable(data)
+	local p = msg and type(msg.payout) == "string" and payouts[msg.payout]
+	if not entry or not p or p.profile ~= entry.profile then return end
+	payouts[p.id] = nil
+	savePayouts()
+	log(string.format("%s received $%d for towing job %s", playerName(player_id), p.pay, tostring(p.job)))
+end
+
 -- The vehicle is at the repair shop: {id, pay} (pay after the deduction for new damage). Paid once,
 -- at most the job's pay.
 function sc_jobDone(player_id, data)
+	local entry = players[player_id]
 	local msg = decodeTable(data)
 	local job = msg and jobs[tonumber(msg.id)]
-	if not job or job.takenBy ~= player_id then return end
+	if not entry or not job or job.takenBy ~= player_id then return end
 	local pay = math.floor(math.max(0, math.min(job.pay, tonumber(msg.pay) or job.pay)) + 0.5)
 	jobs[job.id] = nil
-	send(player_id, "sc_jobPaid", {id = job.id, pay = pay})
+	payoutSeq = payoutSeq + 1
+	local p = {id = string.format("%d-%d-%d", os.time(), job.id, payoutSeq), job = job.id, pay = pay,
+		profile = entry.profile or sanitizeProfile(playerName(player_id)), vehicle = job.vehicle.name}
+	payouts[p.id] = p
+	savePayouts()
+	sendPayout(player_id, p)
 	log(string.format("%s finished towing job %d: $%d", playerName(player_id), job.id, pay))
 	for id, e in pairs(players) do
 		if e.careerActive and MP.IsPlayerConnected(id) and id ~= player_id then
@@ -1123,6 +1200,7 @@ function sc_careerResult(player_id, data)
 		sendTime(player_id)
 		sendFuel(player_id)
 		sendJobs(player_id)
+		deliverPayouts(player_id)
 		broadcastPlayers()
 	else
 		entry.careerActive = false
@@ -1559,6 +1637,10 @@ function onConsoleInput(input)
 			table.insert(lines, string.format("  #%d %s to %s, %.1f km, $%d%s", job.id, job.vehicle.name, job.dest.name,
 				job.length / 1000, job.pay, job.takenBy and (" – taken by " .. playerName(job.takenBy)) or " – open"))
 		end
+		for _, p in pairs(payouts) do
+			table.insert(lines, string.format("  payout $%d for %s to save %s – not confirmed yet", p.pay,
+				tostring(p.vehicle), p.profile))
+		end
 		table.sort(lines)
 		if #lines == 0 then return "Towing jobs: none" .. (jobsEnabled() and "" or " (switched off)") end
 		return "Towing jobs:\n" .. table.concat(lines, "\n")
@@ -1654,12 +1736,14 @@ function sc_tick()
 	checkTransfers()
 	fuelRecoveryTick(1)
 	jobsTick()
+	payoutsTick()
 end
 
 function onInit()
 	loadConfig()
 	loadProfiles()
 	loadFuel()
+	loadPayouts()
 
 	MP.RegisterEvent("onPlayerJoin", "onPlayerJoin")
 	MP.RegisterEvent("onPlayerDisconnect", "onPlayerDisconnect")
@@ -1685,6 +1769,7 @@ function onInit()
 	MP.RegisterEvent("sc_jobTake", "sc_jobTake")
 	MP.RegisterEvent("sc_jobGiveUp", "sc_jobGiveUp")
 	MP.RegisterEvent("sc_jobDone", "sc_jobDone")
+	MP.RegisterEvent("sc_jobPaidAck", "sc_jobPaidAck")
 
 	MP.RegisterEvent("sc_signalTick", "sc_signalTick")
 	MP.RegisterEvent("sc_tick", "sc_tick")
