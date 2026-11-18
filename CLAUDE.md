@@ -37,6 +37,12 @@ The maintainer puts a lot of weight on tidy code. Keep it that way with every ch
 - Each change in its own branch; never push to `main`. Every push to a branch builds a dev build
   (`SharedCareer-<version>-dev.<commit>.zip`, GitHub pre-release `build-<branch>`) without a version
   bump; a test server installs it with `./server.sh update --dev` (or `--dev=<branch>`).
+- **Testing one branch in the game:** the maintainer pulls the dev build of a certain branch onto
+  the test server with `./server.sh update --dev=<branch>`, using the branch name as it is, slash
+  included – e.g. `./server.sh update --dev=feat/towing-jobs` (it fetches the pre-release
+  `build-feat-towing-jobs`). The build is there about a minute after the push; asked earlier, the
+  script finds none yet. After pushing a branch for testing, give the maintainer this command
+  with the branch name filled in.
 - Once it works in the game: `tools/bump.sh` in the branch, then a pull request into `main`. Its
   checks run the tests and `tools/version_check.sh` (a change of the mod needs a new version).
   Merging → GitHub Actions builds `SharedCareer-<version>.zip` and creates release `v<version>`.
