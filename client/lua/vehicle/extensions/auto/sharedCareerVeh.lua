@@ -629,7 +629,8 @@ end
 
 local BENT = 0.003          -- m: a body beam whose rest length changed more than this is bent
 local undamagedLengths = nil -- cid -> rest length of the undamaged beam
-local pendingDamage = nil    -- the damage to load after the next reset: {data, armed}
+local pendingDamage = nil    -- the damage to load after the next reset: {data, armed, age}
+local PENDING_FOR = 2        -- s: a damage whose reset doesn't come is dropped (never loaded on a later one)
 
 -- beam types that hold the body together (normal, anisotropic); the others move by design
 local BODY_BEAM = {[0] = true, [1] = true}
@@ -703,7 +704,7 @@ function M.damageLoad(data)
 			nodeCount, beamCount, tostring(data.nn), tostring(data.bn)))
 		return
 	end
-	pendingDamage = {data = data}
+	pendingDamage = {data = data, age = 0}
 	reportToDamage("onReadyToLoad")
 end
 
@@ -740,8 +741,13 @@ local function readUndamagedLengths()
 	end
 end
 
-local function loadPendingDamage()
-	if not (pendingDamage and pendingDamage.armed) then return end
+local function loadPendingDamage(dt)
+	if not pendingDamage then return end
+	if not pendingDamage.armed then
+		pendingDamage.age = pendingDamage.age + dt
+		if pendingDamage.age > PENDING_FOR then pendingDamage = nil end
+		return
+	end
 	local data = pendingDamage.data
 	pendingDamage = nil
 	local ok, err = pcall(loadDamage, data)
@@ -764,7 +770,7 @@ end
 function M.updateGFX(dt)
 	if not dt or dt <= 0 then return end
 	readUndamagedLengths()
-	loadPendingDamage()
+	loadPendingDamage(dt)
 	if anchor then
 		if not physicsStep then anchorStep(math.min(dt, HAND_MAX_DT), true) end
 		anchor.age = anchor.age + dt
