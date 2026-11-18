@@ -106,8 +106,23 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 		bngApi.engineLua('if sharedCareer_grab then sharedCareer_grab.' + cmd + ' end');
 	};
 	var nudging = false;
-	$scope.nudge = function (f, r, u) { nudging = true; $scope.towCall('uiNudge(' + f + ',' + r + ',' + u + ')'); };
-	$scope.nudgeStop = function () { if (nudging) { nudging = false; $scope.towCall('uiNudgeStop()'); } };
+	$scope.heldKey = null;
+	$scope.nudge = function (f, r, u) {
+		nudging = true;
+		$scope.heldKey = f + ',' + r + ',' + u;
+		$scope.towCall('uiNudge(' + f + ',' + r + ',' + u + ')');
+	};
+	$scope.nudgeStop = function () {
+		$scope.heldKey = null;
+		if (nudging) { nudging = false; $scope.towCall('uiNudgeStop()'); }
+	};
+	// hooked onto a vehicle: the held arrow fills up until the anchor pops off
+	$scope.padFill = function (key) {
+		var t = $scope.tow;
+		if (!t.anchorVehicle || $scope.heldKey !== key || !(t.pullProgress > 0)) return {};
+		var p = Math.round(t.pullProgress * 100);
+		return {'background': 'linear-gradient(to top, rgba(255, 150, 40, 0.85) ' + p + '%, rgba(255, 255, 255, 0.1) ' + p + '%)'};
+	};
 	$scope.meters = function (v) { return typeof v === 'number' ? v.toFixed(1) + ' m' : '–'; };
 	$scope.strainColor = function (s) {
 		s = Math.max(0, Math.min(1, s || 0));

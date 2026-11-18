@@ -11,15 +11,22 @@
 --   winch     haul in (pulls the vehicle slowly to the anchor) / stop (the vehicle hangs on the
 --             rope) / pay out
 --   anchor on a vehicle   bring the anchor to a tow hitch of another of your vehicles (also the
---             one you sit in) – or back that vehicle up to the anchor – and it hooks on by itself
---             (within 0.7 m of a hitch, or touching the body: then on that point). Rings show the
---             hitches near the anchor; they light up as it gets close, a short flash shows it hooked
---             on. The anchor then moves with that vehicle – drive off and you tow on the rope, or haul
---             in with the winch "on" the tow truck. Its position and speed go to the roped vehicle
---             every frame, the rope's pull comes back (onRopePull) and goes on to the anchor vehicle
---             (anchorPull), so it feels the load. "Detach" in the Tow app leaves the anchor where it
---             is, in the world; it doesn't hook on again until it was moved SNAP_AGAIN m away. If the
---             anchor vehicle is gone or reset, the anchor stays where it was
+--             one you sit in) and let go of the remote – or back that vehicle up to the resting
+--             anchor – and it hooks on by itself (within 0.7 m of a hitch, or touching the body: then
+--             on that point). It hooks on when you let go, never while you hold a button, so you can
+--             move past hitches. Rings show the hitches near the anchor; they light up as it gets
+--             close ("Let go to hook on" over the anchor), a green flash shows it hooked on. The
+--             anchor then moves with that vehicle – drive off and you tow on the rope, or haul in with
+--             the winch "on" the tow truck. Its position and speed go to the roped vehicle every
+--             frame, the rope's pull comes back (onRopePull) and goes on to the anchor vehicle
+--             (anchorPull), so it feels the load.
+--             Off again: hold an arrow for PULL_OFF s (a ring fills, the anchor tugs; a short tap does
+--             nothing) and it pops off (an orange flash) and moves on while you hold – let go at
+--             another hitch (or the same one) and it hooks on there. Not while the anchor vehicle
+--             drives faster than PULL_MAX_SPEED. The middle button pops it off at once and puts it
+--             in the view. "Detach" in the Tow app leaves it where it is and it doesn't hook on by
+--             itself until you moved it once. If the anchor vehicle is gone or reset, the anchor
+--             stays where it was
 --   strength  30/60/100/150 % of the vehicle's weight
 --   to road  the game's own recovery "Tow to road" for the vehicle on the rope, or without a rope
 --             for the vehicle you look at; free of charge (see "Tow to the road" below)
@@ -112,7 +119,9 @@ local held = nil           -- {id, since, silent, node (tie node), grip = {x, y,
                            --  markPhase, shown (what was drawn last: for the let-go animation),
                            --  anchorVeh = {id, name, node, hitch} (anchor on a vehicle),
                            --  snapTargets = {[vehicle id] = {nodes, at}} (tow hitches near the
-                           --  anchor), sinceSnap, noSnapAt (detached here: no hooking on nearby)}
+                           --  anchor), sinceSnap, unarmed (detached: no hooking on until moved),
+                           --  pull = {n, t} (an arrow held while hooked on: pulling it off),
+                           --  pullBlocked (the anchor vehicle drives: no pulling off)}
 local fine = false         -- fine mode (Tow app)
 local STRENGTHS = {30, 60, 100, 150} -- strength choices in the Tow app (% of the vehicle's weight)
 local strengthPick = 60    -- the player's pick in the Tow app
@@ -125,6 +134,7 @@ local letGo = nil          -- the rope that just came off, while it snaps back o
 local clock = 0            -- s of real time, for the pulsing balls and the rope's speed
 local pushApp              -- defined with the Tow app below
 local anchorPoint          -- defined with "Anchor on a vehicle" below
+local nudgeVector          -- defined before M.step below
 local vehicleName          -- defined with the Tow app below
 local startLetGo           -- defined with the drawing below
 
@@ -317,9 +327,11 @@ end
 
 local SNAP_EVERY = 0.2      -- s between two questions to the vehicles near the anchor
 local SNAP_SEARCH = 8      -- m from a vehicle's position: it is asked whether the anchor hooks on
-local SNAP_AGAIN = 1.5     -- m the anchor must move away after "Detach" before it hooks on again
+local PULL_OFF = 0.6        -- s an arrow is held before the anchor pops off its vehicle
+local PULL_MAX_SPEED = 1   -- m/s: an anchor vehicle driving faster can't have it pulled off
+local POP_DISTANCE = 0.35  -- m the anchor jumps off the hitch in the arrow's direction
 local TARGETS_KEEP = 0.6   -- s the rings of a vehicle's hitches stay without a new answer
-local snapFx = nil         -- {pos, age}: the flash where the anchor just hooked on
+local snapFx = nil         -- {pos, age, off}: the flash where the anchor just hooked on (off: popped off)
 
 -- A few times per second: ask your vehicles near the anchor whether it hooks on (and where their
 -- tow hitches are, for the rings).
@@ -329,10 +341,9 @@ local function askSnap(dt)
 	if held.sinceSnap < SNAP_EVERY then return end
 	held.sinceSnap = 0
 	local t = held.target
-	if held.noSnapAt then
-		local dx, dy, dz = t.x - held.noSnapAt.x, t.y - held.noSnapAt.y, t.z - held.noSnapAt.z
-		if dx * dx + dy * dy + dz * dz > SNAP_AGAIN * SNAP_AGAIN then held.noSnapAt = nil end
-	end
+	-- it hooks on only when nobody holds a button (it hooks on when you let go) and not right
+	-- after "Detach" (until you moved it once)
+	local canSnap = not held.nudge and not held.unarmed
 	local count = type(be.getObjectCount) == "function" and be:getObjectCount() or 0
 	for i = 0, count - 1 do
 		local veh = be:getObject(i)
@@ -342,7 +353,7 @@ local function askSnap(dt)
 			local dx, dy, dz = p.x - t.x, p.y - t.y, p.z - t.z
 			if dx * dx + dy * dy + dz * dz <= SNAP_SEARCH * SNAP_SEARCH then
 				sendToVehicle(id, string.format("sharedCareerVeh.anchorNear(%.3f, %.3f, %.3f, %d)", t.x, t.y, t.z,
-					held.noSnapAt and 0 or 1))
+					canSnap and 1 or 0))
 			end
 		end
 	end
@@ -361,13 +372,12 @@ end
 --- now on and moves with it (the rope pays out to it).
 function M.onAnchorNode(id, node, hitch)
 	local veh = be:getObjectByID(id)
-	if not held or held.anchorVeh or held.noSnapAt or not canAnchor(veh, id) then
+	if not held or held.anchorVeh or held.nudge or held.unarmed or not canAnchor(veh, id) then
 		sendToVehicle(id, "sharedCareerVeh.anchorRelease()")
 		return
 	end
 	held.anchorVeh = {id = id, name = vehicleName(veh), node = tonumber(node), hitch = hitch == 1 or hitch == true}
 	held.snapTargets = nil
-	held.nudge = nil
 	held.placed = true
 	held.payOutOnce = true
 	held.since = SEND_EVERY
@@ -377,13 +387,14 @@ function M.onAnchorNode(id, node, hitch)
 	pushApp()
 end
 
---- The anchor comes off its vehicle and stays where it is, in the world.
-function M.detachAnchor(text)
+--- The anchor comes off its vehicle and stays where it is, in the world. moving: the player
+--- pulled it off and moves it on (it may hook on again when let go); otherwise ("Detach", the
+--- vehicle gone or reset) it doesn't hook on by itself until moved once.
+function M.detachAnchor(text, moving)
 	if not held or not held.anchorVeh then return end
 	sendToVehicle(held.anchorVeh.id, "sharedCareerVeh.anchorRelease()")
-	held.anchorVeh = nil
-	-- right at the hitch: it would hook on again at once
-	held.noSnapAt = held.target and {x = held.target.x, y = held.target.y, z = held.target.z} or nil
+	held.anchorVeh, held.pull, held.pullBlocked = nil, nil, nil
+	held.unarmed = not moving
 	held.since = SEND_EVERY
 	if text then message(text) end
 	pushApp()
@@ -394,6 +405,16 @@ function M.onRopePull(id, fx, fy, fz)
 	if not held or held.id ~= id or not held.anchorVeh then return end
 	sendToVehicle(held.anchorVeh.id, string.format("sharedCareerVeh.anchorPull(%.1f, %.1f, %.1f)",
 		tonumber(fx) or 0, tonumber(fy) or 0, tonumber(fz) or 0))
+end
+
+-- The remote's direction (f = forward, r = right, u = up) in the world, as seen from the camera.
+function nudgeVector(n)
+	local f = viewDir() or {x = 0, y = 1, z = 0}
+	local len = math.sqrt(f.x * f.x + f.y * f.y)
+	local fx, fy = 0, 1
+	if len > 0.01 then fx, fy = f.x / len, f.y / len end
+	local rx, ry = fy, -fx
+	return {x = fx * n.f + rx * n.r, y = fy * n.f + ry * n.r, z = n.u}
 end
 
 function M.step(dt, dtSim)
@@ -428,19 +449,31 @@ function M.step(dt, dtSim)
 			M.detachAnchor("The anchor vehicle is gone – the anchor stays where it was")
 		end
 	end
-	if held.nudge and held.target then
+	if held.pull and held.anchorVeh then
+		-- an arrow held while hooked on: after PULL_OFF s it pops off (not while the vehicle drives)
+		local speed = 0
+		if anchorVel then speed = math.sqrt(anchorVel.x ^ 2 + anchorVel.y ^ 2 + anchorVel.z ^ 2) end
+		held.pullBlocked = speed > PULL_MAX_SPEED
+		if held.pullBlocked then
+			held.pull.t = 0
+		else
+			held.pull.t = held.pull.t + dt
+			if held.pull.t >= PULL_OFF then
+				local n, from = held.pull.n, held.target
+				local v = nudgeVector(n)
+				snapFx = {pos = {x = from.x, y = from.y, z = from.z}, age = 0, off = true}
+				M.detachAnchor(nil, true)
+				-- off the hitch in the arrow's direction, and on as long as the arrow is held
+				held.target = {x = from.x + v.x * POP_DISTANCE, y = from.y + v.y * POP_DISTANCE, z = from.z + v.z * POP_DISTANCE}
+				held.nudge = n
+				anchorVel = nil
+			end
+		end
+	end
+	if held.nudge and held.target and not held.anchorVeh then
 		-- remote control: forward/back and left/right as seen from the camera, up/down
-		local f = viewDir() or {x = 0, y = 1, z = 0}
-		local len = math.sqrt(f.x * f.x + f.y * f.y)
-		local fx, fy = 0, 1
-		if len > 0.01 then fx, fy = f.x / len, f.y / len end
-		local rx, ry = fy, -fx
-		local n, step = held.nudge, NUDGE_SPEED * (fine and FINE or 1) * dt
-		held.target = {
-			x = held.target.x + (fx * n.f + rx * n.r) * step,
-			y = held.target.y + (fy * n.f + ry * n.r) * step,
-			z = held.target.z + n.u * step,
-		}
+		local v, step = nudgeVector(held.nudge), NUDGE_SPEED * (fine and FINE or 1) * dt
+		held.target = {x = held.target.x + v.x * step, y = held.target.y + v.y * step, z = held.target.z + v.z * step}
 	end
 	askSnap(dt)
 	held.since = held.since + dt
@@ -779,12 +812,13 @@ local function circle(p, r, color)
 end
 
 local HITCH_NEAR = 3       -- m: closer than this, a hitch ring lights up and a guide line shows
+local HOOK_RANGE = 0.7     -- m: this close to a hitch it hooks on (the vehicle's HITCH_SNAP)
 local SNAP_FX_TIME = 0.5   -- s of the hook-on flash
 
 -- The tow hitches near the anchor: a ring and a ball each, brighter (and pulsing) as the anchor
 -- gets close, and a dashed guide line from the anchor to the nearest one.
 local function drawHitches(b)
-	if not held.snapTargets then return end
+	if not held.snapTargets then return nil end
 	local nearest, nearestD = nil, math.huge
 	for id, t in pairs(held.snapTargets) do
 		local veh = clock - t.at <= TARGETS_KEEP and be:getObjectByID(id)
@@ -804,6 +838,10 @@ local function drawHitches(b)
 	end
 	if nearest and nearestD <= HITCH_NEAR then
 		local color = ColorF(0.4, 0.95, 0.55, 0.8)
+		if nearestD <= HOOK_RANGE and held.nudge then
+			-- it hooks on when you let go: say so over the anchor
+			sign({x = b.x, y = b.y, z = b.z + PIN_HEIGHT + 0.35}, "Let go to hook on")
+		end
 		local steps = math.max(1, math.floor(nearestD / 0.2))
 		for i = 0, steps - 1, 2 do
 			local f0, f1 = i / steps, math.min(1, (i + 1) / steps)
@@ -821,7 +859,7 @@ local function drawSnapFx(dt)
 		snapFx = nil
 		return
 	end
-	local color = ColorF(0.4, 1, 0.55, 0.9 * (1 - f))
+	local color = snapFx.off and ColorF(1, 0.6, 0.15, 0.9 * (1 - f)) or ColorF(0.4, 1, 0.55, 0.9 * (1 - f))
 	circle(snapFx.pos, 0.2 + 0.7 * f, color)
 	circle(snapFx.pos, 0.1 + 0.35 * f, color)
 	ball(snapFx.pos, 0.12 * (1 - f), color)
@@ -941,8 +979,22 @@ function M.draw(dt)
 		local pulse = held.winch == 1 and not held.nudge
 			and 1 + 0.25 * math.sin(clock * 2 * math.pi * 1.5) or 1
 		if held.anchorVeh then
-			-- on a vehicle: a shackle on its hitch, no post and no ground marker
-			ball(b, 0.08 * pulse, ColorF(rgb[1], rgb[2], rgb[3], rgb[4]))
+			-- on a vehicle: a shackle on its hitch, no post and no ground marker. While an arrow is
+			-- held: it tugs in that direction and an orange ring fills until it pops off
+			local p = b
+			if held.pull and not held.pullBlocked then
+				local v, k = nudgeVector(held.pull.n), math.min(1, held.pull.t / PULL_OFF)
+				local tug = 0.05 * k * (1 + 0.6 * math.sin(clock * 2 * math.pi * 9))
+				p = {x = b.x + v.x * tug, y = b.y + v.y * tug, z = b.z + v.z * tug}
+				local steps = math.max(1, math.floor(16 * k))
+				local ringColor = ColorF(1, 0.6, 0.15, 0.95)
+				for i = 0, steps - 1 do
+					local a0, a1 = i / 16 * 2 * math.pi, (i + 1) / 16 * 2 * math.pi
+					line({x = b.x + math.cos(a0) * 0.25, y = b.y + math.sin(a0) * 0.25, z = b.z},
+						{x = b.x + math.cos(a1) * 0.25, y = b.y + math.sin(a1) * 0.25, z = b.z}, ringColor)
+				end
+			end
+			ball(p, 0.08 * pulse, ColorF(rgb[1], rgb[2], rgb[3], rgb[4]))
 			if appOpen then
 				sign({x = b.x, y = b.y, z = b.z + 0.6}, "Anchor \194\183 " .. held.anchorVeh.name
 					.. (stuck() and " \194\183 at the limit" or ""))
@@ -1047,7 +1099,10 @@ function M.appState()
 		if held.anchorVeh then
 			state.anchorVehicle = held.anchorVeh.name
 			state.anchorHitch = held.anchorVeh.hitch
+			state.pullProgress = held.pull and math.min(1, held.pull.t / PULL_OFF) or 0
+			state.pullBlocked = held.pullBlocked == true
 		end
+		state.unarmed = held.unarmed == true
 		local grip = gripNow()
 		if grip and held.target then
 			local dx, dy, dz = held.target.x - grip.x, held.target.y - grip.y, held.target.z - grip.z
@@ -1111,22 +1166,31 @@ function M.uiStrength(v)
 end
 --- Remote control: move the anchor while a button is held (f = forward, r = right, u = up; -1..1).
 function M.uiNudge(f, r, u)
-	if not held or held.anchorVeh then return end
-	held.nudge = {f = tonumber(f) or 0, r = tonumber(r) or 0, u = tonumber(u) or 0}
-	held.placed = true
-	held.since = SEND_EVERY
+	if not held then return end
+	local n = {f = tonumber(f) or 0, r = tonumber(r) or 0, u = tonumber(u) or 0}
+	if held.anchorVeh then
+		-- hooked on: holding pulls it off (see M.step)
+		held.pull = {n = n, t = 0}
+	else
+		held.nudge = n
+		held.unarmed = nil -- moved once: it may hook on again when let go
+		held.placed = true
+		held.since = SEND_EVERY
+	end
 	pushApp()
 end
 function M.uiNudgeStop()
 	if not held then return end
-	held.nudge = nil
+	held.nudge, held.pull, held.pullBlocked = nil, nil, nil
+	held.sinceSnap = SNAP_EVERY -- let go: ask at once whether it hooks on
 	held.since = SEND_EVERY
 	pushApp()
 end
 --- Put the anchor in the middle of the view, at its current distance from you.
 function M.uiAnchorToView()
 	if not held or not held.target then return end
-	if held.anchorVeh then M.detachAnchor() end
+	if held.anchorVeh then M.detachAnchor(nil, true) end
+	held.unarmed = nil
 	local cam, dir = cameraPos(), viewDir()
 	if not cam or not dir then return end
 	local dx, dy, dz = held.target.x - cam.x, held.target.y - cam.y, held.target.z - cam.z

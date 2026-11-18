@@ -2738,7 +2738,13 @@ end)()
 			end
 		end
 	end
-	local function frames(n) for _ = 1, n do extensions.hook("onUpdate", 1 / 60) end end
+	-- frames, with the roped car reporting like in the game (otherwise the watchdog drops the rope)
+	local function frames(n)
+		for _ = 1, n do
+			if sharedCareer_grab.isHolding() then sharedCareer_grab.onHandState(60, 0, 1, 0.5, 0, 1, 7) end
+			extensions.hook("onUpdate", 1 / 60)
+		end
+	end
 	_G.core_camera = {getPosition = function() return {x = 0, y = -10, z = 2} end, getForward = function() return {x = 0, y = 1, z = 0} end}
 	local car = placed(60, 0, 0, 0.5)
 	local pickup = placed(61, 0, 10, 0.5)
@@ -2756,9 +2762,14 @@ end)()
 		frames(6)
 		sharedCareer_grab.onHandState(60, 0, 1, 0.5, 0, 1, 8)
 	end
-	sharedCareer_grab.uiNudgeStop()
 	local ask = lastCall(pickup, "anchorNear")
-	check(ask and ask[4] == 1, "the anchor near the pickup: it is asked whether the anchor hooks on")
+	check(ask and ask[4] == 0, "moving the anchor near the pickup: its hitches are asked for, but it doesn't hook on while held")
+	check(sharedCareer_grab.onAnchorNode(61, 2, 1) == nil and sharedCareer_grab.appState().anchorVehicle == nil,
+		"an answer while the button is held is refused")
+	sharedCareer_grab.uiNudgeStop()
+	frames(2)
+	ask = lastCall(pickup, "anchorNear")
+	check(ask and ask[4] == 1, "let go: asked at once whether it hooks on")
 	check(lastCall(car, "anchorNear") == nil and lastCall(remote, "anchorNear") == nil and lastCall(walker, "anchorNear") == nil,
 		"not asked: the roped car, another player's vehicle, a player on foot")
 	-- the pickup names its hitch: rings are drawn there, green as the anchor comes close
@@ -2787,8 +2798,42 @@ end)()
 	sharedCareer_grab.onRopePull(60, 0, -1500, 0)
 	local pull = lastCall(pickup, "anchorPull")
 	check(pull and pull[2] == -1500, "the rope's pull goes on to the pickup")
+	-- hooked on: a short tap does nothing, holding pulls it off (the pickup stands)
+	pickup.vel = {x = 0, y = 0, z = 0}
+	sharedCareer_grab.uiNudge(-1, 0, 0)
+	frames(15)
+	st = sharedCareer_grab.appState()
+	check(st.anchorVehicle and st.pullProgress > 0.3 and st.pullProgress < 0.6 and st.moving == false,
+		string.format("holding an arrow while hooked on: it tugs, the pull-off fills (%.2f)", st.pullProgress or -1))
+	sharedCareer_grab.uiNudgeStop()
+	frames(30)
+	check(sharedCareer_grab.appState().anchorVehicle and sharedCareer_grab.appState().pullProgress == 0, "let go too early: still hooked on")
+	pickup.vel = {x = 0, y = 3, z = 0}
+	sharedCareer_grab.uiNudge(-1, 0, 0)
+	frames(60)
+	st = sharedCareer_grab.appState()
+	check(st.anchorVehicle and st.pullBlocked == true, "the pickup drives: it can't be pulled off (the app says to stop first)")
+	sharedCareer_grab.uiNudgeStop()
+	pickup.vel = {x = 0, y = 0, z = 0}
+	local hookedAt = lastCall(car, "handRope")[2]
+	local cmdsBefore = #pickup.lua
+	sharedCareer_grab.uiNudge(-1, 0, 0)
+	frames(45)
+	st = sharedCareer_grab.appState()
+	local released = false
+	for i = cmdsBefore + 1, #pickup.lua do if pickup.lua[i]:find("anchorRelease") then released = true end end
+	check(st.anchorVehicle == nil and released, "held for 0.6 s: it pops off the hitch")
+	frames(30)
+	check(lastCall(car, "handRope")[2] < hookedAt - 0.5, "still held: it moves on, off the hitch")
+	-- back to the hitch and let go: it hooks on there again
 	sharedCareer_grab.uiNudge(1, 0, 0)
-	check(sharedCareer_grab.appState().moving == false, "on a vehicle the remote doesn't move the anchor")
+	frames(36)
+	sharedCareer_grab.uiNudgeStop()
+	frames(2)
+	ask = lastCall(pickup, "anchorNear")
+	check(ask and ask[4] == 1, "let go near the hitch it came from: it may hook on there again")
+	sharedCareer_grab.onAnchorNode(61, 2, 1)
+	check(sharedCareer_grab.appState().anchorVehicle, "hooked on again")
 	-- a second answer while hooked on: refused, the other vehicle lets go
 	local other = placed(64, 3, 12, 0.5)
 	sharedCareer_grab.onAnchorNode(64, 2, 1)
@@ -2801,16 +2846,21 @@ end)()
 	check(a[11] == 0 and a[9] == 0 and pickup.lua[#pickup.lua]:find("anchorRelease"), "detach: the anchor stays put, the pickup is told")
 	frames(15)
 	ask = lastCall(pickup, "anchorNear")
-	check(ask and ask[4] == 0, "right after detaching: the pickup may not hook it on again")
+	check(ask and ask[4] == 0 and sharedCareer_grab.appState().unarmed, "after Detach it doesn't hook on by itself")
 	sharedCareer_grab.onAnchorNode(61, 2, 1)
 	check(sharedCareer_grab.appState().anchorVehicle == nil, "an answer anyway is refused")
-	for _ = 1, 20 do sharedCareer_grab.uiNudge(-1, 0, 0) frames(6) end
+	-- a tiny nudge and let go: it hooks on again, even on the same hitch
+	sharedCareer_grab.uiNudge(0, 0, 1)
+	frames(2)
 	sharedCareer_grab.uiNudgeStop()
-	for _ = 1, 25 do sharedCareer_grab.uiNudge(1, 0, 0) frames(6) end
-	sharedCareer_grab.uiNudgeStop()
-	frames(15)
+	frames(2)
 	ask = lastCall(pickup, "anchorNear")
-	check(ask and ask[4] == 1, "moved away and back: it may hook on again")
+	check(ask and ask[4] == 1 and not sharedCareer_grab.appState().unarmed, "moved once and let go: it may hook on again, also right there")
+	-- the middle button while hooked on: off at once, into the view, may hook on there
+	sharedCareer_grab.onAnchorNode(61, 2, 1)
+	sharedCareer_grab.uiAnchorToView()
+	check(sharedCareer_grab.appState().anchorVehicle == nil and not sharedCareer_grab.appState().unarmed,
+		"the middle button: off at once, placed in the view, it may hook on there")
 	-- the pickup is reset: the anchor stays where it was
 	sharedCareer_grab.onAnchorNode(61, 2, 1)
 	extensions.hook("onVehicleResetted", 61)

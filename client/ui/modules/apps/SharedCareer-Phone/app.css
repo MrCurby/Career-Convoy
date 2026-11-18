@@ -322,3 +322,7 @@
 .scp-hooked-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .scp-hooked-label { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.75; }
 .scp-hooked-title { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.scp-tip-warn { color: #ffd2a8; background: rgba(255, 140, 40, 0.18); }
+.scp-tip-off { color: rgba(255, 255, 255, 0.8); background: rgba(255, 255, 255, 0.08); }
+.scp-hooked + .scp-anchor-controls { margin-top: 8px; }
