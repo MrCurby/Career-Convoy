@@ -42,3 +42,22 @@ The maintainer puts a lot of weight on tidy code. Keep it that way with every ch
   Merging → GitHub Actions builds `SharedCareer-<version>.zip` and creates release `v<version>`.
   Servers install it with `./server.sh update`.
 - See `docs/development.md` for the layout of the code and how the mod works inside.
+
+## Branch names
+
+Name every branch after what it does: `<type>/<topic>`, lowercase, words joined with hyphens.
+
+| Type | For | Example |
+|---|---|---|
+| `feat/` | a new feature or a visible improvement | `feat/rope-ground-marker` |
+| `fix/` | a bug fix | `fix/rope-after-reset` |
+| `refactor/` | cleaner code, same behavior | `refactor/grab-drawing` |
+| `docs/` | documentation only | `docs/server-setup` |
+| `ci/` | workflows, build and release tooling | `ci/dev-builds` |
+| `chore/` | everything else (versions, cleanup) | `chore/remove-old-settings` |
+
+This also applies in cloud sessions that come with a generated branch name (such as
+`claude/<random-words>`): the maintainer's standing permission is to create the branch with the
+logical name from `main` and push there instead; don't use the generated one. One branch per topic –
+a new topic gets a new branch, even within the same session. Its dev build is then named after it
+too (`build-feat-rope-ground-marker`).
