@@ -37,7 +37,8 @@ tools/test.sh      # syntax check, all tests and the English-only language check
 tools/build.sh     # build Resources/Client/SharedCareer.zip from client/
 tools/package.sh   # tests + build + release package SharedCareer-<version>.zip
 tools/package.sh --dev   # the same as a dev build, SharedCareer-<version>-dev.<commit>.zip
-tools/version_check.sh   # a branch that changes the mod must raise the version (PR check)
+tools/version_check.sh   # a branch that changes the mod must raise the version, one that changes
+                         # tools/server.sh its SCRIPT_REVISION (PR check)
 ```
 
 The tests rebuild the BeamNG and BeamMP APIs as mocks and play through joining, career start, garage, visibility, traffic, time sync, the node grabber, rope and winch, the phone, UI layout cleanup, fuel prices, payments, the menu and the welcome dialog. The menu and phone windows (`app.js`) run in node with stand-ins for AngularJS and `bngApi` (`tests/ui_mock.js`, `tests/ui_test.js`); a timeline of random clicks on them is then replayed against the real `menu.lua` (`tests/ui_replay.lua`). They check the logic, but **they don't replace testing in the real game**. UI changes were additionally checked by rendering the apps in a headless browser.

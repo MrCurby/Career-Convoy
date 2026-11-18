@@ -118,7 +118,7 @@ BRANCH=""
 2. Downloads the release zip and checks that it is a valid zip.
 3. Stops the server.
 4. Backs up the current mod **and your settings** to `sharedcareer-backup-<date>.tgz`.
-5. Unpacks the release. This replaces the mod code, the client mod and `server.sh` itself, but **never touches your settings**.
+5. Unpacks the release. This replaces the mod code and the client mod, but **never touches your settings**. `server.sh` itself is only replaced by a newer one (a higher `SCRIPT_REVISION`), so going back to an older release keeps the newer script.
 6. Deletes old release zips (the newest three stay) and old backups (the newest `BACKUPS_KEEP` stay, 5 by default).
 7. Starts the server again and shows the SharedCareer startup lines.
 
