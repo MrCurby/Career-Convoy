@@ -191,17 +191,17 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 	$scope.jobText = function () {
 		var a = $scope.jobs.active;
 		if (!a) return '';
-		if (a.phase === 'paid') return 'Done – the pay is in your account';
-		if (a.phase === 'checking') return 'Handing it over at ' + a.dest + '…';
+		if (a.phase === 'paid') return 'Done – paid';
+		if (a.phase === 'checking') return 'Handing over…';
 		if (a.phase === 'toVehicle') return 'to the ' + a.vehicle;
-		return a.inZone ? 'In the drop-off ring – hold still' : 'to ' + a.dest;
+		return a.inZone ? 'In the ring – wait' : 'to ' + a.dest;
 	};
 	// short, for the strip in the Tow app
 	$scope.jobStepText = function () {
 		var a = $scope.jobs.active;
 		if (!a) return '';
 		if (a.phase === 'toVehicle') return 'Drive to the breakdown';
-		return a.inZone ? 'In the drop-off ring – hold still' : 'Tow to ' + a.dest;
+		return a.inZone ? 'In the ring – wait' : 'Tow to ' + a.dest;
 	};
 	$scope.openJobs = function () { var app = appById('jobs'); if (app) $scope.openApp(app); };
 	$scope.$on('SharedCareerJobs', function (event, data) {

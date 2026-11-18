@@ -133,11 +133,6 @@
 	margin-left: auto; padding: 2px 7px; border-radius: 8px; font-size: 9px; font-weight: 800; letter-spacing: 0.6px;
 	color: #2b1d00; background: linear-gradient(135deg, #ffd34d, #ffa41b);
 }
-.scp-beta-note {
-	font-size: 11px; line-height: 1.35; padding: 7px 10px; margin-bottom: 10px; border-radius: 10px;
-	color: #ffd98a; background: rgba(255, 179, 64, 0.12); border: 1px solid rgba(255, 179, 64, 0.28);
-}
-.scp-beta-note b { color: #ffc24d; }
 
 /* Jobs app: your job */
 .scp-myjob {

@@ -953,13 +953,13 @@ function sc_jobTake(player_id, data)
 	local job = msg and jobs[tonumber(msg.id)]
 	if not entry or not entry.careerActive or not job or not jobsEnabled() then return end
 	if job.takenBy then
-		if job.takenBy ~= player_id then notify(player_id, "Someone else was faster: " .. playerName(job.takenBy) .. " took that job") end
+		if job.takenBy ~= player_id then notify(player_id, playerName(job.takenBy) .. " took that job first") end
 		sendJobs(player_id)
 		return
 	end
 	for _, other in pairs(jobs) do
 		if other.takenBy == player_id then
-			notify(player_id, "Finish or give up your towing job first", "warning")
+			notify(player_id, "Finish your job first", "warning")
 			sendJobs(player_id)
 			return
 		end

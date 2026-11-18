@@ -1288,7 +1288,7 @@ fwd = {x = 1, y = 0, z = -0.1}
 alive = nil
 sharedCareer_grab.uiAttachView()
 frames(2.5)
-check(not sharedCareer_grab.isHolding() and lastToast():find("Couldn't attach"),
+check(not sharedCareer_grab.isHolding() and lastToast():find("Can't attach"),
 	"the vehicle never reports a grip: released after 2 s, with a message")
 attachTruck()
 alive = nil
@@ -1474,7 +1474,7 @@ check(sharedCareer_grab.uiTowToRoad() and #towed == 1 and towed[1].id == 60 and 
 towed = {}
 sharedCareer_grab.uiAttachView()
 truck.getVelocity = function() return {x = 5, y = 0, z = 0} end
-check(not sharedCareer_grab.uiTowToRoad() and #towed == 0 and towToasts[#towToasts]:find("stand still"),
+check(not sharedCareer_grab.uiTowToRoad() and #towed == 0 and towToasts[#towToasts]:find("Stop the vehicle"),
 	"tow to the road: not while the vehicle moves")
 truck.getVelocity = function() return {x = 0.1, y = 0, z = 0} end
 _G.gameplay_traffic = {getTrafficData = function() return {[60] = {pursuit = {mode = 1}}} end}
@@ -1545,7 +1545,7 @@ check(not held, "no view direction: nothing attached")
 cfgG.allowGrab = false
 handlers.sc_configUpdate(json.encode(cfgG))
 held, msg = tryGrab({x = 1, y = 0, z = -0.1})
-check(not held and msg:find("switched off"), "switched off on the server: no grabbing")
+check(not held and msg:find("off on this server"), "switched off on the server: no grabbing")
 cfgG.allowGrab = true
 handlers.sc_configUpdate(json.encode(cfgG))
 fwd = {x = 1, y = 0, z = -0.1}
@@ -2256,7 +2256,7 @@ _G.ui_router = nil
 check(dialogs[1].buttons[1].action == "never" and dialogs[1].buttons[1].label == "Don't show again", "button 'Don't show again'")
 local allText = ""
 for _, it in ipairs(dialogs[1].items) do allText = allText .. it.head .. " " .. it.text .. " " end
-check(allText:find("F7") and allText:find("Fuel prices") and allText:find("/pay"), "lists the most important features")
+check(allText:find("F7") and allText:find("F4") and allText:find("/pay"), "lists the most important features")
 for _ = 1, 50 do update(0.1) end
 check(#dialogs == 1, "only once per join")
 -- Regression 0.8.2: the window was hidden (main menu) and rebuilds itself -> dialog back
@@ -2471,7 +2471,7 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	check(done and done.id == 7 and done.pay == 450, "new damage costs part of the pay (half the max: 25 %, $600 -> $450)")
 	-- paid by the server: money in the career, the vehicle goes away a few seconds later
 	handlers.sc_jobPaid(json.encode({id = 7, pay = 450}))
-	check(career_modules_playerAttributes.money() == 1450 and lastToastMsg():find("%+%$450") and lastToastMsg():find("%$150 less"),
+	check(career_modules_playerAttributes.money() == 1450 and lastToastMsg():find("%+%$450") and lastToastMsg():find("%$150 damage"),
 		"paid: +$450 in the career, the deduction is shown")
 	handlers.sc_jobPaid(json.encode({id = 7, pay = 450}))
 	check(career_modules_playerAttributes.money() == 1450, "paid once")

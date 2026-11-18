@@ -328,7 +328,7 @@ end
 local function startActive(job)
 	active = {id = job.id, job = job, phase = "toVehicle", stillFor = 0}
 	navigate(job.pos)
-	U.toast("info", "Towing job: drive to the " .. job.vehicle.name .. " – the route is set", 6)
+	U.toast("info", "Route set: drive to the " .. job.vehicle.name, 6)
 end
 
 local function finish()
@@ -359,7 +359,7 @@ function M.step(dt)
 	local veh = active.vehId and be:getObjectByID(active.vehId)
 	if active.doneSent and clock - active.doneAt >= PAID_WAIT then
 		U.log("W", "jobs", "no answer from the server to job " .. tostring(job.id) .. " – ended here")
-		U.toast("warning", "No answer from the server – the towing job ended", 6)
+		U.toast("warning", "No answer from the server – job ended", 6)
 		endActive()
 		pushApp()
 		return
@@ -368,7 +368,7 @@ function M.step(dt)
 		-- deleted, reloaded or refused by the server: it appears again at its place
 		U.log("W", "jobs", "the vehicle of job " .. tostring(job.id) .. " is gone")
 		if clock - (active.spawnedAt or -math.huge) < 2 then
-			U.toast("warning", "The broken-down car was removed right away – is the server's vehicle limit reached?", 6)
+			U.toast("warning", "Car removed – vehicle limit reached?", 6)
 		end
 		active.vehId, active.brokenDown = nil, false
 		active.phase = "toVehicle"
@@ -384,7 +384,7 @@ function M.step(dt)
 	if active.phase == "toVehicle" and me and p and dist2D(me, p) <= NEAR_VEHICLE then
 		active.phase = "toDestination"
 		navigate(job.dest.pos)
-		U.toast("info", "Tow it to " .. job.dest.name .. " – the route is set", 6)
+		U.toast("info", "Route set: tow it to " .. job.dest.name, 6)
 	end
 	if active.doneSent then return end
 	local speed = 0
@@ -464,8 +464,8 @@ local function rxPaid(data)
 		pcall(attributes.addAttributes, {money = pay}, {tags = {"gameplay"}, label = "Towing job: " .. name})
 	end
 	local deduction = active and active.id == msg.id and active.deduction or 0
-	U.toast("success", string.format("Towing job done: +$%d", pay)
-		.. (deduction > 0 and string.format(" ($%d less for new damage)", deduction) or ""), 8)
+	U.toast("success", string.format("Job done: +$%d", pay)
+		.. (deduction > 0 and string.format(" (−$%d damage)", deduction) or ""), 8)
 	if active and active.id == msg.id then
 		active.paidAt = clock
 		navigate(nil)
@@ -527,7 +527,7 @@ end
 -- buttons of the Jobs app
 function M.uiTake(id)
 	if active then
-		U.toast("warning", "Finish or give up your towing job first", 4)
+		U.toast("warning", "Finish your job first", 4)
 		return
 	end
 	U.send("sc_jobTake", {id = tonumber(id)})
@@ -537,7 +537,7 @@ function M.uiGiveUp()
 	if not active or active.doneSent then return end
 	U.send("sc_jobGiveUp", {id = active.id})
 	endActive()
-	U.toast("info", "Towing job given up", 4)
+	U.toast("info", "Job given up", 4)
 	pushApp()
 end
 
@@ -573,7 +573,7 @@ local function drawMarkers()
 			if inZone then r, g, b = 0.3, 0.9, 0.45 end
 			debugDrawer:drawCylinder(vec3(d.x, d.y, d.z + 0.02), vec3(d.x, d.y, d.z + 0.08), DROP_RADIUS, ColorF(r, g, b, 0.18))
 			debugDrawer:drawCylinder(vec3(d.x, d.y, d.z), vec3(d.x, d.y, d.z + 4), 0.08, ColorF(r, g, b, 0.7))
-			local label = inZone and string.format("Drop-off \194\183 hold still %d s", math.max(1, math.ceil(DROP_STILL - (active.stillFor or 0))))
+			local label = inZone and string.format("Drop-off \194\183 %d s", math.max(1, math.ceil(DROP_STILL - (active.stillFor or 0))))
 				or ("Drop-off \194\183 " .. active.job.dest.name)
 			local str = String and String(label) or label
 			debugDrawer:drawTextAdvanced(vec3(d.x, d.y, d.z + 4.4), str, ColorF(1, 1, 1, 1), true, false, ColorI(20, 30, 50, 200))

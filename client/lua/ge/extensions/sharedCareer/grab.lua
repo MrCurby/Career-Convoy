@@ -106,10 +106,10 @@ local STUCK_AFTER = 2      -- s at the force limit: shown as "at the limit"
 
 -- what the vehicle reports with onHandLost(id, reason)
 local LOST_MESSAGES = {
-	[0] = "Couldn't attach the rope there",
-	[1] = "Vehicle reset: rope removed",
-	[2] = "The vehicle was moved: rope removed",
-	[3] = "The part the rope was tied to tore off",
+	[0] = "Can't attach the rope there",
+	[1] = "Vehicle reset – rope off",
+	[2] = "Vehicle moved – rope off",
+	[3] = "The part tore off – rope off",
 	[4] = "The rope snapped",
 }
 
@@ -264,12 +264,12 @@ local function canRope(veh, id)
 	if not veh or type(veh.queueLuaCommand) ~= "function" then return false, "Look at one of your vehicles" end
 	local model = veh.JBeam
 	if model == nil and type(veh.getJBeamFilename) == "function" then model = veh:getJBeamFilename() end
-	if model == "unicycle" then return false, "Players on foot can't be grabbed" end
+	if model == "unicycle" then return false, "Not on players on foot" end
 	if not isOwnVehicle(id) then return false, "Only your own vehicles" end
 	local freeCam = core_camera and type(core_camera.getActiveGlobalCameraName) == "function"
 		and core_camera.getActiveGlobalCameraName()
 	if id == be:getPlayerVehicleID(0) and not freeCam then
-		return false, "Get out (or use the free camera) to grab the vehicle you are in"
+		return false, "Get out first (or use the free camera)"
 	end
 	return true
 end
@@ -286,7 +286,7 @@ end
 -- Attach where you look (the middle of the view; the cursor is on the phone).
 local function attachAtView()
 	if not allowed() then
-		message("Grabbing vehicles is switched off on this server")
+		message("Ropes are off on this server")
 		return false
 	end
 	local cam, dir = cameraPos(), viewDir()
@@ -382,7 +382,7 @@ function M.onAnchorNode(id, node, hitch)
 	held.payOutOnce = true
 	held.since = SEND_EVERY
 	snapFx = {pos = anchorPoint(veh, held.anchorVeh.node) or held.target, age = 0}
-	message("Anchor hooked onto the " .. held.anchorVeh.name .. (held.anchorVeh.hitch and "'s tow hitch" or ""))
+	message("Hooked onto the " .. held.anchorVeh.name)
 	U.log("I", "grab", string.format("anchor on vehicle %s (%s)", tostring(id), held.anchorVeh.hitch and "tow hitch" or "body"))
 	pushApp()
 end
@@ -446,7 +446,7 @@ function M.step(dt, dtSim)
 			anchorVel = type(av.getVelocity) == "function" and vecOf(av:getVelocity()) or {x = 0, y = 0, z = 0}
 			held.since = SEND_EVERY -- every frame
 		else
-			M.detachAnchor("The anchor vehicle is gone – the anchor stays where it was")
+			M.detachAnchor("Anchor vehicle gone – anchor dropped")
 		end
 	end
 	if held.pull and held.anchorVeh then
@@ -535,14 +535,14 @@ end
 --- Puts the vehicle on the rope (or the one you look at) on the last road it drove on.
 --- Returns true, or false and a message.
 function M.towToRoad()
-	if not towToRoadAllowed() then return false, "Towing to the road is switched off on this server" end
+	if not towToRoadAllowed() then return false, "Off on this server" end
 	local veh, id = towTarget()
 	if not veh then return false, id end
 	if not (spawn and type(spawn.teleportToLastRoad) == "function") then
-		return false, "Towing to the road isn't available in this game version"
+		return false, "Not available in this game version"
 	end
 	if inPursuit(id) then return false, "Not during a police chase" end
-	if speedOf(veh) > TOW_MAX_SPEED then return false, "The vehicle must stand still" end
+	if speedOf(veh) > TOW_MAX_SPEED then return false, "Stop the vehicle first" end
 	if held then M.release() end
 	local ok, err = pcall(spawn.teleportToLastRoad, veh, {resetVehicle = false})
 	if not ok then
@@ -1150,7 +1150,7 @@ function M.uiRelease() M.release(); pushApp() end
 function M.uiAnchorDetach() M.detachAnchor(); pushApp() end
 function M.uiTowToRoad()
 	local ok, err = M.towToRoad()
-	message(ok and "Vehicle towed to the road" or err)
+	message(ok and "Back on the road" or err)
 	pushApp()
 	return ok
 end
@@ -1258,7 +1258,7 @@ end
 function M.onVehicleDestroyed(id)
 	if held and held.id == id then M.release() end
 	if held and held.anchorVeh and held.anchorVeh.id == id then
-		M.detachAnchor("The anchor vehicle is gone – the anchor stays where it was")
+		M.detachAnchor("Anchor vehicle gone – anchor dropped")
 	end
 end
 
@@ -1268,7 +1268,7 @@ function M.onVehicleResetted(id)
 	if held and held.id == id then M.release(LOST_MESSAGES[1]) end
 	-- the anchor vehicle was reset: it is somewhere else now, the anchor stays where it was
 	if held and held.anchorVeh and held.anchorVeh.id == id then
-		M.detachAnchor("The anchor vehicle was reset – the anchor stays where it was")
+		M.detachAnchor("Anchor vehicle reset – anchor dropped")
 	end
 end
 

@@ -46,7 +46,7 @@
 				<button class="scm-btn scm-step" ng-click="changeLength('night', 1)">+</button>
 			</div>
 			<div class="scm-note" ng-if="!state.canControl && state.synced">The time of day is set by the server</div>
-			<div class="scm-note" ng-if="!state.synced">Time sync is switched off on this server</div>
+			<div class="scm-note" ng-if="!state.synced">Time sync is off on this server</div>
 		</div>
 
 		<!-- Traffic tab -->
@@ -102,7 +102,7 @@
 				<span class="scm-value" ng-bind="val('server.roadTrafficTotal') === 0 ? 'off' : val('server.roadTrafficTotal')"></span>
 				<button class="scm-btn scm-step" ng-disabled="!canEdit()" ng-click="step('server.roadTrafficTotal', 2, 0, 400)">+</button>
 			</div>
-			<div class="scm-note" ng-if="!canEdit()">Only the server owner can change settings on this server</div>
+			<div class="scm-note" ng-if="!canEdit()">Only the server owner can change these</div>
 		</div>
 
 		<!-- Players tab -->

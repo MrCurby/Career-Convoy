@@ -451,7 +451,7 @@ do
 	check(jobsOf(1).jobs[1].state == "mine" and jobsOf(0).jobs[1].state == "taken" and jobsOf(0).jobs[1].takenBy == "Ben",
 		"Ben takes the job: his, taken for the others")
 	sc_jobTake(0, json.encode({id = id}))
-	check(jobsOf(1).jobs[1].state == "mine" and lastChat(0):find("faster") ~= nil, "a second player can't take it")
+	check(jobsOf(1).jobs[1].state == "mine" and lastChat(0):find("took that job first") ~= nil, "a second player can't take it")
 	offer(0)
 	local second = jobsOf(1).jobs[2].id
 	sc_jobTake(1, json.encode({id = second}))

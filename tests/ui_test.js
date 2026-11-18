@@ -123,7 +123,7 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 		'your job, step 1: drive to the breakdown');
 	phone.emit('SharedCareerJobs', {enabled: true, jobs: [], active: {id: 3, vehicle: 'Gavril D-Series', dest: 'Belasco Auto',
 		pay: 820, phase: 'toDestination', inZone: true}});
-	check(phone.jobStep() === 1 && phone.jobStepText().indexOf('hold still') > 0, 'step 2: tow it; in the drop-off ring: hold still');
+	check(phone.jobStep() === 1 && phone.jobStepText() === 'In the ring – wait', 'step 2: tow it; in the drop-off ring: wait');
 	phone.emit('SharedCareerJobs', {enabled: true, jobs: [], active: {id: 3, vehicle: 'Gavril D-Series', dest: 'Belasco Auto',
 		pay: 820, phase: 'paid'}});
 	check(phone.jobStep() === 2 && phone.jobText().indexOf('Done') === 0, 'step 3: paid');
