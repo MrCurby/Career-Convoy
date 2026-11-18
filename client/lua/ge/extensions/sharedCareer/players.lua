@@ -116,14 +116,25 @@ end
 function M.uiNavigate(name)
 	local m = mp()
 	if not m or type(name) ~= "string" or type(m.groundmarkerFollowPlayer) ~= "function" then return end
+	U.takeRoute("players")
 	pcall(m.groundmarkerFollowPlayer, name)
 	navigating = name
 end
 
-function M.uiStopNavigate()
+local function stopFollowing()
 	local m = mp()
-	if m and type(m.groundmarkerFollowPlayer) == "function" then pcall(m.groundmarkerFollowPlayer, nil) end
+	if navigating and m and type(m.groundmarkerFollowPlayer) == "function" then pcall(m.groundmarkerFollowPlayer, nil) end
 	navigating = nil
+end
+
+function M.uiStopNavigate()
+	stopFollowing()
+	U.clearRoute("players")
+end
+
+-- A job or a gas station got the route: stop following the player, or BeamMP puts it back.
+function M.onRouteLost()
+	stopFollowing()
 end
 
 local function pinTraffic(vehId)

@@ -352,24 +352,23 @@ end
 
 function M.uiNavigate(stationId)
 	local stations = gasStations()
-	local markers = rawget(_G, "core_groundMarkers")
-	if not stations or not markers or type(markers.setPath) ~= "function" then return end
+	if not stations then return end
 	for _, station in pairs(stations) do
 		if type(station) == "table" and station.id == stationId then
 			local pos = stationPosition(station)
-			if pos then
-				local ok, err = pcall(markers.setPath, vec3(pos.x, pos.y, pos.z))
-				if ok then navigatingStation = stationId
-				else U.log("E", "fuel", "navigation to gas station failed: " .. tostring(err)) end
-			end
+			if pos and U.setRoute("fuel", pos) then navigatingStation = stationId end
 			return
 		end
 	end
 end
 
 function M.uiStopNavigate()
-	local markers = rawget(_G, "core_groundMarkers")
-	if markers and type(markers.setPath) == "function" then pcall(markers.setPath, nil) end
+	U.clearRoute("fuel")
+	navigatingStation = nil
+end
+
+-- Someone else got the route (a job, a player): the app no longer shows "Stop".
+function M.onRouteLost()
 	navigatingStation = nil
 end
 

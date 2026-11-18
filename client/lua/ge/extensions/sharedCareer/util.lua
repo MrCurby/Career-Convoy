@@ -19,10 +19,12 @@
 --   translate        a game text key in the player's language (nil if there is no text for it)
 --   facilities       the map's facilities (gas stations, garages, ...) from freeroam_facilities
 --   facilityDoor     the middle of a facility's doors, or nil
+--   takeRoute / setRoute / clearRoute
+--                    the one route on the road; a new owner makes the old one drop theirs
 
 local M = {}
 
-M.VERSION = "0.20.1"
+M.VERSION = "0.20.2"
 
 local unpack = table.unpack or unpack
 
@@ -95,6 +97,41 @@ end
 function M.config()
 	local core = M.ext("sharedCareer_core")
 	return core and core.getConfig()
+end
+
+--== Route (the game's navigation on the road) ==================================
+-- There is only one route. Who set it last owns it: players.lua (following a player),
+-- jobs.lua, fuel.lua. The owner before is told with onRouteLost() and drops its route –
+-- otherwise BeamMP's player following would keep putting the route back to the player.
+
+local routeOwner = nil   -- extension short name, e.g. "jobs"
+
+--- `owner` takes the route over; the owner before gets onRouteLost().
+function M.takeRoute(owner)
+	local before = routeOwner
+	routeOwner = owner
+	if before and before ~= owner then
+		local ext = M.ext("sharedCareer_" .. before)
+		if ext and type(ext.onRouteLost) == "function" then ext.onRouteLost() end
+	end
+end
+
+--- `owner` sets the route to pos ({x, y, z}); false if the game has no navigation.
+function M.setRoute(owner, pos)
+	local markers = rawget(_G, "core_groundMarkers")
+	if not markers or type(markers.setPath) ~= "function" then return false end
+	M.takeRoute(owner)
+	local ok, err = pcall(markers.setPath, vec3(pos.x, pos.y, pos.z))
+	if not ok then M.log("E", owner, "setting the route failed: " .. tostring(err)) end
+	return ok
+end
+
+--- Clears the route, but only if `owner` still owns it (not a route someone else set since).
+function M.clearRoute(owner)
+	if routeOwner ~= owner then return end
+	routeOwner = nil
+	local markers = rawget(_G, "core_groundMarkers")
+	if markers and type(markers.setPath) == "function" then pcall(markers.setPath, nil) end
 end
 
 --== Game texts and map facilities ==============================================
