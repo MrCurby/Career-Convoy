@@ -17,15 +17,18 @@
 --   fuel      shared fuel prices; fuel deliveries make stations cheaper for everyone
 --   welcome   welcome dialog on join (with "Don't show again")
 --   nodegrab  node grabber in the career also in a vehicle / free camera (client.allowNodeGrabber)
---   grab      rope and winch: move your own vehicles slowly by hand (Tow app, client.allowGrab)
---   phone     the phone with its apps: Jobs (jobs.lua), Tow (grab.lua), Fuel (fuel.lua)
+--   rope      ropes between your vehicles: the core of the Tow and Straps apps (client.allowRopes)
+--   tow       the Tow app: rope and winch, move your own vehicles slowly by hand
+--   straps    the Straps app: ratchet straps that hold a car on a trailer or truck
+--   phone     the phone with its apps: Jobs (jobs.lua), Tow (tow.lua), Straps (straps.lua),
+--             Fuel (fuel.lua)
 --             (client.phone, key F4)
 --   jobs      towing jobs (beta): broken-down cars, taken in the Jobs app (server.jobs)
 --
 -- Also in the mod: levels/west_coast_usa/.../garage_interactions/items.level.json –
 -- larger zones at the garage computers (replaces the map file of the same name),
 -- and the UI apps ui/modules/apps/SharedCareer-Menu/ (SharedCareer menu) and
--- ui/modules/apps/SharedCareer-Phone/ (the phone, own tab; its apps: Jobs, Tow, Fuel).
+-- ui/modules/apps/SharedCareer-Phone/ (the phone, own tab; its apps: Jobs, Tow, Straps, Fuel).
 --
 --   cleanup   UI layouts: removes Mileage leftovers (red "Unknown app" boxes) and adds the
 --             SharedCareer apps to the career layout once
@@ -55,7 +58,9 @@ loadPersistent('sharedCareer/players')
 loadPersistent('sharedCareer/fuel')
 loadPersistent('sharedCareer/welcome')
 loadPersistent('sharedCareer/nodegrab')
-loadPersistent('sharedCareer/grab')
+loadPersistent('sharedCareer/rope')
+loadPersistent('sharedCareer/tow')
+loadPersistent('sharedCareer/straps')
 loadPersistent('sharedCareer/phone')
 loadPersistent('sharedCareer/jobs')
 loadPersistent('sharedCareer/cleanup')

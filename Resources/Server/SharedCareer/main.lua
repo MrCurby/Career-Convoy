@@ -197,16 +197,16 @@ local DEFAULTS = {
 		-- camera. The normal career only allows it while walking. Makes cheating easy (flip cars,
 		-- push cargo), but handy among friends. false = the career's own rule.
 		allowNodeGrabber = true,
-		-- Our own node grabber (rope and winch, Tow app on the phone): move your own vehicles slowly, with physics –
-		-- e.g. onto a tow truck. Only own vehicles.
-		allowGrab = true,
-		-- The phone (key F4, tab at the right screen edge) with the Tow and Fuel apps.
+		-- Ropes with physics on the phone: the Tow app (rope and winch: move your own vehicles slowly,
+		-- e.g. onto a tow truck) and the Straps app (hold a car on a trailer or truck). Own vehicles only.
+		allowRopes = true,
+		-- The phone (key F4, tab at the right screen edge) with the Jobs, Tow, Straps and Fuel apps.
 		phone = true,
-		-- How fast the grabbed point moves at most, in m/s (0.2–5).
-		grabSpeed = 1,
+		-- How fast the winch in the Tow app hauls in at most, in m/s (0.2–5).
+		winchSpeed = 1,
 		-- Highest pull strength a player may pick in the Tow app, in % of the vehicle's weight
 		-- (10–150). Below 100 you can lift one end and drag or push the vehicle, but not float it.
-		grabStrength = 150,
+		winchStrength = 150,
 		-- "Tow to the road" in the Tow app: the game's own recovery (puts the vehicle on the last
 		-- road it drove on, the damage stays), free instead of the career's $75.
 		allowTowToRoad = true,
@@ -350,7 +350,10 @@ end
 
 -- settings that were renamed: new name -> old name (the old value is taken over once)
 local RENAMED = {
-	client = {addApps = "addTimeApp"}, -- 0.15.0
+	client = {
+		addApps = "addTimeApp", -- 0.15.0
+		allowRopes = "allowGrab", winchSpeed = "grabSpeed", winchStrength = "grabStrength", -- 0.22.0
+	},
 }
 
 -- settings that were dropped on purpose: name -> why (their values stay under _retired)

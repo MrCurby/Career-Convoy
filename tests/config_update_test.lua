@@ -103,7 +103,7 @@ check(cfg.client.addApps == false and cfg.client.addTimeApp == nil, "client.addT
 --== 4b. A rename several versions later still finds the value under _retired ==
 cfg = startServer(function(src)
 	src = src:gsub("\t\tdayMinutes = 50,", "\t\tdayMinutes = 50,\n\t\tdayLength = 1,", 1)
-	src = src:gsub("client = {addApps = \"addTimeApp\"},", "client = {addApps = \"addTimeApp\"},\n\tserver = {dayLength = \"dayLengthMinutes\"},", 1)
+	src = src:gsub("local RENAMED = {", "local RENAMED = {\n\tserver = {dayLength = \"dayLengthMinutes\"},", 1)
 	return src
 end)
 check(cfg.server.dayLength == 60 and (cfg._retired or {})["server.dayLengthMinutes"] == nil,

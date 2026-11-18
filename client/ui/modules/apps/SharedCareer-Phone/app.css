@@ -301,10 +301,6 @@
 .scp-pad-foot { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
 .scp-pad-foot .scp-pick { flex: none; padding: 4px 10px; }
 .scp-pad-foot .scp-hint { margin: 0; display: inline-flex; align-items: center; gap: 3px; }
-.scp-tip {
-	display: flex; align-items: center; gap: 6px; margin-top: 9px; padding: 7px 9px; border-radius: 10px; font-size: 11px; line-height: 1.3;
-	color: #c6f7d4; background: rgba(70, 200, 110, 0.14);
-}
 .scp-hooked {
 	display: flex; align-items: center; gap: 9px; padding: 9px 10px; border-radius: 12px;
 	background: linear-gradient(135deg, rgba(60, 190, 100, 0.3), rgba(60, 190, 100, 0.14)); box-shadow: inset 0 0 0 1px rgba(110, 230, 150, 0.35);
@@ -315,9 +311,26 @@
 .scp-hooked-label { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.75; }
 .scp-hooked-title { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-.scp-tip-warn { color: #ffd2a8; background: rgba(255, 140, 40, 0.18); }
-.scp-tip-off { color: rgba(255, 255, 255, 0.8); background: rgba(255, 255, 255, 0.08); }
-.scp-hooked + .scp-anchor-controls { margin-top: 8px; }
+/* Tow app: "Hook on" – shown only while the anchor is near a point it can hook onto */
+.scp-hookon { margin-top: 8px; background: rgba(255, 255, 255, 0.16); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35); }
+.scp-hookon-hitch { background: #2fa85a; box-shadow: none; }
+.scp-hookon:hover { filter: brightness(1.15); }
+.scp-tab-dot { width: 7px; height: 7px; border-radius: 50%; background: #4cd964; margin-left: 2px; }
+
+/* Straps app */
+.scp-tile-strap { color: #1d1a12; background: linear-gradient(135deg, #ffd23f, #e0a21a); }
+.scp-tile[disabled] { opacity: 0.5; cursor: default; }
+.scp-strap-step { padding: 10px; border-radius: 12px; background: rgba(255, 200, 40, 0.14); box-shadow: inset 0 0 0 1px rgba(255, 200, 40, 0.35); }
+.scp-strap-step-text { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; }
+.scp-strap-step-buttons { display: flex; gap: 6px; margin-top: 8px; }
+.scp-strap-step-buttons .scp-go { padding: 6px 14px; }
+.scp-strap-row { box-sizing: border-box; cursor: default; }
+.scp-strap-row:hover { background: rgba(255, 255, 255, 0.07); }
+.scp-dot { flex: none; width: 9px; height: 9px; border-radius: 50%; }
+.scp-dot-slack { background: rgba(255, 255, 255, 0.35); }
+.scp-dot-ok { background: #4cd964; }
+.scp-dot-high { background: #ffcc00; }
+.scp-dot-critical { background: #ff3b30; animation: scp-blink 0.5s ease-in-out infinite; }
 
 /* Tow app: the winch's and the rope's load */
 .scp-meter { display: flex; align-items: center; gap: 7px; margin-top: 6px; }

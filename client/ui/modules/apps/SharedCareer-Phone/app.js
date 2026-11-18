@@ -1,15 +1,15 @@
 // SharedCareer Phone: a tab at the right screen edge (key F4) that takes the phone out.
 // The phone shows the server time, the number of players, the connection and the apps that
 // SharedCareer extensions registered (lua/ge/extensions/sharedCareer/phone.lua). Built-in app
-// screens: Jobs (towing jobs, beta, jobs.lua), Tow (rope and winch, grab.lua) and Fuel (gas station
-// prices, fuel.lua). Apps marked beta get a "BETA" badge on the icon and in the title bar.
+// screens: Jobs (towing jobs, beta, jobs.lua), Tow (rope and winch, tow.lua), Straps (ratchet straps,
+// straps.lua) and Fuel (gas station prices, fuel.lua). Apps marked beta get a "BETA" badge on the icon and in the title bar.
 // The home screen has, below the clock, how long until day or night (with a bar for the part
 // of it that is over), and the app icons.
 //
 // Data: guihook "SharedCareerPhone" {enabled, apps} from phone.lua, "SharedCareerState" (time,
-// players, connection, fuel prices) from menu.lua every second, "SharedCareerTow" from grab.lua,
-// "SharedCareerJobs" (jobs and your job) from jobs.lua
-// while the Tow app is open, "SharedCareerPhoneToggle" from the key.
+// players, connection, fuel prices) from menu.lua every second, "SharedCareerTow" from tow.lua and
+// "SharedCareerStraps" from straps.lua while their app is open, "SharedCareerJobs" (jobs and your
+// job) from jobs.lua, "SharedCareerPhoneToggle" from the key.
 // menu.lua only sends "SharedCareerState" while someone looks: the phone reports "phone" (out)
 // and "fuel" (Fuel app open) with sharedCareer_menu.uiVisible on every change and every 2 s.
 // Opening the phone collapses the menu and the other way round (window event
@@ -100,28 +100,18 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 		if ($scope.currentApp) closeApp(); else setOpen(false);
 	};
 
-	//== Tow app (lua/ge/extensions/sharedCareer/grab.lua) ==
+	//== Tow app (lua/ge/extensions/sharedCareer/tow.lua) ==
 	$scope.tow = {allowed: true, attached: false, nearby: []};
 	$scope.towCall = function (cmd) {
-		bngApi.engineLua('if sharedCareer_grab then sharedCareer_grab.' + cmd + ' end');
+		bngApi.engineLua('if sharedCareer_tow then sharedCareer_tow.' + cmd + ' end');
 	};
 	var nudging = false;
-	$scope.heldKey = null;
 	$scope.nudge = function (f, r, u) {
 		nudging = true;
-		$scope.heldKey = f + ',' + r + ',' + u;
 		$scope.towCall('uiNudge(' + f + ',' + r + ',' + u + ')');
 	};
 	$scope.nudgeStop = function () {
-		$scope.heldKey = null;
 		if (nudging) { nudging = false; $scope.towCall('uiNudgeStop()'); }
-	};
-	// hooked onto a vehicle: the held arrow fills up until the anchor pops off
-	$scope.padFill = function (key) {
-		var t = $scope.tow;
-		if (!t.anchorVehicle || $scope.heldKey !== key || !(t.pullProgress > 0)) return {};
-		var p = Math.round(t.pullProgress * 100);
-		return {'background': 'linear-gradient(to top, rgba(255, 150, 40, 0.85) ' + p + '%, rgba(255, 255, 255, 0.1) ' + p + '%)'};
 	};
 	$scope.meters = function (v) { return typeof v === 'number' ? v.toFixed(1) + ' m' : '–'; };
 	$scope.strainText = function (s) {
@@ -154,9 +144,33 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 		return {text: 'Near breaking!', cls: 'scp-rope-critical'};
 	};
 	// tabs of the Tow app with a rope on: "anchor" (the remote) right after attaching – that's the
-	// next step –, "winch" once the anchor hooked onto a vehicle
+	// next step. Hooking on doesn't switch the tab; a dot on the Winch tab shows it's next
 	$scope.towTab = 'anchor';
 	$scope.setTowTab = function (tab) { $scope.towTab = tab; };
+	$scope.winchDot = function () { return !!$scope.tow.anchorVehicle && $scope.towTab !== 'winch'; };
+
+	//== Straps app (lua/ge/extensions/sharedCareer/straps.lua) ==
+	$scope.straps = {allowed: true, step: 0, straps: []};
+	$scope.strapsCall = function (cmd) {
+		bngApi.engineLua('if sharedCareer_straps then sharedCareer_straps.' + cmd + ' end');
+	};
+	// adding a strap by hand: what to aim at
+	$scope.strapStepText = function () {
+		return $scope.straps.step === 2 ? '2. Aim at the truck or trailer' : '1. Aim at the car';
+	};
+	// a strap's load as a colored dot: green, yellow, red near breaking; grey when slack
+	$scope.strapDot = function (s) {
+		if (s.slack) return 'scp-dot-slack';
+		if (s.load < 0.4) return 'scp-dot-ok';
+		return s.load < 0.7 ? 'scp-dot-high' : 'scp-dot-critical';
+	};
+	$scope.$on('SharedCareerStraps', function (event, data) {
+		$scope.$evalAsync(function () {
+			if (!data) return;
+			if (!Array.isArray(data.straps)) data.straps = [];
+			$scope.straps = data;
+		});
+	});
 	//== Fuel app (lua/ge/extensions/sharedCareer/fuel.lua, data with "SharedCareerState") ==
 	var SORT_KEY = "sharedCareerFuelSort";
 	$scope.fuel = null;
@@ -233,8 +247,7 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 			if (!data) return;
 			if (!Array.isArray(data.nearby)) data.nearby = [];
 			if (!Array.isArray(data.strengths)) data.strengths = [];
-			if (data.attached && !$scope.tow.attached) $scope.towTab = data.anchorVehicle ? 'winch' : 'anchor';
-			else if (data.anchorVehicle && !$scope.tow.anchorVehicle) $scope.towTab = 'winch';
+			if (data.attached && !$scope.tow.attached) $scope.towTab = 'anchor';
 			$scope.tow = data;
 		});
 	});
