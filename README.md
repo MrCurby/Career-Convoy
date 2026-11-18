@@ -13,7 +13,7 @@ One shared world (same traffic, same time of day, same traffic lights), while ev
 ![BeamNG.drive 0.39+](https://img.shields.io/badge/BeamNG.drive-0.39%2B-orange)
 ![BeamMP](https://img.shields.io/badge/BeamMP-server%20mod-blue)
 
-[Features](#features) · [Quick start](#quick-start) · [Server setup](docs/server-setup.md) · [In-game guide](docs/features.md) · [Settings & commands](docs/configuration.md) · [Development](docs/development.md)
+[Features](#features) · [Quick start](#quick-start) · [Server setup](docs/server-setup.md) · [In-game guide](docs/features.md) · [Settings & commands](docs/configuration.md) · [Report a bug](#help-and-bug-reports)
 
 </div>
 
@@ -46,7 +46,8 @@ Without these, the career breaks or behaves strangely on a multiplayer server.
 |---|---|---|
 | <img src="docs/icons/save.svg" width="20" height="20" alt=""> **Career starts on join, own save** | Your career loads by itself when you join. Each player has their own save, tied to their BeamMP account, so renaming your account keeps your save. | No (core of the mod) |
 | <img src="docs/icons/shield.svg" width="20" height="20" alt=""> **Safe career start** | Loading your career no longer deletes your friends' cars, and the garage no longer creates duplicate cars. | No |
-| <img src="docs/icons/traffic-light.svg" width="20" height="20" alt=""> **Same world for everyone** | Same time of day and same traffic light cycle for everyone. Cars that the career hides or shows (garage, dealer) are hidden or shown for everyone too. | Time and traffic lights: yes |
+| <img src="docs/icons/traffic-light.svg" width="20" height="20" alt=""> **Same world for everyone** | Same time of day and same traffic light cycle for everyone. Cars that the career or the traffic hides or shows are hidden or shown for everyone too, so nobody drives through a car only the other one sees. | Time and traffic lights: yes |
+| <img src="docs/icons/car.svg" width="20" height="20" alt=""> **Cars look the same for everyone** | A crashed car looks the way its driver sees it, on every screen (BeamMP alone only syncs parts that fall off). Trailers and dollies stay coupled for everyone. Your traffic doesn't appear on top of other players, and other players' cars no longer blow up when someone opens a menu. | Damage: yes |
 | <img src="docs/icons/car.svg" width="20" height="20" alt=""> **Traffic that doesn't overload the server** | The server splits a total traffic limit across all players, and traffic uses simplified cars that are cheap to sync. Your traffic no longer carries your name tag. | Limit and simple cars: yes |
 | <img src="docs/icons/fuel.svg" width="20" height="20" alt=""> **Same fuel price for everyone** | Normally every player rolls their own random price at the same station. With SharedCareer everyone pays the same. | Yes (together with the fuel extra below) |
 
@@ -154,12 +155,48 @@ The full guide, including manual installation, backups and rollback, is in **[do
 | Guide | Contents |
 |---|---|
 | [Server setup](docs/server-setup.md) | Installation, `server.sh`, updates, rollback, save games |
-| [In-game guide](docs/features.md) | The menu, welcome dialog, players tab, fuel economy, traffic, garage computers |
+| [In-game guide](docs/features.md) | The menu, welcome dialog, players tab, fuel economy, traffic, what everyone sees the same, garage computers, rope and winch, towing jobs, phone |
 | [Settings & commands](docs/configuration.md) | Chat and console commands, every setting in `config.json` |
 | [Development](docs/development.md) | Building, tests, releases, how the mod works inside, known limitations, project status |
 
-## Status
+## Status and known limits
 
-SharedCareer is under active development and was tested with **BeamNG.drive 0.40.5**, **BeamMP 4.23.1** and **BeamMP-Server 3.9.3** on Linux. Joining, the career start, traffic, vehicle and damage sync, buying cars, the shared time of day and the garage computers have been tested with real players.
+SharedCareer is under active development and was tested with **BeamNG.drive 0.40.5**, **BeamMP 4.23.1** and **BeamMP-Server 3.9.3** on Linux. Joining, the career start, traffic, buying cars, the shared time of day and the garage computers have been tested with real players.
 
-Found a bug? Please [open an issue](https://github.com/MrCurby/SharedCareer/issues) and add the lines containing `sharedCareer` from your `beamng.log`.
+Good to know before you play:
+
+- **West Coast USA** is the map SharedCareer is made for. Other maps work, with smaller garage-computer zones.
+- **A crashed car takes its driver's shape on your screen once it stands still for a moment.** While it drives on, it can look a bit different for you.
+- **Missions run per player.** Others don't see your mission props and cones.
+- **Money lives in your own save.** The server only checks money transfers.
+- **A BeamNG or BeamMP update can break things** until SharedCareer is updated. The log then names what is missing.
+
+More details: [Known limitations](docs/development.md#known-limitations).
+
+## Help and bug reports
+
+Search the [existing issues](https://github.com/MrCurby/SharedCareer/issues) first, then [open a new one](https://github.com/MrCurby/SharedCareer/issues/new). Please include:
+
+- The SharedCareer version (`beamng.log` shows it as `SharedCareer <version> loaded`) and your BeamNG.drive and BeamMP versions
+- What you did, what you expected and what happened, ideally with a screenshot
+- Whether it happened to one player or to everyone
+- The SharedCareer lines from `beamng.log` of the affected session. The game overwrites this file on the next start, so copy it before you restart.
+
+Where to find `beamng.log`:
+
+| System | File |
+|---|---|
+| Windows | `%LOCALAPPDATA%\BeamNG\BeamNG.drive\current\beamng.log` |
+| Linux | `~/.local/share/BeamNG/BeamNG.drive/current/beamng.log` |
+
+On Linux this prints the relevant lines:
+
+```bash
+grep -E "sharedCareer|Instability|FATAL" ~/.local/share/BeamNG/BeamNG.drive/current/beamng.log | tail -50
+```
+
+Logs can contain your user name and folder paths. Check them before you post.
+
+## Credits
+
+SharedCareer is a community mod and is not affiliated with BeamNG GmbH or the BeamMP team.

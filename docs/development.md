@@ -153,7 +153,8 @@ The mod ships a modified copy of a West Coast USA level file (`career_garage/gar
 ## Known limitations
 
 - The game interfaces the mod hooks into (`career_career`, `core_vehicles`, BeamMP's `MPVehicleGE`, …) come from BeamNG 0.39/0.40. If BeamNG changes them, the mod needs an update. Errors show up in `beamng.log` under `sharedCareer.*`.
-- BeamMP itself only syncs parts that break off; SharedCareer syncs the deformation of player vehicles (`damage.lua`) once a crash is over and the car stands still on the other PCs, so while it drives on after a crash it can look different there. Per-part paint, races and drag strips are not part of SharedCareer.
+- BeamMP itself only syncs parts that break off; SharedCareer syncs the deformation of player vehicles (`damage.lua`) once a crash is over and the car stands still on the other PCs, so while it drives on after a crash it can look different there. Traffic and parked cars keep the damage each PC works out itself. Per-part paint, races and drag strips are not part of SharedCareer.
+- Coupling sync (`couplings.lua`) uses BeamMP's own coupling and leaves couplings that involve one of your own vehicles to your physics.
 - Missions run per player. Others don't see your mission props and cones.
 - Money lives in the local save. Someone who edits their save can cheat. The server only checks transfers.
 

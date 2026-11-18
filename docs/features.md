@@ -8,6 +8,7 @@ Everything players see and use in the game. All texts in the game are in English
 - [Finding other players](#finding-other-players)
 - [Shared fuel prices](#shared-fuel-prices)
 - [Traffic](#traffic)
+- [Everyone sees the same cars](#everyone-sees-the-same-cars)
 - [Time of day](#time-of-day)
 - [Garage](#garage)
 - [Node grabber](#node-grabber)
@@ -117,7 +118,7 @@ Open the phone (**F4**) and tap **Fuel**:
 ## Traffic
 
 - Traffic spawns as **simplified vehicles** (`simple_traffic`). They look a bit plainer, but cost much less to sync between all players.
-- The **AI drives more carefully** than in single player. Two settings do that, and police are not affected by either:
+- The **AI drives more carefully** than in single player. These settings do that, and police are not affected by any of them:
   - lower *aggression* (`client.trafficAggression`): more distance to the car ahead, earlier braking behind it
   - a lower *grip estimate* (`client.trafficGrip`): the AI thinks its tires grip less, so it brakes earlier and more gently at intersections and traffic lights and takes corners more slowly
   - a larger *safety gap* (`client.trafficReactionGap`) and a longer *sight range* (`client.trafficSightRange`): the AI notices a slow or standing vehicle on its path earlier (about 190 m instead of 114 m ahead at 100 km/h) and starts braking sooner. This helps when you maneuver a truck on the road. It does not make traffic drive slower.
@@ -133,6 +134,16 @@ Open the phone (**F4**) and tap **Fuel**:
 - **Raising** it works immediately up to the pool size, shown as "live up to …" in the menu. Anything above that applies on your next join.
 
 Spawning new cars in the middle of the game would make BeamMP build them on every PC at once, which causes stutter. That is why the mod uses a reserve instead.
+
+## Everyone sees the same cars
+
+In BeamMP every car belongs to one player: only that player's PC really drives it, and everyone else sees a copy. SharedCareer keeps those copies true to the original:
+
+- **Hidden and shown cars:** the game keeps swapping traffic cars in and out, and the career hides cars in the garage. Every player reports what is hidden every second, so nobody bumps into a car only they can see.
+- **Spawning:** your traffic and parked cars keep about 40 m away from other players, so they don't appear on top of them or vanish right next to them.
+- **Damage:** a crashed car takes its driver's shape on your screen once it stands still for a moment, including dents, broken glass and lights. If you saw a crash the driver didn't (a car only you could see), the car is straightened again. Traffic keeps the damage your own PC works out. Server owners can turn this off (`client.syncDamage`).
+- **Trailers and dollies** stay coupled for everyone, also for players who join later.
+- **Pausing:** opening a menu, the big map or a garage computer pauses your game. Other players' cars no longer blow up because of that.
 
 ## Time of day
 
