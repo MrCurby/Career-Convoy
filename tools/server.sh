@@ -15,8 +15,9 @@
 #   ./server.sh cmd "sc time"  send a command to the server console, e.g. "sc get"
 #   ./server.sh update         install the newest GitHub release (stop, back up, unpack,
 #                              start) – only if it differs from the installed version
-#   ./server.sh update --dev   the same with the newest dev build (every push to the "dev"
-#                              branch, version like 0.16.0-dev.ab12cd3) – for a test server
+#   ./server.sh update --dev   the same with the newest dev build, from whichever branch was
+#                              pushed last (version like 0.16.0-dev.ab12cd3) – for a test server
+#   ./server.sh update --dev=my-branch   the newest dev build of that branch
 #   ./server.sh update --release  the newest release, also where CHANNEL="dev" is set
 #   ./server.sh update --force the same, even if that version is already installed
 #   ./server.sh update x.zip   install a specific zip from this folder
@@ -25,6 +26,7 @@
 # Put the GitHub repository into server.conf (same folder):
 #   REPO="MrCurby/SharedCareer"
 #   CHANNEL="release"          what "update" installs: "release" or "dev" (a test server)
+#   BRANCH=""                  with CHANNEL="dev": only dev builds of this branch (empty = any)
 #   GITHUB_TOKEN=""            only needed for a private repository (token with read access)
 #   BACKUPS_KEEP=5             update backups to keep (sharedcareer-backup-*.tgz); 0 = keep all
 # Without REPO, "update" installs the newest SharedCareer-*.zip in this folder.
@@ -44,7 +46,8 @@ REPO="${SC_REPO:-}"
 API="${SC_API:-https://api.github.com}"   # only changed for testing
 GITHUB_TOKEN="${GITHUB_TOKEN:-}"
 CHANNEL="release"
-DEV_TAG="dev-build"   # the GitHub pre-release the dev workflow replaces on every push to "dev"
+BRANCH=""
+DEV_PREFIX="build-"   # tag of a branch's dev build: build-<branch>, a GitHub pre-release (dev-build.yml)
 BACKUPS_KEEP=5
 # shellcheck disable=SC1091
 [ -f "$DIR/server.conf" ] && . "$DIR/server.conf"
@@ -226,19 +229,47 @@ gh_curl() {
 	fi
 }
 
-# Gets the newest package of a channel ("release" or "dev"). Sets REMOTE_VERSION (from the zip's
-# name, SharedCareer-<version>.zip) and REMOTE_ASSET (API address of the zip). With "quiet", a
-# missing package returns 1 instead of stopping.
+# GET from the GitHub API; prints the JSON (curl's own error message is hidden, the callers say
+# what went wrong).
+api_get() {
+	gh_curl -H "Accept: application/vnd.github+json" "$1" 2>/dev/null
+}
+
+# The tag of a branch's dev build: build-<branch>, every character other than A-Z a-z 0-9 . _ -
+# replaced by "-" (the same as dev-build.yml does).
+dev_tag() {
+	printf '%s%s' "$DEV_PREFIX" "$(printf '%s' "$1" | sed 's/[^A-Za-z0-9._-]/-/g')"
+}
+
+# Gets the newest package: channel "release" (newest release) or "dev" (the newest dev build of
+# branch $2, or of any branch if $2 is empty). Sets REMOTE_VERSION (from the zip's name,
+# SharedCareer-<version>.zip), REMOTE_ASSET (API address of the zip) and REMOTE_BRANCH (dev
+# builds). With "quiet" ($3), a missing package returns 1 instead of stopping.
 fetch_remote() {
-	local channel="$1" quiet="${2:-}"
+	local channel="$1" branch="${2:-}" quiet="${3:-}"
 	if ! command -v curl >/dev/null 2>&1; then red "curl is missing. Install it with:  sudo apt install curl"; exit 1; fi
-	local url="$API/repos/$REPO/releases/latest" what="release"
-	if [ "$channel" = dev ]; then url="$API/repos/$REPO/releases/tags/$DEV_TAG"; what="dev build"; fi
-	local json
-	if ! json="$(gh_curl -H "Accept: application/vnd.github+json" "$url")"; then
+	local url="$API/repos/$REPO/releases/latest" what="release" json
+	if [ "$channel" = dev ]; then
+		what="dev build"
+		local tag
+		if [ -n "$branch" ]; then
+			tag="$(dev_tag "$branch")"
+			what="dev build of branch $branch"
+		elif json="$(api_get "$API/repos/$REPO/releases?per_page=50")"; then
+			# newest first: the dev build pushed last
+			tag="$(printf '%s' "$json" | grep -o "\"tag_name\": *\"$DEV_PREFIX[^\"]*\"" | head -n 1 | sed 's/.*"\([^"]*\)"$/\1/')"
+		fi
+		if [ -z "${tag:-}" ]; then
+			[ -n "$quiet" ] && return 1
+			red "No dev build on GitHub ($REPO) – one appears after the next push to a branch other than main."
+			exit 1
+		fi
+		url="$API/repos/$REPO/releases/tags/$tag"
+	fi
+	if ! json="$(api_get "$url")"; then
 		[ -n "$quiet" ] && return 1
 		if [ "$channel" = dev ]; then
-			red "No dev build on GitHub ($REPO) – it appears after the first push to the \"dev\" branch."
+			red "No $what on GitHub ($REPO). Is the branch name right, and was it pushed since?"
 		else
 			red "GitHub request failed ($REPO). Is the repository name in server.conf right? A private repository needs GITHUB_TOKEN."
 		fi
@@ -246,6 +277,8 @@ fetch_remote() {
 	fi
 	REMOTE_VERSION="$(printf '%s' "$json" | grep -o '"name": *"SharedCareer-[^"]*\.zip"' | head -n 1 | sed 's/.*"SharedCareer-\(.*\)\.zip"$/\1/')"
 	REMOTE_ASSET="$(printf '%s' "$json" | grep -o '"url": *"[^"]*/releases/assets/[0-9]*"' | head -n 1 | sed 's/.*"\(http[^"]*\)"$/\1/')"
+	# the dev build's title ends with "from <branch>"
+	REMOTE_BRANCH="$(printf '%s' "$json" | grep -o '"name": *"SharedCareer dev build [^"]* from [^"]*"' | head -n 1 | sed 's/.* from \([^"]*\)"$/\1/')"
 	if [ -z "$REMOTE_VERSION" ] || [ -z "$REMOTE_ASSET" ]; then
 		[ -n "$quiet" ] && return 1
 		red "The newest $what of $REPO has no zip."; exit 1
@@ -259,10 +292,15 @@ cmd_check() {
 	fetch_remote release
 	local release="$REMOTE_VERSION" dev=""
 	info "Newest release on GitHub ($REPO): $release"
-	if fetch_remote dev quiet; then dev="$REMOTE_VERSION"; info "Newest dev build: $dev"; fi
+	if fetch_remote dev "$BRANCH" quiet; then
+		dev="$REMOTE_VERSION"
+		info "Newest dev build: $dev${REMOTE_BRANCH:+ (branch $REMOTE_BRANCH)}"
+	fi
 	local want="$release"
 	[ "$CHANNEL" = dev ] && want="$dev"
-	if [ -n "$want" ] && [ "$have" = "$want" ]; then
+	if [ -z "$want" ]; then
+		info "No dev build${BRANCH:+ of branch $BRANCH} yet – nothing to update to."
+	elif [ "$have" = "$want" ]; then
 		green "Up to date ($CHANNEL)."
 	else
 		green "Update available: ./server.sh update"
@@ -284,15 +322,15 @@ clean_backups() {
 # Downloads the newest package of a channel into the folder; prints the file name (empty =
 # already up to date).
 download_remote() {
-	local channel="$1" force="$2"
-	fetch_remote "$channel"
+	local channel="$1" branch="$2" force="$3"
+	fetch_remote "$channel" "$branch"
 	local have; have="$(installed_version)"
 	if [ "$have" = "$REMOTE_VERSION" ] && [ "$force" != 1 ]; then
 		green "Already up to date (version $have). To reinstall anyway: ./server.sh update --force" >&2
 		return 0
 	fi
 	local file="$DIR/SharedCareer-$REMOTE_VERSION.zip"
-	info "Downloading SharedCareer $REMOTE_VERSION from GitHub ($REPO) ..." >&2
+	info "Downloading SharedCareer $REMOTE_VERSION${REMOTE_BRANCH:+ (branch $REMOTE_BRANCH)} from GitHub ($REPO) ..." >&2
 	if ! gh_curl -H "Accept: application/octet-stream" -o "$file.part" "$REMOTE_ASSET" || ! unzip -tq "$file.part" >/dev/null 2>&1; then
 		rm -f "$file.part"; red "Download failed." >&2; exit 1
 	fi
@@ -302,11 +340,12 @@ download_remote() {
 
 cmd_update() {
 	if ! command -v unzip >/dev/null 2>&1; then red "unzip is missing. Install it with:  sudo apt install unzip"; exit 1; fi
-	local zip="" force=0 channel="$CHANNEL" a
+	local zip="" force=0 channel="$CHANNEL" branch="$BRANCH" a
 	for a in "$@"; do
 		case "$a" in
 			--force|-f) force=1 ;;
 			--dev) channel=dev ;;
+			--dev=*) channel=dev; branch="${a#--dev=}" ;;
 			--release) channel=release ;;
 			"") ;;
 			*) zip="$a" ;;
@@ -316,7 +355,7 @@ cmd_update() {
 		red "CHANNEL in server.conf must be \"release\" or \"dev\" (it is \"$channel\")."; exit 1
 	fi
 	if [ -z "$zip" ] && [ -n "$REPO" ]; then
-		zip="$(download_remote "$channel" "$force")" || exit 1
+		zip="$(download_remote "$channel" "$branch" "$force")" || exit 1
 		[ -z "$zip" ] && return 0
 	elif [ -z "$zip" ]; then
 		zip="$(ls -1 "$DIR"/SharedCareer-*.zip 2>/dev/null | sort -V | tail -n 1)"
@@ -348,7 +387,7 @@ cmd_update() {
 }
 
 usage() {
-	sed -n '2,33p' "$DIR/server.sh" | sed 's/^# \{0,1\}//'
+	sed -n '2,35p' "$DIR/server.sh" | sed 's/^# \{0,1\}//'
 }
 
 main() {
