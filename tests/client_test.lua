@@ -2408,6 +2408,160 @@ check(#dialogs == 1 and dialogs[1].kind == "server" and dialogs[1].title:find("g
 	"server message as a dialog in the window")
 _G.MPGameNetwork = nil
 
+--== 7j. Damage: the owner's damage counts =====================================
+;(function()
+	resetWorld()
+	installCareer()
+	extensions.hook("onWorldReadyState", 2)
+	handlers.sc_config(json.encode(config))
+	local objects = {}
+	_G.map = {objects = objects}
+	local vecMeta = {__unm = function(a) return setmetatable({x = -a.x, y = -a.y, z = -a.z}, getmetatable(a)) end}
+	_G.vec3 = function(x, y, z)
+		if type(x) == "table" then x, y, z = x.x, x.y, x.z end
+		return setmetatable({x = x, y = y, z = z}, vecMeta)
+	end
+	_G.quatFromDir = function() return {x = 0, y = 0, z = 0, w = 1} end
+	local mine = addVehicle(40, "0-5", true)
+	local theirs = addVehicle(41, "1-5", false)
+	theirs.getPosition = function() return {x = 1, y = 2, z = 3} end
+	theirs.getDirectionVector = function() return {x = 0, y = 1, z = 0} end
+	theirs.getDirectionVectorUp = function() return {x = 0, y = 0, z = 1} end
+	theirs.setPositionRotation = function(self, x, y, z) self.resetAt = {x, y, z} end
+	theirs.resetBrokenFlexMesh = function(self) self.flexReset = true end
+	objects[40], objects[41] = {damage = 0}, {damage = 0}
+	local function hasCmd(v, pattern)
+		for _, cmd in ipairs(v.lua) do if cmd:find(pattern) then return true end end
+		return false
+	end
+	update(0.6)
+	check(not hasCmd(mine, "damageSnapshot"), "undamaged own vehicle: nothing sent")
+	objects[40].damage = 800
+	update(0.6)
+	check(not hasCmd(mine, "damageSnapshot"), "damage still changing: not yet")
+	update(0.6); update(0.6); update(0.6)
+	check(hasCmd(mine, "damageSnapshot"), "crash over: the own vehicle sends its damage")
+	mine.lua = {}
+	update(0.6); update(0.6); update(0.6)
+	check(not hasCmd(mine, "damageSnapshot"), "the same damage is sent only once")
+	sharedCareer_damage.onSnapshot(40, '{"n":3,"d":[1,0.5],"b":[2]}')
+	local msg = lastSent("sc_damage")
+	check(msg and msg.id == "0-5" and msg.damage.n == 3 and msg.damage.b[1] == 2, "own damage goes to the server")
+	sentToServer = {}
+	sharedCareer_damage.onSnapshot(41, '{"n":3,"d":[],"b":[]}')
+	check(lastSent("sc_damage") == nil, "never sends the damage of someone else's vehicle")
+
+	-- the owner's damage arrives: applied to the other player's vehicle
+	handlers.sc_damage(json.encode({id = "1-5", damage = {n = 3, d = {1, 0.5}, b = {}}}))
+	update(0.6)
+	check(hasCmd(theirs, "damageApply%(jsonDecode"), "the owner's damage is applied")
+	-- arrives before the vehicle is spawned here: applied once it is
+	handlers.sc_damage(json.encode({id = "1-6", damage = {n = 2, d = {}, b = {}}}))
+	update(0.6)
+	local late = addVehicle(42, "1-6", false)
+	objects[42] = {damage = 0}
+	update(0.6)
+	check(hasCmd(late, "damageApply"), "damage for a vehicle spawned later: applied once it's here")
+
+	-- crashed only here: ask the owner once the crash is over, not again right away
+	sentToServer = {}
+	objects[41].damage = 300
+	update(0.6); update(0.6); update(0.6); update(0.6)
+	msg = lastSent("sc_damageRequest")
+	check(msg and msg.id == "1-5", "crashed only here: the owner is asked for his damage")
+	sentToServer = {}
+	objects[41].damage = 400
+	update(0.6); update(0.6); update(0.6); update(0.6)
+	check(lastSent("sc_damageRequest") == nil, "not asked again within a few seconds")
+
+	-- a part broke only here: reset in place, then the damage again
+	theirs.lua = {}
+	sharedCareer_damage.onNeedsReset(41)
+	check(theirs.resetAt and theirs.resetAt[1] == 1 and theirs.flexReset, "broken only here: reset in place")
+	update(0.6)
+	check(hasCmd(theirs, "damageApply"), "after the reset the owner's damage is applied again")
+	theirs.resetAt = nil
+	sharedCareer_damage.onNeedsReset(41)
+	check(theirs.resetAt == nil, "no second reset right away")
+
+	-- someone asks for our damage
+	mine.lua = {}
+	update(3)
+	handlers.sc_damageRequest(json.encode({id = "0-5"}))
+	check(hasCmd(mine, "damageSnapshot"), "asked for our damage: sent again")
+	theirs.lua = {}
+	handlers.sc_damageRequest(json.encode({id = "1-5"}))
+	check(not hasCmd(theirs, "damageSnapshot"), "a request for someone else's vehicle is ignored")
+
+	-- turned off on the server
+	local off = {}
+	for k, v in pairs(config) do off[k] = v end
+	off.syncDamage = false
+	handlers.sc_config(json.encode(off))
+	mine.lua = {}
+	objects[40].damage = 2000
+	update(0.6); update(0.6); update(0.6); update(0.6)
+	check(not hasCmd(mine, "damageSnapshot"), "client.syncDamage = false: nothing is sent")
+	_G.map, _G.vec3, _G.quatFromDir = nil, nil, nil
+end)()
+
+--== 7k. Damage: vehicle side ====================================================
+;(function()
+	-- 4 beams: 0 fine, 1 bent, 2 broken, 3 bent only on this PC
+	local beams = {}
+	for cid = 0, 3 do beams[cid] = {cid = cid} end
+	local rest = {[0] = 1, [1] = 0.8, [2] = 1, [3] = 1}
+	local deform = {[0] = 0, [1] = 0.2, [2] = 0, [3] = 0}
+	local broken = {[2] = true}
+	local ge, set, broke = {}, {}, {}
+	local env = setmetatable({
+		v = {data = {beams = beams}},
+		jsonEncode = json.encode,
+		obj = {
+			getId = function() return 90 end,
+			queueGameEngineLua = function(_, cmd) table.insert(ge, cmd) end,
+			beamIsBroken = function(_, cid) return broken[cid] == true end,
+			getBeamDeformation = function(_, cid) return deform[cid] end,
+			getBeamRestLength = function(_, cid) return rest[cid] end,
+			setBeamLength = function(_, cid, len) rest[cid] = len; set[cid] = len end,
+			breakBeam = function(_, cid) broken[cid] = true; broke[cid] = true end,
+		},
+	}, {__index = _G})
+	local chunk = assert(loadfile("client/lua/vehicle/extensions/auto/sharedCareerVeh.lua"))
+	setfenv(chunk, env)
+	local veh = chunk()
+	veh.damageSnapshot()
+	local raw = ge[#ge] and ge[#ge]:match('onSnapshot%(90, "(.*)"%)')
+	local snap = raw and json.decode((raw:gsub('\\"', '"')))
+	check(snap and snap.n == 4 and snap.d[1] == 1 and snap.d[2] == 0.8 and snap.b[1] == 2 and #snap.d == 2,
+		"snapshot: bent beam with its length, broken beam, beam count")
+
+	-- another PC: beam 1 not bent yet, beam 2 not broken, beam 3 bent only here (original 1)
+	rest = {[0] = 1, [1] = 1, [2] = 1, [3] = 1}
+	deform = {[0] = 0, [1] = 0, [2] = 0, [3] = 0}
+	broken = {}
+	veh.onReset()
+	veh.damageApply({n = 4, d = {}, b = {}}) -- reads the original lengths while undamaged
+	rest[3], deform[3] = 0.7, 0.3
+	veh.damageApply({n = 4, d = {1, 0.8}, b = {2}})
+	check(set[1] == 0.8, "bent beam takes the owner's length")
+	check(broke[2] == true, "beam broken at the owner breaks here too")
+	check(set[3] == 1, "beam bent only here is straightened")
+	check(set[0] == nil, "an untouched beam stays as it is")
+
+	-- a beam broken only here: asks for a reset, changes nothing
+	ge, set = {}, {}
+	broken[0] = true
+	veh.damageApply({n = 4, d = {1, 0.8}, b = {2}})
+	check(ge[1] and ge[1]:find("sharedCareer_damage.onNeedsReset%(90%)"), "broken only here: asks for a reset")
+	check(next(set) == nil, "nothing changed before the reset")
+	-- another vehicle build (beam count): ignored
+	ge = {}
+	broken[0] = nil
+	veh.damageApply({n = 5, d = {1, 0.5}, b = {}})
+	check(#ge == 0 and next(set) == nil, "different beam count: ignored")
+end)()
+
 --== 8. Money ===================================================================
 resetWorld()
 installCareer({money = 1000})

@@ -8,6 +8,7 @@
 --   traffic   traffic amount from the server, simple vehicles, more careful AI
 --   garage    garage: no duplicate cars, visible player on foot, computers from a distance
 --   vehicles  other players' cars: visibility, name tags, collision (ghost)
+--   damage    other players' vehicles show the owner's damage (client.syncDamage)
 --   money     money transfers between players (/pay)
 --   env       time of day from the server, environment locked in the pause menu
 --   menu      settings in the SharedCareer menu (traffic, options) – apply to everyone; menu key
@@ -44,6 +45,7 @@ loadPersistent('sharedCareer/protect')
 loadPersistent('sharedCareer/traffic')
 loadPersistent('sharedCareer/garage')
 loadPersistent('sharedCareer/vehicles')
+loadPersistent('sharedCareer/damage')
 loadPersistent('sharedCareer/money')
 loadPersistent('sharedCareer/env')
 loadPersistent('sharedCareer/menu')

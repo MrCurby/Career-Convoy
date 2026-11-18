@@ -92,6 +92,7 @@ About a minute later the release is on GitHub, and `./server.sh update` installs
 | Your name tag above every one of your traffic cars | Traffic and parked cars are marked and their name tags hidden | `vehicles.lua` |
 | Your police or traffic "takes over" other players | Remote cars get `ignoreTraffic` | `vehicles.lua` |
 | Your traffic and parked cars appear on top of other players, or vanish right next to them | Other players' own vehicles (not their traffic) get the game's `trafficClearRadius` (40 m): traffic spawn points, traffic respawns and parking spots keep that distance | `vehicles.lua` |
+| Every PC works out the deformation itself (BeamMP only syncs parts that break off): a car that hits something only one PC sees looks crashed there only | The owner's damage counts: once its damage hasn't changed for 1.5 s, an own vehicle sends its deformed beams (rest lengths) and broken beams (`sharedCareerVeh.damageSnapshot`, `sc_damage`); the others set the same rest lengths, break the same beams and straighten beams that only bent there (`damageApply`). A copy that crashed only on one PC asks the owner (`sc_damageRequest`); a part that broke only there is mended by resetting the copy in place. The server keeps the latest damage per vehicle for players who join later | `damage.lua`, `sharedCareerVeh.lua`, server |
 | **Duplicate cars** when tuning, changing parts or painting | BeamMP rebuilds the wrong car, so `getPlayerVehicle(0)` points at the right one for that call | `garage.lua` |
 | Other players on foot are invisible | A visible BeamMP unicycle variant | `garage.lua` |
 | You have to stand exactly in front of a garage computer | Enlarged computer zones on West Coast USA (generated from the original level file), plus a range boost while playing on other maps | `levels/…`, `tools/zones/`, `garage.lua` |
@@ -150,7 +151,7 @@ The mod ships a modified copy of a West Coast USA level file (`career_garage/gar
 ## Known limitations
 
 - The game interfaces the mod hooks into (`career_career`, `core_vehicles`, BeamMP's `MPVehicleGE`, …) come from BeamNG 0.39/0.40. If BeamNG changes them, the mod needs an update. Errors show up in `beamng.log` under `sharedCareer.*`.
-- Damage is synced by BeamMP itself. Per-part paint, races and drag strips are not part of SharedCareer.
+- BeamMP itself only syncs parts that break off; SharedCareer syncs the deformation (`damage.lua`) once a crash is over, so during a crash the cars can look different for a moment. Per-part paint, races and drag strips are not part of SharedCareer.
 - Missions run per player. Others don't see your mission props and cones.
 - Money lives in the local save. Someone who edits their save can cheat. The server only checks transfers.
 
