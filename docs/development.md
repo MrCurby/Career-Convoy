@@ -14,11 +14,12 @@
 ```
 client/                          client mod (packed into Resources/Client/SharedCareer.zip)
   lua/ge/extensions/sharedCareer/  game-engine Lua, one file per area (see below)
-  lua/vehicle/extensions/auto/     vehicle Lua (sharedCareerVeh: ghost, AI, rope, jobs, damage;
+  lua/vehicle/extensions/auto/     vehicle Lua (sharedCareerVeh: ghost, AI, ropes, jobs, damage;
                                    sharedCareerPauseGuard: BeamMP's position sync during a pause)
   scripts/sharedCareer/            mod entry point (loads the extensions)
   ui/modules/apps/                 the two UI apps: SharedCareer-Menu (the menu with the steering
-                                   wheel) and SharedCareer-Phone (phone with the Tow and Fuel apps)
+                                   wheel) and SharedCareer-Phone (phone with the Jobs, Tow, Straps
+                                   and Fuel apps)
   levels/west_coast_usa/…          enlarged garage-computer zones (generated, see tools/zones)
 Resources/Server/SharedCareer/   server plugin (main.lua)
 tests/                           mock-based tests for client and server
@@ -42,7 +43,7 @@ tools/version_check.sh   # a branch that changes the mod must raise the version,
                          # tools/server.sh its SCRIPT_REVISION (PR check)
 ```
 
-The tests rebuild the BeamNG and BeamMP APIs as mocks and play through joining, career start, garage, visibility, traffic, time sync, the node grabber, rope and winch, the phone, UI layout cleanup, fuel prices, payments, the menu and the welcome dialog. The menu and phone windows (`app.js`) run in node with stand-ins for AngularJS and `bngApi` (`tests/ui_mock.js`, `tests/ui_test.js`); a timeline of random clicks on them is then replayed against the real `menu.lua` (`tests/ui_replay.lua`). They check the logic, but **they don't replace testing in the real game**. UI changes were additionally checked by rendering the apps in a headless browser.
+The tests rebuild the BeamNG and BeamMP APIs as mocks and play through joining, career start, garage, visibility, traffic, time sync, the node grabber, rope and winch, straps, the phone, UI layout cleanup, fuel prices, payments, the menu and the welcome dialog. The menu and phone windows (`app.js`) run in node with stand-ins for AngularJS and `bngApi` (`tests/ui_mock.js`, `tests/ui_test.js`); a timeline of random clicks on them is then replayed against the real `menu.lua` (`tests/ui_replay.lua`). They check the logic, but **they don't replace testing in the real game**. UI changes were additionally checked by rendering the apps in a headless browser.
 
 ## Branches: a branch per change, then main
 
@@ -112,11 +113,12 @@ One line per problem. Each file starts with a comment that explains the details.
 | New players don't know the features | Welcome dialog with "Don't show again" | `welcome.lua` |
 | Red "Unknown app" boxes after switching from Mileage | Mileage apps are removed from the players' layouts, with a backup first | `cleanup.lua` |
 | The career blocks the node grabber in a vehicle and in the free camera | After every input filter change (hook `onActionFilterUpdated`) only the career's group `careerNodeGrabberActions` is lifted; other blocks (certification test) stay | `nodegrab.lua` |
-| The career's node grabber is too weak to move heavy vehicles (engine limit) | Own rope and winch, run from the Tow app. The vehicle Lua pulls the nodes around the grip at the physics rate (`onPhysicsStep`, `applyForceVector`): a stiff, pull-only rope with a winch motor that stalls at the pull limit and a rope that snaps on a hard jolt | `grab.lua`, `sharedCareerVeh.lua` |
-| Towing on the rope: the anchor on another vehicle | The anchor hooks onto a tow hitch near it (`anchorNear` / `onAnchorNode`) once the button is let go. Then it moves with that vehicle, and the rope's pull goes back to it (`onRopePull` → `anchorPull`) | `grab.lua`, `sharedCareerVeh.lua` |
-| A rope must never pull a vehicle that was reset or teleported back to its old anchor, or drag a torn-off part | The vehicle drops the rope on a reset, a jump or a torn-off tie node (`onHandLost`); the GE side also releases it after a reset and when the vehicle stops reporting | `sharedCareerVeh.lua`, `grab.lua` |
-| The rope end stuttered (the vehicle reports its grip only 10 times per second) | The GE side draws the rope end from the tie node's position every frame | `grab.lua` |
-| A vehicle wrapped around a lamp post can't be pulled free, and the career's "Tow to road" costs $75 | "To the road" in the Tow app uses the game's own `spawn.teleportToLastRoad`, free, while the vehicle stands still and isn't chased by the police | `grab.lua` |
+| The career's node grabber is too weak to move heavy vehicles (engine limit) | Own ropes with physics. The vehicle Lua pulls the nodes around the grip at the physics rate (`onPhysicsStep`, `applyForceVector`): a stiff, pull-only rope with a winch motor that stalls at the pull limit and a rope that snaps on a hard jolt. A vehicle holds several ropes at once, each under the rope id the GE side gave it. `rope.lua` keeps them all, talks to the vehicles and draws them; the Tow app (`tow.lua`) and the Straps app (`straps.lua`) use it | `rope.lua`, `tow.lua`, `sharedCareerVeh.lua` |
+| Towing on the rope: the anchor on another vehicle | Nothing hooks on by itself. Your vehicles near the anchor name their tow hitches and the point where it would hook on (`anchorNear` → `onAnchorNear`: a hitch within 0.7 m, else the nearest sturdy node within 0.5 m); the Tow app shows it as a ring and offers "Hook on" (`anchorHook` → `onAnchorNode`). Then the anchor moves with that vehicle, at the speed of its node (from its movement, so turning counts), and the rope's pull goes back to it (`onRopePull` → `anchorPull`) | `rope.lua`, `tow.lua`, `sharedCareerVeh.lua` |
+| A car on a trailer slides off | Straps: ropes of kind STRAP from the car to the vehicle below, without a winch, pulled tight by 1.2 cm when hooked on and softer than a winch line. "Strap down" asks the car for four sturdy, low corners (`strapCorners`) and your vehicles near it for the nearest sturdy node below each (`hookBelow`) | `straps.lua`, `rope.lua`, `sharedCareerVeh.lua` |
+| A rope must never pull a vehicle that was reset or teleported back to its old anchor, or drag a torn-off part | The vehicle drops the rope on a reset, a jump or a torn-off tie node (`onRopeLost`); the GE side also releases it after a reset and when the vehicle stops reporting | `sharedCareerVeh.lua`, `rope.lua` |
+| The rope end stuttered (the vehicle reports its grip only 10 times per second) | The GE side draws the rope end from the tie node's position every frame | `rope.lua` |
+| A vehicle wrapped around a lamp post can't be pulled free, and the career's "Tow to road" costs $75 | "To the road" in the Tow app uses the game's own `spawn.teleportToLastRoad`, free, while the vehicle stands still and isn't chased by the police | `tow.lua` |
 | One place for SharedCareer apps | The phone with an app registry (`phone.registerApp`); the UI app is only a tab at the screen edge | `phone.lua`, `ui/…/SharedCareer-Phone` |
 | Sending money to other players | `/pay` as a two-step transfer with refund | `money.lua`, server |
 | Towing jobs (beta) for everyone | The server keeps one job list and asks a client to make up each job (roadside spot, old car, repair shop). The taker spawns the broken-down car (`jobBreakDown`), new damage lowers the pay, and the server pays exactly once, also after a crash or reconnect (`config/payouts.json`, `sc_jobPaid` / `sc_jobPaidAck`) | `jobs.lua`, `sharedCareerVeh.lua`, server, `ui/…/SharedCareer-Phone` |

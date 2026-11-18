@@ -64,8 +64,8 @@ These go beyond the normal career. They are on by default unless noted, and each
 | <img src="docs/icons/fuel.svg" width="20" height="20" alt=""> **Cheaper fuel through deliveries** | Deliver gasoline or diesel to a station and it gets cheaper there for everyone for a while. The **Fuel** app on the phone shows the cheapest station. | Yes |
 | <img src="docs/icons/monitor.svg" width="20" height="20" alt=""> **Garage computers from a distance** | Use the garage computer from anywhere in the room instead of standing right in front of it. | On other maps: yes. On West Coast USA it comes from a map file in the mod, so it's always on |
 | <img src="docs/icons/grab.svg" width="20" height="20" alt=""> **Node grabber everywhere** | Grab and pull vehicles with the mouse also from a vehicle or the free camera, not only while walking. It stays as weak as in the career, so it's for nudging cars, not throwing them. | Yes (back to the career's rule) |
-| <img src="docs/icons/grab.svg" width="20" height="20" alt=""> **Rope and winch** | Move vehicles that can't drive: drag them out of a ditch, pull them onto a tow truck or tow them behind another car. It all runs in the **Tow** app on the phone. A car stuck on a lamp post can be put back on the road for free. Your own vehicles only. | Yes |
-| <img src="docs/icons/phone.svg" width="20" height="20" alt=""> **Phone** | A phone in the game (key **F4**, or the tab at the right screen edge) with the server time and the number of players, and three apps: **Jobs** (towing jobs, beta), **Tow** (rope and winch as a remote control) and **Fuel** (gas station prices). | Yes |
+| <img src="docs/icons/grab.svg" width="20" height="20" alt=""> **Rope, winch and straps** | Move vehicles that can't drive: drag them out of a ditch, pull them onto a tow truck or tow them behind another car, all in the **Tow** app on the phone. Then strap the car down on the truck or trailer with the **Straps** app. A car stuck on a lamp post can be put back on the road for free. Your own vehicles only. | Yes |
+| <img src="docs/icons/phone.svg" width="20" height="20" alt=""> **Phone** | A phone in the game (key **F4**, or the tab at the right screen edge) with the server time and the number of players, and four apps: **Jobs** (towing jobs, beta), **Tow** (rope and winch as a remote control), **Straps** (strap a car down on a trailer) and **Fuel** (gas station prices). | Yes |
 | <img src="docs/icons/car.svg" width="20" height="20" alt=""> **Towing jobs** *(beta)* | Broken-down cars at the roadside, one list for everyone in the **Jobs** app: take a job, drive there, tow the car to a repair shop and get paid. New damage on the way costs part of the pay. | Yes |
 | <img src="docs/icons/money.svg" width="20" height="20" alt=""> **Send money** | `/pay <name> <amount>` in chat, with an automatic refund if something goes wrong. | Yes |
 | <img src="docs/icons/message.svg" width="20" height="20" alt=""> **Welcome dialog** | A short overview when you join. Each player can pick "Don't show again". | Yes |
@@ -156,7 +156,7 @@ The full guide, including manual installation, backups, rollback and switching f
 | Guide | Contents |
 |---|---|
 | [Server setup](docs/server-setup.md) | Installation, `server.sh`, updates, rollback, save games, switching from Mileage |
-| [In-game guide](docs/features.md) | The menu, welcome dialog, players tab, fuel economy, traffic, what everyone sees the same, garage computers, rope and winch, towing jobs, phone |
+| [In-game guide](docs/features.md) | The menu, welcome dialog, players tab, fuel economy, traffic, what everyone sees the same, garage computers, rope and winch, straps, towing jobs, phone |
 | [Settings & commands](docs/configuration.md) | Chat and console commands, every setting in `config.json` |
 | [Development](docs/development.md) | Building, tests, releases, how the mod works inside, known limitations, project status |
 

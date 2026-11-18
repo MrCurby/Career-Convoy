@@ -264,8 +264,10 @@ local function rxConfigUpdate(data)
 	if nodegrab and nodegrab.onConfigChanged then nodegrab.onConfigChanged() end
 	local phone = U.ext("sharedCareer_phone")
 	if phone and phone.onConfigChanged then phone.onConfigChanged() end
-	local grab = U.ext("sharedCareer_grab")
-	if grab and grab.onConfigChanged then grab.onConfigChanged() end
+	for _, name in ipairs({"sharedCareer_rope", "sharedCareer_tow", "sharedCareer_straps"}) do
+		local ropes = U.ext(name)
+		if ropes and ropes.onConfigChanged then ropes.onConfigChanged() end
+	end
 	local jobs = U.ext("sharedCareer_jobs")
 	if jobs and jobs.onConfigChanged then jobs.onConfigChanged() end
 	-- Update the menu immediately (for everyone who has it open right now)

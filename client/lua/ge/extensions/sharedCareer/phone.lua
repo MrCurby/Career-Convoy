@@ -2,7 +2,7 @@
 --
 -- A phone in the game, the home for SharedCareer apps. The home screen shows the server time,
 -- how long until day or night (with a bar), the number of players and the app grid. Apps so far:
--- Jobs (jobs.lua, beta), Tow (grab.lua) and Fuel (fuel.lua).
+-- Jobs (jobs.lua, beta), Tow (tow.lua), Straps (straps.lua) and Fuel (fuel.lua).
 --
 -- The UI is the app ui/modules/apps/SharedCareer-Phone/: a small tab with a phone icon at the
 -- right screen edge (below the menu); the phone itself opens above it. Key: F4 by default
@@ -14,10 +14,10 @@
 -- beta = true marks the app as experimental (a "BETA" badge on its icon and in its title bar).
 -- The phone shows every registered app on the home screen; a tap calls uiOpenApp(id), which
 -- calls the app's onOpen; leaving the app (home, putting the phone away) calls uiCloseApp(id) ->
--- onClose. Apps are only listed while client.phone is on. Tow and Fuel have their own screens
+-- onClose. Apps are only listed while client.phone is on. Tow, Straps and Fuel have their own screens
 -- in the phone window (app.html).
 --
--- icon: a short text (letter), or the name of a built-in icon the window knows ("jobs", "tow", "fuel").
+-- icon: a short text (letter), or the name of a built-in icon the window knows ("jobs", "tow", "straps", "fuel").
 --
 -- guihooks: SharedCareerPhone {enabled, apps = [{id, title, icon, color, beta}]} (state),
 --           SharedCareerPhoneToggle (key). Time and players come with "SharedCareerState"

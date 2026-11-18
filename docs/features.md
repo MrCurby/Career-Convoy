@@ -13,6 +13,7 @@ Everything players see and use in the game. All texts in the game are in English
 - [Garage](#garage)
 - [Node grabber](#node-grabber)
 - [Moving your vehicles by hand (rope and winch)](#moving-your-vehicles-by-hand-rope-and-winch)
+- [Strapping a car down (straps)](#strapping-a-car-down-straps)
 - [Towing jobs (beta)](#towing-jobs-beta)
 - [Phone](#phone)
 - [Sending money](#sending-money)
@@ -170,11 +171,15 @@ The game's node grabber is too weak in the career to move a heavy car, so Shared
 
 <img src="images/phone-tow-attach.png" width="200" alt="Tow app: attach a rope"> <img src="images/phone-tow.png" width="200" alt="Tow app: remote control and winch">
 
-1. **Attach the rope:** open the phone (**F4**) → **Tow**, then tap **Where I look** (a blue ball shows the spot) or one of **your vehicles nearby**.
+1. **Attach the rope:** open the phone (**F4**) → **Tow**, then tap **Attach rope** – it goes where you look, a blue ball shows the spot – or one of **your vehicles** below it.
 2. **Place the anchor:** hold the arrows to move it, **Up** / **Down** to raise or lower it, **Fine** for slow, exact moves. The vehicle stays put while the rope just gets longer.
 3. **Pull:** **Haul in** winds the rope and pulls the vehicle to the anchor. **Pay out** gives rope, for example to lower a lifted end. **Stop** locks the rope at its length, like a tow rope.
 
-**Towing with another vehicle:** your vehicles show their tow hitches as **green rings** near the anchor. Move the anchor onto one and let go of the button, and it hooks on with a green flash. Now the anchor moves with that vehicle: drive off to tow, or stand still and haul in like a tow truck. To move it to another hitch, hold an arrow for a moment until it pops off. Drive off gently, because a hard jolt can snap the rope.
+With a rope on, everything is on one screen: at the top the rope itself – your vehicle, the rope with its length and state, the anchor – then the **Winch** panel and the **Anchor** panel with the remote. The rope there sags while it is slack, turns orange and red under a high load, and marks run along it while the winch turns.
+
+**Towing with another vehicle:** the anchor can go onto any of your vehicles, at any point. Move it close to one: a **ring** shows where it would hook on, with a dashed line from the anchor. It is **green** on a tow hitch and **white** elsewhere. Tow hitches within a few meters show as faint green rings, so you can find them. Then tap **Hook on**; nothing hooks on by itself. The anchor now moves with that vehicle: drive off to tow, or stand still and haul in like a tow truck. **Unhook** leaves the anchor where it is, and you can move it again. Drive off gently, because a hard jolt can snap the rope.
+
+The ring picks a tow hitch within 0.7 m first, otherwise the nearest sturdy point within 0.5 m. Light parts like mirrors, glass or thin panels are passed over if a sturdy point is in reach, because the rope would only tear them off.
 
 **Pull strength:** pick 30, 60, 100 or 150 % of the vehicle's weight in the app (60 % at first). If the vehicle doesn't follow, it's stuck or the parking brake is on: pick more.
 
@@ -193,7 +198,24 @@ The game's node grabber is too weak in the career to move a heavy car, so Shared
 - The rope behaves like a real one: it is stiff, only pulls and never pushes, and snaps only on a hard jolt. The winch alone never breaks it.
 - The rope comes off by itself when the vehicle is reset or recovered, when the part it's tied to tears off, or when it snaps.
 - It works on your own vehicles and your own traffic only. Other players' cars are driven by their PCs. You can't rope the vehicle you are sitting in, but you can hook the anchor onto it to tow.
-- Server admins can switch it off (`client.allowGrab`), set the winch speed (`client.grabSpeed`) and the highest pull strength (`client.grabStrength`). "To the road" can be switched off on its own (`client.allowTowToRoad`).
+- Server admins can switch it off (`client.allowRopes`, together with the Straps app), set the winch speed (`client.winchSpeed`) and the highest pull strength (`client.winchStrength`). "To the road" can be switched off on its own (`client.allowTowToRoad`).
+
+## Strapping a car down (straps)
+
+A car on a flatbed or a trailer slides off in the first curve. The **Straps** app on the phone holds it down with ratchet straps, like real tie-down straps: each one runs from the car to the truck or trailer below it and is pulled tight when it goes on.
+
+- **Strap down:** look at the car and tap it. Four straps go on at once, one at each corner of the car, down to the nearest sturdy point of your vehicle below. If a corner has nothing in reach, it is left out ("3 of 4 strapped").
+- **Add strap:** one strap by hand. *1.* Look at the car (a blue ball shows where the strap goes) and tap **Here**. *2.* Look at the truck or trailer (a ring shows where it hooks on) and tap **Here**. A dashed line runs from the car to the ring; it turns red if the strap would be longer than 3 m. **Cancel** takes it off again.
+- **The list** shows every strap with a dot for its load: green is fine, yellow is high, red is close to snapping, grey is slack. Remove one with its button, or all with **Remove all**.
+
+In the world, straps are a **wide yellow band** with a **ratchet** (a dark block with a yellow lever) at the lower end. Like the rope, they turn orange and red under a high load.
+
+Good to know:
+
+- Drive gently with a load. A strap only snaps on a hard jolt, but a crash can tear it.
+- A strap comes off when the car or the truck is reset or removed, when the part it holds tears off, or when it snaps.
+- Your own vehicles only, like the rope. You can have the rope and straps at the same time, for example to winch a car onto a flatbed and then strap it down.
+- Server admins switch straps on and off together with the rope (`client.allowRopes`).
 
 ## Towing jobs (beta)
 
@@ -224,6 +246,7 @@ Apps:
 
 - **Jobs** *(beta)*: towing jobs, see [Towing jobs](#towing-jobs-beta). Apps that are still experimental carry a **BETA** badge.
 - **Tow:** rope and winch as a remote control, see [Moving your vehicles by hand](#moving-your-vehicles-by-hand-rope-and-winch).
+- **Straps:** strap a car down on a truck or trailer, see [Strapping a car down](#strapping-a-car-down-straps).
 - **Fuel:** gas station prices, see [Fuel app on the phone](#fuel-app-on-the-phone).
 
 - The bar at the bottom goes back to the home screen from an app, or puts the phone away.

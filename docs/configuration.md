@@ -127,10 +127,10 @@ The file is `Resources/Server/SharedCareer/config/config.json`. It is created on
 |---|---|---|
 | `client.allowConsole` | `false` | Allow the in-game Lua console |
 | `client.allowWorldEditor` | `false` | Allow the world editor |
-| `client.phone` | `true` | The phone (key F4, tab at the right screen edge) with the Jobs, Tow and Fuel apps |
-| `client.allowGrab` | `true` | Rope and winch in the Tow app on the phone: move your own vehicles slowly, with physics |
-| `client.grabSpeed` | `1` | How fast the winch hauls in at most, in m/s (0.2–5) |
-| `client.grabStrength` | `150` | Highest pull strength a player may pick in the Tow app, in % of the vehicle's weight (10–150). Below 100 you can lift one end and drag or push the vehicle, but not float it. |
+| `client.phone` | `true` | The phone (key F4, tab at the right screen edge) with the Jobs, Tow, Straps and Fuel apps |
+| `client.allowRopes` | `true` | Ropes with physics on the phone: the Tow app (rope and winch, move your own vehicles slowly) and the Straps app (strap a car down on a truck or trailer). Before 0.22.0: `allowGrab` |
+| `client.winchSpeed` | `1` | How fast the winch hauls in at most, in m/s (0.2–5). Before 0.22.0: `grabSpeed` |
+| `client.winchStrength` | `150` | Highest pull strength a player may pick in the Tow app, in % of the vehicle's weight (10–150). Below 100 you can lift one end and drag or push the vehicle, but not float it. Before 0.22.0: `grabStrength` |
 | `client.allowTowToRoad` | `true` | "Tow to the road" in the Tow app: puts a vehicle the rope can't free (the one you look at, or the one on the rope) on the last road it drove on, free of charge (the career's own recovery menu charges $75). The damage stays. |
 | `client.allowNodeGrabber` | `true` | Node grabber (grab and pull vehicles with the mouse) also in a vehicle and in the free camera. The normal career only allows it while walking. The vehicle certification test still blocks it. `false` = the career's own rule. |
 

@@ -99,17 +99,33 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 		'night, clock paused: bar over midnight');
 	phone.emit('SharedCareerState', {hour: 2, connected: false});
 	check(phone.dayText() === 'Not connected' && phone.phaseProgress() === null, 'not connected: no bar');
-	// Tow app: right after attaching the Anchor tab (the next step), once hooked onto a vehicle the Winch tab
-	phone.emit('SharedCareerTow', {allowed: true, attached: false, nearby: []});
-	phone.setTowTab('winch');
-	phone.emit('SharedCareerTow', {allowed: true, attached: true, strengths: [30, 60]});
-	check(phone.towTab === 'anchor', 'rope attached: the Anchor tab opens');
-	phone.setTowTab('anchor');
-	phone.emit('SharedCareerTow', {allowed: true, attached: true, anchorVehicle: 'Pickup', anchorHitch: true});
-	check(phone.towTab === 'winch' && phone.strainText(0.95) === 'At the limit', 'hooked onto a vehicle: the Winch tab opens');
-	phone.setTowTab('anchor');
-	phone.emit('SharedCareerTow', {allowed: true, attached: true, anchorVehicle: 'Pickup', anchorHitch: true});
-	check(phone.towTab === 'anchor', 'later updates leave the tab you picked');
+	// Tow app: one screen; the rope strip sags while slack, marks run while the winch turns
+	phone.emit('SharedCareerTow', {allowed: true, attached: true, slack: true, winch: 0, strengths: [30, 60]});
+	check(phone.ropePath().includes('Q') && !phone.ropeRunning(), 'slack rope, winch stopped: it sags, no marks');
+	phone.emit('SharedCareerTow', {allowed: true, attached: true, slack: false, winch: 1, strain: 0.5});
+	check(phone.ropePath().includes('L') && phone.ropeRunning(), 'taut, hauling in: straight, marks run');
+	phone.emit('SharedCareerTow', {allowed: true, attached: true, slack: false, winch: 1, strain: 1});
+	check(!phone.ropeRunning() && phone.strainText(0.95) === 'At the limit', 'the winch at its limit: the marks stand');
+	phone.emit('SharedCareerTow', {allowed: true, attached: true, slack: true, winch: -1});
+	check(phone.ropeRunning(), 'paying out: marks run');
+	// Tow app: the buttons go to tow.lua
+	let calls = env.calls.length;
+	phone.towCall('uiHookOn()');
+	phone.nudge(1, 0, 0);
+	phone.nudgeStop();
+	check(env.calls.slice(calls).join(' ').includes('sharedCareer_tow.uiHookOn()')
+		&& env.calls.slice(calls).join(' ').includes('sharedCareer_tow.uiNudgeStop()'), 'Tow app: calls go to tow.lua');
+	// Straps app: steps by hand, the straps' load as dots, calls to straps.lua
+	phone.emit('SharedCareerStraps', {allowed: true, step: 1});
+	check(Array.isArray(phone.straps.straps) && phone.strapStepText() === '1. Aim at the car', 'Straps app: step 1, aim at the car');
+	phone.emit('SharedCareerStraps', {allowed: true, step: 2, aimed: true, tooFar: true, straps: []});
+	check(phone.strapStepText() === '2. Aim at the truck or trailer' && phone.straps.tooFar, 'step 2: aim at the truck; too far');
+	check(phone.strapDot({slack: true, load: 0.9}) === 'scp-dot-slack' && phone.strapDot({slack: false, load: 0.1}) === 'scp-dot-ok'
+		&& phone.strapDot({slack: false, load: 0.5}) === 'scp-dot-high' && phone.strapDot({slack: false, load: 0.8}) === 'scp-dot-critical',
+		'a strap\'s load as a dot: grey slack, green, yellow, red');
+	calls = env.calls.length;
+	phone.strapsCall('uiStrapDown()');
+	check(env.calls[calls] && env.calls[calls].includes('sharedCareer_straps.uiStrapDown()'), 'Straps app: calls go to straps.lua');
 	// Tow app: the winch's load as segments, the rope's load in words
 	phone.emit('SharedCareerTow', {allowed: true, attached: true, slack: false, winch: 1, strain: 0.5, ropeLoad: 0.1});
 	check(phone.segStyle(4).background && !phone.segStyle(5).background && phone.ropeState().text === 'OK',
