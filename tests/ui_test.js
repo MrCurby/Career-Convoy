@@ -87,29 +87,19 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 	check(phone.fuel && phone.fuel.stations.length === 1, 'fuel = false (app closed): the last list stays');
 	phone.emit('SharedCareerState', {hour: 11, connected: true});
 	check(phone.fuel === null && phone.time === 11, 'no fuel (map without stations): empty list; time updated');
-	// home screen: time until day / night with a bar, other players, cheapest fuel
+	// home screen: time until day / night with a bar
 	phone.emit('SharedCareerPhone', {enabled: true, apps: [{id: 'tow'}, {id: 'fuel'}]});
 	phone.emit('SharedCareerState', {hour: 13, isDay: true, secondsToSwitch: 1380, dayStart: 6, nightStart: 20, connected: true,
-		players: {list: [{name: 'Me', status: 'driving', me: true}, {name: 'Ben', status: 'mission'},
-			{name: 'Ann', status: 'walking'}, {name: 'C', status: 'driving'}, {name: 'D', status: 'loading'}, {name: 'E'}]},
-		fuelCheapest: {gasoline: {id: 'gas2', name: 'Gas 2', price: 3.2, unit: 'gal', discount: 0, distance: 400},
-			diesel: {id: 'apex', name: 'Apex', price: 3, unit: 'gal', discount: 10, distance: 1500}}});
+		players: {list: [{name: 'Me', status: 'driving', me: true}, {name: 'Ben', status: 'mission'}]}});
 	check(phone.dayText() === 'Night in 23 min' && Math.abs(phone.phaseProgress() - 0.5) < 1e-9,
 		'home screen: "Night in 23 min", half of the day over (' + phone.dayText() + ', ' + phone.phaseProgress() + ')');
-	check(phone.others.length === 5 && phone.shownOthers().length === 4 && phone.moreOthers() === 1
-		&& phone.statusOf(phone.others[0]).text === 'Mission', 'players widget: the others, at most 4 and "+ 1 more"');
-	const fuels = phone.cheapestFuels;
-	check(fuels.length === 2 && fuels[0].key === 'G' && fuels[0].price === '$3.20/gal' && fuels[0].distance === '400 m'
-		&& fuels[1].discount === 10 && fuels[1].distance === '1.5 km', 'fuel widget: cheapest gasoline and diesel');
-	phone.openFuel();
-	check(phone.currentApp && phone.currentApp.id === 'fuel', 'a tap on the fuel widget opens the Fuel app');
-	phone.goHome();
+	check(phone.playerCount() === 2, 'the number of players in the status bar');
 	phone.emit('SharedCareerState', {hour: 2, isDay: false, paused: true, dayStart: 6, nightStart: 20, connected: true});
-	check(phone.dayText() === 'Night · paused' && Math.abs(phone.phaseProgress() - 0.6) < 1e-9 && phone.others.length === 0
-		&& phone.cheapestFuels.length === 0, 'night, clock paused: bar over midnight; no players, no fuel widget');
+	check(phone.dayText() === 'Night · paused' && Math.abs(phone.phaseProgress() - 0.6) < 1e-9,
+		'night, clock paused: bar over midnight');
 	phone.emit('SharedCareerState', {hour: 2, connected: false});
 	check(phone.dayText() === 'Not connected' && phone.phaseProgress() === null, 'not connected: no bar');
-	// Jobs app (beta): list, your job, the steps; the widget and the Tow strip open it
+	// Jobs app (beta): list, your job, the steps; the strip in the Tow app opens it
 	phone.emit('SharedCareerPhone', {enabled: true, apps: [{id: 'jobs', title: 'Jobs', beta: true}, {id: 'tow'}, {id: 'fuel'}]});
 	phone.emit('SharedCareerJobs', {enabled: true, jobs: [
 		{id: 1, vehicle: 'Gavril Grand Marshal', dest: 'Belasco Auto', pay: 600, state: 'open', length: 2600, distance: 1200},
@@ -127,7 +117,7 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 		pay: 820, phase: 'paid'}});
 	check(phone.jobStep() === 2 && phone.jobText().indexOf('Done') === 0, 'step 3: paid');
 	phone.openJobs();
-	check(phone.currentApp && phone.currentApp.id === 'jobs' && phone.currentApp.beta === true, 'the job widget opens the Jobs app (beta)');
+	check(phone.currentApp && phone.currentApp.id === 'jobs' && phone.currentApp.beta === true, 'the job strip opens the Jobs app (beta)');
 	phone.goHome();
 	phone.destroy();
 	check(last(env, 'phone') === false && last(env, 'fuel') === false, 'phone window removed: not visible');

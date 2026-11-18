@@ -47,41 +47,6 @@
 						<span class="scp-app-title" ng-bind="app.title"></span>
 					</button>
 				</div>
-				<!-- widgets: other players, cheapest fuel -->
-				<div class="scp-widgets" ng-if="connected">
-					<button class="scp-widget scp-widget-tap scp-widget-job" ng-if="jobs.active && jobStep() < 2 && hasApp('jobs')" ng-click="openJobs()"
-						title="Open the Jobs app">
-						<div class="scp-widget-title">Your job <span class="scp-beta-pill scp-beta-small">BETA</span></div>
-						<div class="scp-widget-row">
-							<span class="scp-row-name scp-widget-strong" ng-bind="jobs.active.vehicle"></span>
-							<span class="scp-row-right" ng-bind="money(jobs.active.pay)"></span>
-						</div>
-						<div class="scp-widget-row">
-							<span class="scp-row-name" ng-bind="jobStepText()"></span>
-							<span class="scp-row-right" ng-if="jobs.active.distance !== undefined" ng-bind="formatDistance(jobs.active.distance)"></span>
-						</div>
-					</button>
-					<div class="scp-widget">
-						<div class="scp-widget-title">Players</div>
-						<div class="scp-widget-row" ng-repeat="p in shownOthers() track by p.name">
-							<i class="scp-dot" ng-style="{'background': statusOf(p).color}"></i>
-							<span class="scp-row-name" ng-bind="p.name"></span>
-							<span class="scp-row-right" ng-bind="statusOf(p).text"></span>
-						</div>
-						<div class="scp-widget-more" ng-if="moreOthers() > 0" ng-bind="'+ ' + moreOthers() + ' more'"></div>
-						<div class="scp-widget-empty" ng-if="!others.length">Nobody else online</div>
-					</div>
-					<button class="scp-widget scp-widget-tap" ng-if="cheapestFuels.length && hasApp('fuel')" ng-click="openFuel()"
-						title="Open the Fuel app">
-						<div class="scp-widget-title">Cheapest fuel</div>
-						<div class="scp-widget-row" ng-repeat="f in cheapestFuels track by f.key">
-							<span class="scp-fuelkey" ng-bind="f.key"></span>
-							<span class="scp-widget-price" ng-class="{'scp-price-off': f.discount > 0}">{{ f.price }}<span class="scp-disc" ng-if="f.discount > 0"> −{{ f.discount }}%</span></span>
-							<span class="scp-row-name" ng-bind="f.name"></span>
-							<span class="scp-row-right" ng-if="f.distance" ng-bind="f.distance"></span>
-						</div>
-					</button>
-				</div>
 				<div class="scp-empty" ng-if="!apps.length">
 					<svg class="scp-empty-logo" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.3" fill="none" stroke="currentColor" stroke-width="2.2"/><circle cx="12" cy="12.6" r="2.7" fill="currentColor"/><path d="M3.2 11.2 Q12 8.2 20.8 11.2 M12 15.3 V21.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
 					<div class="scp-empty-title">No apps yet</div>

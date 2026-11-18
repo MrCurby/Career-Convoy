@@ -213,7 +213,7 @@ Cars break down at the roadside, and somebody has to tow them to a repair shop. 
 
 - **Pay:** $150 plus $120 per km of the tow, 25 % more with a flat tire. The server can change it (`client.jobPay`).
 - **Damage costs:** new damage on the way costs part of the pay, up to half of it. Dragging the car along on the rope is allowed, but it usually costs more than loading it.
-- **Your job on the phone:** the Jobs app shows your job with its steps (*Pick up → Tow → Paid*), the distance and **Route** to set the route again. The home screen and the Tow app show it too.
+- **Your job on the phone:** the Jobs app shows your job with its steps (*Pick up → Tow → Paid*), the distance and **Route** to set the route again. The Tow app shows it in a small strip at the top.
 - **Give up** in the Jobs app removes the car; the job is open again for everyone. If you leave the server or don't finish within 30 minutes, it is open again too.
 - New jobs come in by themselves, at most 3 open at a time. They appear only on normal roads and never right next to a player.
 
@@ -221,12 +221,7 @@ Cars break down at the roadside, and somebody has to tow them to a repair shop. 
 
 <img src="images/phone.png" width="240" alt="The SharedCareer phone">
 
-Press **F4** or click the phone tab at the right screen edge (directly below the SharedCareer menu's tab) to take out your phone. It shows the server's time, how many players are on the server and whether you're connected. Its home screen also has:
-
-- **Day and night:** below the clock, how long until night (or day), and a bar for how much of the day or night is over.
-- **Your job:** while you have a towing job, what to do next and how far it is. Tap it to open the Jobs app.
-- **Players:** the other players with what they are doing right now (driving, mission, on foot, loading), each with a colored dot.
-- **Cheapest fuel:** the cheapest station for gasoline and for diesel, with the price, a discount from deliveries and the distance. Tap it to open the Fuel app.
+Press **F4** or click the phone tab at the right screen edge (directly below the SharedCareer menu's tab) to take out your phone. It shows the server's time, how many players are on the server and whether you're connected. Below the clock it says how long until night (or day), with a bar for how much of the day or night is over.
 
 Apps:
 

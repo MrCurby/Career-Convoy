@@ -350,26 +350,6 @@ function M.overview()
 	return {stations = list, navigating = navigatingStation, enabled = enabled}
 end
 
---- The cheapest station for each fuel, for the phone's home screen: {gasoline = {id, name, price,
---- unit, discount, distance}, diesel = ...}, or nil without stations. At the same price the nearer
---- one. ov: an overview() that was just made (optional).
-function M.cheapest(ov)
-	ov = ov or M.overview()
-	if not ov then return nil end
-	local best = {}
-	for _, st in ipairs(ov.stations) do
-		for fuel, p in pairs(st.fuels) do
-			local b = best[fuel]
-			local same = b and math.abs(p.price - b.price) < 1e-6
-			if not b or (p.price < b.price and not same) or (same and (st.distance or math.huge) < (b.distance or math.huge)) then
-				best[fuel] = {id = st.id, name = st.name, price = p.price, unit = p.unit, discount = p.discount,
-					distance = st.distance}
-			end
-		end
-	end
-	return next(best) and best or nil
-end
-
 function M.uiNavigate(stationId)
 	local stations = gasStations()
 	local markers = rawget(_G, "core_groundMarkers")

@@ -6,8 +6,7 @@
 --   "Traffic", "Options" tabs   the settings below (settingsState)
 --   "Players" tab      players.lua
 --   fuel prices        fuel.lua (only while the Fuel app is open; the phone reads the same guihook)
--- The phone's home screen uses the same state (time, players, connection), plus the cheapest
--- station per fuel (fuel.lua cheapest, only while the phone is out).
+-- The phone's home screen uses the same state (time, players, connection).
 --
 -- Only while someone looks: the windows report what is visible with uiVisible(view, on) –
 --   "menu"   the menu is expanded
@@ -95,21 +94,15 @@ function M.state()
 	local players = U.ext("sharedCareer_players")
 	if players then state.players = players.state() end
 	-- fuel: the station list while the Fuel app is open (nil = no stations on this map);
-	-- false while it is closed, so the phone keeps its last list instead of an empty one.
-	-- While the phone is out: the cheapest station per fuel, for its home screen.
-	local fuel = U.ext("sharedCareer_fuel")
-	local overview = nil
+	-- false while it is closed, so the phone keeps its last list instead of an empty one
 	if M.isVisible("fuel") then
+		local fuel = U.ext("sharedCareer_fuel")
 		if fuel then
-			local ok, ov = pcall(fuel.overview)
-			if ok then state.fuel, overview = ov, ov end
+			local ok, overview = pcall(fuel.overview)
+			if ok then state.fuel = overview end
 		end
 	else
 		state.fuel = false
-	end
-	if fuel and M.isVisible("phone") then
-		local ok, cheapest = pcall(fuel.cheapest, overview)
-		if ok then state.fuelCheapest = cheapest end
 	end
 	return state
 end

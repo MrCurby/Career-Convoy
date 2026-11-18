@@ -54,21 +54,6 @@
 .scp-phase-bar i { display: block; height: 100%; border-radius: 2px; background: #ffb340; transition: width 1s linear; }
 .scp-phase-night .scp-phase-bar i { background: #7a8cff; }
 
-/* widgets below the apps */
-.scp-widgets { margin-top: 16px; padding-bottom: 10px; display: flex; flex-direction: column; gap: 8px; }
-.scp-widget {
-	display: block; width: 100%; box-sizing: border-box; text-align: left; padding: 9px 12px 8px; border: none; border-radius: 16px;
-	background: rgba(255, 255, 255, 0.08); backdrop-filter: blur(6px); color: #fff; font-family: inherit; font-size: 12px;
-}
-.scp-widget-tap { cursor: pointer; }
-.scp-widget-tap:hover { background: rgba(255, 255, 255, 0.13); }
-.scp-widget-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; opacity: 0.6; margin-bottom: 4px; }
-.scp-widget-row { display: flex; align-items: center; gap: 7px; padding: 2px 0; min-width: 0; }
-.scp-widget-row .scp-row-name { flex: 1; }
-.scp-widget-row .scp-row-right { margin-left: 0; font-size: 11px; }
-.scp-widget-price { white-space: nowrap; font-weight: 600; font-variant-numeric: tabular-nums; }
-.scp-widget-more, .scp-widget-empty { font-size: 11px; opacity: 0.6; padding-top: 2px; }
-.scp-dot { display: block; width: 8px; height: 8px; border-radius: 50%; flex: none; box-shadow: 0 0 6px currentColor; }
 .scp-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px 6px; align-content: start; }
 .scp-app {
 	display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 0;
@@ -267,12 +252,6 @@
 .scp-jobstrip:hover { filter: brightness(1.15); }
 .scp-jobstrip-label { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; padding: 2px 6px; border-radius: 6px; background: rgba(255, 255, 255, 0.22); }
 
-/* home screen: your job */
-.scp-widget-job { background: linear-gradient(135deg, rgba(47, 111, 224, 0.45), rgba(90, 63, 196, 0.45)); }
-.scp-widget-job:hover { background: linear-gradient(135deg, rgba(47, 111, 224, 0.6), rgba(90, 63, 196, 0.6)); }
-.scp-widget-job .scp-widget-title { display: flex; align-items: center; gap: 6px; opacity: 0.85; }
-.scp-widget-strong { font-weight: 700; font-size: 13px; }
-.scp-beta-small { margin-left: 0; padding: 0 5px; font-size: 8px; line-height: 13px; }
 
 /* Tow app: the anchor on a vehicle */
 .scp-anchorcar {
