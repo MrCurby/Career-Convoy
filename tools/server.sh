@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# SharedCareer :: server control for a BeamMP server (runs it in a screen session)
+# SharedCareer :: server control for a BeamMP server (runs it in a tmux session)
 #
 # Put this file into the server folder (where BeamMP-Server and ServerConfig.toml are),
 # make it executable once:   chmod +x server.sh
 #
 #   ./server.sh start          start the server in the background
-#   ./server.sh stop           stop it cleanly ("exit" in the console, killed if needed)
+#   ./server.sh stop           stop it cleanly (SIGTERM, killed if it hangs)
 #   ./server.sh restart        stop + start
 #   ./server.sh status         is it running? (with PID and SharedCareer version)
-#   ./server.sh console        open the live console  –  leave with Ctrl+A, then D
+#   ./server.sh console        open the live console  –  leave with Ctrl+B, then D
 #                              (NOT Ctrl+C: that stops the server)
 #   ./server.sh logs [n]       last n lines of Server.log (default 100)
 #   ./server.sh follow         follow Server.log live (Ctrl+C only stops following)
@@ -25,7 +25,7 @@
 #   BACKUPS_KEEP=5             update backups to keep (sharedcareer-backup-*.tgz); 0 = keep all
 # Without REPO, "update" installs the newest SharedCareer-*.zip in this folder.
 #
-# The screen session is named after the folder (e.g. "sctest"), so several servers in
+# The tmux session is named after the folder (e.g. "sctest"), so several servers in
 # different folders don't get in each other's way.
 
 set -u
@@ -33,8 +33,9 @@ set -u
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$DIR" || exit 1
 SESSION="${SC_SESSION:-$(basename "$DIR")}"
+SESSION="${SESSION//[.:]/_}"   # tmux does not allow "." and ":" in session names
 LOG="$DIR/Server.log"
-STOP_WAIT=20   # seconds the server gets to shut down cleanly
+STOP_WAIT=20   # seconds the server gets to shut down cleanly after SIGTERM
 REPO="${SC_REPO:-}"
 API="${SC_API:-https://api.github.com}"   # only changed for testing
 GITHUB_TOKEN="${GITHUB_TOKEN:-}"
@@ -46,9 +47,9 @@ red()   { printf '\033[31m%s\033[0m\n' "$*" >&2; }
 green() { printf '\033[32m%s\033[0m\n' "$*"; }
 info()  { printf '\033[36m%s\033[0m\n' "$*"; }
 
-need_screen() {
-	if ! command -v screen >/dev/null 2>&1; then
-		red "screen is not installed. Install it with:  sudo apt install screen"
+need_tmux() {
+	if ! command -v tmux >/dev/null 2>&1; then
+		red "tmux is not installed. Install it with:  sudo apt install tmux"
 		exit 1
 	fi
 }
@@ -65,14 +66,16 @@ find_binary() {
 	return 1
 }
 
+# tmux, not screen: BeamMP 3.9 reads no console input when it is started in a
+# detached screen session, so neither typed commands nor "cmd" reached it.
 running() {
-	screen -ls 2>/dev/null | grep -qE "[0-9]+\.${SESSION}[[:space:]]"
+	tmux has-session -t "=$SESSION" 2>/dev/null
 }
 
 server_pid() {
 	# PID of the server process in this folder
 	local p
-	# only the server itself (process name), not the bash wrapper of the screen session
+	# matched by process name and working folder, so other servers on the machine are left alone
 	for p in $(pgrep "^BeamMP-Server" 2>/dev/null); do
 		if [ "$(readlink -f "/proc/$p/cwd" 2>/dev/null)" = "$DIR" ]; then echo "$p"; return 0; fi
 	done
@@ -80,17 +83,48 @@ server_pid() {
 }
 
 send() {
-	# type text + Enter into the console
-	screen -S "$SESSION" -p 0 -X stuff "$1$(printf '\r')"
+	# type text + Enter into the console (-l: the text literally, not as key names)
+	tmux send-keys -t "=$SESSION:" -l "$1" && tmux send-keys -t "=$SESSION:" Enter
+}
+
+console_text() {
+	# everything the console shows, scrollback included, wrapped lines joined
+	tmux capture-pane -p -J -S - -t "=$SESSION:"
+}
+
+terminate() {
+	# SIGTERM: BeamMP shuts down cleanly, like on Ctrl+C, without depending on the console.
+	# SIGKILL only if it hangs; SharedCareer writes its data as soon as it changes,
+	# so a kill loses nothing.
+	local p="$1" i logstart=0
+	[ -f "$LOG" ] && logstart="$(wc -c <"$LOG")"
+	kill "$p" 2>/dev/null
+	for ((i = 0; i < STOP_WAIT; i++)); do
+		sleep 1
+		kill -0 "$p" 2>/dev/null || return 0
+	done
+	red "Server did not stop within ${STOP_WAIT}s after SIGTERM – killing it (PID $p)."
+	if [ -f "$LOG" ] && [ "$(wc -c <"$LOG")" -gt "$logstart" ]; then
+		info "Log since SIGTERM (the last line shows where the shutdown hangs):"
+		tail -c +"$((logstart + 1))" "$LOG" | tail -n 15 | sed 's/^/    /'
+	fi
+	kill -9 "$p" 2>/dev/null
+	sleep 1
 }
 
 cmd_start() {
-	need_screen
+	need_tmux
 	if running; then info "Already running (session '$SESSION'). Console: ./server.sh console"; return 0; fi
+	local p
+	if p="$(server_pid)"; then
+		red "A server is already running in this folder outside tmux (PID $p). Stop it first: ./server.sh stop"
+		exit 1
+	fi
 	local bin
 	if ! bin="$(find_binary)"; then red "No BeamMP-Server program found in $DIR."; exit 1; fi
 	if [ ! -f "$DIR/ServerConfig.toml" ]; then info "Note: no ServerConfig.toml yet – BeamMP creates one on the first start."; fi
-	screen -dmS "$SESSION" bash -c "cd '$DIR' && '$bin'; echo; echo 'Server stopped. Press a key...'; read -r -n1"
+	# the session ends together with the server; Server.log keeps the reason if it crashes
+	tmux new-session -d -s "$SESSION" -c "$DIR" "$(printf '%q' "$bin")"
 	sleep 2
 	if running; then
 		green "Started: $(basename "$bin") in session '$SESSION'."
@@ -102,32 +136,26 @@ cmd_start() {
 }
 
 cmd_stop() {
-	need_screen
+	need_tmux
 	if ! running; then
 		local p; if p="$(server_pid)"; then
-			info "No screen session, but server process $p is running – stopping it."
-			kill "$p"; sleep 3; kill -0 "$p" 2>/dev/null && kill -9 "$p"
+			info "No tmux session, but server process $p is running – stopping it."
+			terminate "$p"
 		fi
+		# a server started by the old screen-based server.sh leaves its screen session behind
+		command -v screen >/dev/null 2>&1 && screen -S "$SESSION" -X quit >/dev/null 2>&1
 		info "Not running."; return 0
 	fi
 	info "Stopping server (session '$SESSION') ..."
-	send "exit"
-	local i
-	for ((i = 0; i < STOP_WAIT; i++)); do
-		sleep 1
-		if ! server_pid >/dev/null; then break; fi
-	done
-	if p="$(server_pid)"; then
-		red "Server does not respond – killing it (PID $p)."
-		kill "$p"; sleep 3; kill -0 "$p" 2>/dev/null && kill -9 "$p"
-	fi
-	# the screen session waits for a key press -> close it
-	running && screen -S "$SESSION" -X quit
+	local p
+	if p="$(server_pid)"; then terminate "$p"; fi
+	# normally the session is gone with the server already
+	running && tmux kill-session -t "=$SESSION"
 	green "Stopped."
 }
 
 cmd_status() {
-	need_screen
+	need_tmux
 	local p
 	if running; then
 		p="$(server_pid || true)"
@@ -142,11 +170,11 @@ cmd_status() {
 }
 
 cmd_console() {
-	need_screen
+	need_tmux
 	if ! running; then red "Server is not running. Start it with: ./server.sh start"; exit 1; fi
-	info "Opening the console. Leave with Ctrl+A, then D  (NOT Ctrl+C – that stops the server)"
+	info "Opening the console. Leave with Ctrl+B, then D  (NOT Ctrl+C – that stops the server)"
 	sleep 2
-	screen -r "$SESSION"
+	tmux attach -t "=$SESSION"
 }
 
 cmd_logs() {
@@ -161,15 +189,20 @@ cmd_follow() {
 }
 
 cmd_cmd() {
-	need_screen
+	need_tmux
 	if [ -z "${1:-}" ]; then red 'Command missing, for example: ./server.sh cmd "sc time"'; exit 1; fi
 	if ! running; then red "Server is not running."; exit 1; fi
-	local before=0
-	[ -f "$LOG" ] && before="$(wc -l < "$LOG")"
 	send "$1"
 	sleep 1
-	# show the answer from the log (everything added since the command)
-	[ -f "$LOG" ] && tail -n "+$((before + 1))" "$LOG"
+	# show the answer from the console: BeamMP writes command answers there, not to Server.log.
+	# Everything after the last echo of the command, without the empty prompt at the end.
+	console_text | awk -v cmd="> $1" '
+		$0 == cmd { n = 0; found = 1; next }
+		found { lines[++n] = $0 }
+		END {
+			while (n > 0 && lines[n] ~ /^>? *$/) n--
+			for (i = 1; i <= n; i++) print lines[i]
+		}'
 }
 
 #== GitHub ======================================================================

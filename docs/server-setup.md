@@ -16,7 +16,7 @@ This guide is for people who run a BeamMP server. Players don't need to install 
 - A **BeamMP server** (tested with 3.9.3 on Linux)
 - Players on **BeamNG.drive 0.39 or newer** (tested with 0.40.5) and BeamMP (tested with 4.23.1)
 - **West Coast USA** is recommended. The enlarged garage-computer zones are made for this map. Other maps work, but the computers there only get the smaller in-game range boost.
-- For `server.sh`: `screen`, `unzip` and `curl` (`sudo apt install screen unzip curl`)
+- For `server.sh`: `tmux`, `unzip` and `curl` (`sudo apt install tmux unzip curl`)
 
 In `ServerConfig.toml`:
 
@@ -27,7 +27,7 @@ Map = "/levels/west_coast_usa/info.json"
 
 ## Install with server.sh (recommended)
 
-`server.sh` is a single script that starts, stops and updates your server. It runs the server in a `screen` session named after the server folder, so several servers in different folders don't get in each other's way.
+`server.sh` is a single script that starts, stops and updates your server. It runs the server in a `tmux` session named after the server folder, so several servers in different folders don't get in each other's way.
 
 Run this inside your BeamMP server folder, the one that contains `BeamMP-Server` and `ServerConfig.toml`:
 
@@ -51,17 +51,19 @@ echo 'REPO="MrCurby/SharedCareer"' > server.conf
 
 On the first start the mod creates its settings in `Resources/Server/SharedCareer/config/config.json`.
 
-> **Already running your server in your own screen session?** Stop it there once (`screen -r <name>`, then type `exit`) and start it again with `./server.sh start`. From then on the script manages it.
+> **Already running your server in your own screen or tmux session?** Stop it there once (open the session, then press Ctrl+C) and start it again with `./server.sh start`. From then on the script manages it.
+>
+> Use tmux, not screen: BeamMP 3.9 reads no console input when it was started in a detached screen session.
 
 ## server.sh reference
 
 | Command | What it does |
 |---|---|
 | `./server.sh start` | Start the server in the background |
-| `./server.sh stop` | Stop it cleanly (sends `exit` to the console, forces it after 20 s) |
+| `./server.sh stop` | Stop it cleanly (SIGTERM, killed if it is not gone after 20 s) |
 | `./server.sh restart` | Stop and start |
 | `./server.sh status` | Is it running, and which SharedCareer version is loaded |
-| `./server.sh console` | Open the live server console. Leave with **Ctrl+A, then D**. **Ctrl+C stops the server.** |
+| `./server.sh console` | Open the live server console. Leave with **Ctrl+B, then D**. **Ctrl+C stops the server.** |
 | `./server.sh logs [n]` | Show the last *n* lines of `Server.log` (default 100) |
 | `./server.sh follow` | Follow `Server.log` live (Ctrl+C only stops following) |
 | `./server.sh cmd "sc time"` | Send one command to the server console and show the answer |
