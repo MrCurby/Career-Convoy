@@ -69,7 +69,8 @@ On the first start the mod creates its settings in `Resources/Server/SharedCaree
 | `./server.sh cmd "sc time"` | Send one command to the server console and show the answer |
 | `./server.sh check` | Show the installed version and the newest release and dev build on GitHub |
 | `./server.sh update` | Install the newest GitHub release, but only if it differs from the installed one |
-| `./server.sh update --dev` | Install the newest dev build instead, for a test server (see [Test server](#test-server-dev-builds)) |
+| `./server.sh update --dev` | Install the newest dev build instead (of any branch), for a test server (see [Test server](#test-server-dev-builds)) |
+| `./server.sh update --dev=<branch>` | Install the newest dev build of one branch |
 | `./server.sh update --release` | Install the newest release, also on a server with `CHANNEL="dev"` |
 | `./server.sh update --force` | Same, even if that version is already installed |
 | `./server.sh update file.zip` | Install a specific zip from the server folder |
@@ -86,18 +87,25 @@ Without a `REPO`, `update` installs the newest `SharedCareer-*.zip` it finds in 
 
 ## Test server (dev builds)
 
-Every push to the `dev` branch builds a **dev build**: the same package with a version like `0.16.0-dev.ab12cd3` (the last part is the commit). It is a GitHub pre-release named `dev-build`, replaced on every push. No version bump and no real release are needed for it, and normal servers never get it: `./server.sh update` only installs real releases.
+Every push to a branch other than `main` builds a **dev build**: the same package with a version like `0.16.0-dev.ab12cd3` (the last part is the commit). Each branch has its own GitHub pre-release `build-<branch>`, replaced on every push and removed when the branch is deleted. No version bump and no real release are needed for it, and normal servers never get it: `./server.sh update` only installs real releases.
 
-On a test server, install the newest dev build with:
+On a test server, install the newest dev build (of whichever branch was pushed last) with:
 
 ```bash
 ./server.sh update --dev
 ```
 
-To make `./server.sh update` always fetch dev builds on that server, add this to its `server.conf`:
+Or the newest dev build of one branch:
+
+```bash
+./server.sh update --dev=my-branch
+```
+
+To make `./server.sh update` always fetch dev builds on that server, add this to its `server.conf` (`BRANCH` is optional and sticks to one branch):
 
 ```bash
 CHANNEL="dev"
+BRANCH=""
 ```
 
 `./server.sh update --release` goes back to the newest release. The game and `./server.sh status` show the dev version, so you can always tell which build is running.

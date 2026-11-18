@@ -1,0 +1,40 @@
+# SharedCareer :: checks of a pull request into main
+#
+#   tests          all tests (tools/test.sh)
+#   version        a pull request that changes the mod must raise the version
+#                  (tools/version_check.sh), so merging builds a release
+#
+# Make both required in the repository's ruleset for main ("Require status checks to pass").
+
+name: Checks
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # with tags: tests/config_update_test.lua compares the settings with the last release
+
+      - name: Install tools
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq luajit lua5.3 zip
+
+      - name: Run all tests
+        run: tools/test.sh
+
+  version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check the version
+        run: tools/version_check.sh "origin/${{ github.base_ref }}"

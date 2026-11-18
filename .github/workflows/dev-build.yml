@@ -1,0 +1,70 @@
+# SharedCareer :: dev builds of every branch, for test servers
+#
+# On every push to a branch other than main (and by hand via "Run workflow"):
+#   1. run all tests and build the package as a dev build (tools/package.sh --dev ->
+#      SharedCareer-<version>-dev.<commit>.zip; the version in the repository stays as it is)
+#   2. replace the branch's GitHub pre-release "build-<branch>" with it
+# When a branch is deleted (e.g. after its pull request was merged), its pre-release goes too.
+#
+# No version bump and no real release: pre-releases are not "latest", so "./server.sh update"
+# on normal servers ignores them. A test server installs the newest one with
+# "./server.sh update --dev", one branch's with "./server.sh update --dev=<branch>" (or
+# CHANNEL="dev" / BRANCH="..." in its server.conf). Releases come from main (release.yml).
+# Branch names become tags like server.sh's dev_tag: every character other than A-Z a-z 0-9 . _ -
+# is replaced by "-".
+
+name: Dev build
+
+on:
+  push:
+    branches: ['**', '!main']
+  delete:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dev-build-${{ github.event.ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  dev-build:
+    if: github.event_name != 'delete'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # with tags: tests/config_update_test.lua compares the settings with the last release
+
+      - name: Install tools
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq luajit lua5.3 zip
+
+      - name: Run tests and build the dev package
+        run: tools/package.sh --dev
+
+      - name: Replace the branch's dev build on GitHub
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          zip=$(ls SharedCareer-*-dev.*.zip)
+          v=${zip#SharedCareer-}; v=${v%.zip}
+          tag="build-${BRANCH//[!A-Za-z0-9._-]/-}"
+          gh release delete "$tag" --yes --cleanup-tag >/dev/null 2>&1 || true
+          gh release create "$tag" "$zip" --prerelease --target "$GITHUB_SHA" \
+            --title "SharedCareer dev build $v from $BRANCH" \
+            --notes "Dev build of branch \`$BRANCH\` (commit ${GITHUB_SHA::7}) for testing. Install on a test server: \`./server.sh update --dev=$BRANCH\` (or \`./server.sh update --dev\` for the newest dev build of any branch). Normal servers keep the newest release."
+
+  remove:
+    if: github.event_name == 'delete' && github.event.ref_type == 'branch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Remove the deleted branch's dev build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          BRANCH: ${{ github.event.ref }}
+        run: |
+          tag="build-${BRANCH//[!A-Za-z0-9._-]/-}"
+          gh release delete "$tag" --yes --cleanup-tag && echo "removed $tag" || echo "no dev build $tag"
