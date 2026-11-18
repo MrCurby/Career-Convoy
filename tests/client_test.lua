@@ -441,6 +441,10 @@ check(laterTraffic.lua[#laterTraffic.lua]:find("setGhost%(true%)"), "unmarked re
 handlers.sc_vehStates(json.encode({["1-7"] = {active = true, traffic = true}}))
 update(1.1)
 check(laterTraffic.lua[#laterTraffic.lua]:find("setGhost%(false%)"), "after the traffic mark: collision")
+check(other.dyn.trafficClearRadius == "40", "our traffic keeps clear of another player")
+check(remoteTraffic.dyn.trafficClearRadius == "", "another player's traffic: no clear radius")
+check(laterTraffic.dyn.trafficClearRadius == "", "clear radius removed once the car is marked as traffic")
+check(own.dyn.trafficClearRadius == nil, "own cars: no clear radius")
 
 --== 7b. More careful AI ========================================================
 resetWorld()

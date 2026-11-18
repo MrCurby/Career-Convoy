@@ -15,6 +15,9 @@
 -- (otherwise freshly spawned OWN traffic would be blocked and stand still; bug in 0.1.0).
 -- Collisions (ghost) according to the server settings
 -- (client.remoteVehicleGhost / remoteUnicycleGhost).
+-- Other players (not their traffic) get the game's own "trafficClearRadius": our traffic and
+-- parked cars then don't appear on top of them or vanish right next to them (see
+-- keepTrafficClear).
 --
 -- Receives: sc_vehStates. Sends: sc_vehReport, sc_vehStatesRequest.
 
@@ -37,6 +40,13 @@ local reported = {}
 local reportNow = false
 -- game id -> last ghost value that was set
 local ghosts = {}
+-- Radius (m) around another player in which our traffic doesn't spawn or vanish and our parked
+-- cars don't take a spot. The game checks a point half the radius ahead of the vehicle.
+local PLAYER_CLEAR_RADIUS = 40
+-- game id -> trafficClearRadius value that was set ("" = none)
+local clearRadii = {}
+-- game id -> true once the remote car is set up (prepareRemoteVehicles)
+local prepared = {}
 local wantList = false
 
 local function mp()
@@ -155,6 +165,28 @@ local function applyGhosts()
 	end
 end
 
+-- The game's traffic (trafficUtils.checkVehicles, trafficVehicle:tryRespawn) and parking
+-- (checkParkingSpot) read the dynamic field "trafficClearRadius" of every vehicle. It is set on
+-- other players' own vehicles, never on their traffic/parked cars (those only block their own
+-- spot, as the game does by default) and never on our own vehicles.
+local function keepTrafficClear()
+	local m = mp()
+	if not m then return end
+	for serverId, entry in pairs(m.getVehicles()) do
+		local gameId = entry.gameVehicleID
+		if gameId and gameId ~= -1 and prepared[gameId] then
+			local veh = be:getObjectByID(gameId)
+			local state = states[serverId]
+			local isTraffic = type(state) == "table" and state.traffic == true
+			local radius = isTraffic and "" or tostring(PLAYER_CLEAR_RADIUS)
+			if veh and clearRadii[gameId] ~= radius then
+				clearRadii[gameId] = radius
+				veh:setDynDataFieldbyName("trafficClearRadius", 0, radius)
+			end
+		end
+	end
+end
+
 --== Hooks =====================================================================
 
 -- When it spawns, a car is not registered with BeamMP yet, even our own one (e.g.
@@ -169,9 +201,6 @@ local function serverIdOf(m, gameId)
 	end
 	return nil
 end
-
--- game id -> true once the remote car is set up
-local prepared = {}
 
 local function prepareRemoteVehicles()
 	local m = mp()
@@ -195,6 +224,7 @@ M.prepareRemoteVehicles = prepareRemoteVehicles
 
 function M.onVehicleSpawned(gameId)
 	ghosts[gameId] = nil
+	clearRadii[gameId] = nil
 	prepared[gameId] = nil
 end
 
@@ -204,6 +234,7 @@ end
 
 function M.onVehicleDestroyed(gameId)
 	ghosts[gameId] = nil
+	clearRadii[gameId] = nil
 	prepared[gameId] = nil
 end
 
@@ -248,10 +279,11 @@ function M.onUpdate(dtReal)
 	if all then sinceAll = 0 end
 	reportOwn(all)
 	applyGhosts()
+	keepTrafficClear()
 end
 
 function M.onBeamMPServerLeave()
-	states, reported, ghosts, prepared = {}, {}, {}, {}
+	states, reported, ghosts, clearRadii, prepared = {}, {}, {}, {}, {}
 	wantList, reportNow, since, sinceAll = false, false, 0, 0
 end
 
