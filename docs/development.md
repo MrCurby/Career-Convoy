@@ -88,7 +88,7 @@ About a minute later the release is on GitHub, and `./server.sh update` installs
 | The career has to start automatically on join | The server sends settings; the client starts the profile in *Open World* mode | `core.lua` |
 | Joining hangs forever in a loading screen | Hanging loading screens are released after 60 s and the result is reported to the server | `core.lua` |
 | BeamNG 0.40 sometimes lands in the main menu after joining | After the career start the mod switches back to the driving screen once | `welcome.lua` |
-| The career hides and shows cars (garage, dealer), but others don't see it | Visibility is synced through the server | `vehicles.lua` |
+| The career hides and shows cars (garage, dealer, hidden traffic reserve), but others don't see it | Every client reports its own cars' visibility every second (also cars hidden before BeamMP gave them a server id); the server sends the changes to everyone | `vehicles.lua` |
 | Your name tag above every one of your traffic cars | Traffic and parked cars are marked and their name tags hidden | `vehicles.lua` |
 | Your police or traffic "takes over" other players | Remote cars get `ignoreTraffic` | `vehicles.lua` |
 | **Duplicate cars** when tuning, changing parts or painting | BeamMP rebuilds the wrong car, so `getPlayerVehicle(0)` points at the right one for that call | `garage.lua` |
@@ -122,7 +122,7 @@ Client                                    Server
              ◀── sc_config + sc_vehStates ── (settings, traffic share)
   start career (protected)
   ── sc_careerResult {ok} ─────────────────▶
-  hidden cars / traffic ── sc_vehActive / sc_vehMarks ─▶ to all other players
+  own cars: visible, traffic ── sc_vehReport (every second) ─▶ to all other players
 ```
 
 ### Money transfer

@@ -395,13 +395,35 @@ check(other.active == false, "car hidden by the server gets hidden")
 check(world.mp["1-5"].hideNametag == true, "name tag hidden")
 handlers.sc_vehStates(json.encode({["1-5"] = {active = true, traffic = false}}))
 check(other.active == true and world.mp["1-5"].hideNametag == false, "visible again")
+own:setActive(0)
 extensions.hook("onVehicleActiveChanged", 20, false)
-local msg = lastSent("sc_vehActive")
-check(msg and msg.id == "0-5" and msg.active == false, "own hiding sent to the server")
+update(0.1)
+local msg = lastSent("sc_vehReport")
+check(msg and msg["0-5"] and msg["0-5"].active == false, "own hiding sent to the server at once")
 own.dyn = {}
 own.isTraffic = "true"
 update(1.1)
-check(lastSent("sc_vehMarks") and lastSent("sc_vehMarks")["0-5"] == true, "own traffic car marked")
+check(lastSent("sc_vehReport") and lastSent("sc_vehReport")["0-5"].traffic == true, "own traffic car marked")
+-- Regression: traffic reserve hidden right after its spawn, before BeamMP gave it a server id.
+-- The hide event comes too early; the regular report must still tell the others.
+do
+local reserve = newVehicle(31)
+table.insert(world.objects, reserve)
+reserve:setActive(0)
+extensions.hook("onVehicleActiveChanged", 31, false)
+update(0.1)
+world.mp["0-10"] = {gameVehicleID = 31, jbeam = "simple_traffic"}
+world.own[31] = true
+update(1.1)
+msg = lastSent("sc_vehReport")
+check(msg and msg["0-10"] and msg["0-10"].active == false, "car hidden before its server id: reported hidden later")
+local reportsBefore = #sentToServer
+update(1.1)
+check(#sentToServer == reportsBefore, "nothing changed: no report")
+update(10)
+msg = lastSent("sc_vehReport")
+check(msg and msg["0-10"] and msg["0-5"], "all own cars are reported again every few seconds")
+end
 local ghostCmd = other.lua[#other.lua]
 check(ghostCmd and ghostCmd:find("setGhost%(true%)"), "ghost according to the server setting")
 -- a fellow player's traffic: always collides, even if player cars don't

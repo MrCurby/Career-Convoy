@@ -45,8 +45,8 @@
 --   sc_hello            {version}     sc_config / sc_configUpdate   client settings
 --   sc_careerResult     {ok, reason,  sc_vehStates   {"<pid>-<vid>": {active, traffic}}
 --                        profile}     sc_traffic     {road, parked}  new traffic share
---   sc_vehActive        {id, active}  sc_time        {hour, play, dayLength, dayLengthDay,
---   sc_vehMarks         {id: bool}                    dayLengthNight, dayStart, nightStart,
+--   sc_vehReport        {id: {active, sc_time        {hour, play, dayLength, dayLengthDay,
+--                        traffic}}                    dayLengthNight, dayStart, nightStart,
 --                                                     dayMinutes, nightMinutes, canControl}
 --   sc_vehStatesRequest               sc_signals     traffic light cycle (seconds)
 --   sc_payDebitResult   {id, ok}      sc_payDebit / sc_payCredit   money transfer
@@ -556,9 +556,9 @@ local function updateTrafficShares()
 end
 
 --== Vehicle states ============================================================
--- The career often hides your own cars (garage, dealer, missions); BeamMP doesn't sync
--- that. So every client reports hiding/showing and which of its cars are traffic;
--- the server keeps the list (vehicleStates) and sends changes to everyone else.
+-- The career often hides your own cars (garage, dealer, missions, the traffic reserve); BeamMP
+-- doesn't sync that. So every client reports its own cars regularly (visible, traffic);
+-- the server keeps the list (vehicleStates) and sends only real changes to everyone else.
 -- New players get the whole list on join.
 
 -- A client may only report its own vehicles ("<its player_id>-<vehicle_id>").
@@ -1217,27 +1217,22 @@ function sc_careerResult(player_id, data)
 	end
 end
 
--- An own vehicle was hidden/shown: {id = "<pid>-<vid>", active = bool}
-function sc_vehActive(player_id, data)
-	local msg = decodeTable(data)
-	if not msg or type(msg.active) ~= "boolean" or not ownsVehicle(player_id, msg.id) then return end
-	local state = vehicleStates[msg.id]
-	if not state then return end
-	if state.active == msg.active then return end
-	state.active = msg.active
-	broadcastStates({[msg.id] = state}, player_id)
-end
-
--- Which own vehicles are traffic/parked: {["<pid>-<vid>"] = bool, ...}
-function sc_vehMarks(player_id, data)
-	local marks = decodeTable(data)
-	if not marks then return end
+-- The sender's own vehicles: {["<pid>-<vid>"] = {active = bool, traffic = bool}, ...}
+function sc_vehReport(player_id, data)
+	local report = decodeTable(data)
+	if not report then return end
 	local changed = {}
-	for id, mark in pairs(marks) do
+	for id, reported in pairs(report) do
 		local state = vehicleStates[id]
-		if type(mark) == "boolean" and state and ownsVehicle(player_id, id) and state.traffic ~= mark then
-			state.traffic = mark
-			changed[id] = state
+		if type(reported) == "table" and state and ownsVehicle(player_id, id) then
+			local differs = false
+			if type(reported.active) == "boolean" and state.active ~= reported.active then
+				state.active, differs = reported.active, true
+			end
+			if type(reported.traffic) == "boolean" and state.traffic ~= reported.traffic then
+				state.traffic, differs = reported.traffic, true
+			end
+			if differs then changed[id] = state end
 		end
 	end
 	if next(changed) then broadcastStates(changed, player_id) end
@@ -1755,8 +1750,7 @@ function onInit()
 
 	MP.RegisterEvent("sc_hello", "sc_hello")
 	MP.RegisterEvent("sc_careerResult", "sc_careerResult")
-	MP.RegisterEvent("sc_vehActive", "sc_vehActive")
-	MP.RegisterEvent("sc_vehMarks", "sc_vehMarks")
+	MP.RegisterEvent("sc_vehReport", "sc_vehReport")
 	MP.RegisterEvent("sc_vehStatesRequest", "sc_vehStatesRequest")
 	MP.RegisterEvent("sc_timeControl", "sc_timeControl")
 	MP.RegisterEvent("sc_setSetting", "sc_setSetting")

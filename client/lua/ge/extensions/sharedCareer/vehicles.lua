@@ -1,18 +1,22 @@
 -- SharedCareer :: the other players' vehicles
 --
--- The career keeps hiding and showing your own cars (garage, dealer, missions).
--- BeamMP doesn't sync that. Therefore:
---   * own car changes active -> server (sc_vehActive) -> all others call setActive()
---   * once per second: which own cars are traffic/parked -> server (sc_vehMarks).
---     The others hide the name tag there (otherwise your name would hover above every
---     traffic car).
+-- The career keeps hiding and showing your own cars (garage, dealer, missions, the hidden
+-- traffic reserve). BeamMP doesn't sync that. Therefore every client reports its own cars to
+-- the server (sc_vehReport {"<pid>-<vid>": {active, traffic}}), and all others call
+-- setActive() and hide the name tag of traffic (otherwise your name would hover above every
+-- traffic car).
+-- The report is state based, not event based: a car that is hidden before BeamMP has given it
+-- a server id (the traffic reserve is hidden right after it spawns) would otherwise stay
+-- visible for everyone else, without anyone driving it. So once per second the changes since
+-- the last report are sent, every REPORT_ALL seconds all own cars, and right after a hide/show
+-- at once.
 -- Remote cars also get "ignoreTraffic", so our own police/traffic doesn't take them over,
 -- and a larger view distance – but only once BeamMP firmly assigns them to another player
 -- (otherwise freshly spawned OWN traffic would be blocked and stand still; bug in 0.1.0).
 -- Collisions (ghost) according to the server settings
 -- (client.remoteVehicleGhost / remoteUnicycleGhost).
 --
--- Receives: sc_vehStates. Sends: sc_vehActive, sc_vehMarks, sc_vehStatesRequest.
+-- Receives: sc_vehStates. Sends: sc_vehReport, sc_vehStatesRequest.
 
 local M = {}
 
@@ -23,8 +27,14 @@ local since = 0
 
 -- server vehicle id -> {active, traffic}
 local states = {}
--- server vehicle id -> {gameId, mark}
-local sentMarks = {}
+-- every REPORT_ALL seconds all own cars are reported, even unchanged ones (the server may have
+-- reset a state, e.g. after a rebuild)
+local REPORT_ALL = 10
+local sinceAll = 0
+-- server vehicle id -> {gameId, active, traffic} as reported last
+local reported = {}
+-- an own car was hidden/shown: report on the next frame instead of waiting a second
+local reportNow = false
 -- game id -> last ghost value that was set
 local ghosts = {}
 local wantList = false
@@ -86,7 +96,7 @@ local function isTrafficCar(gameId, veh)
 	return false
 end
 
-local function sendMarks()
+local function reportOwn(all)
 	local m = mp()
 	if not m then return end
 	local changed, seen = nil, {}
@@ -96,21 +106,22 @@ local function sendMarks()
 			local veh = be:getObjectByID(gameId)
 			if veh then
 				seen[serverId] = true
-				local mark = isTrafficCar(gameId, veh)
-				local sent = sentMarks[serverId]
-				if not sent or sent.gameId ~= gameId or sent.mark ~= mark then
+				local state = {active = veh:getActive() and true or false, traffic = isTrafficCar(gameId, veh)}
+				local last = reported[serverId]
+				if all or not last or last.gameId ~= gameId or last.active ~= state.active or last.traffic ~= state.traffic then
 					changed = changed or {}
-					changed[serverId] = mark
-					sentMarks[serverId] = {gameId = gameId, mark = mark}
+					changed[serverId] = state
+					reported[serverId] = {gameId = gameId, active = state.active, traffic = state.traffic}
 				end
 			end
 		end
 	end
-	for serverId in pairs(sentMarks) do
-		if not seen[serverId] then sentMarks[serverId] = nil end
+	for serverId in pairs(reported) do
+		if not seen[serverId] then reported[serverId] = nil end
 	end
-	if changed then U.send("sc_vehMarks", changed) end
+	if changed then U.send("sc_vehReport", changed) end
 end
+M.reportOwn = reportOwn
 
 -- Collision (ghost) only for player vehicles:
 --   own vehicles                          always collide
@@ -199,16 +210,15 @@ end
 function M.onVehicleActiveChanged(gameId, active)
 	local m = mp()
 	if not m or not U.isMP() or not gameId then return end
-	local serverId = serverIdOf(m, gameId)
-	if not serverId then return end
 	if m.isOwn(gameId) then
-		U.send("sc_vehActive", {id = serverId, active = active and true or false})
-	else
-		-- A remote car changed here without the server wanting it
-		-- (e.g. our own career hid it): restore the server state.
-		local state = states[serverId]
-		if state and (state.active ~= false) ~= (active and true or false) then applyState(serverId) end
+		reportNow = true
+		return
 	end
+	-- A remote car changed here without the server wanting it
+	-- (e.g. our own career hid it): restore the server state.
+	local serverId = serverIdOf(m, gameId)
+	local state = serverId and states[serverId]
+	if state and (state.active ~= false) ~= (active and true or false) then applyState(serverId) end
 end
 
 -- Never "get into" a remote prop/trailer.
@@ -221,7 +231,12 @@ end
 
 function M.onUpdate(dtReal)
 	if not U.isMP() or not U.config() then return end
-	since = since + (tonumber(dtReal) or 0)
+	dtReal = tonumber(dtReal) or 0
+	since, sinceAll = since + dtReal, sinceAll + dtReal
+	if reportNow then
+		reportNow = false
+		reportOwn(false)
+	end
 	if since < EVERY then return end
 	since = 0
 	if wantList then
@@ -229,12 +244,15 @@ function M.onUpdate(dtReal)
 		U.send("sc_vehStatesRequest", "")
 	end
 	prepareRemoteVehicles()
-	sendMarks()
+	local all = sinceAll >= REPORT_ALL
+	if all then sinceAll = 0 end
+	reportOwn(all)
 	applyGhosts()
 end
 
 function M.onBeamMPServerLeave()
-	states, sentMarks, ghosts, prepared, wantList, since = {}, {}, {}, {}, false, 0
+	states, reported, ghosts, prepared = {}, {}, {}, {}
+	wantList, reportNow, since, sinceAll = false, false, 0, 0
 end
 
 function M.onConfigChanged()
