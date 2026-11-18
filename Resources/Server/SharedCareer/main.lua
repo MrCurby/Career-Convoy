@@ -71,7 +71,7 @@
 --   sc_jobPaidAck {payout}
 --                       (from the SharedCareer menu window)
 
-local VERSION = "0.21.1"
+local VERSION = "0.21.2"
 local TAG = "[SharedCareer] "
 
 local CONFIG_DIR = "Resources/Server/SharedCareer/config"
