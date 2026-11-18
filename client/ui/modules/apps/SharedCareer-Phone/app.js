@@ -117,10 +117,14 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 	};
 	$scope.strainText = function (s) {
 		s = s || 0;
-		if (s < 0.6) return 'easy';
-		if (s < 0.9) return 'working hard';
-		return 'at the limit';
+		if (s < 0.6) return 'Easy';
+		if (s < 0.9) return 'Working hard';
+		return 'At the limit';
 	};
+	// tabs of the Tow app with a rope on: "anchor" (the remote) right after attaching – that's the
+	// next step –, "winch" once the anchor hooked onto a vehicle
+	$scope.towTab = 'anchor';
+	$scope.setTowTab = function (tab) { $scope.towTab = tab; };
 	//== Fuel app (lua/ge/extensions/sharedCareer/fuel.lua, data with "SharedCareerState") ==
 	var SORT_KEY = "sharedCareerFuelSort";
 	$scope.fuel = null;
@@ -196,8 +200,9 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 		$scope.$evalAsync(function () {
 			if (!data) return;
 			if (!Array.isArray(data.nearby)) data.nearby = [];
-			if (!Array.isArray(data.anchorCandidates)) data.anchorCandidates = [];
 			if (!Array.isArray(data.strengths)) data.strengths = [];
+			if (data.attached && !$scope.tow.attached) $scope.towTab = data.anchorVehicle ? 'winch' : 'anchor';
+			else if (data.anchorVehicle && !$scope.tow.anchorVehicle) $scope.towTab = 'winch';
 			$scope.tow = data;
 		});
 	});

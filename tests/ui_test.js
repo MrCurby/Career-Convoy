@@ -99,6 +99,17 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 		'night, clock paused: bar over midnight');
 	phone.emit('SharedCareerState', {hour: 2, connected: false});
 	check(phone.dayText() === 'Not connected' && phone.phaseProgress() === null, 'not connected: no bar');
+	// Tow app: right after attaching the Anchor tab (the next step), once hooked onto a vehicle the Winch tab
+	phone.emit('SharedCareerTow', {allowed: true, attached: false, nearby: []});
+	phone.setTowTab('winch');
+	phone.emit('SharedCareerTow', {allowed: true, attached: true, strengths: [30, 60]});
+	check(phone.towTab === 'anchor', 'rope attached: the Anchor tab opens');
+	phone.setTowTab('anchor');
+	phone.emit('SharedCareerTow', {allowed: true, attached: true, anchorVehicle: 'Pickup', anchorHitch: true});
+	check(phone.towTab === 'winch' && phone.strainText(0.95) === 'At the limit', 'hooked onto a vehicle: the Winch tab opens');
+	phone.setTowTab('anchor');
+	phone.emit('SharedCareerTow', {allowed: true, attached: true, anchorVehicle: 'Pickup', anchorHitch: true});
+	check(phone.towTab === 'anchor', 'later updates leave the tab you picked');
 	// Jobs app (beta): list, your job, the steps; the strip in the Tow app opens it
 	phone.emit('SharedCareerPhone', {enabled: true, apps: [{id: 'jobs', title: 'Jobs', beta: true}, {id: 'tow'}, {id: 'fuel'}]});
 	phone.emit('SharedCareerJobs', {enabled: true, jobs: [

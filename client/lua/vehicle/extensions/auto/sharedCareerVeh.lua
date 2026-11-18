@@ -6,8 +6,8 @@
 --   setAiTuning(gap, sightFactor)  traffic AI reacts earlier to obstacles (traffic.lua)
 --   handGrabRay / handGrabNearest / handRope / handRelease / handProbe
 --                                  our own node grabber as a rope (grab.lua), see "Hand" below
---   anchorFind / anchorPull / anchorRelease   this vehicle holds the other end of a rope (its tow
---                                  hitch), see "Anchor on a vehicle" below
+--   anchorNear / anchorPull / anchorRelease   this vehicle holds the other end of a rope (the
+--                                  anchor hooks onto its tow hitch), see "Anchor on a vehicle" below
 --   jobBreakDown / jobReportDamage the broken-down vehicle of a towing job (jobs.lua), see
 --                                  "Towing jobs" below
 --
@@ -459,15 +459,20 @@ local function ropeStep(dt, perFrame)
 end
 
 --== Anchor on a vehicle: this vehicle holds the other end of a rope ===============
--- anchorFind(px, py, pz): the point where the rope is tied to this vehicle – its tow hitch (a
--- coupler node whose tag names a hitch, fifth wheel or gooseneck), the one closest to the roped
--- vehicle (px, py, pz) if there are several; without one, the node closest to it. Reports
--- sharedCareer_grab.onAnchorNode(id, node, isHitch). anchorPull(fx, fy, fz): the rope's pull on
--- this vehicle (N, from the roped vehicle, every frame), spread over the nodes around the anchor
--- node by their mass like the grip; it stops by itself ANCHOR_PULL_KEEP s after the last message.
--- anchorRelease(): no more rope on this vehicle.
+-- The anchor hooks on by itself: while it is near this vehicle, the GE side asks
+-- anchorNear(x, y, z, canSnap) a few times per second. This vehicle answers
+--   onAnchorTargets(id, "cid,cid,...")  its tow hitches within TARGET_RANGE m (shown as rings)
+-- and, if canSnap and the anchor is within HITCH_SNAP m of a tow hitch (a coupler node whose tag
+-- names a hitch, fifth wheel or gooseneck) or within NODE_SNAP m of any other node (it touches the
+-- body), it takes the rope there and reports onAnchorNode(id, node, isHitch).
+-- anchorPull(fx, fy, fz): the rope's pull on this vehicle (N, from the roped vehicle, every frame),
+-- spread over the nodes around the anchor node by their mass like the grip; it stops by itself
+-- ANCHOR_PULL_KEEP s after the last message. anchorRelease(): no more rope on this vehicle.
 
 local ANCHOR_PULL_KEEP = 0.25 -- s a pull message is applied without a new one
+local HITCH_SNAP = 0.7        -- m: the anchor hooks onto a tow hitch this close
+local NODE_SNAP = 0.3         -- m: the anchor hooks onto any other node this close (touching)
+local TARGET_RANGE = 6        -- m: tow hitches this close to the anchor are reported for the rings
 local HITCH_TAGS = {"hitch", "fifthwheel", "gooseneck"}
 
 local anchor = nil -- {node, nodes = {{cid, m}}, mass, fx, fy, fz, age}
@@ -482,27 +487,16 @@ local function isHitch(node)
 	return false
 end
 
-function M.anchorFind(px, py, pz)
-	local target = {x = tonumber(px) or 0, y = tonumber(py) or 0, z = tonumber(pz) or 0}
-	local bestHitch, bestAny
-	for _, node in pairs(allNodes()) do
-		local cid = type(node) == "table" and node.cid
-		if cid then
-			local d = distance(obj:getAbsNodePosition(cid), target)
-			if isHitch(node) and (not bestHitch or d < bestHitch.d) then bestHitch = {cid = cid, d = d} end
-			if not bestAny or d < bestAny.d then bestAny = {cid = cid, d = d} end
-		end
-	end
-	local pick = bestHitch or bestAny
-	if not pick then return false end
-	-- the nodes around the anchor node carry the pull (like the grip of the roped vehicle)
-	local center = obj:getAbsNodePosition(pick.cid)
+-- The rope goes onto this node: the nodes around it carry the pull (like the grip of the roped
+-- vehicle). Reports onAnchorNode.
+local function anchorAt(cid, hitch)
+	local center = obj:getAbsNodePosition(cid)
 	local found = {}
 	for _, node in pairs(allNodes()) do
-		local cid = type(node) == "table" and node.cid
-		if cid then
-			local m = tonumber(obj:getNodeMass(cid)) or 0
-			if m > 0 then table.insert(found, {cid = cid, m = m, d = distance(obj:getAbsNodePosition(cid), center)}) end
+		local id = type(node) == "table" and node.cid
+		if id then
+			local m = tonumber(obj:getNodeMass(id)) or 0
+			if m > 0 then table.insert(found, {cid = id, m = m, d = distance(obj:getAbsNodePosition(id), center)}) end
 		end
 	end
 	table.sort(found, function(a, b) return a.d < b.d end)
@@ -513,14 +507,38 @@ function M.anchorFind(px, py, pz)
 		mass = mass + n.m
 	end
 	if mass <= 0 then return false end
-	anchor = {node = pick.cid, nodes = nodes, mass = mass, fx = 0, fy = 0, fz = 0, age = ANCHOR_PULL_KEEP}
+	anchor = {node = cid, nodes = nodes, mass = mass, fx = 0, fy = 0, fz = 0, age = ANCHOR_PULL_KEEP}
 	if not physicsStep and type(enablePhysicsStepHook) == "function" then
 		local ok, err = pcall(enablePhysicsStepHook)
 		physicsStep = ok
 		if not ok then log("W", "sharedCareer.rope", "physics-step hook not available, anchor once per frame: " .. tostring(err)) end
 	end
-	reportToGE("onAnchorNode", "%d, %d", pick.cid, bestHitch and 1 or 0)
+	reportToGE("onAnchorNode", "%d, %d", cid, hitch and 1 or 0)
 	return true
+end
+
+--- The anchor is at x/y/z: report the tow hitches near it; with canSnap, hook it on if it is close
+--- enough to a hitch (or touches the body).
+function M.anchorNear(x, y, z, canSnap)
+	local p = {x = tonumber(x) or 0, y = tonumber(y) or 0, z = tonumber(z) or 0}
+	local targets, bestHitch, bestNode = {}, nil, nil
+	for _, node in pairs(allNodes()) do
+		local cid = type(node) == "table" and node.cid
+		if cid then
+			local d = distance(obj:getAbsNodePosition(cid), p)
+			if isHitch(node) then
+				if d <= TARGET_RANGE then table.insert(targets, tostring(cid)) end
+				if d <= HITCH_SNAP and (not bestHitch or d < bestHitch.d) then bestHitch = {cid = cid, d = d} end
+			elseif d <= NODE_SNAP and (not bestNode or d < bestNode.d) then
+				bestNode = {cid = cid, d = d}
+			end
+		end
+	end
+	reportToGE("onAnchorTargets", "%q", table.concat(targets, ","))
+	if not (canSnap == 1 or canSnap == true) then return false end
+	if bestHitch then return anchorAt(bestHitch.cid, true) end
+	if bestNode then return anchorAt(bestNode.cid, false) end
+	return false
 end
 
 function M.anchorPull(fx, fy, fz)
