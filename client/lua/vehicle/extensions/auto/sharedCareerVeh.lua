@@ -107,23 +107,35 @@ end
 --== Hand: our own node grabber, as a rope =======================================
 -- A rope from a vehicle to an anchor point that the GE side places (grab.lua). The rope is tied to
 -- one node (the one you aimed at, the "tie node"); its pull is spread over the nodes around it (the
--- grip). It behaves like a real rope with a winch:
---   * it only pulls when it is taut (distance tie node -> anchor longer than the rope); it never
---     pushes
---   * while the anchor is being moved, the winch pays out rope, so the vehicle stays where it is
---   * winch 1 (haul in): the rope is hauled in at most `speed` m/s and the vehicle is pulled to
---     the anchor; the winch also brakes (up to half the force limit), so it doesn't roll past it
---   * winch 0 (stop): the rope length stays, the vehicle hangs on it
+-- grip) by their mass, so thin panels don't bend. It is computed like a real winch line:
+--   * stiff: under the vehicle's weight it stretches ROPE_STRAIN of its length (at least
+--     ROPE_STRETCH_MIN), like a steel or synthetic winch line, so it catches the vehicle instead of
+--     springing it back like rubber; what is left of a swing (a cm or so) dies down quickly through
+--     the rope's own damping
+--   * it only pulls when it is taut (tie node farther from the anchor than the rope is long); it
+--     never pushes
+--   * winch 1 (haul in): the motor winds the rope in at most `speed` m/s; the harder the rope
+--     pulls, the slower it turns (like a winch's series-wound motor: WINCH_FULL_LOAD of the speed
+--     just below the pull limit), and at the pull limit (`strength` % of the vehicle's weight) it
+--     stalls. Over the last WINCH_SOFT_END m before ROPE_MIN it slows down
 --   * winch -1 (pay out): the rope gets longer at `speed` m/s, e.g. to lower a lifted end
---   * the pull is limited to `strength` % of the vehicle's weight: you can lift one end and drag
---     the vehicle, but not float it (below 100 %)
---   * if the vehicle doesn't follow (handbrake, gear in park, a wheel against a curb), the pull
---     builds up to the limit within about 2 s, like a winch working harder; once the vehicle
---     moves at the wanted speed it eases off again
---   * the force is split over the grip nodes by their mass, so thin panels don't bend
--- Forces are applied once per frame for that frame (obj:applyForceVectorTime in updateGFX, like
--- the game's container locks do). A long frame (a hitch) counts as at most HAND_MAX_DT, so the rope
--- never gives a jolt in an old direction.
+--   * the motor needs a moment to get up to speed (WINCH_ACCEL_IN); paying out, the drum speeds up
+--     slowly (WINCH_ACCEL_OUT), so a hanging load follows it instead of dropping into the rope
+--   * winch 0 (stop): the rope length stays, the vehicle hangs on it
+--   * while the anchor is being moved, the drum turns freely: the rope pays out, the vehicle stays.
+--     An anchor that jumps more than ANCHOR_JUMP between two messages was placed somewhere else
+--     ("to my view"): the rope pays out to it as well – a jump is no shock load on the rope
+--   * the brake (and the motor's gear while hauling in) holds BRAKE_HOLD times the pull limit;
+--     above that it slips and lets out rope at most BRAKE_SLIP m/s
+--   * the rope snaps above ROPE_BREAK times the vehicle's weight: only a shock load does that, e.g.
+--     a vehicle that drops or drives into the taut rope; the winch alone can't break it
+-- The rope is computed at the physics rate (onPhysicsStep, about 2000 times per second, switched
+-- on with the game's enablePhysicsStepHook once a rope is attached); only that makes a stiff rope
+-- possible. If the game doesn't offer the hook, the same runs once per frame in updateGFX with
+-- forces for the whole frame (obj:applyForceVectorTime), and the rope is made as soft as a frame
+-- needs to stay stable (STABLE_K, STABLE_C). A long frame (a hitch) counts as at most HAND_MAX_DT.
+-- An error in the physics step is logged once and the rope goes on once per frame (never takes the
+-- vehicle down).
 --
 -- The rope comes off by itself and tells the GE side (sharedCareer_grab.onHandLost(id, reason)):
 --   LOST_NO_GRIP  nothing to grab where you aimed
@@ -131,32 +143,48 @@ end
 --   LOST_JUMP     the vehicle jumped (moved without a reset, e.g. teleported)
 --   LOST_TORN     the tie node moved far from the vehicle's reference node: the part tore off or
 --                 bent away; pulling on would only drag the loose part
+--   LOST_SNAPPED  the rope itself snapped (overload)
 
 local HAND_RADIUS = 0.8   -- m around the grab point
 local HAND_MIN_NODES = 4  -- at least this many nodes, even if fewer are inside the radius
 local HAND_MAX_NODES = 24
-local HAND_KP = 2         -- 1/s: wanted speed = distance to the target * HAND_KP (then limited)
-local HAND_TAU = 0.4      -- s: how quickly the vehicle's speed follows the wanted speed
-local HAND_LIFT_RAMP = 0.3 -- m of stretch at which an upward rope carries the full weight
-local HAND_MAX_DT = 0.05   -- s: the longest frame the rope works with
-local HAND_JUMP = 2        -- m the tie node may move in one frame beyond what its speed explains
-local HAND_TEAR = 2        -- m the tie node may move away from (or towards) the reference node
-local ROPE_MIN = 0.5       -- m: the winch doesn't haul in further than this
-local ROPE_MAX = 150       -- m: the winch doesn't pay out further than this
-local SLACK_BELOW = 0.02   -- m of stretch: a taut rope counts as slack again below this
-local TAUT_ABOVE = 0.08    -- m of stretch: a slack rope counts as taut above this (no flicker)
-local WINCH_BRAKE = 0.5    -- share of the force limit the running winch may use to brake
-local BOOST_RISE = 0.5     -- share of the force limit per second the pull builds up while stuck
-local BOOST_FALL = 2       -- share of the force limit per second it eases off once it moves
+local VELOCITY_NODES = 6  -- the grip's speed is measured on its heaviest nodes
+local HAND_MAX_DT = 0.05  -- s: the longest frame the rope works with (without the physics step)
+local HAND_JUMP = 2       -- m the tie node may move in one frame beyond what its speed explains
+local HAND_TEAR = 2       -- m the tie node may move away from (or towards) the reference node
+local ROPE_MIN = 0.5      -- m: the winch doesn't haul in further than this
+local ROPE_MAX = 150      -- m: the winch doesn't pay out further than this
+local ROPE_STRAIN = 0.005 -- share of its length the rope stretches under the vehicle's weight
+local ROPE_STRETCH_MIN = 0.01 -- m it stretches at least under the vehicle's weight (a short rope)
+local ROPE_DAMPING = 0.3  -- the rope's own damping, as a share of critical damping (for the vehicle)
+local ROPE_BREAK = 4      -- the rope snaps at this many times the vehicle's weight
+local BREAK_FILTER = 0.01 -- s the tension is averaged over before it can snap the rope
+local BRAKE_HOLD = 1.5    -- the brake holds this many times the pull limit
+local BRAKE_SLIP = 0.5    -- m/s the brake lets out at most when it slips
+local WINCH_SOFT_END = 1  -- m before ROPE_MIN over which the winch slows down
+local WINCH_SOFT_MIN = 0.15 -- share of the speed it keeps at the very end
+local WINCH_ACCEL_IN = 10 -- m/s^2 the motor speeds up hauling in (about 0.1 s to full speed)
+local WINCH_ACCEL_OUT = 2 -- m/s^2 the drum speeds up and slows down paying out (a hanging load
+                          -- follows it instead of dropping into the rope)
+local WINCH_FULL_LOAD = 0.2 -- share of the speed the motor still makes just below the pull limit
+local TAUT_ABOVE = 0.03   -- share of the weight: a slack rope counts as taut above this tension
+local SLACK_BELOW = 0.01  -- share of the weight: a taut rope counts as slack again below this
+local STABLE_K = 0.25     -- stiffness limit for a stable step: k * dt^2 / grip mass
+local STABLE_C = 0.5      -- damping limit for a stable step: c * dt / grip mass
+local ANCHOR_JUMP = 0.2   -- m the anchor may move between two messages before it counts as placed
 local GRAVITY = 9.81
 
-local LOST_NO_GRIP, LOST_RESET, LOST_JUMP, LOST_TORN = 0, 1, 2, 3
+local LOST_NO_GRIP, LOST_RESET, LOST_JUMP, LOST_TORN, LOST_SNAPPED = 0, 1, 2, 3, 4
 
 local HAND_REPORT_EVERY = 0.1 -- s: how often the rope state goes back to the GE side
 
-local hand = nil -- {nodes = {{cid, m}}, tie (cid), ref (cid), refDist, gripMass, vehMass,
-                 --  ax, ay, az (anchor), length, winch, moving, speed, strength, strain, slack,
-                 --  boost, since, last = {x, y, z} (tie node one frame ago)}
+local hand = nil -- {nodes = {{cid, m}}, velNodes = {{cid, w}}, tie (cid), ref (cid), refDist,
+                 --  gripMass, vehMass, ax, ay, az (anchor), placed (it jumped: pay out to it),
+                 --  length, drum (m/s the rope runs out, < 0 = in), winch, moving, speed, strength,
+                 --  tension (last step), tensionF (averaged for snapping), tensionSum, tensionTime
+                 --  (since the last frame), strain, slack, since, last = {x, y, z} (tie node one
+                 --  frame ago)}
+local physicsStep = false -- the game calls onPhysicsStep for this vehicle
 
 -- tell the GE side (grab.lua) something about this vehicle
 local function reportToGE(fn, fmt, ...)
@@ -214,12 +242,27 @@ function M.handGrab(x, y, z, speed, strength)
 		hand = nil
 		return false
 	end
+	-- the grip's speed: measured on its heaviest nodes (light panel nodes shake)
+	local heavy = {}
+	for _, n in ipairs(nodes) do table.insert(heavy, n) end
+	table.sort(heavy, function(a, b) return a.m > b.m end)
+	local velNodes, velMass = {}, 0
+	for i = 1, math.min(VELOCITY_NODES, #heavy) do velMass = velMass + heavy[i].m end
+	for i = 1, math.min(VELOCITY_NODES, #heavy) do table.insert(velNodes, {cid = heavy[i].cid, w = heavy[i].m / velMass}) end
 	local tie, ref = nodes[1].cid, refNode()
-	hand = {nodes = nodes, tie = tie, ref = ref, gripMass = gripMass, vehMass = vehMass, ax = x, ay = y, az = z,
+	hand = {nodes = nodes, velNodes = velNodes, tie = tie, ref = ref, gripMass = gripMass, vehMass = vehMass,
+		ax = x, ay = y, az = z,
 		refDist = ref and distance(obj:getAbsNodePosition(tie), obj:getAbsNodePosition(ref)) or nil,
-		length = nil, winch = 0, moving = false, boost = 0, slack = true,
-		speed = tonumber(speed) or 1, strength = tonumber(strength) or 60, strain = 0,
+		length = nil, drum = 0, winch = 0, moving = false, slack = true,
+		speed = tonumber(speed) or 1, strength = tonumber(strength) or 60,
+		tension = 0, tensionF = 0, tensionSum = 0, tensionTime = 0, strain = 0,
 		since = HAND_REPORT_EVERY}
+	-- the rope is computed at the physics rate from now on (see above)
+	if not physicsStep and type(enablePhysicsStepHook) == "function" then
+		local ok, err = pcall(enablePhysicsStepHook)
+		physicsStep = ok
+		if not ok then log("W", "sharedCareer.rope", "physics-step hook not available, rope once per frame: " .. tostring(err)) end
+	end
 	return true
 end
 
@@ -295,6 +338,8 @@ end
 --- moved, settings.
 function M.handRope(ax, ay, az, winch, moving, speed, strength)
 	if not hand then return end
+	local jump = math.sqrt((ax - hand.ax) ^ 2 + (ay - hand.ay) ^ 2 + (az - hand.az) ^ 2)
+	if jump > ANCHOR_JUMP then hand.placed = true end
 	hand.ax, hand.ay, hand.az = ax, ay, az
 	if winch == true then winch = 1 elseif winch == false then winch = 0 end
 	winch = tonumber(winch) or 0
@@ -317,20 +362,94 @@ function M.onReset()
 	if hand then lose(LOST_RESET) end
 end
 
+-- the grip's speed (mass-weighted over its heaviest nodes)
+local function gripVelocity()
+	local vx, vy, vz = 0, 0, 0
+	for _, n in ipairs(hand.velNodes) do
+		local vel = obj:getNodeVelocityVector(n.cid)
+		vx, vy, vz = vx + vel.x * n.w, vy + vel.y * n.w, vz + vel.z * n.w
+	end
+	return vx, vy, vz
+end
+
+-- One step of the rope: the winch changes the rope's length, a taut rope pulls the grip towards
+-- the anchor. perFrame: forces for the whole frame (no physics step).
+local function ropeStep(dt, perFrame)
+	local h = hand
+	local tie = obj:getAbsNodePosition(h.tie)
+	local dx, dy, dz = h.ax - tie.x, h.ay - tie.y, h.az - tie.z
+	local d = math.sqrt(dx * dx + dy * dy + dz * dz)
+	if not h.length then h.length = d end
+	local weight = h.vehMass * GRAVITY
+	local pull = weight * h.strength / 100
+	-- the winch: the motor slows down under load and stalls at once at the pull limit (it can't
+	-- pull harder); otherwise the drum follows the wanted speed at its acceleration
+	local want = 0
+	if h.winch == 1 then
+		local soft = math.max(WINCH_SOFT_MIN, math.min(1, (h.length - ROPE_MIN) / WINCH_SOFT_END))
+		local load = h.tension / pull
+		want = load >= 1 and 0 or -h.speed * soft * (1 - (1 - WINCH_FULL_LOAD) * load)
+	elseif h.winch == -1 then
+		want = h.speed
+	end
+	local step = (h.winch == 1 and WINCH_ACCEL_IN or WINCH_ACCEL_OUT) * dt
+	h.drum = h.drum + math.max(-step, math.min(step, want - h.drum))
+	if h.winch == 1 then h.drum = math.max(h.drum, want) end -- the motor stalls at once under load
+	h.length = math.max(ROPE_MIN, math.min(ROPE_MAX, h.length + h.drum * dt))
+	if h.moving then h.length = math.max(h.length, d) end
+	if h.placed then
+		h.length = math.min(ROPE_MAX, math.max(h.length, d))
+		h.placed = false
+	end
+	-- the brake slips under too much load
+	if h.winch ~= -1 and h.tension > pull * BRAKE_HOLD then
+		h.length = math.min(ROPE_MAX, h.length + BRAKE_SLIP * dt)
+	end
+	-- a taut rope: stiff spring with about critical damping, pulling only
+	local tension = 0
+	local stretch = d - h.length
+	if stretch > 0 and d > 0.001 then
+		local ux, uy, uz = dx / d, dy / d, dz / d
+		local vx, vy, vz = gripVelocity()
+		-- the stretch grows when the grip moves away from the anchor and when the drum winds in
+		local stretchRate = -(vx * ux + vy * uy + vz * uz) - h.drum
+		local k = weight / math.max(ROPE_STRETCH_MIN, ROPE_STRAIN * h.length)
+		k = math.min(k, STABLE_K * h.gripMass / (dt * dt))
+		local c = math.min(ROPE_DAMPING * 2 * math.sqrt(k * h.vehMass), STABLE_C * h.gripMass / dt)
+		tension = math.max(0, k * stretch + c * stretchRate)
+		for _, n in ipairs(h.nodes) do
+			local f = tension * n.m / h.gripMass
+			if perFrame then
+				obj:applyForceVectorTime(n.cid, vec3(ux * f, uy * f, uz * f), dt)
+			else
+				obj:applyForceVector(n.cid, vec3(ux * f, uy * f, uz * f))
+			end
+		end
+	end
+	h.tension = tension
+	h.tensionSum, h.tensionTime = h.tensionSum + tension * dt, h.tensionTime + dt
+	h.tensionF = h.tensionF + (tension - h.tensionF) * math.min(1, dt / BREAK_FILTER)
+	if h.tensionF > ROPE_BREAK * weight then lose(LOST_SNAPPED) end
+end
+
+function M.onPhysicsStep(dt)
+	if not (physicsStep and hand and dt and dt > 0) then return end
+	local ok, err = pcall(ropeStep, dt, false)
+	if not ok then
+		-- never take the vehicle down: log it once, the rope goes on once per frame
+		physicsStep = false
+		log("E", "sharedCareer.rope", "rope at the physics rate failed, going on once per frame: " .. tostring(err))
+	end
+end
+
 function M.updateGFX(dt)
 	if not hand or not dt or dt <= 0 then return end
 	local tie = obj:getAbsNodePosition(hand.tie)
 	local tx, ty, tz = tie.x, tie.y, tie.z
-	-- how fast the grip moves (mass-weighted)
-	local vx, vy, vz = 0, 0, 0
-	for _, n in ipairs(hand.nodes) do
-		local vel = obj:getNodeVelocityVector(n.cid)
-		local w = n.m / hand.gripMass
-		vx, vy, vz = vx + vel.x * w, vy + vel.y * w, vz + vel.z * w
-	end
 	-- jumped further than its speed explains: moved by the game (teleport), not by the rope
 	local last = hand.last
 	if last then
+		local vx, vy, vz = gripVelocity()
 		local jx, jy, jz = tx - last.x - vx * dt, ty - last.y - vy * dt, tz - last.z - vz * dt
 		if jx * jx + jy * jy + jz * jz > HAND_JUMP * HAND_JUMP then
 			lose(LOST_JUMP)
@@ -343,63 +462,29 @@ function M.updateGFX(dt)
 		lose(LOST_TORN)
 		return
 	end
-	dt = math.min(dt, HAND_MAX_DT)
-	local dx, dy, dz = hand.ax - tx, hand.ay - ty, hand.az - tz
-	local d = math.sqrt(dx * dx + dy * dy + dz * dz)
-	-- rope length: starts at the current distance; paid out while the anchor is moved; hauled in
-	-- by the winch
-	if not hand.length then hand.length = d end
-	if hand.winch == 1 then
-		hand.length = math.max(ROPE_MIN, math.min(hand.length, d) - hand.speed * dt)
-	elseif hand.winch == -1 then
-		hand.length = math.min(ROPE_MAX, math.max(hand.length, hand.moving and d or 0) + hand.speed * dt)
-	elseif hand.moving then
-		hand.length = math.max(hand.length, d)
+	if not physicsStep then
+		ropeStep(math.min(dt, HAND_MAX_DT), true)
+		if not hand then return end
 	end
-	local tension = 0
-	local limit = hand.vehMass * GRAVITY * hand.strength / 100
-	local stretch = d - hand.length
-	-- a taut rope pulls; a running winch also brakes near its end (it holds on to the vehicle)
-	local active = d > 0.001 and (stretch > 0.001 or hand.winch == 1)
-	if active then
-		local ux, uy, uz = dx / d, dy / d, dz / d
-		-- wanted speed along the rope: towards the anchor, at most hand.speed (0 at the rope's end)
-		local want = math.max(0, math.min(hand.speed, stretch * HAND_KP))
-		local along = vx * ux + vy * uy + vz * uz
-		tension = hand.vehMass / HAND_TAU * (want - along)
-		-- stuck (slower than wanted): build up an extra pull, step by step up to the limit
-		if want - along > 0.1 then
-			hand.boost = math.min(limit, hand.boost + limit * BOOST_RISE * dt)
-		else
-			hand.boost = math.max(0, hand.boost - limit * BOOST_FALL * dt)
-		end
-		tension = tension + hand.boost
-		-- an upward rope also carries the weight once it is stretched a bit
-		tension = tension + hand.vehMass * GRAVITY * math.max(0, uz) * math.min(1, math.max(0, stretch) / HAND_LIFT_RAMP)
-		-- a rope only pulls; the running winch may also brake a little
-		local minTension = hand.winch == 1 and -limit * WINCH_BRAKE or 0
-		tension = math.max(minTension, math.min(limit, tension))
-		if tension ~= 0 then
-			for _, n in ipairs(hand.nodes) do
-				local f = tension * n.m / hand.gripMass
-				obj:applyForceVectorTime(n.cid, vec3(ux * f, uy * f, uz * f), dt)
-			end
-		end
-	else
-		hand.boost = 0
-	end
+	-- a frame right after the grab, before the first physics step: the rope has no length yet
+	if not hand.length then return end
+	-- what this frame's steps pulled on average
+	local weight = hand.vehMass * GRAVITY
+	local tension = hand.tensionTime > 0 and hand.tensionSum / hand.tensionTime or hand.tension
+	hand.tensionSum, hand.tensionTime = 0, 0
 	-- slack or taut, with a margin in between so the display doesn't flicker
 	if hand.slack then
-		hand.slack = stretch <= TAUT_ABOVE
+		hand.slack = tension <= TAUT_ABOVE * weight
 	else
-		hand.slack = stretch < SLACK_BELOW
+		hand.slack = tension < SLACK_BELOW * weight
 	end
-	-- strain: share of the force limit in use (1 = at the limit), smoothed for the display
-	hand.strain = hand.strain + (math.abs(tension) / limit - hand.strain) * math.min(1, dt * 6)
+	-- strain: share of the pull limit in use (1 = at the limit), smoothed for the display
+	local pull = weight * hand.strength / 100
+	hand.strain = hand.strain + (math.min(1.5, tension / pull) - hand.strain) * math.min(1, dt * 6)
 	hand.since = hand.since + dt
 	if hand.since >= HAND_REPORT_EVERY then
 		hand.since = 0
-		reportToGE("onHandState", "%.3f, %.3f, %.3f, %.2f, %d, %.2f", tx, ty, tz, hand.strain,
+		reportToGE("onHandState", "%.3f, %.3f, %.3f, %.2f, %d, %.2f", tx, ty, tz, math.min(1, hand.strain),
 			hand.slack and 1 or 0, hand.length)
 	end
 end
