@@ -66,10 +66,10 @@
 --   let go    when the rope comes off (removed, reset, torn loose, vehicle gone) it doesn't just
 --             vanish: a taut rope snaps back to the anchor with a short whip, a slack one drops;
 --             both fade out within a fraction of a second, and the anchor with them
---   winch gauge   above the anchor (where the winch pulls), while the rope is taut or the winch
---             runs: a small ring that always faces you and fills with the winch's load (share of its
---             pull limit), green -> yellow -> orange; at the limit it blinks red. A small drum in
---             its middle. With the Tow app open, a sign above shows "Winch 72 %"
+--   winch gauge   above the anchor (where the portable winch sits), while it hauls in: a small
+--             ring that always faces you and fills with the winch's load (share of its pull limit),
+--             green -> yellow -> orange; at the limit it blinks red. A small drum in its middle.
+--             With the Tow app open, a sign above shows "Winch 72 %" (stopped: "Locked")
 --   grip      a small ball on the tie node, in the rope's color
 --   anchor    a pin (post with a ball on top): white = resting, cyan = being moved, orange =
 --             hauling in (the ball pulses), purple = paying out. Above the ground a dashed drop
@@ -436,7 +436,7 @@ function M.step(dt, dtSim)
 		M.release(held.grip and "The rope came loose" or LOST_MESSAGES[0])
 		return
 	end
-	if not held.slack and (held.strain or 0) > 0.95 then
+	if held.winch == 1 and not held.slack and (held.strain or 0) > 0.95 then
 		held.stuckFor = held.stuckFor + dt
 	else
 		held.stuckFor = 0
@@ -574,8 +574,8 @@ function M.onHandState(id, x, y, z, strain, slack, length, ropeLoad)
 	if not held or held.id ~= id then return end
 	held.grip = {x = x, y = y, z = z}
 	held.silent = 0
-	-- the winch's load (1 = its limit, up to 1.5 = its brake) and the rope's (1 = it breaks)
-	held.strain = math.max(0, math.min(1.5, tonumber(strain) or 0))
+	-- the winch's load while it hauls in (1 = its limit) and the rope's (1 = it breaks)
+	held.strain = math.max(0, math.min(1, tonumber(strain) or 0))
 	held.ropeLoad = math.max(0, math.min(1, tonumber(ropeLoad) or 0))
 	held.slack = slack == 1 or slack == true
 	-- how fast the rope runs through the winch (m/s, < 0 = hauled in), for the marks on the rope
@@ -1068,12 +1068,13 @@ function M.draw(dt)
 			groundMarker(b, rgb)
 			drawHitches(b)
 		end
-		-- the winch gauge above the anchor, while the winch has work to do
+		-- the winch gauge above the anchor, while the winch hauls in
 		local gaugeAt = {x = b.x, y = b.y, z = b.z + (held.anchorVeh and 0.45 or PIN_HEIGHT + 0.4)}
-		if not held.slack or held.winch ~= 0 then winchGauge(gaugeAt, held.strain or 0) end
+		if held.winch == 1 then winchGauge(gaugeAt, held.strain or 0) end
 		if appOpen then
-			sign({x = gaugeAt.x, y = gaugeAt.y, z = gaugeAt.z + 0.35},
-				string.format("Winch %d %%", math.floor(math.min(1.5, held.strain or 0) * 100 + 0.5)))
+			local text = held.winch == 1 and string.format("Winch %d %%", math.floor((held.strain or 0) * 100 + 0.5))
+				or (held.winch == -1 and "Paying out" or "Locked")
+			sign({x = gaugeAt.x, y = gaugeAt.y, z = gaugeAt.z + 0.35}, text)
 		end
 	elseif probe then
 		ball(probe, 0.12 * (1 + 0.12 * math.sin(clock * 2 * math.pi)), ColorF(0.3, 0.8, 1, 0.45))

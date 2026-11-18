@@ -130,12 +130,17 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 		if (s < 0.9) return 'Working hard';
 		return 'At the limit';
 	};
-	// the winch's load as 10 segments, green -> yellow -> orange, red at the limit
+	// the winch's load while it hauls in, as 10 segments, green -> yellow -> orange, red at the limit;
+	// stopped the drum is locked (the rope holds like a tow rope), paying out it gives way
+	$scope.winchText = function () {
+		var t = $scope.tow;
+		if (t.winch === 1) return $scope.strainText(t.strain);
+		return t.winch === -1 ? 'Paying out' : 'Locked';
+	};
 	$scope.winchSegs = new Array(10);
 	var SEG_COLORS = ['#4cd964', '#4cd964', '#4cd964', '#8fdc4a', '#c8d93a', '#ffcc00', '#ffcc00', '#ffa020', '#ff8a20', '#ff6a1a'];
 	$scope.segStyle = function (i) {
-		var s = $scope.tow.strain || 0;
-		if ($scope.tow.slack && !$scope.tow.winch) s = 0;
+		var s = $scope.tow.winch === 1 ? ($scope.tow.strain || 0) : 0;
 		if (s * 10 <= i) return {};
 		return {'background': s >= 0.95 ? '#ff3b30' : SEG_COLORS[i]};
 	};

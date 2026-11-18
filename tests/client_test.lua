@@ -889,15 +889,14 @@ do
 		string.format("pay out: the drum speeds up, then the rope gets 1 m/s longer (%.2f -> %.2f m)", lenBefore or -1, lenAfter or -1))
 	check(veh.handInfo() ~= nil and body.p.z < zStart - 0.5 and dropFastest < 1.15,
 		string.format("the hanging vehicle comes down with the rope, it doesn't drop into it (at most %.2f m/s)", dropFastest))
-	-- the brake holds 1.5 times the pull limit: with 30 % (45 %) it can't hold the hanging vehicle
-	-- and slips, letting it down slowly
+	-- stopped, the drum is locked: even with 30 % (far less than the vehicle's weight) it holds
 	veh.handRope(ax, ay, 4, 1, 0, 1, 150)
 	run(3)
 	veh.handRope(ax, ay, 4, 0, 0, 1, 30)
 	local zHang, fastest = body.p.z, 0
 	run(2, function() fastest = math.max(fastest, -body.v.z) end)
-	check(zHang > 0.5 and body.p.z < zHang - 0.3 and fastest < 0.6 and veh.handInfo() ~= nil,
-		string.format("overloaded brake: it slips and lets the vehicle down slowly (%.2f -> %.2f m, %.2f m/s)", zHang, body.p.z, fastest))
+	check(zHang > 0.5 and math.abs(body.p.z - zHang) < 0.03 and veh.handInfo() ~= nil,
+		string.format("stopped, the drum is locked: the strength doesn't matter, it holds the hanging vehicle (%.2f -> %.2f m)", zHang, body.p.z))
 	veh.handRelease()
 	body.f = {x = 0, y = 0, z = 0}
 	body.frameF = {x = 0, y = 0, z = 0}
@@ -1204,7 +1203,13 @@ sharedCareer_grab.setAppOpen(true)
 shapes = {}
 frames(1 / 60)
 local sg = find("text")
-check(sg and sg.t:find("^Winch %d+ %%"), "Tow app open: a sign with the winch's load (" .. tostring(sg and sg.t) .. ")")
+check(sg and sg.t == "Locked", "Tow app open, winch stopped: the sign says it is locked (" .. tostring(sg and sg.t) .. ")")
+sharedCareer_grab.uiWinch(1)
+shapes = {}
+frames(1 / 60)
+sg = find("text")
+check(sg and sg.t:find("^Winch %d+ %%"), "hauling in: the sign shows the winch's load (" .. tostring(sg and sg.t) .. ")")
+sharedCareer_grab.uiWinch(0)
 sharedCareer_grab.setAppOpen(false)
 -- winch hauling in: the pin's ball pulses
 sharedCareer_grab.uiWinch(1)
@@ -1238,7 +1243,7 @@ local function gauge()
 		if math.abs(d.p1.x - d.p2.x) < 1e-6 and midZ > 1.7 and midZ < 2.3 then -- a ring in the y-z plane, facing +x
 			ring = ring + 1
 			if d.c.a > 0.3 then filled = filled + 1 end
-			if d.c.r > 0.99 and d.c.g < 0.3 then red = red + 1 end
+			if d.c.r > 0.99 and d.c.g < 0.3 then red = red + 1 end -- red blinks: counted by color
 		end
 	end
 	return ring, filled, red
@@ -1251,7 +1256,7 @@ check(ring >= 24 and filled >= 20 and filled <= 28 and red == 0,
 	string.format("winch at half its limit: the gauge is half full (%d of 48 lines filled)", filled))
 handState(60, 9, 0, 1, 1, 0, 4, 0.1)
 ring, filled, red = gauge()
-check(filled >= 46 and red >= 46, "winch at its limit: the gauge is full and red")
+check(red >= 46, "winch at its limit: the gauge is full and red (it blinks)")
 sharedCareer_grab.uiWinch(0)
 handState(60, 9, 0, 1, 0, 1, 4, 0)
 ring = gauge()
@@ -1392,7 +1397,8 @@ drawn = {}
 frames(1 / 60)
 check(drawn[1].p1.x == 9, "an implausible node position falls back to the last report")
 truck.getNodePosition = nil
--- at the limit for a while: shown in the Tow app and on the sign
+-- at the limit for a while (while hauling in): shown in the Tow app and on the sign
+sharedCareer_grab.uiWinch(1)
 handState(60, 9, 0, 1, 1, 0, 4)
 frames(1)
 check(not sharedCareer_grab.appState().stuck, "at the limit for a moment: not stuck yet")
@@ -1401,6 +1407,10 @@ check(sharedCareer_grab.appState().stuck, "at the limit for 2 s: the Tow app say
 handState(60, 9, 0, 1, 0.3, 0, 4)
 frames(0.2)
 check(not sharedCareer_grab.appState().stuck, "it pulls easier again: no longer stuck")
+handState(60, 9, 0, 1, 1, 0, 4)
+sharedCareer_grab.uiWinch(0)
+frames(2.5)
+check(not sharedCareer_grab.appState().stuck, "stopped (locked): never stuck")
 -- a floating anchor: dashed drop line and a disc on the ground (castRayStatic)
 _G.castRayStatic = function(from, dir, range) return from.z - 0 end   -- ground at z = 0
 sharedCareer_grab.uiNudge(0, 0, 1)

@@ -163,7 +163,7 @@
 							<div class="scp-meter" title="How hard the winch works">
 								<span class="scp-ic scp-meter-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="7" width="12" height="10" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M7 7v10M10 7v10M13 7v10" stroke="currentColor" stroke-width="1.4" opacity="0.7"/><path d="M16 12h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span><span class="scp-meter-name">Winch</span>
 								<span class="scp-segs"><i ng-repeat="n in winchSegs track by $index" ng-style="segStyle($index)"></i></span>
-								<span class="scp-meter-text" ng-class="{'scp-meter-limit': tow.strain >= 0.95}" ng-bind="tow.slack && !tow.winch ? 'Idle' : strainText(tow.strain)"></span>
+								<span class="scp-meter-text" ng-class="{'scp-meter-limit': tow.winch === 1 && tow.strain >= 0.95}" ng-bind="winchText()"></span>
 							</div>
 							<div class="scp-meter" title="How close the rope is to breaking">
 								<span class="scp-ic scp-meter-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17c3-6 6 0 9-6s6 0 9-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span><span class="scp-meter-name">Rope</span>
@@ -185,7 +185,7 @@
 						<div ng-if="towTab === 'winch'">
 							<div class="scp-wbtns">
 								<button class="scp-wbtn" ng-class="{'scp-wbtn-out': tow.winch === -1}" ng-click="towCall('uiWinch(-1)')" title="The rope gets longer"><span class="scp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v13M6.5 11.5L12 17l5.5-5.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 20.5h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.6"/></svg></span><span>Pay out</span></button>
-								<button class="scp-wbtn" ng-class="{'scp-wbtn-stop': tow.winch === 0}" ng-click="towCall('uiWinch(0)')" title="The rope holds"><span class="scp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="6.5" width="11" height="11" rx="2.2" fill="currentColor"/></svg></span><span>Stop</span></button>
+								<button class="scp-wbtn" ng-class="{'scp-wbtn-stop': tow.winch === 0}" ng-click="towCall('uiWinch(0)')" title="Lock the rope"><span class="scp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="6.5" width="11" height="11" rx="2.2" fill="currentColor"/></svg></span><span>Stop</span></button>
 								<button class="scp-wbtn" ng-class="{'scp-wbtn-in': tow.winch === 1}" ng-click="towCall('uiWinch(1)')" title="Pull the vehicle to the anchor"><span class="scp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20V7M6.5 12.5L12 7l5.5 5.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 3.5h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.6"/></svg></span><span>Haul in</span></button>
 							</div>
 							<div class="scp-label">Strength <span>{{tow.strength}} % of its weight</span></div>

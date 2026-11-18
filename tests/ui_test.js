@@ -119,8 +119,11 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 		'winch at its limit: all segments red; rope under high load');
 	phone.emit('SharedCareerTow', {allowed: true, attached: true, slack: false, winch: 0, strain: 0.2, ropeLoad: 0.8});
 	check(phone.ropeState().cls === 'scp-rope-critical', 'rope near breaking: the critical chip');
+	phone.emit('SharedCareerTow', {allowed: true, attached: true, slack: false, winch: -1, strain: 0, ropeLoad: 0.2});
+	check(phone.winchText() === 'Paying out' && !phone.segStyle(0).background, 'paying out: the winch gives way, no load shown');
 	phone.emit('SharedCareerTow', {allowed: true, attached: true, slack: true, winch: 0, strain: 0.3, ropeLoad: 0});
-	check(!phone.segStyle(0).background && phone.ropeState().text === 'Slack', 'slack, winch stopped: empty segments, "Slack"');
+	check(!phone.segStyle(0).background && phone.winchText() === 'Locked' && phone.ropeState().text === 'Slack',
+		'winch stopped: "Locked", empty segments; rope "Slack"');
 	// Jobs app (beta): list, your job, the steps; the strip in the Tow app opens it
 	phone.emit('SharedCareerPhone', {enabled: true, apps: [{id: 'jobs', title: 'Jobs', beta: true}, {id: 'tow'}, {id: 'fuel'}]});
 	phone.emit('SharedCareerJobs', {enabled: true, jobs: [

@@ -111,7 +111,8 @@ end
 --== Hand: our own node grabber, as a rope =======================================
 -- A rope from a vehicle to an anchor point that the GE side places (grab.lua). The rope is tied to
 -- one node (the one you aimed at, the "tie node"); its pull is spread over the nodes around it (the
--- grip) by their mass, so thin panels don't bend. It is computed like a real winch line:
+-- grip) by their mass, so thin panels don't bend. It is computed like a portable winch with its
+-- line (staked to the ground, or on a vehicle's tow hitch):
 --   * stiff: under the vehicle's weight it stretches ROPE_STRAIN of its length (at least
 --     ROPE_STRETCH_MIN), like a steel or synthetic winch line, so it catches the vehicle instead of
 --     springing it back like rubber; what is left of a swing (a cm or so) dies down quickly through
@@ -123,9 +124,11 @@ end
 --     just below the pull limit), and at the pull limit (`strength` % of the vehicle's weight) it
 --     stalls. Over the last WINCH_SOFT_END m before ROPE_MIN it slows down
 --   * winch -1 (pay out): the rope gets longer at `speed` m/s, e.g. to lower a lifted end
---   * the motor needs a moment to get up to speed (WINCH_ACCEL_IN); paying out, the drum speeds up
---     slowly (WINCH_ACCEL_OUT), so a hanging load follows it instead of dropping into the rope
---   * winch 0 (stop): the rope length stays, the vehicle hangs on it
+--   * the motor needs a moment to get up to speed and to stop (WINCH_ACCEL_IN); paying out, the
+--     drum speeds up and slows down slowly (WINCH_ACCEL_OUT), so a hanging load follows it instead
+--     of dropping into the rope
+--   * winch 0 (stop): the drum is locked – the rope keeps its length like a tow rope, whatever
+--     pulls on it, until the rope itself snaps. The strength only matters while hauling in
 --   * while the anchor is being moved, the drum turns freely: the rope pays out, the vehicle stays.
 --     An anchor that jumps more than ANCHOR_JUMP between two messages was placed somewhere else
 --     ("to my view"): the rope pays out to it as well – a jump is no shock load on the rope
@@ -134,8 +137,6 @@ end
 --     messages it moves on at that speed (so a fast tow doesn't jolt the rope), the rope's damping
 --     works on the speed between the two vehicles, and the pull on the anchor vehicle goes back
 --     every frame (onRopePull) – the GE side hands it on, so the towing vehicle feels the load
---   * the brake (and the motor's gear while hauling in) holds BRAKE_HOLD times the pull limit;
---     above that it slips and lets out rope at most BRAKE_SLIP m/s
 --   * the rope snaps above ROPE_BREAK times the vehicle's weight: only a shock load does that, e.g.
 --     a vehicle that drops or drives into the taut rope; the winch alone can't break it
 -- The rope is computed at the physics rate (onPhysicsStep, about 2000 times per second, switched
@@ -168,8 +169,6 @@ local ROPE_STRETCH_MIN = 0.01 -- m it stretches at least under the vehicle's wei
 local ROPE_DAMPING = 0.3  -- the rope's own damping, as a share of critical damping (for the vehicle)
 local ROPE_BREAK = 4      -- the rope snaps at this many times the vehicle's weight
 local BREAK_FILTER = 0.01 -- s the tension is averaged over before it can snap the rope
-local BRAKE_HOLD = 1.5    -- the brake holds this many times the pull limit
-local BRAKE_SLIP = 0.5    -- m/s the brake lets out at most when it slips
 local WINCH_SOFT_END = 1  -- m before ROPE_MIN over which the winch slows down
 local WINCH_SOFT_MIN = 0.15 -- share of the speed it keeps at the very end
 local WINCH_ACCEL_IN = 10 -- m/s^2 the motor speeds up hauling in (about 0.1 s to full speed)
@@ -416,7 +415,8 @@ local function ropeStep(dt, perFrame)
 	elseif h.winch == -1 then
 		want = h.speed
 	end
-	local step = (h.winch == 1 and WINCH_ACCEL_IN or WINCH_ACCEL_OUT) * dt
+	-- the motor speeds up and stops quickly; only paying out changes speed slowly
+	local step = ((h.winch == 1 or h.drum < 0) and WINCH_ACCEL_IN or WINCH_ACCEL_OUT) * dt
 	h.drum = h.drum + math.max(-step, math.min(step, want - h.drum))
 	if h.winch == 1 then h.drum = math.max(h.drum, want) end -- the motor stalls at once under load
 	h.length = math.max(ROPE_MIN, math.min(ROPE_MAX, h.length + h.drum * dt))
@@ -424,10 +424,6 @@ local function ropeStep(dt, perFrame)
 	if h.placed then
 		h.length = math.min(ROPE_MAX, math.max(h.length, d))
 		h.placed = false
-	end
-	-- the brake slips under too much load
-	if h.winch ~= -1 and h.tension > pull * BRAKE_HOLD then
-		h.length = math.min(ROPE_MAX, h.length + BRAKE_SLIP * dt)
 	end
 	-- a taut rope: stiff spring with about critical damping, pulling only
 	local tension = 0
@@ -660,10 +656,11 @@ function M.updateGFX(dt)
 	else
 		hand.slack = tension < SLACK_BELOW * weight
 	end
-	-- strain: the winch's load, share of its pull limit (1 = the motor's limit, up to 1.5 = what the
-	-- brake holds), smoothed for the display
+	-- strain: how hard the winch works while it hauls in, share of its pull limit (1 = the motor's
+	-- limit), smoothed for the display; 0 otherwise (stopped it is locked, paying out it gives way)
 	local pull = weight * hand.strength / 100
-	hand.strain = hand.strain + (math.min(BRAKE_HOLD, tension / pull) - hand.strain) * math.min(1, dt * 6)
+	local working = hand.winch == 1 and math.min(1, tension / pull) or 0
+	hand.strain = hand.strain + (working - hand.strain) * math.min(1, dt * 6)
 	hand.since = hand.since + dt
 	if hand.since >= HAND_REPORT_EVERY then
 		hand.since = 0
