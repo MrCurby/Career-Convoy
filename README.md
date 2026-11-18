@@ -13,7 +13,7 @@ One shared world (same traffic, same time of day, same traffic lights), while ev
 ![BeamNG.drive 0.39+](https://img.shields.io/badge/BeamNG.drive-0.39%2B-orange)
 ![BeamMP](https://img.shields.io/badge/BeamMP-server%20mod-blue)
 
-[Features](#features) · [Quick start](#quick-start) · [Server setup](docs/server-setup.md) · [In-game guide](docs/features.md) · [Settings & commands](docs/configuration.md) · [Development](docs/development.md)
+[Features](#features) · [Quick start](#quick-start) · [Server setup](docs/server-setup.md) · [In-game guide](docs/features.md) · [Settings & commands](docs/configuration.md) · [Report a bug](#help-and-bug-reports)
 
 </div>
 
@@ -32,7 +32,7 @@ The BeamNG career is made for playing alone. If you try it on a multiplayer serv
 
 **Made for small groups of friends.** SharedCareer is built for a few friends who just want to hang out on a BeamMP server and enjoy the career together, without stress and without things breaking. It's not made for big public servers.
 
-**How it's built.** At its heart, SharedCareer is the normal BeamNG career, made to work with more than one player. Those fixes always run. On top of that come **extras for playing together**, like shared fuel prices, finding your friends or a rope and winch to move vehicles that can't drive. Each extra is listed separately below and can be switched off by the server. The idea came from [Mileage](https://github.com/norto22/Mileage), but SharedCareer is its own mod.
+**How it's built.** At its heart, SharedCareer is the normal BeamNG career, made to work with more than one player. Those fixes always run. On top of that come **extras for playing together**, like shared fuel prices, finding your friends or a rope and winch to move vehicles that can't drive. Each extra is listed separately below and can be switched off by the server.
 
 Players **don't need to install anything**. BeamMP downloads the mod for them when they join.
 
@@ -46,7 +46,8 @@ Without these, the career breaks or behaves strangely on a multiplayer server.
 |---|---|---|
 | <img src="docs/icons/save.svg" width="20" height="20" alt=""> **Career starts on join, own save** | Your career loads by itself when you join. Each player has their own save, tied to their BeamMP account, so renaming your account keeps your save. | No (core of the mod) |
 | <img src="docs/icons/shield.svg" width="20" height="20" alt=""> **Safe career start** | Loading your career no longer deletes your friends' cars, and the garage no longer creates duplicate cars. | No |
-| <img src="docs/icons/traffic-light.svg" width="20" height="20" alt=""> **Same world for everyone** | Same time of day and same traffic light cycle for everyone. Cars that the career hides or shows (garage, dealer) are hidden or shown for everyone too. | Time and traffic lights: yes |
+| <img src="docs/icons/traffic-light.svg" width="20" height="20" alt=""> **Same world for everyone** | Same time of day and same traffic light cycle for everyone. Cars that the career or the traffic hides or shows are hidden or shown for everyone too, so nobody drives through a car only the other one sees. | Time and traffic lights: yes |
+| <img src="docs/icons/car.svg" width="20" height="20" alt=""> **Cars look the same for everyone** | A crashed car looks the way its driver sees it, on every screen (BeamMP alone only syncs parts that fall off). Trailers and dollies stay coupled for everyone. Your traffic doesn't appear on top of other players, and other players' cars no longer blow up when someone opens a menu. | Damage: yes |
 | <img src="docs/icons/car.svg" width="20" height="20" alt=""> **Traffic that doesn't overload the server** | The server splits a total traffic limit across all players, and traffic uses simplified cars that are cheap to sync. Your traffic no longer carries your name tag. | Limit and simple cars: yes |
 | <img src="docs/icons/fuel.svg" width="20" height="20" alt=""> **Same fuel price for everyone** | Normally every player rolls their own random price at the same station. With SharedCareer everyone pays the same. | Yes (together with the fuel extra below) |
 
@@ -62,8 +63,8 @@ These go beyond the normal career. They are on by default unless noted, and each
 | <img src="docs/icons/users.svg" width="20" height="20" alt=""> **Find your friends** | Navigate to a player or watch them, and see what others are doing on their name tags (*Mission*, *On foot*, *Loading*). Teleporting to a player is **off** by default. | Name tag status and teleport: yes |
 | <img src="docs/icons/fuel.svg" width="20" height="20" alt=""> **Cheaper fuel through deliveries** | Deliver gasoline or diesel to a station and it gets cheaper there for everyone for a while. The **Fuel** app on the phone shows the cheapest station. | Yes |
 | <img src="docs/icons/monitor.svg" width="20" height="20" alt=""> **Garage computers from a distance** | Use the garage computer from anywhere in the room instead of standing right in front of it. | On other maps: yes. On West Coast USA it comes from a map file in the mod, so it's always on |
-| <img src="docs/icons/grab.svg" width="20" height="20" alt=""> **Node grabber everywhere** | The normal career only lets you grab and pull vehicles with the mouse while walking. SharedCareer also allows it in a vehicle and in the free camera. The pull stays as weak as in the normal career (the game engine limits it), so it's good for nudging and turning cars, not for throwing them. The vehicle certification test still blocks it. | Yes (back to the career's rule) |
-| <img src="docs/icons/grab.svg" width="20" height="20" alt=""> **Rope and winch** | Move vehicles that can't drive, for example onto a tow truck, slowly and with physics. Everything runs in the **Tow** app on the phone, as a remote control: attach the rope, move the anchor, run the winch in or out. A colored rope shows how hard it pulls; the pull strength (30–150 % of the vehicle's weight) is picked in the app. A vehicle the rope can't free (wrapped around a lamp post) can be towed to the road, free of charge, damage included. Only your own vehicles. | Yes |
+| <img src="docs/icons/grab.svg" width="20" height="20" alt=""> **Node grabber everywhere** | Grab and pull vehicles with the mouse also from a vehicle or the free camera, not only while walking. It stays as weak as in the career, so it's for nudging cars, not throwing them. | Yes (back to the career's rule) |
+| <img src="docs/icons/grab.svg" width="20" height="20" alt=""> **Rope and winch** | Move vehicles that can't drive: drag them out of a ditch, pull them onto a tow truck or tow them behind another car. It all runs in the **Tow** app on the phone. A car stuck on a lamp post can be put back on the road for free. Your own vehicles only. | Yes |
 | <img src="docs/icons/phone.svg" width="20" height="20" alt=""> **Phone** | A phone in the game (key **F4**, or the tab at the right screen edge) with the server time and the number of players, and three apps: **Jobs** (towing jobs, beta), **Tow** (rope and winch as a remote control) and **Fuel** (gas station prices). | Yes |
 | <img src="docs/icons/car.svg" width="20" height="20" alt=""> **Towing jobs** *(beta)* | Broken-down cars at the roadside, one list for everyone in the **Jobs** app: take a job, drive there, tow the car to a repair shop and get paid. New damage on the way costs part of the pay. | Yes |
 | <img src="docs/icons/money.svg" width="20" height="20" alt=""> **Send money** | `/pay <name> <amount>` in chat, with an automatic refund if something goes wrong. | Yes |
@@ -155,12 +156,48 @@ The full guide, including manual installation, backups, rollback and switching f
 | Guide | Contents |
 |---|---|
 | [Server setup](docs/server-setup.md) | Installation, `server.sh`, updates, rollback, save games, switching from Mileage |
-| [In-game guide](docs/features.md) | The menu, welcome dialog, players tab, fuel economy, traffic, garage computers |
+| [In-game guide](docs/features.md) | The menu, welcome dialog, players tab, fuel economy, traffic, what everyone sees the same, garage computers, rope and winch, towing jobs, phone |
 | [Settings & commands](docs/configuration.md) | Chat and console commands, every setting in `config.json` |
 | [Development](docs/development.md) | Building, tests, releases, how the mod works inside, known limitations, project status |
 
-## Status
+## Status and known limits
 
-SharedCareer is under active development and was tested with **BeamNG.drive 0.40.5**, **BeamMP 4.23.1** and **BeamMP-Server 3.9.3** on Linux. Joining, the career start, traffic, vehicle and damage sync, buying cars, the shared time of day and the garage computers have been tested with real players.
+SharedCareer is under active development and was tested with **BeamNG.drive 0.40.5**, **BeamMP 4.23.1** and **BeamMP-Server 3.9.3** on Linux. Joining, the career start, traffic, buying cars, the shared time of day and the garage computers have been tested with real players.
 
-Found a bug? Please [open an issue](https://github.com/MrCurby/SharedCareer/issues) and add the lines containing `sharedCareer` from your `beamng.log`.
+Good to know before you play:
+
+- **West Coast USA** is the map SharedCareer is made for. Other maps work, with smaller garage-computer zones.
+- **A crashed car takes its driver's shape on your screen once it stands still for a moment.** While it drives on, it can look a bit different for you.
+- **Missions run per player.** Others don't see your mission props and cones.
+- **Money lives in your own save.** The server only checks money transfers.
+- **A BeamNG or BeamMP update can break things** until SharedCareer is updated. The log then names what is missing.
+
+More details: [Known limitations](docs/development.md#known-limitations).
+
+## Help and bug reports
+
+Search the [existing issues](https://github.com/MrCurby/SharedCareer/issues) first, then [open a new one](https://github.com/MrCurby/SharedCareer/issues/new). Please include:
+
+- The SharedCareer version (`beamng.log` shows it as `SharedCareer <version> loaded`) and your BeamNG.drive and BeamMP versions
+- What you did, what you expected and what happened, ideally with a screenshot
+- Whether it happened to one player or to everyone
+- The SharedCareer lines from `beamng.log` of the affected session. The game overwrites this file on the next start, so copy it before you restart.
+
+Where to find `beamng.log`:
+
+| System | File |
+|---|---|
+| Windows | `%LOCALAPPDATA%\BeamNG\BeamNG.drive\current\beamng.log` |
+| Linux | `~/.local/share/BeamNG/BeamNG.drive/current/beamng.log` |
+
+On Linux this prints the relevant lines:
+
+```bash
+grep -E "sharedCareer|Instability|FATAL" ~/.local/share/BeamNG/BeamNG.drive/current/beamng.log | tail -50
+```
+
+Logs can contain your user name and folder paths. Check them before you post.
+
+## Credits
+
+SharedCareer is a community mod and is not affiliated with BeamNG GmbH or the BeamMP team.
