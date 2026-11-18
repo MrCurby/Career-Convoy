@@ -49,7 +49,7 @@
 --                        traffic}}                    dayLengthNight, dayStart, nightStart,
 --                                                     dayMinutes, nightMinutes, canControl}
 --   sc_vehStatesRequest               sc_signals     traffic light cycle (seconds)
---   sc_damage           {id, damage}  sc_damage      {id, damage = {n, d, b}}  a vehicle's damage
+--   sc_damage           {id, damage}  sc_damage      {id, damage} a vehicle's damage | {id, cleared = true}
 --   sc_damageRequest    {id}          sc_damageRequest {id}  (to the owner) send it again
 --   sc_payDebitResult   {id, ok}      sc_payDebit / sc_payCredit   money transfer
 --   sc_payCreditAck     {id}
@@ -70,7 +70,7 @@
 --   sc_jobPaidAck {payout}
 --                       (from the SharedCareer menu window)
 
-local VERSION = "0.21.0"
+local VERSION = "0.21.1"
 local TAG = "[SharedCareer] "
 
 local CONFIG_DIR = "Resources/Server/SharedCareer/config"
@@ -1265,6 +1265,17 @@ function sc_damage(player_id, data)
 	end
 end
 
+-- A new, rebuilt or deleted vehicle has no damage: the others forget the old one (the server id
+-- may be used again for another vehicle).
+local function clearDamage(id)
+	if not damageStates[id] then return end
+	damageStates[id] = nil
+	local data = encode({id = id, cleared = true})
+	for pid in pairs(players) do
+		if MP.IsPlayerConnected(pid) then MP.TriggerClientEvent(pid, "sc_damage", data) end
+	end
+end
+
 function sc_damageRequest(player_id, data)
 	local msg = decodeTable(data)
 	local owner = msg and type(msg.id) == "string" and tonumber(msg.id:match("^(%d+)%-%d+$"))
@@ -1720,7 +1731,7 @@ end
 function onVehicleSpawn(player_id, vehicle_id, data)
 	local id = player_id .. "-" .. vehicle_id
 	vehicleStates[id] = {active = true}
-	damageStates[id] = nil
+	clearDamage(id)
 	broadcastStates({[id] = vehicleStates[id]})
 end
 
@@ -1729,14 +1740,14 @@ function onVehicleEdited(player_id, vehicle_id, data)
 	local id = player_id .. "-" .. vehicle_id
 	local state = vehicleStates[id] or {}
 	state.active = true
-	damageStates[id] = nil -- a rebuilt vehicle is undamaged
+	clearDamage(id) -- a rebuilt vehicle is undamaged
 	vehicleStates[id] = state
 	broadcastStates({[id] = state})
 end
 
 function onVehicleDeleted(player_id, vehicle_id)
 	vehicleStates[player_id .. "-" .. vehicle_id] = nil
-	damageStates[player_id .. "-" .. vehicle_id] = nil
+	clearDamage(player_id .. "-" .. vehicle_id)
 end
 
 --== Timers ====================================================================

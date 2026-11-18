@@ -133,6 +133,13 @@ local function reportOwn(all)
 end
 M.reportOwn = reportOwn
 
+-- true for a vehicle someone drives (own or another player's), false for traffic/parked cars
+-- and for vehicles whose kind isn't known yet (the owner reports it within a second)
+function M.isPlayerVehicle(serverId)
+	local state = reported[serverId] or states[serverId]
+	return type(state) == "table" and state.traffic == false
+end
+
 -- Collision (ghost) only for player vehicles:
 --   own vehicles                          always collide
 --   other players on foot (unicycle)      client.remoteUnicycleGhost
