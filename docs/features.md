@@ -82,7 +82,7 @@ The **Players** tab lists everyone on the server with what they are doing right 
 
 | Button | What it does |
 |---|---|
-| **Navigate** | Shows a route on the road to that player. It follows them when they drive on. **Stop** ends it. |
+| **Navigate** | Shows a route on the road to that player. It follows them when they drive on. **Stop** ends it, and so does a new route (a towing job, a gas station). |
 | **Watch** | Moves your camera to that player. **Back to my car** brings you back. Your traffic stays around your own car while you watch. |
 | **Go** | Teleports your current vehicle to that player. This is only available if the server allows it (`sc set server.allowTeleport true`), because in a career it skips driving and fuel costs. |
 

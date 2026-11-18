@@ -125,13 +125,7 @@ local function serverAllows()
 end
 
 local function navigate(pos)
-	local markers = rawget(_G, "core_groundMarkers")
-	if not markers or type(markers.setPath) ~= "function" then return end
-	if pos then
-		pcall(markers.setPath, vec3(pos.x, pos.y, pos.z))
-	else
-		pcall(markers.setPath, nil)
-	end
+	if pos then U.setRoute("jobs", pos) else U.clearRoute("jobs") end
 end
 
 local function sendToVehicle(id, cmd)

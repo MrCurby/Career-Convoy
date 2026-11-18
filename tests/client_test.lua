@@ -2101,6 +2101,26 @@ sharedCareer_players.uiNavigate("Ben")
 check(mpCalls[#mpCalls][1] == "nav" and mpCalls[#mpCalls][2] == "Ben" and sharedCareer_players.state().navigating == "Ben", "Navigate")
 sharedCareer_players.uiStopNavigate()
 check(mpCalls[#mpCalls][2] == nil and sharedCareer_players.state().navigating == nil, "stop navigation")
+-- a job route after navigating to a player: following stops, or BeamMP puts the route back to the player
+do
+	local routes = {}
+	_G.vec3 = function(x, y, z) return {x = x, y = y, z = z} end
+	_G.core_groundMarkers = {setPath = function(p) table.insert(routes, p or false) end}
+	sharedCareer_players.uiNavigate("Ben")
+	sharedCareer_util.setRoute("jobs", {x = 7, y = 8, z = 9})
+	check(mpCalls[#mpCalls][1] == "nav" and mpCalls[#mpCalls][2] == nil and sharedCareer_players.state().navigating == nil,
+		"job route: following the player stops")
+	check(routes[#routes] and routes[#routes].x == 7, "job route: route goes to the job")
+	local before = #routes
+	sharedCareer_players.uiStopNavigate()
+	sharedCareer_util.clearRoute("fuel")
+	check(#routes == before, "others don't clear the job route")
+	sharedCareer_players.uiNavigate("Ben")
+	sharedCareer_util.clearRoute("jobs")
+	check(#routes == before and sharedCareer_players.state().navigating == "Ben", "job end keeps following the player")
+	sharedCareer_players.uiStopNavigate()
+	_G.vec3, _G.core_groundMarkers = nil, nil
+end
 local own = addVehicle(50, "0-50", true)
 world.playerVeh = 50
 local focus = {}
