@@ -40,8 +40,8 @@
 -- handRope / handRelease in lua/vehicle/extensions/auto/sharedCareerVeh.lua). Here we only pick
 -- the vehicle and send the view ray and the anchor. The vehicle ties the rope to the node closest
 -- to the ray (the rope goes where you look at the vehicle) and reports back: onGrip (tie node,
--- its position and distance), onHandState (tie position, strain, slack, rope length, 10 times per
--- second), onHandLost (the rope came off: reset, teleported, part torn off, rope snapped, nothing
+-- its position and distance), onHandState (tie position, winch load, slack, rope length, rope
+-- load, 10 times per second), onHandLost (the rope came off: reset, teleported, part torn off, rope snapped, nothing
 -- to grab),
 -- onProbe (preview). The rope state only goes to the vehicle once it has reported its grip.
 --
@@ -53,9 +53,10 @@
 --
 -- What you see (debugDrawer, like the game's own markers):
 --   rope      from the tie node to the anchor, a thin cylinder with a line inside (the line keeps
---             it visible from far away): grey = slack; when taut, the color shows the strain:
---             green = easy, yellow = working hard, red = at the force limit; colors fade into
---             each other. A slack rope sags (a curve as long as the rope); it straightens
+--             it visible from far away): grey = slack; when taut, the color shows the rope's own
+--             load, measured against its breaking load (ropeLoad): rope-colored while it is safe,
+--             yellow to orange when it gets high, red and trembling near breaking. The winch at its
+--             limit is no danger for the rope, so it doesn't color it (see "winch gauge"). A slack rope sags (a curve as long as the rope); it straightens
 --             smoothly when it is pulled taut. The rope end follows the tie node every frame
 --             (veh:getNodePosition), not only when the vehicle reports
 --             While the rope runs through the winch (hauling in, paying out, or paying out while
@@ -65,6 +66,10 @@
 --   let go    when the rope comes off (removed, reset, torn loose, vehicle gone) it doesn't just
 --             vanish: a taut rope snaps back to the anchor with a short whip, a slack one drops;
 --             both fade out within a fraction of a second, and the anchor with them
+--   winch gauge   above the anchor (where the winch pulls), while the rope is taut or the winch
+--             runs: a small ring that always faces you and fills with the winch's load (share of its
+--             pull limit), green -> yellow -> orange; at the limit it blinks red. A small drum in
+--             its middle. With the Tow app open, a sign above shows "Winch 72 %"
 --   grip      a small ball on the tie node, in the rope's color
 --   anchor    a pin (post with a ball on top): white = resting, cyan = being moved, orange =
 --             hauling in (the ball pulses), purple = paying out. Above the ground a dashed drop
@@ -115,7 +120,7 @@ local LOST_MESSAGES = {
 
 local held = nil           -- {id, since, silent, node (tie node), grip = {x, y, z}, target (= anchor),
                            --  strain, slack, stuckFor, winch (1 haul in, 0 stop, -1 pay out), placed,
-                           --  nudge, length, lengthAt, rate, shownStrain, shownTaut, sag, shownRate,
+                           --  nudge, length, lengthAt, rate, ropeLoad, shownLoad, shownTaut, sag, shownRate,
                            --  markPhase, shown (what was drawn last: for the let-go animation),
                            --  anchorVeh = {id, name, node, hitch} (anchor on a vehicle),
                            --  snapTargets = {[vehicle id] = {nodes, at}} (tow hitches near the
@@ -565,11 +570,13 @@ function M.onGrip(id, t, x, y, z, node)
 	U.log("D", "grab", string.format("vehicle reported its grip at %.1f m", tonumber(t) or 0))
 end
 
-function M.onHandState(id, x, y, z, strain, slack, length)
+function M.onHandState(id, x, y, z, strain, slack, length, ropeLoad)
 	if not held or held.id ~= id then return end
 	held.grip = {x = x, y = y, z = z}
 	held.silent = 0
-	held.strain = math.max(0, math.min(1, tonumber(strain) or 0))
+	-- the winch's load (1 = its limit, up to 1.5 = its brake) and the rope's (1 = it breaks)
+	held.strain = math.max(0, math.min(1.5, tonumber(strain) or 0))
+	held.ropeLoad = math.max(0, math.min(1, tonumber(ropeLoad) or 0))
 	held.slack = slack == 1 or slack == true
 	-- how fast the rope runs through the winch (m/s, < 0 = hauled in), for the marks on the rope
 	local newLength = tonumber(length)
@@ -599,24 +606,39 @@ end
 
 --== Drawing =====================================================================
 
--- green (easy) -> yellow -> red (at the limit)
-function M.strainColor(strain)
+local ROPE_SAFE = 0.4       -- share of the breaking load: up to here the rope keeps its own color
+local ROPE_CRITICAL = 0.7  -- from here it is red and trembles
+local ROPE_COLOR = {0.88, 0.84, 0.74}
+local ROPE_HIGH = {1, 0.62, 0.12}
+local ROPE_RED = {1, 0.15, 0.1}
+
+local function mix(a, b, f)
+	return a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f, a[3] + (b[3] - a[3]) * f
+end
+
+--- The rope's color for its load (share of its breaking load): its own color while safe, yellow
+--- to orange when high, red near breaking.
+function M.ropeLoadColor(load)
+	local l = math.max(0, math.min(1, tonumber(load) or 0))
+	if l <= ROPE_SAFE then return ROPE_COLOR[1], ROPE_COLOR[2], ROPE_COLOR[3] end
+	if l <= ROPE_CRITICAL then return mix(ROPE_COLOR, ROPE_HIGH, (l - ROPE_SAFE) / (ROPE_CRITICAL - ROPE_SAFE)) end
+	return mix(ROPE_HIGH, ROPE_RED, math.min(1, (l - ROPE_CRITICAL) / (0.9 - ROPE_CRITICAL)))
+end
+
+--- The winch gauge's color for the winch's load (1 = its limit): green -> yellow -> orange.
+function M.winchColor(strain)
 	local s = math.max(0, math.min(1, tonumber(strain) or 0))
-	if s < 0.6 then
-		local f = s / 0.6
-		return 0.2 + 0.8 * f, 0.9 - 0.05 * f, 0.3 - 0.1 * f
-	end
-	local f = (s - 0.6) / 0.4
-	return 1, 0.85 - 0.6 * f, 0.2
+	if s < 0.6 then return mix({0.3, 0.9, 0.4}, {1, 0.85, 0.2}, s / 0.6) end
+	return mix({1, 0.85, 0.2}, {1, 0.5, 0.1}, (s - 0.6) / 0.4)
 end
 
 local SLACK_COLOR = {0.7, 0.7, 0.7, 0.6}
 
---- Rope color {r, g, b, a}: grey when slack (taut = 0), the strain color when taut (taut = 1),
+--- Rope color {r, g, b, a}: grey when slack (taut = 0), the color of its load when taut (taut = 1),
 --- blended in between.
-function M.ropeColor(strain, taut)
+function M.ropeColor(load, taut)
 	taut = math.max(0, math.min(1, tonumber(taut) or 0))
-	local r, g, b = M.strainColor(strain)
+	local r, g, b = M.ropeLoadColor(load)
 	local s = SLACK_COLOR
 	return s[1] + (r - s[1]) * taut, s[2] + (g - s[2]) * taut, s[3] + (b - s[3]) * taut, s[4] + (0.9 - s[4]) * taut
 end
@@ -683,7 +705,9 @@ end
 local SAG_SEGMENTS = 12
 local SAG_RATE = 8         -- 1/s: how fast the drawn sag follows the rope
 local SAG_MAX = 6          -- m
-local FADE_RATE = 6        -- 1/s: how fast the rope color follows strain and slack
+local FADE_RATE = 6        -- 1/s: how fast the rope color follows slack and taut
+local LOAD_FALL = 1.5      -- per s: how fast the shown rope load falls back after a jolt
+local TREMBLE = 0.06       -- m: how much a rope near breaking trembles
 local ROPE_RADIUS = 0.02   -- m
 function M.sagDepth(span, horizontal, length)
 	span, horizontal, length = tonumber(span) or 0, tonumber(horizontal) or 0, tonumber(length) or 0
@@ -942,6 +966,43 @@ local function drawLetGo(dt)
 	pin(b, ColorF(ANCHOR_RESTING[1], ANCHOR_RESTING[2], ANCHOR_RESTING[3], ANCHOR_RESTING[4] * fade))
 end
 
+-- The winch gauge: a ring facing the camera that fills with the winch's load, a small drum inside.
+local GAUGE_RADIUS = 0.2   -- m
+local function winchGauge(p, strain)
+	local f = viewDir()
+	if not f then return end
+	-- the camera's right and up, so the ring faces it
+	local rx, ry = f.y, -f.x
+	local rl = math.sqrt(rx * rx + ry * ry)
+	if rl < 0.01 then rx, ry, rl = 1, 0, 1 end
+	rx, ry = rx / rl, ry / rl
+	local ux, uy, uz = ry * f.z, -rx * f.z, rx * f.y - ry * f.x -- right x forward
+	local function at(angle, r)
+		local c, sn = math.sin(angle) * r, math.cos(angle) * r
+		return {x = p.x + rx * c + ux * sn, y = p.y + ry * c + uy * sn, z = p.z + uz * sn}
+	end
+	local limit = strain >= 0.95
+	local blink = limit and (0.55 + 0.45 * math.sin(clock * 2 * math.pi * 2.5)) or 1
+	local r, g, b = M.winchColor(strain)
+	if limit then r, g, b = 1, 0.18, 0.12 end
+	local back = ColorF(1, 1, 1, 0.25)
+	local fill = ColorF(r, g, b, 0.95 * blink)
+	local steps, filled = 24, math.floor(24 * math.min(1, strain) + 0.5)
+	for i = 0, steps - 1 do
+		local a0, a1 = i / steps * 2 * math.pi, (i + 1) / steps * 2 * math.pi
+		line(at(a0, GAUGE_RADIUS), at(a1, GAUGE_RADIUS), back)
+		if i < filled then
+			line(at(a0, GAUGE_RADIUS * 0.92), at(a1, GAUGE_RADIUS * 0.92), fill)
+			line(at(a0, GAUGE_RADIUS * 1.08), at(a1, GAUGE_RADIUS * 1.08), fill)
+		end
+	end
+	-- the drum: a short barrel across the ring's middle
+	local d = 0.07
+	if not cylinder({x = p.x - rx * d, y = p.y - ry * d, z = p.z}, {x = p.x + rx * d, y = p.y + ry * d, z = p.z}, 0.045, fill) then
+		line({x = p.x - rx * d, y = p.y - ry * d, z = p.z}, {x = p.x + rx * d, y = p.y + ry * d, z = p.z}, fill)
+	end
+end
+
 function M.draw(dt)
 	dt = math.max(0, tonumber(dt) or 0)
 	clock = clock + dt
@@ -950,12 +1011,14 @@ function M.draw(dt)
 	if letGo then drawLetGo(dt) end
 	if snapFx then drawSnapFx(dt) end
 	if held and held.grip and held.target then
-		-- color: follows strain and slack smoothly (the vehicle reports 10 times per second)
+		-- color: the rope's load (a jump up shows at once, it fades back slowly so a short jolt is
+		-- seen) and slack/taut, smoothly
 		local k = 1 - math.exp(-FADE_RATE * dt)
 		local taut = held.slack and 0 or 1
-		held.shownStrain = (held.shownStrain or held.strain) + (held.strain - (held.shownStrain or held.strain)) * k
+		local load = held.ropeLoad or 0
+		held.shownLoad = math.max(load, (held.shownLoad or 0) - LOAD_FALL * dt)
 		held.shownTaut = (held.shownTaut or taut) + (taut - (held.shownTaut or taut)) * k
-		local rgba = {M.ropeColor(held.shownStrain, held.shownTaut)}
+		local rgba = {M.ropeColor(held.shownLoad, held.shownTaut)}
 		local color = ColorF(rgba[1], rgba[2], rgba[3], rgba[4])
 		local a, b = gripNow(), held.target
 		local dx, dy, dz = b.x - a.x, b.y - a.y, b.z - a.z
@@ -963,7 +1026,12 @@ function M.draw(dt)
 		local want = held.slack and M.sagDepth(span, math.sqrt(dx * dx + dy * dy), held.length) or 0
 		local ks = 1 - math.exp(-SAG_RATE * dt)
 		held.sag = (held.sag or want) + (want - (held.sag or want)) * ks
-		rope(a, b, held.sag, color)
+		-- near breaking the rope trembles
+		local tremble = 0
+		if held.shownLoad > ROPE_CRITICAL and not held.slack then
+			tremble = TREMBLE * math.min(1, (held.shownLoad - ROPE_CRITICAL) / (1 - ROPE_CRITICAL)) * math.sin(clock * 2 * math.pi * 14)
+		end
+		rope(a, b, held.sag + tremble, color)
 		-- marks travelling with the rope while it runs through the winch
 		local rate = clock - (held.lengthAt or clock) < RATE_STALE and held.rate or 0
 		held.shownRate = (held.shownRate or 0) + ((rate or 0) - (held.shownRate or 0)) * (1 - math.exp(-RATE_RATE * dt))
@@ -995,18 +1063,17 @@ function M.draw(dt)
 				end
 			end
 			ball(p, 0.08 * pulse, ColorF(rgb[1], rgb[2], rgb[3], rgb[4]))
-			if appOpen then
-				sign({x = b.x, y = b.y, z = b.z + 0.6}, "Anchor \194\183 " .. held.anchorVeh.name
-					.. (stuck() and " \194\183 at the limit" or ""))
-			end
 		else
 			pin(b, ColorF(rgb[1], rgb[2], rgb[3], rgb[4]), pulse)
 			groundMarker(b, rgb)
 			drawHitches(b)
-			if appOpen then
-				sign({x = b.x, y = b.y, z = b.z + PIN_HEIGHT + 0.35}, string.format("Anchor \194\183 %.1f m", span)
-					.. (stuck() and " \194\183 at the limit" or ""))
-			end
+		end
+		-- the winch gauge above the anchor, while the winch has work to do
+		local gaugeAt = {x = b.x, y = b.y, z = b.z + (held.anchorVeh and 0.45 or PIN_HEIGHT + 0.4)}
+		if not held.slack or held.winch ~= 0 then winchGauge(gaugeAt, held.strain or 0) end
+		if appOpen then
+			sign({x = gaugeAt.x, y = gaugeAt.y, z = gaugeAt.z + 0.35},
+				string.format("Winch %d %%", math.floor(math.min(1.5, held.strain or 0) * 100 + 0.5)))
 		end
 	elseif probe then
 		ball(probe, 0.12 * (1 + 0.12 * math.sin(clock * 2 * math.pi)), ColorF(0.3, 0.8, 1, 0.45))
@@ -1093,6 +1160,7 @@ function M.appState()
 		state.winch = held.winch
 		state.moving = held.nudge ~= nil
 		state.strain = held.strain or 0
+		state.ropeLoad = held.ropeLoad or 0
 		state.slack = held.slack ~= false
 		state.stuck = stuck()
 		state.length = held.length

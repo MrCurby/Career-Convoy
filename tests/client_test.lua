@@ -792,7 +792,7 @@ do
 	check(#info.nodes >= 4 and #info.nodes <= 24 and info.vehMass == MASS, "grip of 4-24 nodes, vehicle mass known")
 	local function lastState()
 		local st = body.ge[#body.ge] or ""
-		local strain, slack, len = st:match("onHandState%(77, [-%d%.]+, [-%d%.]+, [-%d%.]+, ([%d%.]+), (%d), ([%d%.]+)%)")
+		local strain, slack, len = st:match("onHandState%(77, [-%d%.]+, [-%d%.]+, [-%d%.]+, ([%d%.]+), (%d), ([%d%.]+), [%d%.]+%)")
 		return tonumber(strain), tonumber(slack), tonumber(len)
 	end
 	local function lost()
@@ -1081,34 +1081,59 @@ check(st.strengths[#st.strengths] == 80 and st.strength == 80, "odd server maxim
 sharedCareer_grab.uiStrength(60)
 cfgG.grabSpeed, cfgG.grabStrength = 1, 150
 handlers.sc_configUpdate(json.encode(cfgG))
--- drawing: rope grey when slack, strain color when taut; anchor color shows the state
+-- drawing: rope grey when slack, the color of the rope's own load when taut (its color while safe,
+-- orange when high, red near breaking); anchor color shows the state. (Looking nowhere here: the
+-- winch gauge, which faces the camera, is tested on its own below.)
+fwd = nil
 local drawn = {}
 -- like in the game: ColorF and vec3 are callable constructors, not Lua functions (0.10.1 bug)
 _G.ColorF = setmetatable({}, {__call = function(_, r, g, b, alpha) return {r = r, g = g, b = b, a = alpha} end})
 _G.vec3 = setmetatable({}, {__call = function(_, x, y, z) return {x = x, y = y, z = z} end})
 _G.debugDrawer = {drawLine = function(_, p1, p2, c) table.insert(drawn, {p1 = p1, p2 = p2, c = c}) end}
-handState(60, 9, 0, 1, 0.1, 0, 4)
+local function near(x, want) return math.abs(x - want) < 0.02 end
+handState(60, 9, 0, 1, 0.1, 0, 4, 0.1)
+frames(0.5)
 drawn = {}
 frames(1 / 60)
-check(#drawn == 11 and drawn[1].p1.x == 9 and drawn[1].c.g > 0.8 and drawn[1].c.r < 0.4,
-	"taut rope (lines only): line, grip and pin as crosses, green when it's easy")
+check(#drawn == 11 and drawn[1].p1.x == 9 and near(drawn[1].c.r, 0.88) and near(drawn[1].c.g, 0.84),
+	"taut rope (lines only): line, grip and pin as crosses, in the rope's own color while it is safe")
 check(drawn[5].c.r == 1 and drawn[5].c.g < 0.6, "winch running: orange anchor")
-handState(60, 9, 0, 1, 1, 0, 4)
-frames(0.2)
+handState(60, 9, 0, 1, 1, 0, 4, 0.1)
+frames(0.5)
 drawn = {}
 frames(1 / 60)
-local fading = drawn[1].c.g
-check(fading < 0.85 and fading > 0.3, string.format("strain rises: the color fades towards red (g = %.2f)", fading))
+check(near(drawn[1].c.r, 0.88) and near(drawn[1].c.g, 0.84), "the winch at its limit: no danger for the rope, its color stays")
+handState(60, 9, 0, 1, 1, 0, 4, 0.55)
+drawn = {}
+frames(1 / 60)
+check(drawn[1].c.g < 0.8 and drawn[1].c.g > 0.62 and drawn[1].c.r > 0.9, string.format("high rope load: orange (g = %.2f)", drawn[1].c.g))
+handState(60, 9, 0, 1, 1, 0, 4, 0.95)
+drawn = {}
+frames(1 / 60)
+check(drawn[1].c.r > 0.99 and drawn[1].c.g < 0.3, "near breaking: red")
+local lines = {}
+for _ = 1, 6 do
+	drawn = {}
+	frames(1 / 60)
+	lines[#drawn] = true
+end
+local trembles = 0
+for _ in pairs(lines) do trembles = trembles + 1 end
+check(trembles > 1, "near breaking: the rope trembles")
+-- a short jolt: the next report is low again, the red fades back slowly so it is seen
+handState(60, 9, 0, 1, 1, 0, 4, 0.1)
+drawn = {}
+frames(0.2)
+check(drawn[1].c.g < 0.6, "a jolt stays visible for a moment")
 frames(1)
 drawn = {}
 frames(1 / 60)
-check(drawn[1].c.r > 0.99 and drawn[1].c.g < 0.3, "red at the force limit")
+check(near(drawn[1].c.g, 0.84), "then the rope's own color again")
 sharedCareer_grab.uiWinch(0)
 handState(60, 9, 0, 1, 0, 1, 4)
 frames(1)
 drawn = {}
 frames(1 / 60)
-local function near(x, want) return math.abs(x - want) < 0.02 end
 check(near(drawn[1].c.r, 0.7) and near(drawn[1].c.g, 0.7) and drawn[#drawn - 2].c.r == 1 and drawn[#drawn - 2].c.g == 1,
 	"slack rope: grey line (faded); winch off: white anchor")
 sharedCareer_grab.uiNudge(0, 0, 0)
@@ -1179,7 +1204,7 @@ sharedCareer_grab.setAppOpen(true)
 shapes = {}
 frames(1 / 60)
 local sg = find("text")
-check(sg and sg.t:find("^Anchor") and sg.t:find("%d+%.%d m"), "Tow app open: sign above the anchor with the distance (" .. tostring(sg and sg.t) .. ")")
+check(sg and sg.t:find("^Winch %d+ %%"), "Tow app open: a sign with the winch's load (" .. tostring(sg and sg.t) .. ")")
 sharedCareer_grab.setAppOpen(false)
 -- winch hauling in: the pin's ball pulses
 sharedCareer_grab.uiWinch(1)
@@ -1202,6 +1227,36 @@ frames(1 / 60)
 check(count("sphere") == 0 and count("line") > 6 and count("cylinder") == 2, "no drawSphere: balls drawn as crosses")
 _G.debugDrawer, _G.String, _G.ColorI = lineOnly, nil, nil
 sharedCareer_grab.resetShapes()
+-- the winch gauge above the anchor: a ring facing the camera that fills with the winch's load
+fwd = {x = 1, y = 0, z = 0}
+local function gauge()
+	drawn = {}
+	frames(1 / 60)
+	local ring, filled, red = 0, 0, 0
+	for _, d in ipairs(drawn) do
+		local midZ = (d.p1.z + d.p2.z) / 2
+		if math.abs(d.p1.x - d.p2.x) < 1e-6 and midZ > 1.7 and midZ < 2.3 then -- a ring in the y-z plane, facing +x
+			ring = ring + 1
+			if d.c.a > 0.3 then filled = filled + 1 end
+			if d.c.r > 0.99 and d.c.g < 0.3 then red = red + 1 end
+		end
+	end
+	return ring, filled, red
+end
+sharedCareer_grab.uiWinch(1)
+handState(60, 9, 0, 1, 0.5, 0, 4, 0.1)
+frames(0.3)
+local ring, filled, red = gauge()
+check(ring >= 24 and filled >= 20 and filled <= 28 and red == 0,
+	string.format("winch at half its limit: the gauge is half full (%d of 48 lines filled)", filled))
+handState(60, 9, 0, 1, 1, 0, 4, 0.1)
+ring, filled, red = gauge()
+check(filled >= 46 and red >= 46, "winch at its limit: the gauge is full and red")
+sharedCareer_grab.uiWinch(0)
+handState(60, 9, 0, 1, 0, 1, 4, 0)
+ring = gauge()
+check(ring == 0, "rope slack and the winch stopped: no gauge")
+fwd = nil
 end
 -- winch marks: light marks travel with the rope while it runs through the winch, at its speed
 do

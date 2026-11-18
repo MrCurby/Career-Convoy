@@ -110,6 +110,17 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 	phone.setTowTab('anchor');
 	phone.emit('SharedCareerTow', {allowed: true, attached: true, anchorVehicle: 'Pickup', anchorHitch: true});
 	check(phone.towTab === 'anchor', 'later updates leave the tab you picked');
+	// Tow app: the winch's load as segments, the rope's load in words
+	phone.emit('SharedCareerTow', {allowed: true, attached: true, slack: false, winch: 1, strain: 0.5, ropeLoad: 0.1});
+	check(phone.segStyle(4).background && !phone.segStyle(5).background && phone.ropeState().text === 'OK',
+		'winch at half its limit: 5 of 10 segments; rope OK');
+	phone.emit('SharedCareerTow', {allowed: true, attached: true, slack: false, winch: 1, strain: 1, ropeLoad: 0.5});
+	check(phone.segStyle(9).background === '#ff3b30' && phone.ropeState().text === 'High load',
+		'winch at its limit: all segments red; rope under high load');
+	phone.emit('SharedCareerTow', {allowed: true, attached: true, slack: false, winch: 0, strain: 0.2, ropeLoad: 0.8});
+	check(phone.ropeState().cls === 'scp-rope-critical', 'rope near breaking: the critical chip');
+	phone.emit('SharedCareerTow', {allowed: true, attached: true, slack: true, winch: 0, strain: 0.3, ropeLoad: 0});
+	check(!phone.segStyle(0).background && phone.ropeState().text === 'Slack', 'slack, winch stopped: empty segments, "Slack"');
 	// Jobs app (beta): list, your job, the steps; the strip in the Tow app opens it
 	phone.emit('SharedCareerPhone', {enabled: true, apps: [{id: 'jobs', title: 'Jobs', beta: true}, {id: 'tow'}, {id: 'fuel'}]});
 	phone.emit('SharedCareerJobs', {enabled: true, jobs: [

@@ -192,7 +192,8 @@ local hand = nil -- {nodes = {{cid, m}}, velNodes = {{cid, w}}, tie (cid), ref (
                  --  onVehicle (the anchor is on a vehicle), avx, avy, avz (the anchor's speed),
                  --  pullX, pullY, pullZ (force on the anchor, summed over the frame's steps),
                  --  length, drum (m/s the rope runs out, < 0 = in), winch, moving, speed, strength,
-                 --  tension (last step), tensionF (averaged for snapping), tensionSum, tensionTime
+                 --  tension (last step), peak (highest since the last report), tensionF (averaged
+                 --  for snapping), tensionSum, tensionTime
                  --  (since the last frame), strain, slack, since, last = {x, y, z} (tie node one
                  --  frame ago)}
 local physicsStep = false -- the game calls onPhysicsStep for this vehicle
@@ -266,7 +267,7 @@ function M.handGrab(x, y, z, speed, strength)
 		refDist = ref and distance(obj:getAbsNodePosition(tie), obj:getAbsNodePosition(ref)) or nil,
 		length = nil, drum = 0, winch = 0, moving = false, slack = true,
 		speed = tonumber(speed) or 1, strength = tonumber(strength) or 60,
-		tension = 0, tensionF = 0, tensionSum = 0, tensionTime = 0, strain = 0,
+		tension = 0, tensionF = 0, tensionSum = 0, tensionTime = 0, strain = 0, peak = 0,
 		avx = 0, avy = 0, avz = 0, pullX = 0, pullY = 0, pullZ = 0,
 		since = HAND_REPORT_EVERY}
 	-- the rope is computed at the physics rate from now on (see above)
@@ -453,6 +454,7 @@ local function ropeStep(dt, perFrame)
 		h.pullX, h.pullY, h.pullZ = h.pullX - ux * tension * dt, h.pullY - uy * tension * dt, h.pullZ - uz * tension * dt
 	end
 	h.tension = tension
+	h.peak = math.max(h.peak, tension)
 	h.tensionSum, h.tensionTime = h.tensionSum + tension * dt, h.tensionTime + dt
 	h.tensionF = h.tensionF + (tension - h.tensionF) * math.min(1, dt / BREAK_FILTER)
 	if h.tensionF > ROPE_BREAK * weight then lose(LOST_SNAPPED) end
@@ -658,14 +660,19 @@ function M.updateGFX(dt)
 	else
 		hand.slack = tension < SLACK_BELOW * weight
 	end
-	-- strain: share of the pull limit in use (1 = at the limit), smoothed for the display
+	-- strain: the winch's load, share of its pull limit (1 = the motor's limit, up to 1.5 = what the
+	-- brake holds), smoothed for the display
 	local pull = weight * hand.strength / 100
-	hand.strain = hand.strain + (math.min(1.5, tension / pull) - hand.strain) * math.min(1, dt * 6)
+	hand.strain = hand.strain + (math.min(BRAKE_HOLD, tension / pull) - hand.strain) * math.min(1, dt * 6)
 	hand.since = hand.since + dt
 	if hand.since >= HAND_REPORT_EVERY then
 		hand.since = 0
-		reportToGE("onHandState", "%.3f, %.3f, %.3f, %.2f, %d, %.2f", tx, ty, tz, math.min(1, hand.strain),
-			hand.slack and 1 or 0, hand.length)
+		-- the rope's load: its highest pull since the last report, share of its breaking load (a short
+		-- jolt shows up too)
+		local ropeLoad = hand.peak / (ROPE_BREAK * weight)
+		hand.peak = 0
+		reportToGE("onHandState", "%.3f, %.3f, %.3f, %.2f, %d, %.2f, %.3f", tx, ty, tz, hand.strain,
+			hand.slack and 1 or 0, hand.length, ropeLoad)
 	end
 end
 

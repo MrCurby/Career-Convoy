@@ -159,11 +159,17 @@
 									title="Put it back on the road (free)"><span class="scp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3 L3 21 M16 3 L21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/><path d="M12 4v3M12 10.5v3M12 17v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span></button>
 								<button class="scp-iconbtn scp-iconbtn-cut" ng-click="towCall('uiRelease()')" title="Remove the rope"><span class="scp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="18" r="2.6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="18" cy="18" r="2.6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M7.8 16 L17 4 M16.2 16 L7 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span></button>
 							</div>
-							<div class="scp-strain" title="How hard the rope pulls">
-								<i ng-style="{'width': (tow.slack ? 0 : tow.strain * 100) + '%', 'background': strainColor(tow.strain)}"></i>
+							<!-- the winch's load (segments) and the rope's (a chip): two different things -->
+							<div class="scp-meter" title="How hard the winch works">
+								<span class="scp-ic scp-meter-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="7" width="12" height="10" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M7 7v10M10 7v10M13 7v10" stroke="currentColor" stroke-width="1.4" opacity="0.7"/><path d="M16 12h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span><span class="scp-meter-name">Winch</span>
+								<span class="scp-segs"><i ng-repeat="n in winchSegs track by $index" ng-style="segStyle($index)"></i></span>
+								<span class="scp-meter-text" ng-class="{'scp-meter-limit': tow.strain >= 0.95}" ng-bind="tow.slack && !tow.winch ? 'Idle' : strainText(tow.strain)"></span>
+							</div>
+							<div class="scp-meter" title="How close the rope is to breaking">
+								<span class="scp-ic scp-meter-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17c3-6 6 0 9-6s6 0 9-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span><span class="scp-meter-name">Rope</span>
+								<span class="scp-rope-state" ng-class="ropeState().cls" ng-bind="ropeState().text"></span>
 							</div>
 							<div class="scp-status-chips">
-								<span class="scp-mini" ng-class="{'scp-mini-warn': tow.stuck}" ng-bind="tow.slack ? 'Slack' : strainText(tow.strain)"></span>
 								<span class="scp-mini">Rope <b ng-bind="meters(tow.length)"></b></span>
 								<span class="scp-mini" ng-if="!tow.anchorVehicle">To anchor <b ng-bind="meters(tow.distance)"></b></span>
 								<span class="scp-mini scp-mini-hitch" ng-if="tow.anchorVehicle"><span class="scp-ic scp-ic-tiny"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="17" cy="7" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M14.6 9.4L8 16M3 16h7v4H3z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span ng-bind="tow.anchorVehicle"></span></span>

@@ -124,17 +124,29 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 		return {'background': 'linear-gradient(to top, rgba(255, 150, 40, 0.85) ' + p + '%, rgba(255, 255, 255, 0.1) ' + p + '%)'};
 	};
 	$scope.meters = function (v) { return typeof v === 'number' ? v.toFixed(1) + ' m' : '–'; };
-	$scope.strainColor = function (s) {
-		s = Math.max(0, Math.min(1, s || 0));
-		if (s < 0.6) return '#4cd964';
-		if (s < 0.9) return '#ffcc00';
-		return '#ff3b30';
-	};
 	$scope.strainText = function (s) {
 		s = s || 0;
 		if (s < 0.6) return 'Easy';
 		if (s < 0.9) return 'Working hard';
 		return 'At the limit';
+	};
+	// the winch's load as 10 segments, green -> yellow -> orange, red at the limit
+	$scope.winchSegs = new Array(10);
+	var SEG_COLORS = ['#4cd964', '#4cd964', '#4cd964', '#8fdc4a', '#c8d93a', '#ffcc00', '#ffcc00', '#ffa020', '#ff8a20', '#ff6a1a'];
+	$scope.segStyle = function (i) {
+		var s = $scope.tow.strain || 0;
+		if ($scope.tow.slack && !$scope.tow.winch) s = 0;
+		if (s * 10 <= i) return {};
+		return {'background': s >= 0.95 ? '#ff3b30' : SEG_COLORS[i]};
+	};
+	// the rope's load (share of its breaking load), in words
+	$scope.ropeState = function () {
+		var t = $scope.tow;
+		if (t.slack) return {text: 'Slack', cls: 'scp-rope-slack'};
+		var l = t.ropeLoad || 0;
+		if (l < 0.4) return {text: 'OK', cls: 'scp-rope-ok'};
+		if (l < 0.7) return {text: 'High load', cls: 'scp-rope-high'};
+		return {text: 'Near breaking!', cls: 'scp-rope-critical'};
 	};
 	// tabs of the Tow app with a rope on: "anchor" (the remote) right after attaching – that's the
 	// next step –, "winch" once the anchor hooked onto a vehicle
