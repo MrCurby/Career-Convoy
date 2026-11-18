@@ -21,22 +21,36 @@
 --
 -- The force itself is computed in the vehicle (sharedCareerVeh.handGrabRay / handGrabNearest /
 -- handRope / handRelease in lua/vehicle/extensions/auto/sharedCareerVeh.lua). Here we only pick
--- the vehicle and send the view ray and the anchor. The vehicle grabs the node closest to the ray
--- (the rope goes where you look at the vehicle) and reports back: onGrip (grip position and
--- distance), onHandState (grip position and strain, 10 times per second), onProbe (preview).
+-- the vehicle and send the view ray and the anchor. The vehicle ties the rope to the node closest
+-- to the ray (the rope goes where you look at the vehicle) and reports back: onGrip (tie node,
+-- its position and distance), onHandState (tie position, strain, slack, rope length, 10 times per
+-- second), onHandLost (the rope came off: reset, teleported, part torn off, nothing to grab),
+-- onProbe (preview). The rope state only goes to the vehicle once it has reported its grip.
 --
--- What you see (debugDrawer lines, like the game's own markers):
---   rope      a line from the grip to the anchor: grey = slack; when taut, the color shows the
---             strain: green = easy, yellow = working hard, red = at the force limit. A slack rope
---             sags (a curve as long as the rope); it straightens smoothly when it is pulled taut
---   grip      a small ball on the vehicle, in the rope's color
+-- Staying in step with the vehicle:
+--   * vehicle reset (onVehicleResetted, and the vehicle's own onReset) or removed: rope removed
+--   * no word from the vehicle for SILENT_LIMIT s of game time (its Lua was reloaded, or the grab
+--     never answered): rope removed – a paused game doesn't count
+--   * a long frame (a hitch) moves the anchor at most MAX_STEP s worth
+--
+-- What you see (debugDrawer, like the game's own markers):
+--   rope      from the tie node to the anchor, a thin cylinder with a line inside (the line keeps
+--             it visible from far away): grey = slack; when taut, the color shows the strain:
+--             green = easy, yellow = working hard, red = at the force limit; colors fade into
+--             each other. A slack rope sags (a curve as long as the rope); it straightens
+--             smoothly when it is pulled taut. The rope end follows the tie node every frame
+--             (veh:getNodePosition), not only when the vehicle reports
+--   grip      a small ball on the tie node, in the rope's color
 --   anchor    a pin (post with a ball on top): white = resting, cyan = being moved, orange =
---             hauling in (the ball pulses), purple = paying out. While the Tow app is open, a
---             sign above it shows "Anchor · <distance to the grip>"
---   preview   while the Tow app is open, looking at one of your vehicles: a see-through ball
---             where the rope would attach
--- Balls, posts and the sign use debugDrawer:drawSphere/drawCylinder/drawTextAdvanced; if one of
--- them is missing or fails, that shape is drawn as a cross (or left out, for the sign).
+--             hauling in (the ball pulses), purple = paying out. Above the ground a dashed drop
+--             line and a disc on the ground show where it is. While the Tow app is open, a sign
+--             above it shows "Anchor · <distance to the grip>" and "at the limit" when the rope
+--             has pulled at its limit for STUCK_AFTER s
+--   preview   while the Tow app is open, looking at one of your vehicles: a see-through, gently
+--             pulsing ball where the rope would attach
+-- Balls, cylinders and the sign use debugDrawer:drawSphere/drawCylinder/drawTextAdvanced; if one
+-- of them is missing or fails, that shape is drawn with lines (or left out, for the sign and the
+-- rope's cylinder). The ground comes from castRayStatic; without it there is no ground marker.
 --
 -- Only your own vehicles (incl. your own traffic): other players' vehicles are simulated on
 -- their PCs, BeamMP would put them back immediately. Not the player on foot.
@@ -61,8 +75,21 @@ local FINE = 0.25          -- fine mode: speed factor for the winch and the anch
 local NEARBY_RANGE = 60    -- m: vehicles listed in the Tow app
 local APP_PUSH_EVERY = 0.2 -- s: how often the Tow app gets the state while it's open
 
-local held = nil           -- {id, since, grip = {x, y, z}, target (= anchor), strain, slack,
-                           --  winch (1 haul in, 0 stop, -1 pay out), placed, nudge, length}
+local SILENT_LIMIT = 2     -- s of game time without word from the vehicle: the rope is gone
+local MAX_STEP = 0.1       -- s: the longest frame the anchor remote works with
+local STUCK_AFTER = 2      -- s at the force limit: shown as "at the limit"
+
+-- what the vehicle reports with onHandLost(id, reason)
+local LOST_MESSAGES = {
+	[0] = "Couldn't attach the rope there",
+	[1] = "Vehicle reset: rope removed",
+	[2] = "The vehicle was moved: rope removed",
+	[3] = "The rope tore loose",
+}
+
+local held = nil           -- {id, since, silent, node (tie node), grip = {x, y, z}, target (= anchor),
+                           --  strain, slack, stuckFor, winch (1 haul in, 0 stop, -1 pay out), placed,
+                           --  nudge, length, shownStrain, shownTaut, sag}
 local fine = false         -- fine mode (Tow app)
 local STRENGTHS = {30, 60, 100, 150} -- strength choices in the Tow app (% of the vehicle's weight)
 local strengthPick = 60    -- the player's pick in the Tow app
@@ -71,6 +98,7 @@ local sinceAppPush = 0
 local probe = nil          -- {id, x, y, z, age}
 local sinceProbe = 0
 local drawErrorLogged = false
+local pushApp              -- defined with the Tow app below
 
 local function allowed()
 	local c = U.config()
@@ -135,11 +163,13 @@ end
 
 --== Grabbing ==================================================================
 
-function M.release()
+--- Removes the rope; with a text, the player is told why.
+function M.release(text)
 	if not held then return end
 	sendToVehicle(held.id, "sharedCareerVeh.handRelease()")
 	held = nil
-	U.log("D", "grab", "vehicle released")
+	if text then message(text) end
+	U.log("D", "grab", "vehicle released" .. (text and (": " .. text) or ""))
 end
 
 --- Winch: 1 haul in, 0 stop, -1 pay out.
@@ -204,8 +234,9 @@ local function canRope(veh, id)
 	return true
 end
 
-local function startRope(id, dist, target, cmd)
-	held = {id = id, since = SEND_EVERY, strain = 0, slack = true, winch = 0, placed = false, target = target}
+local function startRope(id, dist, cmd)
+	held = {id = id, since = SEND_EVERY, silent = 0, strain = 0, slack = true, stuckFor = 0, winch = 0,
+		placed = false}
 	probe = nil
 	sendToVehicle(id, cmd)
 	U.log("I", "grab", string.format("rope attached to vehicle %s at %.1f m", tostring(id), dist))
@@ -225,21 +256,31 @@ local function attachAtView()
 		return false
 	end
 	-- the vehicle grabs the node closest to the aim line and reports it back (onGrip)
-	startRope(found.id, found.t, {x = cam.x + dir.x * found.t, y = cam.y + dir.y * found.t, z = cam.z + dir.z * found.t},
-		string.format("sharedCareerVeh.handGrabRay(%.3f, %.3f, %.3f, %.4f, %.4f, %.4f, %d, %.2f, %.1f)",
+	startRope(found.id, found.t, string.format("sharedCareerVeh.handGrabRay(%.3f, %.3f, %.3f, %.4f, %.4f, %.4f, %d, %.2f, %.1f)",
 			cam.x, cam.y, cam.z, dir.x, dir.y, dir.z, MAX_DISTANCE, grabSpeed(), grabStrength()))
 	return true
 end
 
 -- One step (every frame): while a remote button is held, the anchor moves; the rope state goes
--- to the vehicle about 30 times per second.
-function M.step(dt)
+-- to the vehicle about 30 times per second. dtSim: game time (0 while paused), for the watchdog.
+function M.step(dt, dtSim)
 	if not held then return end
-	dt = tonumber(dt) or 0
+	dt = math.min(MAX_STEP, math.max(0, tonumber(dt) or 0))
 	local veh = be:getObjectByID(held.id)
 	if not veh or not allowed() then
 		M.release()
 		return
+	end
+	held.silent = held.silent + math.max(0, tonumber(dtSim) or dt)
+	if held.silent > SILENT_LIMIT then
+		U.log("W", "grab", "no word from vehicle " .. tostring(held.id) .. " for " .. SILENT_LIMIT .. " s")
+		M.release(held.grip and "The rope came loose" or LOST_MESSAGES[0])
+		return
+	end
+	if not held.slack and (held.strain or 0) > 0.95 then
+		held.stuckFor = held.stuckFor + dt
+	else
+		held.stuckFor = 0
 	end
 	if held.nudge and held.target then
 		-- remote control: forward/back and left/right as seen from the camera, up/down
@@ -256,7 +297,8 @@ function M.step(dt)
 		}
 	end
 	held.since = held.since + dt
-	if held.since < SEND_EVERY or not held.target then return end
+	-- nothing to send until the vehicle has reported where the rope is tied
+	if held.since < SEND_EVERY or not (held.grip and held.target) then return end
 	held.since = 0
 	local t = held.target
 	local paying = held.nudge ~= nil or held.payOutOnce
@@ -331,9 +373,11 @@ end
 
 --== Replies from the vehicle ====================================================
 
-function M.onGrip(id, t, x, y, z)
+function M.onGrip(id, t, x, y, z, node)
 	if not held or held.id ~= id then return end
 	held.grip = {x = x, y = y, z = z}
+	held.node = tonumber(node)
+	held.silent = 0
 	-- the anchor starts at the grip (rope slack) until it is moved
 	if not held.placed then held.target = {x = x, y = y, z = z} end
 	U.log("D", "grab", string.format("vehicle reported its grip at %.1f m", tonumber(t) or 0))
@@ -342,9 +386,19 @@ end
 function M.onHandState(id, x, y, z, strain, slack, length)
 	if not held or held.id ~= id then return end
 	held.grip = {x = x, y = y, z = z}
+	held.silent = 0
 	held.strain = math.max(0, math.min(1, tonumber(strain) or 0))
 	held.slack = slack == 1 or slack == true
 	held.length = tonumber(length)
+end
+
+--- The vehicle took the rope off (reason: see LOST_MESSAGES).
+function M.onHandLost(id, reason)
+	if not held or held.id ~= id then return end
+	held = nil
+	message(LOST_MESSAGES[tonumber(reason)] or "The rope came loose")
+	U.log("I", "grab", "vehicle " .. tostring(id) .. " lost the rope (" .. tostring(reason) .. ")")
+	pushApp()
 end
 
 function M.onProbe(id, x, y, z)
@@ -362,6 +416,17 @@ function M.strainColor(strain)
 	end
 	local f = (s - 0.6) / 0.4
 	return 1, 0.85 - 0.6 * f, 0.2
+end
+
+local SLACK_COLOR = {0.7, 0.7, 0.7, 0.6}
+
+--- Rope color {r, g, b, a}: grey when slack (taut = 0), the strain color when taut (taut = 1),
+--- blended in between.
+function M.ropeColor(strain, taut)
+	taut = math.max(0, math.min(1, tonumber(taut) or 0))
+	local r, g, b = M.strainColor(strain)
+	local s = SLACK_COLOR
+	return s[1] + (r - s[1]) * taut, s[2] + (g - s[2]) * taut, s[3] + (b - s[3]) * taut, s[4] + (0.9 - s[4]) * taut
 end
 
 -- debugDrawer, ColorF and vec3 are engine/library globals: they may be provided lazily (not
@@ -387,35 +452,6 @@ local function line(a, b, color)
 	debugDrawer:drawLine(vec3(a.x, a.y, a.z), vec3(b.x, b.y, b.z), color)
 end
 
--- how deep a slack rope sags in the middle: a parabola over the horizontal span d whose length is
--- about the rope length L (L ~ d + 8 s^2 / 3d), at most half the rope (hanging straight down)
-local SAG_SEGMENTS = 12
-local SAG_RATE = 8         -- 1/s: how fast the drawn sag follows the rope
-local SAG_MAX = 6          -- m
-function M.sagDepth(span, horizontal, length)
-	span, horizontal, length = tonumber(span) or 0, tonumber(horizontal) or 0, tonumber(length) or 0
-	if span < 0.05 or length <= span then return 0 end
-	local s = math.sqrt(3 * span * (length - span) / 8)
-	s = math.min(s, length / 2, SAG_MAX)
-	-- a steep rope hangs along itself rather than below it
-	return s * math.max(0, math.min(1, horizontal / span))
-end
-
-local function rope(a, b, sag, color)
-	if sag < 0.02 then
-		line(a, b, color)
-		return
-	end
-	local prev = a
-	for i = 1, SAG_SEGMENTS do
-		local t = i / SAG_SEGMENTS
-		local p = {x = a.x + (b.x - a.x) * t, y = a.y + (b.y - a.y) * t,
-			z = a.z + (b.z - a.z) * t - 4 * sag * t * (1 - t)}
-		line(prev, p, color)
-		prev = p
-	end
-end
-
 local function cross(p, size, color)
 	line({x = p.x - size, y = p.y, z = p.z}, {x = p.x + size, y = p.y, z = p.z}, color)
 	line({x = p.x, y = p.y - size, z = p.z}, {x = p.x, y = p.y + size, z = p.z}, color)
@@ -437,6 +473,12 @@ end
 --- Forget which shapes failed (tests; the game keeps the result for the session).
 function M.resetShapes() shapeBroken = {} end
 
+local function cylinder(a, b, radius, color)
+	return tryShape("drawCylinder", function()
+		debugDrawer:drawCylinder(vec3(a.x, a.y, a.z), vec3(b.x, b.y, b.z), radius, color)
+	end)
+end
+
 local function ball(p, radius, color)
 	local ok = tryShape("drawSphere", function()
 		debugDrawer:drawSphere(vec3(p.x, p.y, p.z), radius, color)
@@ -444,16 +486,92 @@ local function ball(p, radius, color)
 	if not ok then cross(p, radius * 1.6, color) end
 end
 
+-- how deep a slack rope sags in the middle: a parabola over the horizontal span d whose length is
+-- about the rope length L (L ~ d + 8 s^2 / 3d), at most half the rope (hanging straight down)
+local SAG_SEGMENTS = 12
+local SAG_RATE = 8         -- 1/s: how fast the drawn sag follows the rope
+local SAG_MAX = 6          -- m
+local FADE_RATE = 6        -- 1/s: how fast the rope color follows strain and slack
+local ROPE_RADIUS = 0.02   -- m
+function M.sagDepth(span, horizontal, length)
+	span, horizontal, length = tonumber(span) or 0, tonumber(horizontal) or 0, tonumber(length) or 0
+	if span < 0.05 or length <= span then return 0 end
+	local s = math.sqrt(3 * span * (length - span) / 8)
+	s = math.min(s, length / 2, SAG_MAX)
+	-- a steep rope hangs along itself rather than below it
+	return s * math.max(0, math.min(1, horizontal / span))
+end
+
+-- one piece of rope: a line (visible from any distance) inside a thin cylinder (its body up close)
+local function strand(a, b, color)
+	line(a, b, color)
+	cylinder(a, b, ROPE_RADIUS, color)
+end
+
+local function rope(a, b, sag, color)
+	if sag < 0.02 then
+		strand(a, b, color)
+		return
+	end
+	local prev = a
+	for i = 1, SAG_SEGMENTS do
+		local t = i / SAG_SEGMENTS
+		local p = {x = a.x + (b.x - a.x) * t, y = a.y + (b.y - a.y) * t,
+			z = a.z + (b.z - a.z) * t - 4 * sag * t * (1 - t)}
+		strand(prev, p, color)
+		prev = p
+	end
+end
+
 local PIN_HEIGHT = 0.6     -- m: the anchor's post, from the anchor point up
 local PIN_BALL = 0.12      -- m: radius of the ball on top
 local function pin(p, color, pulse)
 	local top = {x = p.x, y = p.y, z = p.z + PIN_HEIGHT}
-	local ok = tryShape("drawCylinder", function()
-		debugDrawer:drawCylinder(vec3(p.x, p.y, p.z), vec3(top.x, top.y, top.z), 0.02, color)
-	end)
-	if not ok then line(p, top, color) end
+	if not cylinder(p, top, 0.02, color) then line(p, top, color) end
 	ball(top, PIN_BALL * (pulse or 1), color)
 	ball(p, 0.05, color)
+end
+
+-- The ground below a point (z), or nil: castRayStatic (static geometry and terrain) straight down.
+-- The last answer is kept while the point stays where it is.
+local GROUND_RANGE = 60    -- m
+local groundCache = nil    -- {x, y, z, ground}
+local function groundBelow(p)
+	local c = groundCache
+	if c and math.abs(c.x - p.x) < 0.01 and math.abs(c.y - p.y) < 0.01 and math.abs(c.z - p.z) < 0.01 then
+		return c.ground
+	end
+	local ground = nil
+	local ok, cast = pcall(function() return castRayStatic end)
+	if ok and type(cast) == "function" then
+		local from = p.z + 0.05
+		local hitOk, hit = pcall(cast, vec3(p.x, p.y, from), vec3(0, 0, -1), GROUND_RANGE)
+		hit = hitOk and tonumber(hit)
+		if hit and hit >= 0 and hit < GROUND_RANGE then ground = from - hit end
+	end
+	groundCache = {x = p.x, y = p.y, z = p.z, ground = ground}
+	return ground
+end
+
+-- A floating anchor: a dashed drop line to the ground and a disc there, so you can tell where in
+-- the world it is.
+local GROUND_MIN = 0.3     -- m above the ground before the marker shows
+local DASH = 0.15          -- m: dash and gap of the drop line
+local function groundMarker(p, rgb)
+	local color = ColorF(rgb[1], rgb[2], rgb[3], 0.7)
+	local g = groundBelow(p)
+	if not g or p.z - g < GROUND_MIN then return end
+	local z = p.z
+	while z > g do
+		local zEnd = math.max(g, z - DASH)
+		line({x = p.x, y = p.y, z = z}, {x = p.x, y = p.y, z = zEnd}, color)
+		z = zEnd - DASH
+	end
+	local disc = ColorF(rgb[1], rgb[2], rgb[3], 0.3)
+	if not cylinder({x = p.x, y = p.y, z = g + 0.005}, {x = p.x, y = p.y, z = g + 0.02}, 0.3, disc) then
+		line({x = p.x - 0.3, y = p.y, z = g + 0.02}, {x = p.x + 0.3, y = p.y, z = g + 0.02}, color)
+		line({x = p.x, y = p.y - 0.3, z = g + 0.02}, {x = p.x, y = p.y + 0.3, z = g + 0.02}, color)
+	end
 end
 
 local function sign(p, text)
@@ -464,39 +582,71 @@ local function sign(p, text)
 	end)
 end
 
-local clock = 0            -- s, for the pulsing ball while the winch hauls in
+-- Where the rope is tied, now: the tie node's position from the vehicle every frame
+-- (veh:getNodePosition is relative to the vehicle's position), otherwise the last report. A
+-- position far from the last report is not trusted (the vehicle reports 10 times per second).
+local NODE_TRUST = 3       -- m
+local function gripNow()
+	local reported = held and held.grip
+	if not reported then return nil end
+	local veh = held.node and be:getObjectByID(held.id)
+	if not (veh and type(veh.getNodePosition) == "function" and type(veh.getPosition) == "function") then
+		return reported
+	end
+	local ok, rel = pcall(veh.getNodePosition, veh, held.node)
+	local base = vecOf(veh:getPosition())
+	rel = ok and vecOf(rel)
+	if not (rel and base) then return reported end
+	local p = {x = base.x + rel.x, y = base.y + rel.y, z = base.z + rel.z}
+	local dx, dy, dz = p.x - reported.x, p.y - reported.y, p.z - reported.z
+	if dx * dx + dy * dy + dz * dz > NODE_TRUST * NODE_TRUST then return reported end
+	return p
+end
+
+local function stuck()
+	return held ~= nil and (held.stuckFor or 0) >= STUCK_AFTER
+end
+
+-- anchor colors {r, g, b, a}
+local ANCHOR_RESTING = {1, 1, 1, 0.8}
+local ANCHOR_MOVING = {0.3, 0.9, 1, 0.9}
+local ANCHOR_HAULING = {1, 0.55, 0.1, 0.9}
+local ANCHOR_PAYING = {0.75, 0.55, 1, 0.9}
+
+local clock = 0            -- s, for the pulsing balls
 
 function M.draw(dt)
-	clock = clock + math.max(0, tonumber(dt) or 0)
+	dt = math.max(0, tonumber(dt) or 0)
+	clock = clock + dt
 	if not (held and held.grip and held.target) and not probe then return end
 	if not canDraw() then return end
 	if held and held.grip and held.target then
-		local color
-		if held.slack then
-			color = ColorF(0.7, 0.7, 0.7, 0.6)
-		else
-			local r, g, b = M.strainColor(held.strain)
-			color = ColorF(r, g, b, 0.9)
-		end
-		local a, b = held.grip, held.target
+		-- color: follows strain and slack smoothly (the vehicle reports 10 times per second)
+		local k = 1 - math.exp(-FADE_RATE * dt)
+		local taut = held.slack and 0 or 1
+		held.shownStrain = (held.shownStrain or held.strain) + (held.strain - (held.shownStrain or held.strain)) * k
+		held.shownTaut = (held.shownTaut or taut) + (taut - (held.shownTaut or taut)) * k
+		local color = ColorF(M.ropeColor(held.shownStrain, held.shownTaut))
+		local a, b = gripNow(), held.target
 		local dx, dy, dz = b.x - a.x, b.y - a.y, b.z - a.z
 		local span = math.sqrt(dx * dx + dy * dy + dz * dz)
 		local want = held.slack and M.sagDepth(span, math.sqrt(dx * dx + dy * dy), held.length) or 0
-		local k = 1 - math.exp(-SAG_RATE * math.max(0, tonumber(dt) or 0))
-		held.sag = (held.sag or want) + (want - (held.sag or want)) * k
+		local ks = 1 - math.exp(-SAG_RATE * dt)
+		held.sag = (held.sag or want) + (want - (held.sag or want)) * ks
 		rope(a, b, held.sag, color)
-		ball(held.grip, 0.09, color)
-		local anchorColor = held.nudge and ColorF(0.3, 0.9, 1, 0.9)
-			or held.winch == 1 and ColorF(1, 0.55, 0.1, 0.9)
-			or held.winch == -1 and ColorF(0.75, 0.55, 1, 0.9) or ColorF(1, 1, 1, 0.8)
+		ball(a, 0.09, color)
+		local rgb = held.nudge and ANCHOR_MOVING or held.winch == 1 and ANCHOR_HAULING
+			or held.winch == -1 and ANCHOR_PAYING or ANCHOR_RESTING
 		local pulse = held.winch == 1 and not held.nudge
 			and 1 + 0.25 * math.sin(clock * 2 * math.pi * 1.5) or 1
-		pin(b, anchorColor, pulse)
+		pin(b, ColorF(rgb[1], rgb[2], rgb[3], rgb[4]), pulse)
+		groundMarker(b, rgb)
 		if appOpen then
-			sign({x = b.x, y = b.y, z = b.z + PIN_HEIGHT + 0.35}, string.format("Anchor \194\183 %.1f m", span))
+			sign({x = b.x, y = b.y, z = b.z + PIN_HEIGHT + 0.35}, string.format("Anchor \194\183 %.1f m", span)
+				.. (stuck() and " \194\183 at the limit" or ""))
 		end
 	elseif probe then
-		ball(probe, 0.12, ColorF(0.3, 0.8, 1, 0.45))
+		ball(probe, 0.12 * (1 + 0.12 * math.sin(clock * 2 * math.pi)), ColorF(0.3, 0.8, 1, 0.45))
 	end
 end
 
@@ -581,9 +731,11 @@ function M.appState()
 		state.moving = held.nudge ~= nil
 		state.strain = held.strain or 0
 		state.slack = held.slack ~= false
+		state.stuck = stuck()
 		state.length = held.length
-		if held.grip and held.target then
-			local dx, dy, dz = held.target.x - held.grip.x, held.target.y - held.grip.y, held.target.z - held.grip.z
+		local grip = gripNow()
+		if grip and held.target then
+			local dx, dy, dz = held.target.x - grip.x, held.target.y - grip.y, held.target.z - grip.z
 			state.distance = math.sqrt(dx * dx + dy * dy + dz * dz)
 		end
 	else
@@ -592,7 +744,7 @@ function M.appState()
 	return state
 end
 
-local function pushApp()
+function pushApp()
 	if guihooks and type(guihooks.trigger) == "function" then guihooks.trigger("SharedCareerTow", M.appState()) end
 end
 
@@ -619,8 +771,7 @@ function M.uiAttachVehicle(id)
 	end
 	local p = vecOf(veh:getPosition())
 	local dx, dy, dz = p.x - cam.x, p.y - cam.y, p.z - cam.z
-	startRope(id, math.sqrt(dx * dx + dy * dy + dz * dz), p,
-		string.format("sharedCareerVeh.handGrabNearest(%.3f, %.3f, %.3f, %.2f, %.1f)",
+	startRope(id, math.sqrt(dx * dx + dy * dy + dz * dz), string.format("sharedCareerVeh.handGrabNearest(%.3f, %.3f, %.3f, %.2f, %.1f)",
 			cam.x, cam.y, cam.z, grabSpeed(), grabStrength()))
 	pushApp()
 	return true
@@ -693,9 +844,9 @@ end
 
 --== Hooks =====================================================================
 
-function M.onUpdate(dtReal)
+function M.onUpdate(dtReal, dtSim)
 	if held then
-		local ok, err = pcall(M.step, dtReal)
+		local ok, err = pcall(M.step, dtReal, dtSim)
 		if not ok then
 			U.log("E", "grab", "grab failed: " .. tostring(err))
 			M.release()
@@ -725,6 +876,12 @@ end
 
 function M.onVehicleDestroyed(id)
 	if held and held.id == id then M.release() end
+end
+
+-- reset (R, recovery, a new config): the vehicle is somewhere else now, the old rope would pull it
+-- back (the vehicle's own onReset drops it too)
+function M.onVehicleResetted(id)
+	if held and held.id == id then M.release(LOST_MESSAGES[1]) end
 end
 
 function M.onBeamMPServerLeave()

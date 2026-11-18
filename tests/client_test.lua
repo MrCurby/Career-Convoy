@@ -848,6 +848,73 @@ do
 		string.format("30 %% against a 50 %% handbrake: stays, strain at the limit (%.2f)", strain30 or -1))
 	veh.handRelease()
 	body.brake = nil
+	local function lostReason()
+		local st = body.ge[#body.ge] or ""
+		return tonumber(st:match("onHandLost%(77, (%d)%)"))
+	end
+	-- nothing on the aim ray: the GE side hears it right away
+	body.ge = {}
+	check(veh.handGrabRay(10, 0.8, 1.2, 1, 0, 0, 120, 1, 60) == false and lostReason() == 0,
+		"nothing to grab on the ray: onHandLost(0)")
+	-- the rope is tied to the node you aimed at, and the GE side learns which one
+	body.p, body.v = {x = 0, y = 0, z = 0}, {x = 0, y = 0, z = 0}
+	veh.handGrabRay(10, 0.8, 1.2, -1, 0, 0, 120, 1, 60)
+	local tieCid = tonumber((body.ge[#body.ge] or ""):match("onGrip%(77, [-%d%.]+, [-%d%.]+, [-%d%.]+, [-%d%.]+, (%d+)%)"))
+	check(tieCid == veh.handInfo().tie and rel[tieCid].x == 2 and rel[tieCid].z == 1.2,
+		"onGrip names the tie node (the one aimed at)")
+	-- reset: the rope comes off instead of pulling the vehicle back
+	veh.handRope(2, 4.8, 1.2, 1, 0)
+	run(0.5)
+	body.ge = {}
+	veh.onReset()
+	check(veh.handInfo() == nil and lostReason() == 1, "vehicle reset: rope off, onHandLost(1)")
+	body.ge = {}
+	veh.onReset()
+	check(#body.ge == 0, "reset without a rope: nothing reported")
+	-- teleported: the vehicle jumps further than its speed explains
+	veh.handGrab(2, 0.8, 0.3, 1, 60)
+	run(0.2)
+	body.p = {x = 30, y = 0, z = 0}
+	body.ge = {}
+	run(1 / 60)
+	check(veh.handInfo() == nil and lostReason() == 2, "vehicle teleported: rope off, onHandLost(2)")
+	-- a long frame: the rope only works with 0.05 s of it
+	body.p = {x = 0, y = 0, z = 0}
+	veh.handGrab(2, 0.8, 0.3, 1, 60)
+	veh.handRope(2, 4.8, 0.3, -1, 0)
+	run(1 / 60)
+	local before = veh.handInfo().length
+	veh.updateGFX(1)
+	local grown = veh.handInfo().length - before
+	check(grown > 0.04 and grown < 0.06, string.format("a 1 s hitch counts as 0.05 s (rope +%.3f m)", grown))
+	-- slack/taut with a margin: a few centimeters of stretch don't switch it back and forth
+	veh.handRope(2, 0.8, 0.3, 0, 0)
+	run(0.2)
+	local L = veh.handInfo().length
+	veh.handRope(2, 0.8 + L + 0.05, 0.3, 0, 0)
+	run(0.2)
+	local _, slackNow = lastState()
+	check(slackNow == 1, "5 cm of stretch: still slack (no flicker)")
+	veh.handRelease()
+	-- torn off: the tie node moves away from the reference node (the part came off)
+	env.v.data.refNodes = {[0] = {ref = 0}}
+	body.p, body.v = {x = 0, y = 0, z = 0}, {x = 0, y = 0, z = 0}
+	veh.handGrab(2, 0.8, 0.3, 1, 60)
+	local tie = veh.handInfo().tie
+	local x0 = rel[tie].x
+	body.ge = {}
+	for _ = 1, 30 do
+		rel[tie].x = rel[tie].x + 0.05
+		run(1 / 60)
+	end
+	check(veh.handInfo() ~= nil, "1.5 m of bending: the rope stays on")
+	for _ = 1, 30 do
+		rel[tie].x = rel[tie].x + 0.05
+		if veh.handInfo() then run(1 / 60) end
+	end
+	check(veh.handInfo() == nil and lostReason() == 3, "part torn off (tie node 2 m away from the rest): onHandLost(3)")
+	rel[tie].x = x0
+	env.v.data.refNodes = nil
 end
 
 --== 7b5. Our own node grabber: GE side (picking, anchor, Tow app) ===========
@@ -878,8 +945,18 @@ local function lastHand(v)
 		end
 	end
 end
-local function frames(seconds)
-	for _ = 1, math.floor(seconds * 60 + 0.5) do extensions.hook("onUpdate", 1 / 60) end
+-- the vehicle's rope report (onHandState), repeated 10 times per second like the vehicle does
+local alive = nil
+local function handState(...)
+	alive = {...}
+	sharedCareer_grab.onHandState(...)
+end
+local function frames(seconds, dt)
+	dt = dt or 1 / 60
+	for i = 1, math.floor(seconds / dt + 0.5) do
+		if alive and i % 6 == 0 and sharedCareer_grab.isHolding() then sharedCareer_grab.onHandState(unpack(alive)) end
+		extensions.hook("onUpdate", dt)
+	end
 end
 local cam = {x = 0, y = 0, z = 2}
 local fwd = nil
@@ -895,8 +972,11 @@ local name, a = lastHand(truck)
 check(sharedCareer_grab.isHolding() and name == "handGrabRay", "rope attached: the view ray is sent to the vehicle")
 check(a and a[1] == 0 and a[2] == 0 and a[3] == 2 and a[4] > 0.99 and a[7] == 120 and a[8] == 1 and a[9] == 60,
 	"camera position, view direction, speed 1 m/s and strength 60 % sent along")
+frames(0.2)
+check(lastHand(truck) == "handGrabRay", "nothing is sent until the vehicle reports where the rope is tied")
 -- the vehicle reports where it grabbed: the anchor starts there
 sharedCareer_grab.onGrip(60, 9.0, 9, 0, 1)
+handState(60, 9, 0, 1, 0, 1, 0)
 frames(0.1)
 name, a = lastHand(truck)
 check(name == "handRope" and a[1] == 9 and a[2] == 0 and a[3] == 1 and a[4] == 0 and a[5] == 0,
@@ -955,22 +1035,30 @@ local drawn = {}
 _G.ColorF = setmetatable({}, {__call = function(_, r, g, b, alpha) return {r = r, g = g, b = b, a = alpha} end})
 _G.vec3 = setmetatable({}, {__call = function(_, x, y, z) return {x = x, y = y, z = z} end})
 _G.debugDrawer = {drawLine = function(_, p1, p2, c) table.insert(drawn, {p1 = p1, p2 = p2, c = c}) end}
-sharedCareer_grab.onHandState(60, 9, 0, 1, 0.1, 0, 4)
+handState(60, 9, 0, 1, 0.1, 0, 4)
 drawn = {}
 frames(1 / 60)
 check(#drawn == 11 and drawn[1].p1.x == 9 and drawn[1].c.g > 0.8 and drawn[1].c.r < 0.4,
 	"taut rope (lines only): line, grip and pin as crosses, green when it's easy")
 check(drawn[5].c.r == 1 and drawn[5].c.g < 0.6, "winch running: orange anchor")
-sharedCareer_grab.onHandState(60, 9, 0, 1, 1, 0, 4)
+handState(60, 9, 0, 1, 1, 0, 4)
+frames(0.2)
 drawn = {}
 frames(1 / 60)
-check(drawn[1].c.r == 1 and drawn[1].c.g < 0.3, "red at the force limit")
+local fading = drawn[1].c.g
+check(fading < 0.85 and fading > 0.3, string.format("strain rises: the color fades towards red (g = %.2f)", fading))
+frames(1)
+drawn = {}
+frames(1 / 60)
+check(drawn[1].c.r > 0.99 and drawn[1].c.g < 0.3, "red at the force limit")
 sharedCareer_grab.uiWinch(0)
-sharedCareer_grab.onHandState(60, 9, 0, 1, 0, 1, 4)
+handState(60, 9, 0, 1, 0, 1, 4)
+frames(1)
 drawn = {}
 frames(1 / 60)
-check(drawn[1].c.r == 0.7 and drawn[1].c.g == 0.7 and drawn[#drawn - 2].c.r == 1 and drawn[#drawn - 2].c.g == 1,
-	"slack rope: grey line; winch off: white anchor")
+local function near(x, want) return math.abs(x - want) < 0.02 end
+check(near(drawn[1].c.r, 0.7) and near(drawn[1].c.g, 0.7) and drawn[#drawn - 2].c.r == 1 and drawn[#drawn - 2].c.g == 1,
+	"slack rope: grey line (faded); winch off: white anchor")
 sharedCareer_grab.uiNudge(0, 0, 0)
 drawn = {}
 frames(1 / 60)
@@ -987,10 +1075,10 @@ check(sharedCareer_grab.sagDepth(4, 0, 6) == 0 and sharedCareer_grab.sagDepth(4,
 check(sharedCareer_grab.sagDepth(10, 10, 60) == 6, "sag: limited")
 local function lowest()
 	local z = math.huge
-	for _, d in ipairs(drawn) do if d.c.r == 0.7 then z = math.min(z, d.p2.z) end end
+	for _, d in ipairs(drawn) do z = math.min(z, d.p2.z) end
 	return z
 end
-sharedCareer_grab.onHandState(60, 9, 0, 1, 0, 1, 30)   -- slack, rope much longer than the distance
+handState(60, 9, 0, 1, 0, 1, 30)   -- slack, rope much longer than the distance
 drawn = {}
 frames(1 / 60)
 local curve = #drawn
@@ -999,7 +1087,7 @@ drawn = {}
 frames(1 / 60)
 local deep = lowest()
 check(curve > 7 and deep < 1 - 0.5, string.format("slack rope sags (%d lines, lowest %.2f)", curve, deep))
-sharedCareer_grab.onHandState(60, 9, 0, 1, 0.5, 0, 4)  -- pulled taut
+handState(60, 9, 0, 1, 0.5, 0, 4)  -- pulled taut
 drawn = {}
 frames(1 / 60)
 local midway = #drawn > 11 and lowest() > deep
@@ -1029,10 +1117,12 @@ end
 sharedCareer_grab.resetShapes()
 shapes = {}
 frames(1 / 60)
-check(count("line") == 1 and count("sphere") == 3 and count("cylinder") == 1 and count("text") == 0,
-	string.format("shapes: rope line, grip ball, pin (post + 2 balls), no sign with the app closed (%d/%d/%d/%d)",
+check(count("line") == 1 and count("sphere") == 3 and count("cylinder") == 2 and count("text") == 0,
+	string.format("shapes: rope (line + cylinder), grip ball, pin (post + 2 balls), no sign with the app closed (%d/%d/%d/%d)",
 		count("line"), count("sphere"), count("cylinder"), count("text")))
-check(find("cylinder").b.z > find("cylinder").a.z + 0.5, "anchor pin: a post standing up from the anchor")
+local post = shapes[#shapes - 2]
+check(post.kind == "cylinder" and post.b.z > post.a.z + 0.5, "anchor pin: a post standing up from the anchor")
+check(find("cylinder").a.x == 9 and math.abs(find("cylinder").b.x - 5) < 0.1, "rope: a cylinder from the grip to the anchor")
 sharedCareer_grab.setAppOpen(true)
 shapes = {}
 frames(1 / 60)
@@ -1057,7 +1147,7 @@ sharedCareer_grab.uiWinch(0)
 _G.debugDrawer.drawSphere = nil
 shapes = {}
 frames(1 / 60)
-check(count("sphere") == 0 and count("line") > 6 and count("cylinder") == 1, "no drawSphere: balls drawn as crosses")
+check(count("sphere") == 0 and count("line") > 6 and count("cylinder") == 2, "no drawSphere: balls drawn as crosses")
 _G.debugDrawer, _G.String, _G.ColorI = lineOnly, nil, nil
 sharedCareer_grab.resetShapes()
 end
@@ -1067,6 +1157,97 @@ check(not sharedCareer_grab.isHolding() and lastHand(truck) == "handRelease", "r
 drawn = {}
 frames(1 / 60)
 check(#drawn == 0, "let go: nothing drawn")
+-- staying in step with the vehicle: every way the rope can be lost ends in a clean release
+do
+local function lastToast()
+	for i = #toasts, 1, -1 do if toasts[i].msg then return toasts[i].msg end end
+	return ""
+end
+local function attachTruck()
+	alive = nil
+	fwd = {x = 1, y = 0, z = -0.1}
+	sharedCareer_grab.uiAttachView()
+	sharedCareer_grab.onGrip(60, 9.0, 9, 0, 1, 7)
+	handState(60, 9, 0, 1, 0, 1, 0)
+end
+fwd = {x = 1, y = 0, z = -0.1}
+alive = nil
+sharedCareer_grab.uiAttachView()
+frames(2.5)
+check(not sharedCareer_grab.isHolding() and lastToast():find("Couldn't attach"),
+	"the vehicle never reports a grip: released after 2 s, with a message")
+attachTruck()
+alive = nil
+frames(1.5)
+check(sharedCareer_grab.isHolding(), "a short silence is fine")
+frames(1)
+check(not sharedCareer_grab.isHolding() and lastToast():find("came loose"),
+	"no word from the vehicle for 2 s (its Lua was reloaded): released")
+attachTruck()
+alive = nil
+for _ = 1, 300 do extensions.hook("onUpdate", 1 / 60, 0) end
+check(sharedCareer_grab.isHolding(), "game paused (no game time): the watchdog waits")
+attachTruck()
+sharedCareer_grab.onHandLost(60, 1)
+check(not sharedCareer_grab.isHolding() and lastToast():find("reset"), "the vehicle drops the rope after a reset: released")
+attachTruck()
+sharedCareer_grab.onHandLost(60, 3)
+check(not sharedCareer_grab.isHolding() and lastToast():find("tore"), "a torn-off part: released with its own message")
+attachTruck()
+sharedCareer_grab.onHandLost(61, 1)
+check(sharedCareer_grab.isHolding(), "another vehicle's report doesn't touch the rope")
+extensions.hook("onVehicleResetted", 60)
+check(not sharedCareer_grab.isHolding() and lastHand(truck) == "handRelease", "vehicle reset (R): rope removed")
+-- a hitch: the anchor remote moves at most MAX_STEP worth
+attachTruck()
+frames(0.1)
+fwd = {x = 1, y = 0, z = 0}
+sharedCareer_grab.uiNudge(1, 0, 0)
+frames(1, 1)
+sharedCareer_grab.uiNudgeStop()
+frames(0.1)
+local _, h = lastHand(truck)
+check(h and math.abs(h[1] - 9.1) < 0.02, string.format("a 1 s hitch moves the anchor only 0.1 m (x = %.2f)", h and h[1] or -1))
+-- the rope end follows the tie node every frame, not only on the reports
+truck.getNodePosition = function(_, cid) return cid == 7 and {x = -0.5, y = 0.2, z = 0} or nil end
+truck.p = {x = 10, y = 0, z = 1}
+drawn = {}
+frames(1 / 60)
+check(math.abs(drawn[1].p1.x - 9.5) < 1e-6 and math.abs(drawn[1].p1.y - 0.2) < 1e-6,
+	"rope drawn from the tie node's position now (vehicle position + getNodePosition)")
+truck.getNodePosition = function() return {x = 400, y = 0, z = 0} end
+drawn = {}
+frames(1 / 60)
+check(drawn[1].p1.x == 9, "an implausible node position falls back to the last report")
+truck.getNodePosition = nil
+-- at the limit for a while: shown in the Tow app and on the sign
+handState(60, 9, 0, 1, 1, 0, 4)
+frames(1)
+check(not sharedCareer_grab.appState().stuck, "at the limit for a moment: not stuck yet")
+frames(1.5)
+check(sharedCareer_grab.appState().stuck, "at the limit for 2 s: the Tow app says so")
+handState(60, 9, 0, 1, 0.3, 0, 4)
+frames(0.2)
+check(not sharedCareer_grab.appState().stuck, "it pulls easier again: no longer stuck")
+-- a floating anchor: dashed drop line and a disc on the ground (castRayStatic)
+_G.castRayStatic = function(from, dir, range) return from.z - 0 end   -- ground at z = 0
+sharedCareer_grab.uiNudge(0, 0, 1)
+frames(1)
+sharedCareer_grab.uiNudgeStop()
+drawn = {}
+frames(1 / 60)
+local drops = 0
+for _, d in ipairs(drawn) do
+	if math.abs(d.p1.x - d.p2.x) < 1e-9 and math.abs(d.p1.y - d.p2.y) < 1e-9 and d.p2.z < 1 and d.p2.z >= 0 then drops = drops + 1 end
+end
+check(drops >= 4, "anchor 2 m above the ground: dashed drop line (" .. drops .. " dashes)")
+local lowestDrop = math.huge
+for _, d in ipairs(drawn) do lowestDrop = math.min(lowestDrop, d.p2.z) end
+check(math.abs(lowestDrop) < 0.05, "the drop line reaches the ground")
+_G.castRayStatic = nil
+sharedCareer_grab.uiRelease()
+alive = nil
+end
 -- preview: only while the Tow app is open (not just on foot); it aims with the view
 local walkingNow = true
 _G.gameplay_walk = {isWalking = function() return walkingNow end}
@@ -1105,6 +1286,7 @@ for _, v in ipairs(appSt.nearby) do check(v.id ~= 61 and v.id ~= 62, "no other p
 -- attach from the list: at the vehicle's point closest to you
 check(sharedCareer_grab.uiAttachVehicle(60) and lastHand(truck) == "handGrabNearest", "attach from the list: rope at the closest point")
 sharedCareer_grab.onGrip(60, 9, 9, 0, 1)
+handState(60, 9, 0, 1, 0, 1, 0)
 appSt = sharedCareer_grab.appState()
 check(appSt.attached and appSt.vehicle == "Pickup" and appSt.winch == 0, "app shows the roped vehicle, winch stopped")
 -- remote control: hold "forward" -> the anchor moves away (seen from the camera), rope pays out
