@@ -10,7 +10,7 @@
 --                                  anchor hooks onto its tow hitch), see "Anchor on a vehicle" below
 --   jobBreakDown / jobReportDamage the broken-down vehicle of a towing job (jobs.lua), see
 --                                  "Towing jobs" below
---   damageSnapshot / damageApply   other players see the owner's damage (damage.lua), see
+--   damageSnapshot / damageLoad    other players see the owner's damage (damage.lua), see
 --                                  "Damage" below
 --
 -- AI tuning: two values inside the game's lua/vehicle/ai.lua that have no official setter.
@@ -381,13 +381,13 @@ function M.handInfo()
 end
 
 -- forward declaration: the damage section below fills it in
-local forgetOriginalLengths
+local damageAfterReset
 
--- the vehicle was reset (R, recovery, a new config): the rope must not pull it back, and the
--- beams are undamaged again
+-- the vehicle was reset (R, recovery, a new config): the rope must not pull it back; a damage
+-- waiting for this reset is loaded on the next frame
 function M.onReset()
 	if hand then lose(LOST_RESET) end
-	forgetOriginalLengths()
+	damageAfterReset()
 end
 
 -- the grip's speed (mass-weighted over its heaviest nodes)
@@ -607,27 +607,40 @@ end
 --== Damage: other players see the owner's damage ==================================
 -- BeamMP only syncs parts that break off (break groups). How a body bends is worked out by every
 -- PC on its own, so a car that hit something only one PC sees looks different everywhere. The
--- owner therefore sends its damage (damage.lua):
---   damageSnapshot()  owner: every deformed beam with its rest length, every broken beam, and the
---                     beam count -> sharedCareer_damage.onSnapshot(id, json)
---   damageApply(data) other PCs: sets the same rest lengths (the body bends into that shape by
---                     itself within a few frames, wherever the car is), breaks the same beams and
---                     straightens beams that only bent here. A beam that broke only here can't be
---                     mended: then the vehicle asks to be reset (sharedCareer_damage.onNeedsReset)
---                     and gets the damage again afterwards.
--- A snapshot of a vehicle with another beam count (other parts) is ignored.
+-- owner therefore sends its damage (damage.lua), and the others load it the way the game loads a
+-- saved vehicle (beamstate.load): node positions, beam rest lengths, broken beams, commitLoad.
+-- Changing beams of a moving car instead makes its physics blow up.
+--   damageSnapshot()  owner: every node's position in the vehicle's own frame (right, forward,
+--                     up from the reference node), every deformed beam {cid, rest length,
+--                     deformation} and every broken beam -> sharedCareer_damage.onSnapshot(id, json)
+--   damageLoad(data)  other PCs, only while the car stands still: keeps the damage and asks to be
+--                     reset in place (sharedCareer_damage.onReadyToLoad); on the first frame after
+--                     that reset the undamaged car takes the owner's shape (loadDamage)
+-- obj:getNodePosition is relative to the reference node in world axes, so positions are turned
+-- into the vehicle's frame and back with its direction vectors. A damage of a vehicle with other
+-- node or beam counts (other parts) is ignored.
 
-local DEFORMED = 1e-4        -- a beam counts as deformed above this (obj:getBeamDeformation)
-local originalLengths = nil  -- cid -> rest length of the undamaged beam, read before the first apply
+local DEFORMED = 1e-4   -- a beam counts as deformed above this (obj:getBeamDeformation)
+local pendingDamage = nil -- the damage to load after the next reset: {data, armed}
 
-forgetOriginalLengths = function() originalLengths = nil end
+local function count(list)
+	local n = 0
+	for _ in pairs(type(list) == "table" and list or {}) do n = n + 1 end
+	return n
+end
 
-local function beams()
-	return type(v) == "table" and type(v.data) == "table" and type(v.data.beams) == "table" and v.data.beams or {}
+local function vehicleData(key)
+	return type(v) == "table" and type(v.data) == "table" and type(v.data[key]) == "table" and v.data[key] or {}
 end
 
 local function round3(x)
 	return math.floor(x * 1000 + 0.5) / 1000
+end
+
+-- the vehicle's frame: right, forward, up (unit vectors in world axes)
+local function frame()
+	local fwd, up = obj:getDirectionVector(), obj:getDirectionVectorUp()
+	return fwd:cross(up), fwd, up
 end
 
 local function reportToDamage(fn, arg)
@@ -637,74 +650,73 @@ local function reportToDamage(fn, arg)
 end
 
 function M.damageSnapshot()
-	local deformed, broken, count = {}, {}, 0
-	for _, beam in pairs(beams()) do
-		count = count + 1
+	local right, fwd, up = frame()
+	local nodes, nodeCount = {}, 0
+	for _, node in pairs(vehicleData("nodes")) do
+		nodeCount = nodeCount + 1
+		local p = obj:getNodePosition(node.cid)
+		local i = #nodes
+		nodes[i + 1], nodes[i + 2], nodes[i + 3], nodes[i + 4] = node.cid, round3(p:dot(right)), round3(p:dot(fwd)), round3(p:dot(up))
+	end
+	local deformed, broken, beamCount = {}, {}, 0
+	for _, beam in pairs(vehicleData("beams")) do
+		beamCount = beamCount + 1
 		local cid = beam.cid
 		if obj:beamIsBroken(cid) then
 			broken[#broken + 1] = cid
-		elseif obj:getBeamDeformation(cid) > DEFORMED then
-			deformed[#deformed + 1] = cid
-			deformed[#deformed + 1] = round3(obj:getBeamRestLength(cid))
+		else
+			local ratio = obj:getBeamDeformation(cid)
+			if ratio > DEFORMED then
+				local i = #deformed
+				deformed[i + 1], deformed[i + 2], deformed[i + 3] = cid, obj:getBeamRestLength(cid), ratio
+			end
 		end
 	end
 	log("I", "sharedCareer.damage", string.format("damage sent: %d bent, %d broken of %d beams",
-		#deformed / 2, #broken, count))
-	reportToDamage("onSnapshot", jsonEncode({n = count, d = deformed, b = broken}))
+		#deformed / 3, #broken, beamCount))
+	reportToDamage("onSnapshot", jsonEncode({nn = nodeCount, bn = beamCount, n = nodes, d = deformed, b = broken}))
 end
 
-function M.damageApply(data)
-	if type(data) ~= "table" or type(data.d) ~= "table" or type(data.b) ~= "table" then return end
-	local all, count = beams(), 0
-	for _ in pairs(all) do count = count + 1 end
-	if data.n ~= count then
-		log("W", "sharedCareer.damage", string.format("damage not applied: %d beams here, %d at the owner", count, tonumber(data.n) or -1))
+function M.damageLoad(data)
+	if type(data) ~= "table" or type(data.n) ~= "table" or type(data.d) ~= "table" or type(data.b) ~= "table" then return end
+	local nodeCount, beamCount = count(vehicleData("nodes")), count(vehicleData("beams"))
+	if data.nn ~= nodeCount or data.bn ~= beamCount then
+		log("W", "sharedCareer.damage", string.format("damage not loaded: %d nodes / %d beams here, %s / %s at the owner",
+			nodeCount, beamCount, tostring(data.nn), tostring(data.bn)))
 		return
 	end
-	if not originalLengths then
-		-- only beams that are still undamaged here: their rest length is the original one
-		originalLengths = {}
-		for _, beam in pairs(all) do
-			local cid = beam.cid
-			if not obj:beamIsBroken(cid) and obj:getBeamDeformation(cid) <= DEFORMED then
-				originalLengths[cid] = obj:getBeamRestLength(cid)
-			end
-		end
+	pendingDamage = {data = data}
+	reportToDamage("onReadyToLoad")
+end
+
+-- the undamaged vehicle (right after its reset) takes the owner's shape
+local function loadDamage(data)
+	local right, fwd, up = frame()
+	local n = data.n
+	for i = 1, #n - 3, 4 do
+		obj:setNodePosition(n[i], right * n[i + 1] + fwd * n[i + 2] + up * n[i + 3])
 	end
-	local wantBroken = {}
-	for _, cid in ipairs(data.b) do wantBroken[cid] = true end
-	for _, beam in pairs(all) do
-		if obj:beamIsBroken(beam.cid) and not wantBroken[beam.cid] then
-			log("I", "sharedCareer.damage", "damage needs a reset: beam " .. tostring(beam.cid) .. " broke only here")
-			reportToDamage("onNeedsReset")
-			return
-		end
+	local d = data.d
+	for i = 1, #d - 2, 3 do
+		obj:setBeamLength(d[i], d[i + 1])
+		if beamstate and type(beamstate.beamDeformed) == "function" then pcall(beamstate.beamDeformed, d[i], d[i + 2]) end
 	end
-	local want = {}
-	for i = 1, #data.d - 1, 2 do want[data.d[i]] = data.d[i + 1] end
-	local bent, straightened, broke, biggest = 0, 0, 0, 0
-	for _, beam in pairs(all) do
-		local cid = beam.cid
-		if wantBroken[cid] then
-			if not obj:beamIsBroken(cid) then
-				broke = broke + 1
-				obj:breakBeam(cid)
-				if beamstate and type(beamstate.beamBroken) == "function" then pcall(beamstate.beamBroken, cid, 1) end
-			end
-		else
-			local length = want[cid]
-			if not length and obj:getBeamDeformation(cid) > DEFORMED then length = originalLengths[cid] end
-			local now = length and obj:getBeamRestLength(cid)
-			if now and math.abs(now - length) > 1e-3 then
-				if want[cid] then bent = bent + 1 else straightened = straightened + 1 end
-				biggest = math.max(biggest, math.abs(now - length) / math.max(now, 1e-3))
-				obj:setBeamLength(cid, length)
-			end
-		end
-	end
-	log("I", "sharedCareer.damage", string.format(
-		"damage applied: %d of %d bent beams changed, %d straightened, %d broken, biggest change %.0f %%",
-		bent, #data.d / 2, straightened, broke, biggest * 100))
+	for _, cid in ipairs(data.b) do obj:breakBeam(cid) end
+	obj:commitLoad()
+	log("I", "sharedCareer.damage", string.format("damage loaded: %d nodes, %d bent, %d broken beams",
+		#n / 4, #d / 3, #data.b))
+end
+
+damageAfterReset = function()
+	if pendingDamage then pendingDamage.armed = true end
+end
+
+local function loadPendingDamage()
+	if not (pendingDamage and pendingDamage.armed) then return end
+	local data = pendingDamage.data
+	pendingDamage = nil
+	local ok, err = pcall(loadDamage, data)
+	if not ok then log("E", "sharedCareer.damage", "loading the damage failed: " .. tostring(err)) end
 end
 
 function M.onPhysicsStep(dt)
@@ -722,6 +734,7 @@ end
 
 function M.updateGFX(dt)
 	if not dt or dt <= 0 then return end
+	loadPendingDamage()
 	if anchor then
 		if not physicsStep then anchorStep(math.min(dt, HAND_MAX_DT), true) end
 		anchor.age = anchor.age + dt

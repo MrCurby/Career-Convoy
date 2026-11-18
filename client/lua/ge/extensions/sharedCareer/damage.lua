@@ -2,19 +2,22 @@
 --
 -- BeamMP only syncs parts that break off. How a body bends is worked out by every PC on its own:
 -- when your friend drives through a car that only you see, his car crumples on your screen but
--- not on his. So the owner's damage counts, for player vehicles (never traffic or parked cars:
--- changing a simplified traffic car's beams made its physics blow up):
+-- not on his. So the owner's damage counts, for player vehicles (never traffic or parked cars):
 --   * own vehicles: once a crash is over (the damage hasn't changed for SETTLE seconds), the
 --     vehicle sends its damage (sharedCareerVeh.damageSnapshot -> onSnapshot -> sc_damage)
---   * other players' vehicles: an incoming damage is applied (sharedCareerVeh.damageApply); a
---     vehicle that isn't spawned here yet gets it as soon as it is. If one got damage only here
---     (a crash only this PC saw), the owner is asked for his damage (sc_damageRequest), which
---     straightens it again. Parts that broke only here can't be mended: the vehicle is reset in
---     place (like BeamMP resets a remote vehicle) and gets the owner's damage again.
+--   * other players' vehicles: the owner's damage is loaded the way the game loads a saved
+--     vehicle, and only while the car stands still (STILL_SPEED for STILL_TIME seconds): changing
+--     the shape of a moving car makes its physics blow up. The vehicle takes the damage
+--     (sharedCareerVeh.damageLoad), asks to be reset in place (onReadyToLoad, like BeamMP resets a
+--     remote vehicle) and takes the owner's shape right after the reset. A vehicle that isn't
+--     spawned here yet, or doesn't stand still, gets it later.
+--   * a crash only this PC saw (the damage of another player's vehicle grows here without a new
+--     damage from its owner): the owner is asked for his damage (sc_damageRequest), which then
+--     replaces the one seen here
 -- The damage numbers come from the game's map.objects[id].damage.
 -- client.syncDamage = false turns it off.
 --
--- Receives: sc_damage {id, damage = {n, d, b}}, sc_damageRequest {id}.
+-- Receives: sc_damage {id, damage = {nn, bn, n, d, b}} or {id, cleared = true}, sc_damageRequest {id}.
 -- Sends: sc_damage, sc_damageRequest.
 
 local M = {}
@@ -23,23 +26,22 @@ local U
 
 local EVERY = 0.5          -- seconds between two checks
 local SETTLE = 1.5         -- the damage didn't change this long: the crash is over
+local STILL_SPEED = 0.5    -- m/s: below this another player's vehicle counts as standing still
+local STILL_TIME = 1       -- seconds it must stand still before its damage is loaded
 local ASK_EVERY = 10       -- at most one request per remote vehicle this often
 local SEND_EVERY = 2       -- at most one snapshot per own vehicle this often on request
-local RESET_EVERY = 5      -- at most one reset per remote vehicle this often
-local AFTER_RESET = 0.5    -- seconds after a reset before the damage is applied again
 
 local since = 0
 -- own vehicles: game id -> {damage, at, sent, sentAt}
 local own = {}
--- other players' vehicles: game id -> {damage, at, base, settling, askedAt, resetAt, waitUntil}
+-- other players' vehicles: game id -> {damage, at, base, settling, askedAt, stillSince}
 --   base: damage that matches the owner's (only more than that is a crash seen only here)
---   settling: the owner's damage was just applied; the body still bends into its shape, so the
---             damage it then shows becomes the new base
+--   settling: the owner's damage was just loaded; the damage the car then shows becomes the new base
 local remote = {}
--- server id -> the owner's damage {n, d, b}, as received last
+-- server id -> the owner's damage, as received last
 local received = {}
--- game id -> the received table that was applied to it
-local applied = {}
+-- game id -> the received damage that was loaded into it
+local loaded = {}
 
 local function mp()
 	local m = rawget(_G, "MPVehicleGE")
@@ -74,14 +76,6 @@ local function requestSnapshot(veh)
 	veh:queueLuaCommand("if sharedCareerVeh then sharedCareerVeh.damageSnapshot() end")
 end
 
-local function apply(veh, gameId, damage)
-	applied[gameId] = damage
-	local st = remote[gameId]
-	if st then st.settling = true end
-	veh:queueLuaCommand(string.format("if sharedCareerVeh then sharedCareerVeh.damageApply(jsonDecode(%q)) end",
-		jsonEncode(damage)))
-end
-
 -- own vehicle: send its damage once the crash is over
 local function checkOwn(gameId, veh, damage, now)
 	local st = own[gameId]
@@ -96,7 +90,8 @@ local function checkOwn(gameId, veh, damage, now)
 	end
 end
 
--- other player's vehicle: apply the owner's damage, ask for it after a crash only seen here
+-- other player's vehicle: load the owner's damage once it stands still, ask for it after a crash
+-- only seen here
 local function checkRemote(serverId, gameId, veh, damage, now)
 	local st = remote[gameId]
 	if not st then
@@ -104,11 +99,20 @@ local function checkRemote(serverId, gameId, veh, damage, now)
 		remote[gameId] = st
 	end
 	if damage and damage ~= st.damage then st.damage, st.at = damage, now end
-	if st.waitUntil and now < st.waitUntil then return end
-	st.waitUntil = nil
+	local vel = veh:getVelocity()
+	if vel and vel:length() < STILL_SPEED then
+		st.stillSince = st.stillSince or now
+	else
+		st.stillSince = nil
+	end
 	local wanted = received[serverId]
-	if wanted and applied[gameId] ~= wanted then
-		apply(veh, gameId, wanted)
+	if wanted and loaded[gameId] ~= wanted then
+		if st.stillSince and now - st.stillSince >= STILL_TIME then
+			loaded[gameId] = wanted
+			st.settling = true
+			veh:queueLuaCommand(string.format("if sharedCareerVeh then sharedCareerVeh.damageLoad(jsonDecode(%q)) end",
+				jsonEncode(wanted)))
+		end
 		return
 	end
 	if st.settling then
@@ -145,7 +149,7 @@ M.check = check
 
 --== From the vehicles ==========================================================
 
--- own vehicle: its damage, as JSON {n, d, b}
+-- own vehicle: its damage, as JSON
 function M.onSnapshot(gameId, json)
 	local m = mp()
 	if not m or not enabled() or not m.isOwn(gameId) then return end
@@ -154,29 +158,28 @@ function M.onSnapshot(gameId, json)
 	if serverId and damage and isPlayerVehicle(serverId) then U.send("sc_damage", {id = serverId, damage = damage}) end
 end
 
--- other player's vehicle: a part broke only here, reset it in place
-function M.onNeedsReset(gameId)
+-- other player's vehicle took the damage and stands still: reset it in place, it takes the
+-- owner's shape right after
+function M.onReadyToLoad(gameId)
 	local m = mp()
-	local st = remote[gameId]
 	local veh = be:getObjectByID(gameId)
-	if not m or not st or not veh or m.isOwn(gameId) then return end
-	local now = os.clockhp()
-	if st.resetAt and now - st.resetAt < RESET_EVERY then return end
-	st.resetAt, st.waitUntil = now, now + AFTER_RESET
-	applied[gameId] = nil
+	if not m or not veh or m.isOwn(gameId) or not remote[gameId] then return end
 	local pos = veh:getPosition()
 	local rot = quatFromDir(-vec3(veh:getDirectionVector()), vec3(veh:getDirectionVectorUp()))
 	veh:setPositionRotation(pos.x, pos.y, pos.z, rot.x, rot.y, rot.z, rot.w)
 	veh:resetBrokenFlexMesh()
-	U.log("I", "damage", "vehicle " .. tostring(gameId) .. " reset to take over its owner's damage")
 end
 
 --== From the server ============================================================
 
 local function rxDamage(data)
 	local msg = U.decode(data)
-	if not msg or type(msg.id) ~= "string" or type(msg.damage) ~= "table" then return end
-	received[msg.id] = msg.damage -- applied by check() once the vehicle is here and known as a player's
+	if not msg or type(msg.id) ~= "string" then return end
+	if msg.cleared then
+		received[msg.id] = nil -- a new or rebuilt vehicle: undamaged
+	elseif type(msg.damage) == "table" then
+		received[msg.id] = msg.damage -- loaded by check() once the vehicle is here and stands still
+	end
 end
 
 -- someone saw our vehicle crash where we didn't: send its damage again
@@ -206,17 +209,17 @@ function M.onUpdate(dtReal)
 	if not ok then U.log("E", "damage", "damage sync failed: " .. tostring(err)) end
 end
 
--- a rebuilt vehicle is undamaged again: apply the owner's damage once more
+-- a rebuilt vehicle is undamaged again: load the owner's damage once more
 function M.onVehicleSpawned(gameId)
-	own[gameId], remote[gameId], applied[gameId] = nil, nil, nil
+	own[gameId], remote[gameId], loaded[gameId] = nil, nil, nil
 end
 
 function M.onVehicleDestroyed(gameId)
-	own[gameId], remote[gameId], applied[gameId] = nil, nil, nil
+	own[gameId], remote[gameId], loaded[gameId] = nil, nil, nil
 end
 
 function M.onBeamMPServerLeave()
-	own, remote, received, applied, since = {}, {}, {}, {}, 0
+	own, remote, received, loaded, since = {}, {}, {}, {}, 0
 end
 
 function M.onExtensionLoaded()

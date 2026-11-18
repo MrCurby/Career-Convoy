@@ -140,6 +140,7 @@ check(lastTo(5, "sc_damage") and lastTo(5, "sc_damage").damage.b[1] == 2, "a pla
 connected[5] = false
 onPlayerDisconnect(5)
 onVehicleEdited(1, 7, "")
+check(lastTo(0, "sc_damage").cleared == true and lastTo(0, "sc_damage").id == "1-7", "rebuilt: the others forget the old damage")
 join(6, "Gina")
 check(lastTo(6, "sc_damage") == nil, "a rebuilt vehicle is undamaged")
 connected[6] = false
