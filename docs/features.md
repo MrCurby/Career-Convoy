@@ -121,9 +121,7 @@ Open the phone (**F4**) and tap **Fuel**:
 - The **AI drives more carefully** than in single player. These settings do that, and police are not affected by any of them:
   - lower *aggression* (`client.trafficAggression`): more distance to the car ahead, earlier braking behind it
   - a lower *grip estimate* (`client.trafficGrip`): the AI thinks its tires grip less, so it brakes earlier and more gently at intersections and traffic lights and takes corners more slowly
-  - a larger *safety gap* (`client.trafficReactionGap`) and a longer *sight range* (`client.trafficSightRange`): the AI notices a slow or standing vehicle on its path earlier (about 190 m instead of 114 m ahead at 100 km/h) and starts braking sooner. This helps when you maneuver a truck on the road. It does not make traffic drive slower.
-
-  The game has no official setting for the last two. SharedCareer finds the values inside the game's AI code while it runs and changes them there; it never edits game files. If a game update renames them, nothing changes and `beamng.log` says `AI tuning not applied`. When it works, every traffic car logs `AI tuning active` once.
+  - a larger *safety gap* (`client.trafficReactionGap`) and a longer *sight range* (`client.trafficSightRange`): the AI notices a slow or standing vehicle on its path earlier and starts braking sooner, which helps when you maneuver a truck on the road. Traffic doesn't drive any slower.
 - The server has a **total limit** for driving and parked traffic and splits it across all players, so more players don't mean more lag.
 - Other players' cars are never treated as your traffic, so your police won't chase them and your traffic won't take them over.
 - Your traffic doesn't show your name tag.
@@ -166,53 +164,36 @@ Server admins can switch back to the career's rule with `sc set client.allowNode
 
 ## Moving your vehicles by hand (rope and winch)
 
-Because the game's node grabber is so weak in the career, SharedCareer has its own: a rope with a winch. It's made for moving vehicles that can't drive anymore, slowly and by hand, for example onto a tow truck.
+The game's node grabber is too weak in the career to move a heavy car, so SharedCareer has a rope with a winch. It's made for vehicles that can't drive anymore: drag one out of a ditch, pull it onto a tow truck, or tow it behind another car. Everything runs in the **Tow** app on the phone, like a remote control.
 
-Everything runs in the **Tow** app on the phone, as a remote control. There are no extra keys.
-
-### The Tow app
+### Using the Tow app
 
 <img src="images/phone-tow-attach.png" width="200" alt="Tow app: attach a rope"> <img src="images/phone-tow.png" width="200" alt="Tow app: remote control and winch">
 
-Open the phone (**F4**) and tap **Tow**.
+1. **Attach the rope:** open the phone (**F4**) → **Tow**, then tap **Where I look** (a blue ball shows the spot) or one of **your vehicles nearby**.
+2. **Place the anchor:** hold the arrows to move it, **Up** / **Down** to raise or lower it, **Fine** for slow, exact moves. The vehicle stays put while the rope just gets longer.
+3. **Pull:** **Haul in** winds the rope and pulls the vehicle to the anchor. **Pay out** gives rope, for example to lower a lifted end. **Stop** locks the rope at its length, like a tow rope.
 
-**Without a rope:** tap **Where I look** to put the rope where the middle of your screen points (a see-through blue ball shows where), or tap one of **your vehicles nearby**: the rope goes on its point closest to you. **To the road** is for a vehicle the rope can't free, see below.
+**Towing with another vehicle:** your vehicles show their tow hitches as **green rings** near the anchor. Move the anchor onto one and let go of the button, and it hooks on with a green flash. Now the anchor moves with that vehicle: drive off to tow, or stand still and haul in like a tow truck. To move it to another hitch, hold an arrow for a moment until it pops off. Drive off gently, because a hard jolt can snap the rope.
 
-**With a rope**, a small card at the top shows the vehicle and two separate loads: the **Winch** (ten segments and *Easy* / *Working hard* / *At the limit*) and the **Rope** (*OK* / *High load* / *Near breaking!*), then the rope length and the distance to the anchor. Its two round buttons put the vehicle **on the road** and **remove the rope**. Below are two tabs; right after attaching, the **Anchor** tab is open, because placing the anchor comes next:
+**Pull strength:** pick 30, 60, 100 or 150 % of the vehicle's weight in the app (60 % at first). If the vehicle doesn't follow, it's stuck or the parking brake is on: pick more.
 
-- **Anchor:** hold the arrows to move the anchor away/towards you and left/right (as seen from your view), **Up** / **Down** to raise or lower it. The vehicle doesn't move; the rope just gets longer. The middle button puts the anchor in the middle of your view. **Fine** makes it four times slower, for exact placing.
-- **Hooking onto a vehicle:** near the anchor, the **tow hitches** of your other vehicles show as **green rings** (also of the one you sit in). They light up and pulse as the anchor comes close, and a dashed line points to the nearest one. Move the anchor within about 70 cm of a hitch and **let go** of the button – "Let go to hook on" shows over the anchor – and it **hooks on**, with a green flash. It never hooks on while you hold a button, so you can move past hitches. You can also back a vehicle up to the resting anchor. A vehicle without a hitch takes it where the anchor touches its body. Now the anchor moves with that vehicle: drive off and you tow on the rope, or stand still and haul in with the winch, like a tow truck. The towing vehicle feels the pull. Drive off gently: a hard jolt can snap the rope.
-- **Moving it to another hitch:** while it is hooked on, **hold an arrow**: the arrow fills up and the anchor tugs at the hitch, and after about half a second it **pops off** (an orange flash) and moves on while you hold. Let go at another hitch – or the same one – and it hooks on there. A short tap does nothing, so nothing comes off by accident; while the towing vehicle drives, it can't be pulled off at all (stop first). The middle button takes it off at once and puts it in your view. **Detach** leaves the anchor where it is; then it doesn't hook on by itself until you moved it once.
-- **Winch:** **Pay out** (rope gets longer, e.g. to lower a lifted end), **Stop** (the drum is locked: the rope keeps its length like a tow rope – use it to tow by driving off), **Haul in** (pulls the vehicle slowly to the anchor, by default at most 1 m/s; it slows down over the last meter and stops winding half a meter before it. Like a real rope it can't brake: a vehicle that still rolls is caught by the short rope just past the anchor). Below: the **strength**, and an orange hint if the rope has pulled at its limit for a couple of seconds.
-- **To the road:** for a vehicle the rope can't free, e.g. one wrapped around a lamp post. Without a rope it takes the vehicle you look at, with a rope the vehicle on the rope. It puts the vehicle on the last road it drove on, like "Tow to road" in the game's recovery menu, but free of charge; the damage stays. The vehicle must stand still, and it doesn't work during a police chase.
+**To the road:** for a vehicle the rope can't free, for example one wrapped around a lamp post. It puts the vehicle back on the last road it drove on, free of charge, damage included. The vehicle must stand still, and it doesn't work during a police chase.
 
 <img src="images/rope-towing.jpg" width="320" alt="A truck tows a car on the rope"> <img src="images/rope-hitch.jpg" width="320" alt="The anchor hooked onto a truck's tow hitch, the winch locked"> <img src="images/rope-winch-gauge.jpg" width="240" alt="The winch gauge above the anchor while the winch lifts a car">
 
-The rope comes with a **portable winch**: with the anchor in the world it is staked to the ground, with the anchor on a vehicle it sits on its tow hitch. It behaves like a real one:
+### What you see
 
-- **Stiff, not rubbery.** Under the vehicle's whole weight it stretches only about half a percent of its length (a few centimeters), so a vehicle hanging on it stays still instead of bouncing. It only pulls when it's taut, never pushes. The rope is computed 2000 times per second, with the game's physics.
-- **The winch has a motor.** Hauling in, it gets slower the harder it has to pull, and at the pull strength picked in the Tow app (60 % of the vehicle's weight at first, see below) it stalls. Below 100 % you can lift one end (put the anchor up high) and drag the vehicle, but not float it. Paying out, the drum speeds up gently, so a lifted vehicle comes down with the rope instead of dropping into it.
-- **Stop locks the drum.** The rope then holds whatever pulls on it, like a tow rope, until the rope itself would snap. The strength only matters while hauling in.
-- **The rope can snap.** Only a jolt does it: a vehicle that drops into the taut rope or drives away from it at speed. The winch alone never breaks it. A snapped rope whips back to the anchor.
+- **The rope** sags when it's slack and turns **yellow, orange** and finally **red** as it gets close to snapping. Then slow down.
+- **The ring above the anchor** shows how hard the winch works, from green to **blinking red** when it's at its limit: too heavy, stuck, or trying to lift too much.
+- **Light marks on the rope** move as fast as it is wound in. If they stand still while you haul in, the vehicle is stuck.
 
-Pull a corner and the vehicle turns; the wheels roll. The force goes mostly to the heavy frame parts around the rope's end, so nothing gets bent.
+### Good to know
 
-What you see:
-
-- **Rope:** a thin rope from the vehicle to the anchor, grey when slack, and it sags – the more rope is out, the deeper; it straightens as it is pulled taut. When taut, its color shows the **rope's own load**, measured against its breaking load: it keeps its normal rope color while it is safe, turns **yellow to orange** under high load and **red, trembling** near breaking – then slow down or stop. A short jolt stays visible for a moment. The winch working at its limit is no danger for the rope, so it doesn't change the rope's color (see the winch gauge). The rope stays on the vehicle while it moves.
-- **Anchor:** on a vehicle, a small ball on its hitch (with the name of the vehicle on the sign). Otherwise a pin (a post with a ball on top); white when resting, cyan while you move it, orange while the winch hauls in (the ball pulses), purple while it pays out. When it hangs in the air, a dashed line down to a disc on the ground shows where it is.
-- **Winch gauge:** above the anchor, while the winch hauls in, a small ring with a drum in the middle always faces you and fills with how hard the winch works – **green**, **yellow**, **orange**, and **blinking red** at its limit (too heavy, stuck, or trying to lift too much). While the Tow app is open, a sign above it shows the winch's load in percent, or *Locked* / *Paying out*. In the app the Winch row says the same.
-- **Winch running:** while the rope runs through the winch, light marks on it travel with it: towards the anchor when it hauls in, towards the vehicle when it pays out. They move as fast as the rope really does, so when they stand still while hauling in, the vehicle is stuck.
-- **Grip:** a small ball where the rope is tied – the point you aimed at, where the blue preview ball was.
-- **Rope off:** when the rope comes off, it doesn't just vanish. A taut rope snaps back to the anchor, a slack one drops; both fade out within a moment.
-
-The rope comes off by itself, with a short message, when the vehicle is reset or moved by the game (e.g. recovery), when the part it is tied to tears off, when it snaps, or when the vehicle stops answering (e.g. after reloading it). Otherwise it would pull the vehicle back to the old anchor, or drag the loose part around.
-
-It only works on your own vehicles and your own traffic: other players' vehicles are simulated on their PCs, and BeamMP would put them right back. Players on foot can't be roped, and neither can the vehicle you are sitting in (the camera would move with it). Get out, or use the free camera. The anchor, on the other hand, can go on the vehicle you sit in – that's how you tow. If that vehicle is reset or removed, the anchor stays where it was.
-
-Server admins can switch it off with `sc set client.allowGrab false`, and set how fast the winch hauls in (`client.grabSpeed`, m/s) and the highest pull strength a player may pick (`client.grabStrength`, % of the vehicle's weight). "Tow to the road" can be switched off on its own with `sc set client.allowTowToRoad false`.
-
-**Pull strength:** how hard the winch pulls while hauling in. In the Tow app you pick 30, 60, 100 or 150 % of the vehicle's weight (60 % at first). If the vehicle doesn't follow – stuck, handbrake on, gear in Park – the winch pulls up to that limit and stalls there. Pick more; a handbrake or Park usually needs 100 % or more.
+- The rope behaves like a real one: it is stiff, only pulls and never pushes, and snaps only on a hard jolt. The winch alone never breaks it.
+- The rope comes off by itself when the vehicle is reset or recovered, when the part it's tied to tears off, or when it snaps.
+- It works on your own vehicles and your own traffic only. Other players' cars are driven by their PCs. You can't rope the vehicle you are sitting in, but you can hook the anchor onto it to tow.
+- Server admins can switch it off (`client.allowGrab`), set the winch speed (`client.grabSpeed`) and the highest pull strength (`client.grabStrength`). "To the road" can be switched off on its own (`client.allowTowToRoad`).
 
 ## Towing jobs (beta)
 
