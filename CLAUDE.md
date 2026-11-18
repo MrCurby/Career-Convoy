@@ -34,6 +34,10 @@ The maintainer puts a lot of weight on tidy code. Keep it that way with every ch
 
 - `tools/test.sh` – syntax check, all tests, language check. Run it before every commit.
 - `tools/bump.sh patch|minor|x.y.z` – raise the version (client `util.lua` + server `main.lua`).
-- Push to `main` → GitHub Actions tests, builds `SharedCareer-<version>.zip` and creates release
-  `v<version>` if it doesn't exist yet. Servers install it with `./server.sh update`.
+- Changes go into the `dev` branch first (pull request into `dev`). Every push to `dev` builds a dev
+  build (`SharedCareer-<version>-dev.<commit>.zip`, GitHub pre-release `dev-build`) without a version
+  bump; a test server installs it with `./server.sh update --dev`.
+- Once it works in the game: `tools/bump.sh`, then merge `dev` into `main` → GitHub Actions tests,
+  builds `SharedCareer-<version>.zip` and creates release `v<version>` if it doesn't exist yet.
+  Servers install it with `./server.sh update`.
 - See `docs/development.md` for the layout of the code and how the mod works inside.

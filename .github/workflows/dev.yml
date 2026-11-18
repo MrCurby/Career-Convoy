@@ -1,0 +1,49 @@
+# SharedCareer :: dev build for test servers
+#
+# On every push to the "dev" branch (and by hand via "Run workflow"):
+#   1. run all tests and build the package as a dev build (tools/package.sh --dev ->
+#      SharedCareer-<version>-dev.<commit>.zip; the version in the repository stays as it is)
+#   2. replace the GitHub pre-release "dev-build" with it
+#
+# No version bump and no real release: pre-releases are not "latest", so "./server.sh update"
+# on normal servers ignores them. A test server installs it with "./server.sh update --dev"
+# (or CHANNEL="dev" in its server.conf). Releases still come from main (release.yml).
+
+name: Dev build
+
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dev-build
+  cancel-in-progress: true
+
+jobs:
+  dev-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # with tags: tests/config_update_test.lua compares the settings with the last release
+
+      - name: Install tools
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq luajit lua5.3 zip
+
+      - name: Run tests and build the dev package
+        run: tools/package.sh --dev
+
+      - name: Replace the dev build on GitHub
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          zip=$(ls SharedCareer-*-dev.*.zip)
+          v=${zip#SharedCareer-}; v=${v%.zip}
+          gh release delete dev-build --yes --cleanup-tag >/dev/null 2>&1 || true
+          gh release create dev-build "$zip" --prerelease --target "$GITHUB_SHA" \
+            --title "SharedCareer dev build $v" \
+            --notes "Dev build of the \`dev\` branch (commit ${GITHUB_SHA::7}) for testing. Install on a test server: \`./server.sh update --dev\`. Normal servers keep the newest release."

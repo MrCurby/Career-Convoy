@@ -158,7 +158,7 @@ for section, names in pairs(removed or {}) do
 		check(not (now[section] and now[section][old] ~= nil), "REMOVED " .. section .. "." .. old .. " is not in DEFAULTS any more")
 	end
 end
-local tagPipe = io.popen("git describe --tags --abbrev=0 HEAD 2>/dev/null")
+local tagPipe = io.popen("git describe --tags --abbrev=0 --match \"v*\" HEAD 2>/dev/null")
 local tag = tagPipe and tagPipe:read("*l")
 if tagPipe then tagPipe:close() end
 local oldSource
