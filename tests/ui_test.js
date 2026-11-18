@@ -99,20 +99,15 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 		'night, clock paused: bar over midnight');
 	phone.emit('SharedCareerState', {hour: 2, connected: false});
 	check(phone.dayText() === 'Not connected' && phone.phaseProgress() === null, 'not connected: no bar');
-	// Tow app: right after attaching the Anchor tab (the next step); hooking on stays there, a dot on the
-	// Winch tab shows what's next
-	phone.emit('SharedCareerTow', {allowed: true, attached: false, nearby: []});
-	phone.setTowTab('winch');
-	phone.emit('SharedCareerTow', {allowed: true, attached: true, strengths: [30, 60]});
-	check(phone.towTab === 'anchor' && !phone.winchDot(), 'rope attached: the Anchor tab opens');
-	phone.emit('SharedCareerTow', {allowed: true, attached: true, anchorVehicle: 'Pickup', anchorHitch: true});
-	check(phone.towTab === 'anchor' && phone.winchDot() && phone.strainText(0.95) === 'At the limit',
-		'hooked onto a vehicle: the tab stays, a dot on the Winch tab');
-	phone.setTowTab('winch');
-	check(!phone.winchDot(), 'on the Winch tab: no dot');
-	phone.setTowTab('anchor');
-	phone.emit('SharedCareerTow', {allowed: true, attached: true, anchorVehicle: 'Pickup', anchorHitch: true});
-	check(phone.towTab === 'anchor', 'later updates leave the tab you picked');
+	// Tow app: one screen; the rope strip sags while slack, marks run while the winch turns
+	phone.emit('SharedCareerTow', {allowed: true, attached: true, slack: true, winch: 0, strengths: [30, 60]});
+	check(phone.ropePath().includes('Q') && !phone.ropeRunning(), 'slack rope, winch stopped: it sags, no marks');
+	phone.emit('SharedCareerTow', {allowed: true, attached: true, slack: false, winch: 1, strain: 0.5});
+	check(phone.ropePath().includes('L') && phone.ropeRunning(), 'taut, hauling in: straight, marks run');
+	phone.emit('SharedCareerTow', {allowed: true, attached: true, slack: false, winch: 1, strain: 1});
+	check(!phone.ropeRunning() && phone.strainText(0.95) === 'At the limit', 'the winch at its limit: the marks stand');
+	phone.emit('SharedCareerTow', {allowed: true, attached: true, slack: true, winch: -1});
+	check(phone.ropeRunning(), 'paying out: marks run');
 	// Tow app: the buttons go to tow.lua
 	let calls = env.calls.length;
 	phone.towCall('uiHookOn()');

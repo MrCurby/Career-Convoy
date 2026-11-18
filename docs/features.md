@@ -171,11 +171,13 @@ The game's node grabber is too weak in the career to move a heavy car, so Shared
 
 <img src="images/phone-tow-attach.png" width="200" alt="Tow app: attach a rope"> <img src="images/phone-tow.png" width="200" alt="Tow app: remote control and winch">
 
-1. **Attach the rope:** open the phone (**F4**) → **Tow**, then tap **Where I look** (a blue ball shows the spot) or one of **your vehicles nearby**.
+1. **Attach the rope:** open the phone (**F4**) → **Tow**, then tap **Attach rope** – it goes where you look, a blue ball shows the spot – or one of **your vehicles** below it.
 2. **Place the anchor:** hold the arrows to move it, **Up** / **Down** to raise or lower it, **Fine** for slow, exact moves. The vehicle stays put while the rope just gets longer.
 3. **Pull:** **Haul in** winds the rope and pulls the vehicle to the anchor. **Pay out** gives rope, for example to lower a lifted end. **Stop** locks the rope at its length, like a tow rope.
 
-**Towing with another vehicle:** the anchor can go onto any of your vehicles, at any point. Move it close to one: a **ring** shows where it would hook on, with a dashed line from the anchor. It is **green** on a tow hitch and **white** elsewhere. Tow hitches within a few meters show as faint green rings, so you can find them. Then tap **Hook on**; nothing hooks on by itself. The anchor now moves with that vehicle: drive off to tow, or stand still and haul in like a tow truck. A green dot on the **Winch** tab shows that's the next step. **Unhook** leaves the anchor where it is, and you can move it again. Drive off gently, because a hard jolt can snap the rope.
+With a rope on, everything is on one screen: at the top the rope itself – your vehicle, the rope with its length and state, the anchor – then the **Winch** panel and the **Anchor** panel with the remote. The rope there sags while it is slack, turns orange and red under a high load, and marks run along it while the winch turns.
+
+**Towing with another vehicle:** the anchor can go onto any of your vehicles, at any point. Move it close to one: a **ring** shows where it would hook on, with a dashed line from the anchor. It is **green** on a tow hitch and **white** elsewhere. Tow hitches within a few meters show as faint green rings, so you can find them. Then tap **Hook on**; nothing hooks on by itself. The anchor now moves with that vehicle: drive off to tow, or stand still and haul in like a tow truck. **Unhook** leaves the anchor where it is, and you can move it again. Drive off gently, because a hard jolt can snap the rope.
 
 The ring picks a tow hitch within 0.7 m first, otherwise the nearest sturdy point within 0.5 m. Light parts like mirrors, glass or thin panels are passed over if a sturdy point is in reach, because the rope would only tear them off.
 

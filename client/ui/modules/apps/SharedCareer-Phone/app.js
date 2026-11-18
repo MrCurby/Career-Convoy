@@ -143,11 +143,15 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 		if (l < 0.7) return {text: 'High load', cls: 'scp-rope-high'};
 		return {text: 'Near breaking!', cls: 'scp-rope-critical'};
 	};
-	// tabs of the Tow app with a rope on: "anchor" (the remote) right after attaching – that's the
-	// next step. Hooking on doesn't switch the tab; a dot on the Winch tab shows it's next
-	$scope.towTab = 'anchor';
-	$scope.setTowTab = function (tab) { $scope.towTab = tab; };
-	$scope.winchDot = function () { return !!$scope.tow.anchorVehicle && $scope.towTab !== 'winch'; };
+	// the rope strip at the top: the rope sags while slack and is straight when taut
+	$scope.ropePath = function () {
+		return $scope.tow.slack ? 'M0 13 Q50 29 100 13' : 'M0 13 L100 13';
+	};
+	// marks run along the rope while the winch turns (not while it is stuck at its limit)
+	$scope.ropeRunning = function () {
+		var t = $scope.tow;
+		return t.winch === -1 || (t.winch === 1 && !(t.strain >= 0.95));
+	};
 
 	//== Straps app (lua/ge/extensions/sharedCareer/straps.lua) ==
 	$scope.straps = {allowed: true, step: 0, straps: []};
@@ -247,7 +251,6 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 			if (!data) return;
 			if (!Array.isArray(data.nearby)) data.nearby = [];
 			if (!Array.isArray(data.strengths)) data.strengths = [];
-			if (data.attached && !$scope.tow.attached) $scope.towTab = 'anchor';
 			$scope.tow = data;
 		});
 	});
