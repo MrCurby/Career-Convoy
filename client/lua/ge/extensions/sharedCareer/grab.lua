@@ -24,7 +24,8 @@
 -- the vehicle and send the view ray and the anchor. The vehicle ties the rope to the node closest
 -- to the ray (the rope goes where you look at the vehicle) and reports back: onGrip (tie node,
 -- its position and distance), onHandState (tie position, strain, slack, rope length, 10 times per
--- second), onHandLost (the rope came off: reset, teleported, part torn off, nothing to grab),
+-- second), onHandLost (the rope came off: reset, teleported, part torn off, rope snapped, nothing
+-- to grab),
 -- onProbe (preview). The rope state only goes to the vehicle once it has reported its grip.
 --
 -- Staying in step with the vehicle:
@@ -40,6 +41,13 @@
 --             each other. A slack rope sags (a curve as long as the rope); it straightens
 --             smoothly when it is pulled taut. The rope end follows the tie node every frame
 --             (veh:getNodePosition), not only when the vehicle reports
+--             While the rope runs through the winch (hauling in, paying out, or paying out while
+--             the anchor moves), light marks on it travel with the rope: towards the anchor when
+--             it is hauled in, towards the vehicle when it pays out. Their speed is the rope's own
+--             (from the reported rope length), so they stand still when the vehicle is stuck
+--   let go    when the rope comes off (removed, reset, torn loose, vehicle gone) it doesn't just
+--             vanish: a taut rope snaps back to the anchor with a short whip, a slack one drops;
+--             both fade out within a fraction of a second, and the anchor with them
 --   grip      a small ball on the tie node, in the rope's color
 --   anchor    a pin (post with a ball on top): white = resting, cyan = being moved, orange =
 --             hauling in (the ball pulses), purple = paying out. Above the ground a dashed drop
@@ -84,12 +92,14 @@ local LOST_MESSAGES = {
 	[0] = "Couldn't attach the rope there",
 	[1] = "Vehicle reset: rope removed",
 	[2] = "The vehicle was moved: rope removed",
-	[3] = "The rope tore loose",
+	[3] = "The part the rope was tied to tore off",
+	[4] = "The rope snapped",
 }
 
 local held = nil           -- {id, since, silent, node (tie node), grip = {x, y, z}, target (= anchor),
                            --  strain, slack, stuckFor, winch (1 haul in, 0 stop, -1 pay out), placed,
-                           --  nudge, length, shownStrain, shownTaut, sag}
+                           --  nudge, length, lengthAt, rate, shownStrain, shownTaut, sag, shownRate,
+                           --  markPhase, shown (what was drawn last: for the let-go animation)}
 local fine = false         -- fine mode (Tow app)
 local STRENGTHS = {30, 60, 100, 150} -- strength choices in the Tow app (% of the vehicle's weight)
 local strengthPick = 60    -- the player's pick in the Tow app
@@ -98,7 +108,10 @@ local sinceAppPush = 0
 local probe = nil          -- {id, x, y, z, age}
 local sinceProbe = 0
 local drawErrorLogged = false
+local letGo = nil          -- the rope that just came off, while it snaps back or drops (see Drawing)
+local clock = 0            -- s of real time, for the pulsing balls and the rope's speed
 local pushApp              -- defined with the Tow app below
+local startLetGo           -- defined with the drawing below
 
 local function allowed()
 	local c = U.config()
@@ -167,6 +180,7 @@ end
 function M.release(text)
 	if not held then return end
 	sendToVehicle(held.id, "sharedCareerVeh.handRelease()")
+	startLetGo(held)
 	held = nil
 	if text then message(text) end
 	U.log("D", "grab", "vehicle released" .. (text and (": " .. text) or ""))
@@ -238,6 +252,7 @@ local function startRope(id, dist, cmd)
 	held = {id = id, since = SEND_EVERY, silent = 0, strain = 0, slack = true, stuckFor = 0, winch = 0,
 		placed = false}
 	probe = nil
+	letGo = nil
 	sendToVehicle(id, cmd)
 	U.log("I", "grab", string.format("rope attached to vehicle %s at %.1f m", tostring(id), dist))
 end
@@ -389,12 +404,22 @@ function M.onHandState(id, x, y, z, strain, slack, length)
 	held.silent = 0
 	held.strain = math.max(0, math.min(1, tonumber(strain) or 0))
 	held.slack = slack == 1 or slack == true
-	held.length = tonumber(length)
+	-- how fast the rope runs through the winch (m/s, < 0 = hauled in), for the marks on the rope
+	local newLength = tonumber(length)
+	local elapsed = held.lengthAt and clock - held.lengthAt or 0
+	if newLength and held.length and elapsed > 0.02 then
+		held.rate = (newLength - held.length) / elapsed
+		-- faster than the winch or the remote can run it: the anchor jumped ("to my view"), not a
+		-- running rope
+		if math.abs(held.rate) > math.max(grabSpeed(), NUDGE_SPEED) * 1.5 then held.rate = 0 end
+	end
+	held.length, held.lengthAt = newLength, clock
 end
 
 --- The vehicle took the rope off (reason: see LOST_MESSAGES).
 function M.onHandLost(id, reason)
 	if not held or held.id ~= id then return end
+	startLetGo(held)
 	held = nil
 	message(LOST_MESSAGES[tonumber(reason)] or "The rope came loose")
 	U.log("I", "grab", "vehicle " .. tostring(id) .. " lost the rope (" .. tostring(reason) .. ")")
@@ -508,18 +533,44 @@ local function strand(a, b, color)
 	cylinder(a, b, ROPE_RADIUS, color)
 end
 
+-- a point on the rope from a (t = 0) to b (t = 1) that sags `sag` m in the middle (< 0: bulges up)
+local function ropePoint(a, b, sag, t)
+	return {x = a.x + (b.x - a.x) * t, y = a.y + (b.y - a.y) * t, z = a.z + (b.z - a.z) * t - 4 * sag * t * (1 - t)}
+end
+
 local function rope(a, b, sag, color)
-	if sag < 0.02 then
+	if math.abs(sag) < 0.02 then
 		strand(a, b, color)
 		return
 	end
 	local prev = a
 	for i = 1, SAG_SEGMENTS do
-		local t = i / SAG_SEGMENTS
-		local p = {x = a.x + (b.x - a.x) * t, y = a.y + (b.y - a.y) * t,
-			z = a.z + (b.z - a.z) * t - 4 * sag * t * (1 - t)}
+		local p = ropePoint(a, b, sag, i / SAG_SEGMENTS)
 		strand(prev, p, color)
 		prev = p
+	end
+end
+
+-- Marks on a running rope: short light pieces every MARK_SPACING m, `phase` m along the rope from
+-- the anchor (b); `visible` 0..1 fades them in and out.
+local MARK_SPACING = 0.6   -- m
+local MARK_LENGTH = 0.12   -- m
+local MARK_MIN_RATE = 0.05 -- m/s: a slower rope shows no marks (the length comes rounded to cm)
+local MARK_FULL_RATE = 0.15 -- m/s: from this speed on the marks are fully visible
+local RATE_RATE = 4        -- 1/s: how fast the shown rope speed follows the reported one
+local RATE_STALE = 0.4     -- s without a report: the rope counts as standing
+local function winchMarks(a, b, sag, rgba, phase, visible)
+	local dx, dy, dz = b.x - a.x, b.y - a.y, b.z - a.z
+	local span = math.sqrt(dx * dx + dy * dy + dz * dz)
+	if span < MARK_SPACING then return end
+	local color = ColorF(rgba[1] + (1 - rgba[1]) * 0.6, rgba[2] + (1 - rgba[2]) * 0.6, rgba[3] + (1 - rgba[3]) * 0.6,
+		rgba[4] * visible)
+	local s = phase % MARK_SPACING
+	while s + MARK_LENGTH < span do
+		local from, to = ropePoint(a, b, sag, 1 - (s + MARK_LENGTH) / span), ropePoint(a, b, sag, 1 - s / span)
+		line(from, to, color)
+		cylinder(from, to, ROPE_RADIUS * 1.8, color)
+		s = s + MARK_SPACING
 	end
 end
 
@@ -613,20 +664,66 @@ local ANCHOR_MOVING = {0.3, 0.9, 1, 0.9}
 local ANCHOR_HAULING = {1, 0.55, 0.1, 0.9}
 local ANCHOR_PAYING = {0.75, 0.55, 1, 0.9}
 
-local clock = 0            -- s, for the pulsing balls
+-- Let go: the rope as it was last drawn, animated for a moment after it came off. A taut rope
+-- snaps back to the anchor (its loose end flies there, the rope whips up and down), a slack one
+-- drops (its loose end falls, the rope sags deeper); both fade out, the anchor with them.
+local SNAP_TIME = 0.35     -- s
+local DROP_TIME = 0.6      -- s
+local DROP_MAX = 1.5       -- m the loose end falls at most
+local WHIP = 0.08          -- whip height per m of rope (at most WHIP_MAX)
+local WHIP_MAX = 0.5       -- m
+local GRAVITY = 9.81
+
+function startLetGo(h)
+	local shown = h and h.shown
+	if not shown then
+		letGo = nil
+		return
+	end
+	local snap = (h.shownTaut or 0) > 0.5
+	letGo = {a = shown.a, b = shown.b, rgba = shown.rgba, sag = shown.sag, snap = snap, age = 0,
+		time = snap and SNAP_TIME or DROP_TIME}
+end
+
+local function drawLetGo(dt)
+	local g = letGo
+	g.age = g.age + dt
+	local f = g.age / g.time
+	if f >= 1 then
+		letGo = nil
+		return
+	end
+	local a, b, c = g.a, g.b, g.rgba
+	local loose, sag
+	if g.snap then
+		local dx, dy, dz = b.x - a.x, b.y - a.y, b.z - a.z
+		local whip = math.min(WHIP_MAX, WHIP * math.sqrt(dx * dx + dy * dy + dz * dz))
+		loose = ropePoint(a, b, 0, 1 - (1 - f) ^ 3) -- fast at first, then slowing down at the anchor
+		sag = -whip * math.sin(f * math.pi * 3) * (1 - f)
+	else
+		local fall = math.min(DROP_MAX, 0.5 * GRAVITY * g.age * g.age)
+		loose = {x = a.x, y = a.y, z = a.z - fall}
+		sag = g.sag + fall / 2
+	end
+	local fade = 1 - f
+	rope(loose, b, sag, ColorF(c[1], c[2], c[3], c[4] * fade))
+	pin(b, ColorF(ANCHOR_RESTING[1], ANCHOR_RESTING[2], ANCHOR_RESTING[3], ANCHOR_RESTING[4] * fade))
+end
 
 function M.draw(dt)
 	dt = math.max(0, tonumber(dt) or 0)
 	clock = clock + dt
-	if not (held and held.grip and held.target) and not probe then return end
+	if not (held and held.grip and held.target) and not probe and not letGo then return end
 	if not canDraw() then return end
+	if letGo then drawLetGo(dt) end
 	if held and held.grip and held.target then
 		-- color: follows strain and slack smoothly (the vehicle reports 10 times per second)
 		local k = 1 - math.exp(-FADE_RATE * dt)
 		local taut = held.slack and 0 or 1
 		held.shownStrain = (held.shownStrain or held.strain) + (held.strain - (held.shownStrain or held.strain)) * k
 		held.shownTaut = (held.shownTaut or taut) + (taut - (held.shownTaut or taut)) * k
-		local color = ColorF(M.ropeColor(held.shownStrain, held.shownTaut))
+		local rgba = {M.ropeColor(held.shownStrain, held.shownTaut)}
+		local color = ColorF(rgba[1], rgba[2], rgba[3], rgba[4])
 		local a, b = gripNow(), held.target
 		local dx, dy, dz = b.x - a.x, b.y - a.y, b.z - a.z
 		local span = math.sqrt(dx * dx + dy * dy + dz * dz)
@@ -634,7 +731,16 @@ function M.draw(dt)
 		local ks = 1 - math.exp(-SAG_RATE * dt)
 		held.sag = (held.sag or want) + (want - (held.sag or want)) * ks
 		rope(a, b, held.sag, color)
+		-- marks travelling with the rope while it runs through the winch
+		local rate = clock - (held.lengthAt or clock) < RATE_STALE and held.rate or 0
+		held.shownRate = (held.shownRate or 0) + ((rate or 0) - (held.shownRate or 0)) * (1 - math.exp(-RATE_RATE * dt))
+		held.markPhase = (held.markPhase or 0) + held.shownRate * dt
+		local speed = math.abs(held.shownRate)
+		if speed >= MARK_MIN_RATE then
+			winchMarks(a, b, held.sag, rgba, held.markPhase, math.min(1, speed / MARK_FULL_RATE))
+		end
 		ball(a, 0.09, color)
+		held.shown = {a = a, b = {x = b.x, y = b.y, z = b.z}, rgba = rgba, sag = held.sag}
 		local rgb = held.nudge and ANCHOR_MOVING or held.winch == 1 and ANCHOR_HAULING
 			or held.winch == -1 and ANCHOR_PAYING or ANCHOR_RESTING
 		local pulse = held.winch == 1 and not held.nudge
@@ -887,6 +993,7 @@ end
 function M.onBeamMPServerLeave()
 	M.release()
 	probe = nil
+	letGo = nil
 end
 
 function M.onExtensionLoaded()
