@@ -66,7 +66,7 @@
 --   sc_jobGiveUp  {id}
 --                       (from the SharedCareer menu window)
 
-local VERSION = "0.19.0"
+local VERSION = "0.20.0"
 local TAG = "[SharedCareer] "
 
 local CONFIG_DIR = "Resources/Server/SharedCareer/config"
