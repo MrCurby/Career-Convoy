@@ -16,6 +16,20 @@ weakening the check.
 (The person maintaining the project may talk to you in German – answer in their language, but keep
 the repository English.)
 
+## Texts players see: short and simple
+
+Players must see at once what to do, with as little text as possible. This applies to everything
+in the game: app and menu labels, buttons, hints, tooltips, toasts, signs in the world, dialogs.
+
+- Simple, everyday English; no technical words (no "node", "coupler", "physics step").
+- Buttons and labels: one to three words, a verb where it is an action ("Take job", "Haul in").
+- Hints and toasts: one short line, at most about eight words ("Too heavy? Use more strength.").
+  No explanations of how it works inside – those belong in `docs/`.
+- Prefer an icon, a color or a state the player can see (a ring that fills, a green ring) over a
+  sentence that describes it.
+- Show a hint only when it is needed (e.g. "Too heavy?" only while the rope is stuck), not all
+  the time.
+
 ## Clean code
 
 The maintainer puts a lot of weight on tidy code. Keep it that way with every change:

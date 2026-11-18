@@ -54,21 +54,6 @@
 .scp-phase-bar i { display: block; height: 100%; border-radius: 2px; background: #ffb340; transition: width 1s linear; }
 .scp-phase-night .scp-phase-bar i { background: #7a8cff; }
 
-/* widgets below the apps */
-.scp-widgets { margin-top: 16px; padding-bottom: 10px; display: flex; flex-direction: column; gap: 8px; }
-.scp-widget {
-	display: block; width: 100%; box-sizing: border-box; text-align: left; padding: 9px 12px 8px; border: none; border-radius: 16px;
-	background: rgba(255, 255, 255, 0.08); backdrop-filter: blur(6px); color: #fff; font-family: inherit; font-size: 12px;
-}
-.scp-widget-tap { cursor: pointer; }
-.scp-widget-tap:hover { background: rgba(255, 255, 255, 0.13); }
-.scp-widget-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; opacity: 0.6; margin-bottom: 4px; }
-.scp-widget-row { display: flex; align-items: center; gap: 7px; padding: 2px 0; min-width: 0; }
-.scp-widget-row .scp-row-name { flex: 1; }
-.scp-widget-row .scp-row-right { margin-left: 0; font-size: 11px; }
-.scp-widget-price { white-space: nowrap; font-weight: 600; font-variant-numeric: tabular-nums; }
-.scp-widget-more, .scp-widget-empty { font-size: 11px; opacity: 0.6; padding-top: 2px; }
-.scp-dot { display: block; width: 8px; height: 8px; border-radius: 50%; flex: none; box-shadow: 0 0 6px currentColor; }
 .scp-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px 6px; align-content: start; }
 .scp-app {
 	display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 0;
@@ -105,46 +90,18 @@
 .scp-svg { display: flex; }
 .scp-svg svg { width: 30px; height: 30px; }
 
-/* Tow app */
 .scp-tow { display: block; padding: 10px 12px; overflow-y: auto; align-items: stretch; }
-.scp-card { background: rgba(255, 255, 255, 0.08); border-radius: 14px; padding: 10px 12px; margin-bottom: 10px; }
-.scp-card-title { font-weight: 600; font-size: 15px; }
-.scp-card-sub { font-size: 12px; opacity: 0.8; margin-top: 4px; }
-.scp-strain { height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.12); margin-top: 8px; overflow: hidden; }
-.scp-strain i { display: block; height: 100%; border-radius: 3px; transition: width 0.2s; }
 .scp-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; opacity: 0.65; margin: 10px 2px 6px; display: flex; align-items: center; justify-content: space-between; }
 .scp-hint { font-size: 11px; opacity: 0.6; margin: 5px 2px 0; line-height: 1.35; }
 .scp-hint-warn { opacity: 1; color: #ffb340; font-weight: 600; }
 .scp-wide { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; border-radius: 12px; border: none; font-size: 14px; font-weight: 600; color: #fff; cursor: pointer; font-family: inherit; margin-top: 4px; }
-.scp-btn-icon { width: 18px; height: 18px; flex: none; }
-.scp-primary { background: #e8730c; }
-.scp-primary:hover { background: #ff8a22; }
-/* "Tow to the road": yellow and black hazard stripes like a tow truck, the text on a dark plate */
-.scp-hazard { padding: 8px; margin-top: 12px; background: repeating-linear-gradient(-45deg, #ffcc00 0 9px, #1a1a1a 9px 18px); }
-.scp-hazard-plate { display: flex; align-items: center; gap: 8px; padding: 4px 12px; border-radius: 8px; background: #1a1a1a; color: #ffd21a; }
-.scp-hazard:hover .scp-hazard-plate { background: #000; color: #ffe04d; }
-.scp-danger { background: rgba(255, 59, 48, 0.85); margin-top: 12px; }
-.scp-danger:hover { background: #ff3b30; }
-.scp-row { width: 100%; display: flex; justify-content: space-between; padding: 9px 12px; margin-bottom: 6px; border: none; border-radius: 10px;
-	background: rgba(255, 255, 255, 0.08); color: #fff; font-size: 13px; cursor: pointer; font-family: inherit; }
-.scp-row:hover { background: rgba(232, 115, 12, 0.35); }
 .scp-row-right { opacity: 0.7; white-space: nowrap; flex: none; margin-left: 8px; }
 .scp-row-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; min-width: 0; }
-.scp-chip { text-transform: none; letter-spacing: 0; font-size: 11px; padding: 2px 9px; border-radius: 9px; cursor: pointer;
-	background: rgba(255, 255, 255, 0.12); opacity: 1; }
-.scp-chip-on { background: #2d7fd3; }
-.scp-remote { display: grid; grid-template-columns: 46px 46px 46px 1fr; grid-template-rows: 40px 40px 40px; gap: 6px; }
-.scp-key { border: none; border-radius: 10px; background: rgba(255, 255, 255, 0.12); color: #fff; font-size: 15px; cursor: pointer; font-family: inherit; padding: 0; }
-.scp-key:hover { background: rgba(255, 255, 255, 0.2); }
-.scp-key:active { background: #2d9cdb; }
-.scp-key-center { background: rgba(45, 156, 219, 0.35); font-size: 18px; }
-.scp-key-side { font-size: 12px; margin-left: 10px; }
 .scp-seg { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; background: rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 4px; }
 .scp-seg button { border: none; border-radius: 9px; padding: 8px 0; background: none; color: #fff; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
 .scp-seg button:hover { background: rgba(255, 255, 255, 0.1); }
 .scp-seg .scp-seg-on { background: rgba(255, 255, 255, 0.22); }
 .scp-seg .scp-seg-in { background: #e8730c; }
-.scp-seg .scp-seg-out { background: #8e6bd8; }
 
 /* Fuel app */
 .scp-fuel .scp-seg { margin-bottom: 10px; }
@@ -162,3 +119,218 @@
 .scp-go { border: none; border-radius: 8px; padding: 4px 10px; background: rgba(255, 255, 255, 0.15); color: #fff; font-size: 12px; cursor: pointer; font-family: inherit; }
 .scp-go:hover { background: rgba(42, 157, 85, 0.6); }
 .scp-go-on { background: #2a9d55; }
+
+/* "BETA": a badge on the home screen icon and a pill in the title bar of experimental apps */
+.scp-app-icon { position: relative; }
+.scp-beta-badge {
+	position: absolute; top: -6px; right: -9px; padding: 1px 4px; border-radius: 6px;
+	font-size: 8px; font-weight: 800; letter-spacing: 0.5px; line-height: 12px; color: #2b1d00;
+	background: linear-gradient(135deg, #ffd34d, #ffa41b); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+}
+.scp-beta-pill {
+	margin-left: auto; padding: 2px 7px; border-radius: 8px; font-size: 9px; font-weight: 800; letter-spacing: 0.6px;
+	color: #2b1d00; background: linear-gradient(135deg, #ffd34d, #ffa41b);
+}
+
+/* Jobs app: your job */
+.scp-myjob {
+	position: relative; overflow: hidden; border-radius: 16px; padding: 12px 13px 12px; margin-bottom: 6px;
+	background: linear-gradient(150deg, #2f6fe0 0%, #3f4fd0 55%, #5a3fc4 100%);
+	box-shadow: 0 6px 18px rgba(40, 70, 200, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+.scp-myjob::after {
+	content: ""; position: absolute; right: -30px; top: -40px; width: 120px; height: 120px; border-radius: 50%;
+	background: radial-gradient(circle, rgba(255, 255, 255, 0.18), transparent 70%); pointer-events: none;
+}
+.scp-myjob-top { display: flex; align-items: center; justify-content: space-between; }
+.scp-myjob-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; opacity: 0.8; font-weight: 700; }
+.scp-myjob-pay { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.scp-myjob-vehicle { font-size: 17px; font-weight: 700; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.scp-chips { display: flex; gap: 5px; margin-top: 6px; flex-wrap: wrap; }
+.scp-chip-tag { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 7px; }
+.scp-tag-engine { background: rgba(255, 90, 80, 0.22); color: #ffb3ad; }
+.scp-tag-tire { background: rgba(255, 190, 60, 0.22); color: #ffd98a; }
+.scp-myjob .scp-tag-engine { background: rgba(255, 255, 255, 0.16); color: #fff; }
+.scp-myjob .scp-tag-tire { background: rgba(255, 210, 90, 0.3); color: #fff2c9; }
+.scp-steps { display: flex; margin: 12px 0 2px; }
+.scp-step { flex: 1; position: relative; text-align: center; font-size: 10px; opacity: 0.6; }
+.scp-step i { display: block; width: 11px; height: 11px; margin: 0 auto 4px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.7); box-sizing: border-box; background: transparent; position: relative; z-index: 1; }
+.scp-step::before { content: ""; position: absolute; top: 5px; left: -50%; width: 100%; height: 2px; background: rgba(255, 255, 255, 0.3); }
+.scp-step:first-child::before { display: none; }
+.scp-step-done, .scp-step-now { opacity: 1; }
+.scp-step-done i { background: #fff; border-color: #fff; }
+.scp-step-done::before, .scp-step-now::before { background: #fff; }
+.scp-step-now i { background: #ffd34d; border-color: #ffd34d; box-shadow: 0 0 0 4px rgba(255, 211, 77, 0.3); }
+.scp-step-now span { font-weight: 700; }
+.scp-myjob-now { display: flex; align-items: baseline; gap: 7px; margin-top: 10px; min-width: 0; }
+.scp-myjob-dist { font-size: 24px; font-weight: 300; font-variant-numeric: tabular-nums; flex: none; }
+.scp-myjob-what { font-size: 12px; opacity: 0.9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.scp-myjob-buttons { display: grid; grid-template-columns: 1fr auto; gap: 6px; margin-top: 10px; }
+.scp-myjob-btn {
+	display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 12px; border-radius: 10px; border: none; cursor: pointer;
+	font-family: inherit; font-size: 13px; font-weight: 700; color: #fff; background: rgba(255, 255, 255, 0.2);
+}
+.scp-myjob-btn:hover { background: rgba(255, 255, 255, 0.3); }
+.scp-myjob-giveup { background: transparent; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.45); font-weight: 600; }
+.scp-myjob-giveup:hover { background: rgba(255, 70, 60, 0.35); box-shadow: inset 0 0 0 1.5px rgba(255, 120, 110, 0.9); }
+.scp-btn-svg { display: flex; }
+.scp-btn-svg svg { width: 15px; height: 15px; }
+
+/* Jobs app: the list */
+.scp-job {
+	border-radius: 14px; padding: 10px 11px; margin-bottom: 8px; background: rgba(255, 255, 255, 0.07);
+	box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+.scp-job-taken { opacity: 0.55; }
+.scp-job-head { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.scp-job-icon {
+	flex: none; width: 32px; height: 32px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+	background: linear-gradient(135deg, #f08a24, #d8590c); color: #fff;
+}
+.scp-job-icon svg { width: 21px; height: 21px; }
+.scp-job-title { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.scp-job-vehicle { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.scp-job-problem { font-size: 11px; opacity: 0.65; }
+.scp-job-pay {
+	flex: none; font-size: 13px; font-weight: 800; padding: 3px 8px; border-radius: 8px; font-variant-numeric: tabular-nums;
+	color: #7ff0a5; background: rgba(60, 200, 110, 0.16);
+}
+.scp-job-route { margin: 9px 0 2px 4px; font-size: 11px; }
+.scp-route-row { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.scp-route-dot { display: flex; flex: none; }
+.scp-route-dot svg { width: 13px; height: 13px; }
+.scp-route-from { color: #ffa94d; }
+.scp-route-to { color: #5fa8ff; }
+.scp-route-line { width: 0; height: 9px; margin: 1px 0 1px 6px; border-left: 2px dotted rgba(255, 255, 255, 0.3); }
+.scp-route-dest { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.scp-route-len { margin-left: auto; opacity: 0.6; white-space: nowrap; flex: none; padding-left: 6px; }
+.scp-job-take { margin-top: 9px; padding: 8px; background: linear-gradient(135deg, #2f6fe0, #4b4fd6); }
+.scp-job-take:hover { filter: brightness(1.12); }
+.scp-job-status { margin-top: 7px; font-size: 11px; font-weight: 600; text-align: center; opacity: 0.8; }
+.scp-jobs-empty { text-align: center; padding: 22px 10px; border-radius: 14px; background: rgba(255, 255, 255, 0.05); }
+.scp-jobs-empty-icon { display: inline-flex; color: #5f8fff; }
+.scp-jobs-empty-icon svg { width: 34px; height: 34px; }
+
+/* Tow app: a strip with your job */
+.scp-jobstrip {
+	width: 100%; display: flex; align-items: center; gap: 8px; padding: 7px 10px; margin-bottom: 8px; border: none; border-radius: 10px;
+	cursor: pointer; font-family: inherit; font-size: 12px; color: #fff; background: linear-gradient(135deg, rgba(47, 111, 224, 0.55), rgba(90, 63, 196, 0.55));
+}
+.scp-jobstrip:hover { filter: brightness(1.15); }
+.scp-jobstrip-label { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; padding: 2px 6px; border-radius: 6px; background: rgba(255, 255, 255, 0.22); }
+
+
+
+/* Tow app: compact, with small icons */
+.scp-ic { display: inline-flex; flex: none; }
+.scp-ic svg { width: 18px; height: 18px; }
+.scp-ic-tiny svg { width: 12px; height: 12px; }
+.scp-ic-car { color: #ffa45c; }
+.scp-tow-intro { font-size: 12px; opacity: 0.75; margin: 2px 2px 8px; }
+.scp-hint-box { padding: 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.06); opacity: 0.8; }
+.scp-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.scp-tile {
+	display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; height: 58px; border: none;
+	border-radius: 14px; cursor: pointer; font-family: inherit; font-size: 11px; font-weight: 700; color: #fff;
+	background: rgba(255, 255, 255, 0.09);
+}
+.scp-tile:hover { filter: brightness(1.15); }
+.scp-tile .scp-ic svg { width: 22px; height: 22px; }
+.scp-tile-main { background: linear-gradient(135deg, #f08a24, #d8590c); }
+.scp-tile-road { color: #ffd21a; background: repeating-linear-gradient(-45deg, rgba(255, 204, 0, 0.16) 0 6px, rgba(0, 0, 0, 0.25) 6px 12px), #1f1f1f; }
+.scp-list-row {
+	width: 100%; display: flex; align-items: center; gap: 8px; padding: 7px 10px; margin-bottom: 4px; border: none; border-radius: 10px;
+	cursor: pointer; font-family: inherit; font-size: 12px; color: #fff; background: rgba(255, 255, 255, 0.07);
+}
+.scp-list-row:hover { background: rgba(232, 115, 12, 0.3); }
+.scp-list-row .scp-row-name { flex: 1; }
+
+.scp-status-card { padding: 9px 10px 8px; border-radius: 13px; background: rgba(255, 255, 255, 0.08); margin-bottom: 8px; }
+.scp-status-top { display: flex; align-items: center; gap: 6px; }
+.scp-status-name { flex: 1; min-width: 0; font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.scp-iconbtn {
+	flex: none; width: 28px; height: 28px; border-radius: 50%; border: none; cursor: pointer; display: flex; align-items: center;
+	justify-content: center; color: #fff; background: rgba(255, 255, 255, 0.12);
+}
+.scp-iconbtn .scp-ic svg { width: 15px; height: 15px; }
+.scp-iconbtn-road { color: #ffd21a; }
+.scp-iconbtn-road:hover { background: rgba(255, 204, 0, 0.25); }
+.scp-iconbtn-cut:hover { background: rgba(255, 59, 48, 0.7); }
+.scp-status-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.scp-mini { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; padding: 2px 7px; border-radius: 7px; background: rgba(255, 255, 255, 0.1); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.scp-mini b { font-weight: 700; }
+.scp-mini-warn { background: rgba(255, 140, 40, 0.35); color: #ffd2a8; font-weight: 700; }
+.scp-mini-hitch { background: rgba(70, 200, 110, 0.22); color: #b8f5c9; }
+
+.scp-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 3px; border-radius: 11px; background: rgba(255, 255, 255, 0.07); margin-bottom: 8px; }
+.scp-tabs button {
+	display: flex; align-items: center; justify-content: center; gap: 5px; padding: 6px 0; border: none; border-radius: 8px; cursor: pointer;
+	font-family: inherit; font-size: 12px; font-weight: 700; color: rgba(255, 255, 255, 0.7); background: none;
+}
+.scp-tabs button .scp-ic svg { width: 15px; height: 15px; }
+.scp-tabs .scp-tab-on { color: #fff; background: rgba(255, 255, 255, 0.16); }
+
+.scp-wbtns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.scp-wbtn {
+	display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0 6px; border: none; border-radius: 12px; cursor: pointer;
+	font-family: inherit; font-size: 10px; font-weight: 700; color: #fff; background: rgba(255, 255, 255, 0.08);
+}
+.scp-wbtn .scp-ic { width: 34px; height: 34px; border-radius: 50%; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.1); }
+.scp-wbtn:hover .scp-ic { background: rgba(255, 255, 255, 0.18); }
+.scp-wbtn-out .scp-ic { background: #8e6bd8; }
+.scp-wbtn-stop .scp-ic { background: rgba(255, 255, 255, 0.35); }
+.scp-wbtn-in .scp-ic { background: #e8730c; box-shadow: 0 0 0 4px rgba(232, 115, 12, 0.25); }
+.scp-chips-row { display: flex; gap: 4px; }
+.scp-pick {
+	flex: 1; padding: 5px 0; border: none; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 11px; font-weight: 700;
+	color: #fff; background: rgba(255, 255, 255, 0.08);
+}
+.scp-pick:hover { background: rgba(255, 255, 255, 0.15); }
+.scp-pick-on { background: #e8730c; }
+
+.scp-pad { display: grid; grid-template-columns: 38px 38px 38px 1fr; grid-template-rows: 34px 34px 34px; gap: 5px; justify-content: start; }
+.scp-pad-key {
+	display: flex; align-items: center; justify-content: center; border: none; border-radius: 9px; cursor: pointer; padding: 0;
+	color: #fff; background: rgba(255, 255, 255, 0.1);
+}
+.scp-pad-key:hover { background: rgba(255, 255, 255, 0.18); }
+.scp-pad-key:active { background: #2d9cdb; }
+.scp-pad-center { background: rgba(45, 156, 219, 0.35); }
+.scp-pad-side { margin-left: 12px; width: 52px; gap: 3px; }
+.scp-pad-label { font-size: 10px; font-weight: 700; }
+.scp-pad-foot { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.scp-pad-foot .scp-pick { flex: none; padding: 4px 10px; }
+.scp-pad-foot .scp-hint { margin: 0; display: inline-flex; align-items: center; gap: 3px; }
+.scp-tip {
+	display: flex; align-items: center; gap: 6px; margin-top: 9px; padding: 7px 9px; border-radius: 10px; font-size: 11px; line-height: 1.3;
+	color: #c6f7d4; background: rgba(70, 200, 110, 0.14);
+}
+.scp-hooked {
+	display: flex; align-items: center; gap: 9px; padding: 9px 10px; border-radius: 12px;
+	background: linear-gradient(135deg, rgba(60, 190, 100, 0.3), rgba(60, 190, 100, 0.14)); box-shadow: inset 0 0 0 1px rgba(110, 230, 150, 0.35);
+}
+.scp-hooked-icon { flex: none; width: 30px; height: 30px; border-radius: 9px; display: flex; align-items: center; justify-content: center; background: #2fa85a; }
+.scp-hooked-icon svg { width: 18px; height: 18px; }
+.scp-hooked-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.scp-hooked-label { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.75; }
+.scp-hooked-title { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.scp-tip-warn { color: #ffd2a8; background: rgba(255, 140, 40, 0.18); }
+.scp-tip-off { color: rgba(255, 255, 255, 0.8); background: rgba(255, 255, 255, 0.08); }
+.scp-hooked + .scp-anchor-controls { margin-top: 8px; }
+
+/* Tow app: the winch's and the rope's load */
+.scp-meter { display: flex; align-items: center; gap: 7px; margin-top: 6px; }
+.scp-meter-ic { color: rgba(255, 255, 255, 0.75); }
+.scp-meter-ic svg { width: 16px; height: 16px; }
+.scp-segs { flex: 1; display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px; }
+.scp-segs i { display: block; height: 8px; border-radius: 2px; background: rgba(255, 255, 255, 0.12); }
+.scp-meter-text { flex: none; min-width: 74px; text-align: right; font-size: 10px; font-weight: 700; opacity: 0.85; }
+.scp-meter-limit { color: #ff6b5e; opacity: 1; animation: scp-blink 0.8s ease-in-out infinite; }
+.scp-rope-state { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 7px; }
+.scp-rope-slack { background: rgba(255, 255, 255, 0.1); color: rgba(255, 255, 255, 0.7); }
+.scp-rope-ok { background: rgba(225, 214, 190, 0.18); color: #efe6d2; }
+.scp-rope-high { background: rgba(255, 160, 40, 0.28); color: #ffd09a; }
+.scp-rope-critical { background: rgba(255, 50, 40, 0.45); color: #fff; animation: scp-blink 0.5s ease-in-out infinite; }
+@keyframes scp-blink { 50% { opacity: 0.45; } }
+.scp-meter-name { flex: none; width: 36px; font-size: 10px; font-weight: 700; opacity: 0.7; }

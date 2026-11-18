@@ -26,15 +26,13 @@ function M.content()
 	return {
 		kind = "welcome",
 		title = M.TITLE,
-		intro = "You are playing the BeamNG career together with everyone on this server.",
+		intro = "Play the BeamNG career together.",
 		items = {
-			{head = "Your own save:", text = "money, cars and progress are yours and stay on your PC."},
-			{head = "Shared world:", text = "same traffic, time of day and traffic lights for everyone."},
-			{head = "SharedCareer menu", text = "(steering wheel tab at the right edge, key F7): time of day, traffic amount, options and players – every change applies to everyone."},
-			{head = "Players tab:", text = "navigate to friends or watch them; name tags show what they are doing."},
-			{head = "Fuel prices", text = "(fuel pump tab): find the cheapest station. Deliver gasoline or diesel to a station and it gets cheaper for everyone."},
-			{head = "Garage computers", text = "can be used from a few meters away."},
-			{head = "Chat:", text = "/pay <name> <amount> sends money, /players, /schelp."},
+			{head = "Your save:", text = "money, cars and progress stay yours."},
+			{head = "One world:", text = "same traffic, time and traffic lights."},
+			{head = "Menu (F7):", text = "time, traffic, options, players."},
+			{head = "Phone (F4):", text = "Jobs, Tow and Fuel apps."},
+			{head = "Chat:", text = "/pay <name> <amount> sends money."},
 		},
 		outro = "Click the steering wheel in the menu to see this again.",
 		buttons = {

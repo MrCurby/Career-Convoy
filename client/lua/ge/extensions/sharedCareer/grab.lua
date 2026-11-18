@@ -10,6 +10,23 @@
 --             "to my view" puts it in the middle of the view; fine mode = quarter speed
 --   winch     haul in (pulls the vehicle slowly to the anchor) / stop (the vehicle hangs on the
 --             rope) / pay out
+--   anchor on a vehicle   bring the anchor to a tow hitch of another of your vehicles (also the
+--             one you sit in) and let go of the remote – or back that vehicle up to the resting
+--             anchor – and it hooks on by itself (within 0.7 m of a hitch, or touching the body: then
+--             on that point). It hooks on when you let go, never while you hold a button, so you can
+--             move past hitches. Rings show the hitches near the anchor; they light up as it gets
+--             close ("Let go to hook on" over the anchor), a green flash shows it hooked on. The
+--             anchor then moves with that vehicle – drive off and you tow on the rope, or haul in with
+--             the winch "on" the tow truck. Its position and speed go to the roped vehicle every
+--             frame, the rope's pull comes back (onRopePull) and goes on to the anchor vehicle
+--             (anchorPull), so it feels the load.
+--             Off again: hold an arrow for PULL_OFF s (a ring fills, the anchor tugs; a short tap does
+--             nothing) and it pops off (an orange flash) and moves on while you hold – let go at
+--             another hitch (or the same one) and it hooks on there. Not while the anchor vehicle
+--             drives faster than PULL_MAX_SPEED. The middle button pops it off at once and puts it
+--             in the view. "Detach" in the Tow app leaves it where it is and it doesn't hook on by
+--             itself until you moved it once. If the anchor vehicle is gone or reset, the anchor
+--             stays where it was
 --   strength  30/60/100/150 % of the vehicle's weight
 --   to road  the game's own recovery "Tow to road" for the vehicle on the rope, or without a rope
 --             for the vehicle you look at; free of charge (see "Tow to the road" below)
@@ -23,8 +40,8 @@
 -- handRope / handRelease in lua/vehicle/extensions/auto/sharedCareerVeh.lua). Here we only pick
 -- the vehicle and send the view ray and the anchor. The vehicle ties the rope to the node closest
 -- to the ray (the rope goes where you look at the vehicle) and reports back: onGrip (tie node,
--- its position and distance), onHandState (tie position, strain, slack, rope length, 10 times per
--- second), onHandLost (the rope came off: reset, teleported, part torn off, rope snapped, nothing
+-- its position and distance), onHandState (tie position, winch load, slack, rope length, rope
+-- load, 10 times per second), onHandLost (the rope came off: reset, teleported, part torn off, rope snapped, nothing
 -- to grab),
 -- onProbe (preview). The rope state only goes to the vehicle once it has reported its grip.
 --
@@ -36,9 +53,10 @@
 --
 -- What you see (debugDrawer, like the game's own markers):
 --   rope      from the tie node to the anchor, a thin cylinder with a line inside (the line keeps
---             it visible from far away): grey = slack; when taut, the color shows the strain:
---             green = easy, yellow = working hard, red = at the force limit; colors fade into
---             each other. A slack rope sags (a curve as long as the rope); it straightens
+--             it visible from far away): grey = slack; when taut, the color shows the rope's own
+--             load, measured against its breaking load (ropeLoad): rope-colored while it is safe,
+--             yellow to orange when it gets high, red and trembling near breaking. The winch at its
+--             limit is no danger for the rope, so it doesn't color it (see "winch gauge"). A slack rope sags (a curve as long as the rope); it straightens
 --             smoothly when it is pulled taut. The rope end follows the tie node every frame
 --             (veh:getNodePosition), not only when the vehicle reports
 --             While the rope runs through the winch (hauling in, paying out, or paying out while
@@ -48,6 +66,10 @@
 --   let go    when the rope comes off (removed, reset, torn loose, vehicle gone) it doesn't just
 --             vanish: a taut rope snaps back to the anchor with a short whip, a slack one drops;
 --             both fade out within a fraction of a second, and the anchor with them
+--   winch gauge   above the anchor (where the portable winch sits), while it hauls in: a small
+--             ring that always faces you and fills with the winch's load (share of its pull limit),
+--             green -> yellow -> orange; at the limit it blinks red. A small drum in its middle.
+--             With the Tow app open, a sign above shows "Winch 72 %" (stopped: "Locked")
 --   grip      a small ball on the tie node, in the rope's color
 --   anchor    a pin (post with a ball on top): white = resting, cyan = being moved, orange =
 --             hauling in (the ball pulses), purple = paying out. Above the ground a dashed drop
@@ -89,17 +111,22 @@ local STUCK_AFTER = 2      -- s at the force limit: shown as "at the limit"
 
 -- what the vehicle reports with onHandLost(id, reason)
 local LOST_MESSAGES = {
-	[0] = "Couldn't attach the rope there",
-	[1] = "Vehicle reset: rope removed",
-	[2] = "The vehicle was moved: rope removed",
-	[3] = "The part the rope was tied to tore off",
+	[0] = "Can't attach the rope there",
+	[1] = "Vehicle reset – rope off",
+	[2] = "Vehicle moved – rope off",
+	[3] = "The part tore off – rope off",
 	[4] = "The rope snapped",
 }
 
 local held = nil           -- {id, since, silent, node (tie node), grip = {x, y, z}, target (= anchor),
                            --  strain, slack, stuckFor, winch (1 haul in, 0 stop, -1 pay out), placed,
-                           --  nudge, length, lengthAt, rate, shownStrain, shownTaut, sag, shownRate,
-                           --  markPhase, shown (what was drawn last: for the let-go animation)}
+                           --  nudge, length, lengthAt, rate, ropeLoad, shownLoad, shownTaut, sag, shownRate,
+                           --  markPhase, shown (what was drawn last: for the let-go animation),
+                           --  anchorVeh = {id, name, node, hitch} (anchor on a vehicle),
+                           --  snapTargets = {[vehicle id] = {nodes, at}} (tow hitches near the
+                           --  anchor), sinceSnap, unarmed (detached: no hooking on until moved),
+                           --  pull = {n, t} (an arrow held while hooked on: pulling it off),
+                           --  pullBlocked (the anchor vehicle drives: no pulling off)}
 local fine = false         -- fine mode (Tow app)
 local STRENGTHS = {30, 60, 100, 150} -- strength choices in the Tow app (% of the vehicle's weight)
 local strengthPick = 60    -- the player's pick in the Tow app
@@ -111,6 +138,9 @@ local drawErrorLogged = false
 local letGo = nil          -- the rope that just came off, while it snaps back or drops (see Drawing)
 local clock = 0            -- s of real time, for the pulsing balls and the rope's speed
 local pushApp              -- defined with the Tow app below
+local anchorPoint          -- defined with "Anchor on a vehicle" below
+local nudgeVector          -- defined before M.step below
+local vehicleName          -- defined with the Tow app below
 local startLetGo           -- defined with the drawing below
 
 local function allowed()
@@ -180,6 +210,7 @@ end
 function M.release(text)
 	if not held then return end
 	sendToVehicle(held.id, "sharedCareerVeh.handRelease()")
+	if held.anchorVeh then sendToVehicle(held.anchorVeh.id, "sharedCareerVeh.anchorRelease()") end
 	startLetGo(held)
 	held = nil
 	if text then message(text) end
@@ -238,12 +269,12 @@ local function canRope(veh, id)
 	if not veh or type(veh.queueLuaCommand) ~= "function" then return false, "Look at one of your vehicles" end
 	local model = veh.JBeam
 	if model == nil and type(veh.getJBeamFilename) == "function" then model = veh:getJBeamFilename() end
-	if model == "unicycle" then return false, "Players on foot can't be grabbed" end
+	if model == "unicycle" then return false, "Not on players on foot" end
 	if not isOwnVehicle(id) then return false, "Only your own vehicles" end
 	local freeCam = core_camera and type(core_camera.getActiveGlobalCameraName) == "function"
 		and core_camera.getActiveGlobalCameraName()
 	if id == be:getPlayerVehicleID(0) and not freeCam then
-		return false, "Get out (or use the free camera) to grab the vehicle you are in"
+		return false, "Get out first (or use the free camera)"
 	end
 	return true
 end
@@ -260,7 +291,7 @@ end
 -- Attach where you look (the middle of the view; the cursor is on the phone).
 local function attachAtView()
 	if not allowed() then
-		message("Grabbing vehicles is switched off on this server")
+		message("Ropes are off on this server")
 		return false
 	end
 	local cam, dir = cameraPos(), viewDir()
@@ -278,6 +309,119 @@ end
 
 -- One step (every frame): while a remote button is held, the anchor moves; the rope state goes
 -- to the vehicle about 30 times per second. dtSim: game time (0 while paused), for the watchdog.
+--== Anchor on a vehicle ===========================================================
+
+-- A node's position now: the vehicle's position + getNodePosition (relative to it), or nil.
+function anchorPoint(veh, node)
+	if not (veh and node and type(veh.getNodePosition) == "function" and type(veh.getPosition) == "function") then return nil end
+	local ok, rel = pcall(veh.getNodePosition, veh, node)
+	local base = vecOf(veh:getPosition())
+	rel = ok and vecOf(rel)
+	if not (rel and base) then return nil end
+	return {x = base.x + rel.x, y = base.y + rel.y, z = base.z + rel.z}
+end
+
+-- Can the anchor hook onto this vehicle? One of your own (also the one you sit in), not the roped
+-- one, not a player on foot.
+local function canAnchor(veh, id)
+	if not held or not veh or type(veh.queueLuaCommand) ~= "function" or id == held.id then return false end
+	local model = veh.JBeam
+	if model == nil and type(veh.getJBeamFilename) == "function" then model = veh:getJBeamFilename() end
+	return model ~= "unicycle" and isOwnVehicle(id)
+end
+
+local SNAP_EVERY = 0.2      -- s between two questions to the vehicles near the anchor
+local SNAP_SEARCH = 8      -- m from a vehicle's position: it is asked whether the anchor hooks on
+local PULL_OFF = 0.6        -- s an arrow is held before the anchor pops off its vehicle
+local PULL_MAX_SPEED = 1   -- m/s: an anchor vehicle driving faster can't have it pulled off
+local POP_DISTANCE = 0.35  -- m the anchor jumps off the hitch in the arrow's direction
+local TARGETS_KEEP = 0.6   -- s the rings of a vehicle's hitches stay without a new answer
+local snapFx = nil         -- {pos, age, off}: the flash where the anchor just hooked on (off: popped off)
+
+-- A few times per second: ask your vehicles near the anchor whether it hooks on (and where their
+-- tow hitches are, for the rings).
+local function askSnap(dt)
+	if held.anchorVeh or not held.target or not held.grip then return end
+	held.sinceSnap = (held.sinceSnap or SNAP_EVERY) + dt
+	if held.sinceSnap < SNAP_EVERY then return end
+	held.sinceSnap = 0
+	local t = held.target
+	-- it hooks on only when nobody holds a button (it hooks on when you let go) and not right
+	-- after "Detach" (until you moved it once)
+	local canSnap = not held.nudge and not held.unarmed
+	local count = type(be.getObjectCount) == "function" and be:getObjectCount() or 0
+	for i = 0, count - 1 do
+		local veh = be:getObject(i)
+		local id = veh and type(veh.getID) == "function" and veh:getID()
+		local p = id and type(veh.getPosition) == "function" and vecOf(veh:getPosition())
+		if p and canAnchor(veh, id) then
+			local dx, dy, dz = p.x - t.x, p.y - t.y, p.z - t.z
+			if dx * dx + dy * dy + dz * dz <= SNAP_SEARCH * SNAP_SEARCH then
+				sendToVehicle(id, string.format("sharedCareerVeh.anchorNear(%.3f, %.3f, %.3f, %d)", t.x, t.y, t.z,
+					canSnap and 1 or 0))
+			end
+		end
+	end
+end
+
+--- A vehicle near the anchor names its tow hitches ("cid,cid,..."), for the rings.
+function M.onAnchorTargets(id, list)
+	if not held or held.anchorVeh then return end
+	local nodes = {}
+	for cid in tostring(list or ""):gmatch("%d+") do table.insert(nodes, tonumber(cid)) end
+	held.snapTargets = held.snapTargets or {}
+	held.snapTargets[id] = #nodes > 0 and {nodes = nodes, at = clock} or nil
+end
+
+--- The anchor hooked onto a vehicle (its tow hitch, or the point it touches): it sits there from
+--- now on and moves with it (the rope pays out to it).
+function M.onAnchorNode(id, node, hitch)
+	local veh = be:getObjectByID(id)
+	if not held or held.anchorVeh or held.nudge or held.unarmed or not canAnchor(veh, id) then
+		sendToVehicle(id, "sharedCareerVeh.anchorRelease()")
+		return
+	end
+	held.anchorVeh = {id = id, name = vehicleName(veh), node = tonumber(node), hitch = hitch == 1 or hitch == true}
+	held.snapTargets = nil
+	held.placed = true
+	held.payOutOnce = true
+	held.since = SEND_EVERY
+	snapFx = {pos = anchorPoint(veh, held.anchorVeh.node) or held.target, age = 0}
+	message("Hooked onto the " .. held.anchorVeh.name)
+	U.log("I", "grab", string.format("anchor on vehicle %s (%s)", tostring(id), held.anchorVeh.hitch and "tow hitch" or "body"))
+	pushApp()
+end
+
+--- The anchor comes off its vehicle and stays where it is, in the world. moving: the player
+--- pulled it off and moves it on (it may hook on again when let go); otherwise ("Detach", the
+--- vehicle gone or reset) it doesn't hook on by itself until moved once.
+function M.detachAnchor(text, moving)
+	if not held or not held.anchorVeh then return end
+	sendToVehicle(held.anchorVeh.id, "sharedCareerVeh.anchorRelease()")
+	held.anchorVeh, held.pull, held.pullBlocked = nil, nil, nil
+	held.unarmed = not moving
+	held.since = SEND_EVERY
+	if text then message(text) end
+	pushApp()
+end
+
+--- The roped vehicle reports the rope's pull on the anchor (N): on to the anchor vehicle.
+function M.onRopePull(id, fx, fy, fz)
+	if not held or held.id ~= id or not held.anchorVeh then return end
+	sendToVehicle(held.anchorVeh.id, string.format("sharedCareerVeh.anchorPull(%.1f, %.1f, %.1f)",
+		tonumber(fx) or 0, tonumber(fy) or 0, tonumber(fz) or 0))
+end
+
+-- The remote's direction (f = forward, r = right, u = up) in the world, as seen from the camera.
+function nudgeVector(n)
+	local f = viewDir() or {x = 0, y = 1, z = 0}
+	local len = math.sqrt(f.x * f.x + f.y * f.y)
+	local fx, fy = 0, 1
+	if len > 0.01 then fx, fy = f.x / len, f.y / len end
+	local rx, ry = fy, -fx
+	return {x = fx * n.f + rx * n.r, y = fy * n.f + ry * n.r, z = n.u}
+end
+
 function M.step(dt, dtSim)
 	if not held then return end
 	dt = math.min(MAX_STEP, math.max(0, tonumber(dt) or 0))
@@ -292,25 +436,51 @@ function M.step(dt, dtSim)
 		M.release(held.grip and "The rope came loose" or LOST_MESSAGES[0])
 		return
 	end
-	if not held.slack and (held.strain or 0) > 0.95 then
+	if held.winch == 1 and not held.slack and (held.strain or 0) > 0.95 then
 		held.stuckFor = held.stuckFor + dt
 	else
 		held.stuckFor = 0
 	end
-	if held.nudge and held.target then
-		-- remote control: forward/back and left/right as seen from the camera, up/down
-		local f = viewDir() or {x = 0, y = 1, z = 0}
-		local len = math.sqrt(f.x * f.x + f.y * f.y)
-		local fx, fy = 0, 1
-		if len > 0.01 then fx, fy = f.x / len, f.y / len end
-		local rx, ry = fy, -fx
-		local n, step = held.nudge, NUDGE_SPEED * (fine and FINE or 1) * dt
-		held.target = {
-			x = held.target.x + (fx * n.f + rx * n.r) * step,
-			y = held.target.y + (fy * n.f + ry * n.r) * step,
-			z = held.target.z + n.u * step,
-		}
+	local anchorVel = nil
+	if held.anchorVeh then
+		-- the anchor rides on a vehicle: its node's position now, the vehicle's speed
+		local av = be:getObjectByID(held.anchorVeh.id)
+		local p = av and anchorPoint(av, held.anchorVeh.node)
+		if p then
+			held.target = p
+			anchorVel = type(av.getVelocity) == "function" and vecOf(av:getVelocity()) or {x = 0, y = 0, z = 0}
+			held.since = SEND_EVERY -- every frame
+		else
+			M.detachAnchor("Anchor vehicle gone – anchor dropped")
+		end
 	end
+	if held.pull and held.anchorVeh then
+		-- an arrow held while hooked on: after PULL_OFF s it pops off (not while the vehicle drives)
+		local speed = 0
+		if anchorVel then speed = math.sqrt(anchorVel.x ^ 2 + anchorVel.y ^ 2 + anchorVel.z ^ 2) end
+		held.pullBlocked = speed > PULL_MAX_SPEED
+		if held.pullBlocked then
+			held.pull.t = 0
+		else
+			held.pull.t = held.pull.t + dt
+			if held.pull.t >= PULL_OFF then
+				local n, from = held.pull.n, held.target
+				local v = nudgeVector(n)
+				snapFx = {pos = {x = from.x, y = from.y, z = from.z}, age = 0, off = true}
+				M.detachAnchor(nil, true)
+				-- off the hitch in the arrow's direction, and on as long as the arrow is held
+				held.target = {x = from.x + v.x * POP_DISTANCE, y = from.y + v.y * POP_DISTANCE, z = from.z + v.z * POP_DISTANCE}
+				held.nudge = n
+				anchorVel = nil
+			end
+		end
+	end
+	if held.nudge and held.target and not held.anchorVeh then
+		-- remote control: forward/back and left/right as seen from the camera, up/down
+		local v, step = nudgeVector(held.nudge), NUDGE_SPEED * (fine and FINE or 1) * dt
+		held.target = {x = held.target.x + v.x * step, y = held.target.y + v.y * step, z = held.target.z + v.z * step}
+	end
+	askSnap(dt)
 	held.since = held.since + dt
 	-- nothing to send until the vehicle has reported where the rope is tied
 	if held.since < SEND_EVERY or not (held.grip and held.target) then return end
@@ -318,8 +488,10 @@ function M.step(dt, dtSim)
 	local t = held.target
 	local paying = held.nudge ~= nil or held.payOutOnce
 	held.payOutOnce = nil
-	sendToVehicle(held.id, string.format("sharedCareerVeh.handRope(%.3f, %.3f, %.3f, %d, %d, %.2f, %.1f)",
-		t.x, t.y, t.z, held.winch, paying and 1 or 0, grabSpeed() * (fine and FINE or 1), grabStrength()))
+	local v = anchorVel or {x = 0, y = 0, z = 0}
+	sendToVehicle(held.id, string.format("sharedCareerVeh.handRope(%.3f, %.3f, %.3f, %d, %d, %.2f, %.1f, %.3f, %.3f, %.3f, %d)",
+		t.x, t.y, t.z, held.winch, paying and 1 or 0, grabSpeed() * (fine and FINE or 1), grabStrength(),
+		v.x, v.y, v.z, anchorVel and 1 or 0))
 end
 
 --== Tow to the road =============================================================
@@ -368,14 +540,14 @@ end
 --- Puts the vehicle on the rope (or the one you look at) on the last road it drove on.
 --- Returns true, or false and a message.
 function M.towToRoad()
-	if not towToRoadAllowed() then return false, "Towing to the road is switched off on this server" end
+	if not towToRoadAllowed() then return false, "Off on this server" end
 	local veh, id = towTarget()
 	if not veh then return false, id end
 	if not (spawn and type(spawn.teleportToLastRoad) == "function") then
-		return false, "Towing to the road isn't available in this game version"
+		return false, "Not available in this game version"
 	end
 	if inPursuit(id) then return false, "Not during a police chase" end
-	if speedOf(veh) > TOW_MAX_SPEED then return false, "The vehicle must stand still" end
+	if speedOf(veh) > TOW_MAX_SPEED then return false, "Stop the vehicle first" end
 	if held then M.release() end
 	local ok, err = pcall(spawn.teleportToLastRoad, veh, {resetVehicle = false})
 	if not ok then
@@ -398,11 +570,13 @@ function M.onGrip(id, t, x, y, z, node)
 	U.log("D", "grab", string.format("vehicle reported its grip at %.1f m", tonumber(t) or 0))
 end
 
-function M.onHandState(id, x, y, z, strain, slack, length)
+function M.onHandState(id, x, y, z, strain, slack, length, ropeLoad)
 	if not held or held.id ~= id then return end
 	held.grip = {x = x, y = y, z = z}
 	held.silent = 0
+	-- the winch's load while it hauls in (1 = its limit) and the rope's (1 = it breaks)
 	held.strain = math.max(0, math.min(1, tonumber(strain) or 0))
+	held.ropeLoad = math.max(0, math.min(1, tonumber(ropeLoad) or 0))
 	held.slack = slack == 1 or slack == true
 	-- how fast the rope runs through the winch (m/s, < 0 = hauled in), for the marks on the rope
 	local newLength = tonumber(length)
@@ -432,24 +606,39 @@ end
 
 --== Drawing =====================================================================
 
--- green (easy) -> yellow -> red (at the limit)
-function M.strainColor(strain)
+local ROPE_SAFE = 0.4       -- share of the breaking load: up to here the rope keeps its own color
+local ROPE_CRITICAL = 0.7  -- from here it is red and trembles
+local ROPE_COLOR = {0.88, 0.84, 0.74}
+local ROPE_HIGH = {1, 0.62, 0.12}
+local ROPE_RED = {1, 0.15, 0.1}
+
+local function mix(a, b, f)
+	return a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f, a[3] + (b[3] - a[3]) * f
+end
+
+--- The rope's color for its load (share of its breaking load): its own color while safe, yellow
+--- to orange when high, red near breaking.
+function M.ropeLoadColor(load)
+	local l = math.max(0, math.min(1, tonumber(load) or 0))
+	if l <= ROPE_SAFE then return ROPE_COLOR[1], ROPE_COLOR[2], ROPE_COLOR[3] end
+	if l <= ROPE_CRITICAL then return mix(ROPE_COLOR, ROPE_HIGH, (l - ROPE_SAFE) / (ROPE_CRITICAL - ROPE_SAFE)) end
+	return mix(ROPE_HIGH, ROPE_RED, math.min(1, (l - ROPE_CRITICAL) / (0.9 - ROPE_CRITICAL)))
+end
+
+--- The winch gauge's color for the winch's load (1 = its limit): green -> yellow -> orange.
+function M.winchColor(strain)
 	local s = math.max(0, math.min(1, tonumber(strain) or 0))
-	if s < 0.6 then
-		local f = s / 0.6
-		return 0.2 + 0.8 * f, 0.9 - 0.05 * f, 0.3 - 0.1 * f
-	end
-	local f = (s - 0.6) / 0.4
-	return 1, 0.85 - 0.6 * f, 0.2
+	if s < 0.6 then return mix({0.3, 0.9, 0.4}, {1, 0.85, 0.2}, s / 0.6) end
+	return mix({1, 0.85, 0.2}, {1, 0.5, 0.1}, (s - 0.6) / 0.4)
 end
 
 local SLACK_COLOR = {0.7, 0.7, 0.7, 0.6}
 
---- Rope color {r, g, b, a}: grey when slack (taut = 0), the strain color when taut (taut = 1),
+--- Rope color {r, g, b, a}: grey when slack (taut = 0), the color of its load when taut (taut = 1),
 --- blended in between.
-function M.ropeColor(strain, taut)
+function M.ropeColor(load, taut)
 	taut = math.max(0, math.min(1, tonumber(taut) or 0))
-	local r, g, b = M.strainColor(strain)
+	local r, g, b = M.ropeLoadColor(load)
 	local s = SLACK_COLOR
 	return s[1] + (r - s[1]) * taut, s[2] + (g - s[2]) * taut, s[3] + (b - s[3]) * taut, s[4] + (0.9 - s[4]) * taut
 end
@@ -516,7 +705,9 @@ end
 local SAG_SEGMENTS = 12
 local SAG_RATE = 8         -- 1/s: how fast the drawn sag follows the rope
 local SAG_MAX = 6          -- m
-local FADE_RATE = 6        -- 1/s: how fast the rope color follows strain and slack
+local FADE_RATE = 6        -- 1/s: how fast the rope color follows slack and taut
+local LOAD_FALL = 1.5      -- per s: how fast the shown rope load falls back after a jolt
+local TREMBLE = 0.06       -- m: how much a rope near breaking trembles
 local ROPE_RADIUS = 0.02   -- m
 function M.sagDepth(span, horizontal, length)
 	span, horizontal, length = tonumber(span) or 0, tonumber(horizontal) or 0, tonumber(length) or 0
@@ -633,6 +824,71 @@ local function sign(p, text)
 	end)
 end
 
+-- A flat circle (lines), for the hitch rings and the hook-on flash.
+local function circle(p, r, color)
+	local prev = nil
+	for i = 0, 16 do
+		local a = i / 16 * 2 * math.pi
+		local q = {x = p.x + math.cos(a) * r, y = p.y + math.sin(a) * r, z = p.z}
+		if prev then line(prev, q, color) end
+		prev = q
+	end
+end
+
+local HITCH_NEAR = 3       -- m: closer than this, a hitch ring lights up and a guide line shows
+local HOOK_RANGE = 0.7     -- m: this close to a hitch it hooks on (the vehicle's HITCH_SNAP)
+local SNAP_FX_TIME = 0.5   -- s of the hook-on flash
+
+-- The tow hitches near the anchor: a ring and a ball each, brighter (and pulsing) as the anchor
+-- gets close, and a dashed guide line from the anchor to the nearest one.
+local function drawHitches(b)
+	if not held.snapTargets then return nil end
+	local nearest, nearestD = nil, math.huge
+	for id, t in pairs(held.snapTargets) do
+		local veh = clock - t.at <= TARGETS_KEEP and be:getObjectByID(id)
+		for _, cid in ipairs(veh and t.nodes or {}) do
+			local p = anchorPoint(veh, cid)
+			if p then
+				local dx, dy, dz = p.x - b.x, p.y - b.y, p.z - b.z
+				local d = math.sqrt(dx * dx + dy * dy + dz * dz)
+				local near = math.max(0, math.min(1, 1 - (d - 0.7) / HITCH_NEAR))
+				local pulse = near > 0.6 and (1 + 0.2 * math.sin(clock * 2 * math.pi * 2.5)) or 1
+				local color = ColorF(0.3 + 0.1 * near, 0.75 + 0.2 * near, 0.45, 0.35 + 0.55 * near)
+				circle(p, 0.22 * pulse, color)
+				ball(p, 0.06 + 0.04 * near, color)
+				if d < nearestD then nearest, nearestD = p, d end
+			end
+		end
+	end
+	if nearest and nearestD <= HITCH_NEAR then
+		local color = ColorF(0.4, 0.95, 0.55, 0.8)
+		if nearestD <= HOOK_RANGE and held.nudge then
+			-- it hooks on when you let go: say so over the anchor
+			sign({x = b.x, y = b.y, z = b.z + PIN_HEIGHT + 0.35}, "Let go to hook on")
+		end
+		local steps = math.max(1, math.floor(nearestD / 0.2))
+		for i = 0, steps - 1, 2 do
+			local f0, f1 = i / steps, math.min(1, (i + 1) / steps)
+			line({x = b.x + (nearest.x - b.x) * f0, y = b.y + (nearest.y - b.y) * f0, z = b.z + (nearest.z - b.z) * f0},
+				{x = b.x + (nearest.x - b.x) * f1, y = b.y + (nearest.y - b.y) * f1, z = b.z + (nearest.z - b.z) * f1}, color)
+		end
+	end
+end
+
+-- The flash where the anchor just hooked on: a growing, fading ring.
+local function drawSnapFx(dt)
+	snapFx.age = snapFx.age + dt
+	local f = snapFx.age / SNAP_FX_TIME
+	if f >= 1 then
+		snapFx = nil
+		return
+	end
+	local color = snapFx.off and ColorF(1, 0.6, 0.15, 0.9 * (1 - f)) or ColorF(0.4, 1, 0.55, 0.9 * (1 - f))
+	circle(snapFx.pos, 0.2 + 0.7 * f, color)
+	circle(snapFx.pos, 0.1 + 0.35 * f, color)
+	ball(snapFx.pos, 0.12 * (1 - f), color)
+end
+
 -- Where the rope is tied, now: the tie node's position from the vehicle every frame
 -- (veh:getNodePosition is relative to the vehicle's position), otherwise the last report. A
 -- position far from the last report is not trusted (the vehicle reports 10 times per second).
@@ -710,19 +966,59 @@ local function drawLetGo(dt)
 	pin(b, ColorF(ANCHOR_RESTING[1], ANCHOR_RESTING[2], ANCHOR_RESTING[3], ANCHOR_RESTING[4] * fade))
 end
 
+-- The winch gauge: a ring facing the camera that fills with the winch's load, a small drum inside.
+local GAUGE_RADIUS = 0.2   -- m
+local function winchGauge(p, strain)
+	local f = viewDir()
+	if not f then return end
+	-- the camera's right and up, so the ring faces it
+	local rx, ry = f.y, -f.x
+	local rl = math.sqrt(rx * rx + ry * ry)
+	if rl < 0.01 then rx, ry, rl = 1, 0, 1 end
+	rx, ry = rx / rl, ry / rl
+	local ux, uy, uz = ry * f.z, -rx * f.z, rx * f.y - ry * f.x -- right x forward
+	local function at(angle, r)
+		local c, sn = math.sin(angle) * r, math.cos(angle) * r
+		return {x = p.x + rx * c + ux * sn, y = p.y + ry * c + uy * sn, z = p.z + uz * sn}
+	end
+	local limit = strain >= 0.95
+	local blink = limit and (0.55 + 0.45 * math.sin(clock * 2 * math.pi * 2.5)) or 1
+	local r, g, b = M.winchColor(strain)
+	if limit then r, g, b = 1, 0.18, 0.12 end
+	local back = ColorF(1, 1, 1, 0.25)
+	local fill = ColorF(r, g, b, 0.95 * blink)
+	local steps, filled = 24, math.floor(24 * math.min(1, strain) + 0.5)
+	for i = 0, steps - 1 do
+		local a0, a1 = i / steps * 2 * math.pi, (i + 1) / steps * 2 * math.pi
+		line(at(a0, GAUGE_RADIUS), at(a1, GAUGE_RADIUS), back)
+		if i < filled then
+			line(at(a0, GAUGE_RADIUS * 0.92), at(a1, GAUGE_RADIUS * 0.92), fill)
+			line(at(a0, GAUGE_RADIUS * 1.08), at(a1, GAUGE_RADIUS * 1.08), fill)
+		end
+	end
+	-- the drum: a short barrel across the ring's middle
+	local d = 0.07
+	if not cylinder({x = p.x - rx * d, y = p.y - ry * d, z = p.z}, {x = p.x + rx * d, y = p.y + ry * d, z = p.z}, 0.045, fill) then
+		line({x = p.x - rx * d, y = p.y - ry * d, z = p.z}, {x = p.x + rx * d, y = p.y + ry * d, z = p.z}, fill)
+	end
+end
+
 function M.draw(dt)
 	dt = math.max(0, tonumber(dt) or 0)
 	clock = clock + dt
-	if not (held and held.grip and held.target) and not probe and not letGo then return end
+	if not (held and held.grip and held.target) and not probe and not letGo and not snapFx then return end
 	if not canDraw() then return end
 	if letGo then drawLetGo(dt) end
+	if snapFx then drawSnapFx(dt) end
 	if held and held.grip and held.target then
-		-- color: follows strain and slack smoothly (the vehicle reports 10 times per second)
+		-- color: the rope's load (a jump up shows at once, it fades back slowly so a short jolt is
+		-- seen) and slack/taut, smoothly
 		local k = 1 - math.exp(-FADE_RATE * dt)
 		local taut = held.slack and 0 or 1
-		held.shownStrain = (held.shownStrain or held.strain) + (held.strain - (held.shownStrain or held.strain)) * k
+		local load = held.ropeLoad or 0
+		held.shownLoad = math.max(load, (held.shownLoad or 0) - LOAD_FALL * dt)
 		held.shownTaut = (held.shownTaut or taut) + (taut - (held.shownTaut or taut)) * k
-		local rgba = {M.ropeColor(held.shownStrain, held.shownTaut)}
+		local rgba = {M.ropeColor(held.shownLoad, held.shownTaut)}
 		local color = ColorF(rgba[1], rgba[2], rgba[3], rgba[4])
 		local a, b = gripNow(), held.target
 		local dx, dy, dz = b.x - a.x, b.y - a.y, b.z - a.z
@@ -730,7 +1026,12 @@ function M.draw(dt)
 		local want = held.slack and M.sagDepth(span, math.sqrt(dx * dx + dy * dy), held.length) or 0
 		local ks = 1 - math.exp(-SAG_RATE * dt)
 		held.sag = (held.sag or want) + (want - (held.sag or want)) * ks
-		rope(a, b, held.sag, color)
+		-- near breaking the rope trembles
+		local tremble = 0
+		if held.shownLoad > ROPE_CRITICAL and not held.slack then
+			tremble = TREMBLE * math.min(1, (held.shownLoad - ROPE_CRITICAL) / (1 - ROPE_CRITICAL)) * math.sin(clock * 2 * math.pi * 14)
+		end
+		rope(a, b, held.sag + tremble, color)
 		-- marks travelling with the rope while it runs through the winch
 		local rate = clock - (held.lengthAt or clock) < RATE_STALE and held.rate or 0
 		held.shownRate = (held.shownRate or 0) + ((rate or 0) - (held.shownRate or 0)) * (1 - math.exp(-RATE_RATE * dt))
@@ -745,11 +1046,35 @@ function M.draw(dt)
 			or held.winch == -1 and ANCHOR_PAYING or ANCHOR_RESTING
 		local pulse = held.winch == 1 and not held.nudge
 			and 1 + 0.25 * math.sin(clock * 2 * math.pi * 1.5) or 1
-		pin(b, ColorF(rgb[1], rgb[2], rgb[3], rgb[4]), pulse)
-		groundMarker(b, rgb)
+		if held.anchorVeh then
+			-- on a vehicle: a shackle on its hitch, no post and no ground marker. While an arrow is
+			-- held: it tugs in that direction and an orange ring fills until it pops off
+			local p = b
+			if held.pull and not held.pullBlocked then
+				local v, k = nudgeVector(held.pull.n), math.min(1, held.pull.t / PULL_OFF)
+				local tug = 0.05 * k * (1 + 0.6 * math.sin(clock * 2 * math.pi * 9))
+				p = {x = b.x + v.x * tug, y = b.y + v.y * tug, z = b.z + v.z * tug}
+				local steps = math.max(1, math.floor(16 * k))
+				local ringColor = ColorF(1, 0.6, 0.15, 0.95)
+				for i = 0, steps - 1 do
+					local a0, a1 = i / 16 * 2 * math.pi, (i + 1) / 16 * 2 * math.pi
+					line({x = b.x + math.cos(a0) * 0.25, y = b.y + math.sin(a0) * 0.25, z = b.z},
+						{x = b.x + math.cos(a1) * 0.25, y = b.y + math.sin(a1) * 0.25, z = b.z}, ringColor)
+				end
+			end
+			ball(p, 0.08 * pulse, ColorF(rgb[1], rgb[2], rgb[3], rgb[4]))
+		else
+			pin(b, ColorF(rgb[1], rgb[2], rgb[3], rgb[4]), pulse)
+			groundMarker(b, rgb)
+			drawHitches(b)
+		end
+		-- the winch gauge above the anchor, while the winch hauls in
+		local gaugeAt = {x = b.x, y = b.y, z = b.z + (held.anchorVeh and 0.45 or PIN_HEIGHT + 0.4)}
+		if held.winch == 1 then winchGauge(gaugeAt, held.strain or 0) end
 		if appOpen then
-			sign({x = b.x, y = b.y, z = b.z + PIN_HEIGHT + 0.35}, string.format("Anchor \194\183 %.1f m", span)
-				.. (stuck() and " \194\183 at the limit" or ""))
+			local text = held.winch == 1 and string.format("Winch %d %%", math.floor((held.strain or 0) * 100 + 0.5))
+				or (held.winch == -1 and "Paying out" or "Locked")
+			sign({x = gaugeAt.x, y = gaugeAt.y, z = gaugeAt.z + 0.35}, text)
 		end
 	elseif probe then
 		ball(probe, 0.12 * (1 + 0.12 * math.sin(clock * 2 * math.pi)), ColorF(0.3, 0.8, 1, 0.45))
@@ -783,7 +1108,7 @@ end
 
 --== Tow app (phone) =============================================================
 
-local function vehicleName(veh)
+function vehicleName(veh)
 	local model = veh.JBeam
 	if model == nil and type(veh.getJBeamFilename) == "function" then model = veh:getJBeamFilename() end
 	model = tostring(model or "vehicle")
@@ -836,9 +1161,17 @@ function M.appState()
 		state.winch = held.winch
 		state.moving = held.nudge ~= nil
 		state.strain = held.strain or 0
+		state.ropeLoad = held.ropeLoad or 0
 		state.slack = held.slack ~= false
 		state.stuck = stuck()
 		state.length = held.length
+		if held.anchorVeh then
+			state.anchorVehicle = held.anchorVeh.name
+			state.anchorHitch = held.anchorVeh.hitch
+			state.pullProgress = held.pull and math.min(1, held.pull.t / PULL_OFF) or 0
+			state.pullBlocked = held.pullBlocked == true
+		end
+		state.unarmed = held.unarmed == true
 		local grip = gripNow()
 		if grip and held.target then
 			local dx, dy, dz = held.target.x - grip.x, held.target.y - grip.y, held.target.z - grip.z
@@ -883,9 +1216,10 @@ function M.uiAttachVehicle(id)
 	return true
 end
 function M.uiRelease() M.release(); pushApp() end
+function M.uiAnchorDetach() M.detachAnchor(); pushApp() end
 function M.uiTowToRoad()
 	local ok, err = M.towToRoad()
-	message(ok and "Vehicle towed to the road" or err)
+	message(ok and "Back on the road" or err)
 	pushApp()
 	return ok
 end
@@ -902,20 +1236,30 @@ end
 --- Remote control: move the anchor while a button is held (f = forward, r = right, u = up; -1..1).
 function M.uiNudge(f, r, u)
 	if not held then return end
-	held.nudge = {f = tonumber(f) or 0, r = tonumber(r) or 0, u = tonumber(u) or 0}
-	held.placed = true
-	held.since = SEND_EVERY
+	local n = {f = tonumber(f) or 0, r = tonumber(r) or 0, u = tonumber(u) or 0}
+	if held.anchorVeh then
+		-- hooked on: holding pulls it off (see M.step)
+		held.pull = {n = n, t = 0}
+	else
+		held.nudge = n
+		held.unarmed = nil -- moved once: it may hook on again when let go
+		held.placed = true
+		held.since = SEND_EVERY
+	end
 	pushApp()
 end
 function M.uiNudgeStop()
 	if not held then return end
-	held.nudge = nil
+	held.nudge, held.pull, held.pullBlocked = nil, nil, nil
+	held.sinceSnap = SNAP_EVERY -- let go: ask at once whether it hooks on
 	held.since = SEND_EVERY
 	pushApp()
 end
 --- Put the anchor in the middle of the view, at its current distance from you.
 function M.uiAnchorToView()
 	if not held or not held.target then return end
+	if held.anchorVeh then M.detachAnchor(nil, true) end
+	held.unarmed = nil
 	local cam, dir = cameraPos(), viewDir()
 	if not cam or not dir then return end
 	local dx, dy, dz = held.target.x - cam.x, held.target.y - cam.y, held.target.z - cam.z
@@ -982,12 +1326,19 @@ end
 
 function M.onVehicleDestroyed(id)
 	if held and held.id == id then M.release() end
+	if held and held.anchorVeh and held.anchorVeh.id == id then
+		M.detachAnchor("Anchor vehicle gone – anchor dropped")
+	end
 end
 
 -- reset (R, recovery, a new config): the vehicle is somewhere else now, the old rope would pull it
 -- back (the vehicle's own onReset drops it too)
 function M.onVehicleResetted(id)
 	if held and held.id == id then M.release(LOST_MESSAGES[1]) end
+	-- the anchor vehicle was reset: it is somewhere else now, the anchor stays where it was
+	if held and held.anchorVeh and held.anchorVeh.id == id then
+		M.detachAnchor("Anchor vehicle reset – anchor dropped")
+	end
 end
 
 function M.onBeamMPServerLeave()

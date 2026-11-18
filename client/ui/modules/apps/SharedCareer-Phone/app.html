@@ -38,40 +38,19 @@
 				<div class="scp-grid" ng-if="apps.length">
 					<button class="scp-app" ng-repeat="app in apps track by app.id" ng-click="openApp(app)" title="{{ app.title }}">
 						<span class="scp-app-icon" ng-style="{'background': app.color}">
+							<span ng-if="app.icon === 'jobs'" class="scp-svg"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.9"/><rect x="8.5" y="2.5" width="7" height="3.6" rx="1.2" fill="currentColor"/><path d="M8.5 12.5l2.4 2.4 4.6-4.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.5 18h7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" opacity="0.7"/></svg></span>
 							<span ng-if="app.icon === 'tow'" class="scp-svg"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 16V11l3-4h6v9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M11 12h6l4 4M11 16h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 12l5-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M19 6v4.5a1.3 1.3 0 1 1-1.3 1.3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="6" cy="17" r="1.8" fill="currentColor"/><circle cx="16.5" cy="17" r="1.8" fill="currentColor"/></svg></span>
 							<span ng-if="app.icon === 'fuel'" class="scp-svg"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h9a1 1 0 0 1 1 1v16h1v2H4v-2h1V4a1 1 0 0 1 1-1z" fill="currentColor"/><rect x="7" y="5" width="6" height="5" rx="0.6" fill="rgba(0,0,0,0.35)"/><path d="M15 8h2.2l2.3 2.3V17a1.5 1.5 0 0 1-3 0v-3h-1.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg></span>
-							<span ng-if="app.icon !== 'tow' && app.icon !== 'fuel'" ng-bind="app.icon"></span>
+							<span ng-if="app.icon !== 'tow' && app.icon !== 'fuel' && app.icon !== 'jobs'" ng-bind="app.icon"></span>
+							<span class="scp-beta-badge" ng-if="app.beta">BETA</span>
 						</span>
 						<span class="scp-app-title" ng-bind="app.title"></span>
-					</button>
-				</div>
-				<!-- widgets: other players, cheapest fuel -->
-				<div class="scp-widgets" ng-if="connected">
-					<div class="scp-widget">
-						<div class="scp-widget-title">Players</div>
-						<div class="scp-widget-row" ng-repeat="p in shownOthers() track by p.name">
-							<i class="scp-dot" ng-style="{'background': statusOf(p).color}"></i>
-							<span class="scp-row-name" ng-bind="p.name"></span>
-							<span class="scp-row-right" ng-bind="statusOf(p).text"></span>
-						</div>
-						<div class="scp-widget-more" ng-if="moreOthers() > 0" ng-bind="'+ ' + moreOthers() + ' more'"></div>
-						<div class="scp-widget-empty" ng-if="!others.length">Nobody else online</div>
-					</div>
-					<button class="scp-widget scp-widget-tap" ng-if="cheapestFuels.length && hasApp('fuel')" ng-click="openFuel()"
-						title="Open the Fuel app">
-						<div class="scp-widget-title">Cheapest fuel</div>
-						<div class="scp-widget-row" ng-repeat="f in cheapestFuels track by f.key">
-							<span class="scp-fuelkey" ng-bind="f.key"></span>
-							<span class="scp-widget-price" ng-class="{'scp-price-off': f.discount > 0}">{{ f.price }}<span class="scp-disc" ng-if="f.discount > 0"> −{{ f.discount }}%</span></span>
-							<span class="scp-row-name" ng-bind="f.name"></span>
-							<span class="scp-row-right" ng-if="f.distance" ng-bind="f.distance"></span>
-						</div>
 					</button>
 				</div>
 				<div class="scp-empty" ng-if="!apps.length">
 					<svg class="scp-empty-logo" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.3" fill="none" stroke="currentColor" stroke-width="2.2"/><circle cx="12" cy="12.6" r="2.7" fill="currentColor"/><path d="M3.2 11.2 Q12 8.2 20.8 11.2 M12 15.3 V21.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
 					<div class="scp-empty-title">No apps yet</div>
-					<div class="scp-empty-text">Apps for jobs and more will show up here.</div>
+					<div class="scp-empty-text">Apps show up here.</div>
 				</div>
 			</div>
 
@@ -80,65 +59,174 @@
 				<div class="scp-appbar">
 					<button class="scp-back" ng-click="goHome()">&#8249; Home</button>
 					<span class="scp-appbar-title" ng-bind="currentApp.title"></span>
+					<span class="scp-beta-pill" ng-if="currentApp.beta" title="Experimental: this app is new and may still change">BETA</span>
 				</div>
-				<!-- Tow: rope and winch, as a remote control (grab.lua) -->
+				<!-- Jobs (beta): towing jobs for everyone on the server (jobs.lua) -->
+				<div class="scp-appbody scp-tow scp-jobs" ng-if="currentApp.id === 'jobs'">
+					<div class="scp-hint" ng-if="!jobs.enabled">Jobs are off on this server.</div>
+
+					<!-- your job -->
+					<div class="scp-myjob" ng-if="jobs.active">
+						<div class="scp-myjob-top">
+							<span class="scp-myjob-label">Your job</span>
+							<span class="scp-myjob-pay" ng-bind="money(jobs.active.pay)"></span>
+						</div>
+						<div class="scp-myjob-vehicle" ng-bind="jobs.active.vehicle"></div>
+						<div class="scp-chips">
+							<span class="scp-chip-tag scp-tag-engine">Engine failure</span>
+							<span class="scp-chip-tag scp-tag-tire" ng-if="jobs.active.flatTire">Flat tire</span>
+						</div>
+						<div class="scp-steps">
+							<div class="scp-step" ng-repeat="st in jobSteps track by $index" ng-class="{'scp-step-done': $index < jobStep(), 'scp-step-now': $index === jobStep()}">
+								<i></i><span ng-bind="st"></span>
+							</div>
+						</div>
+						<div class="scp-myjob-now">
+							<span class="scp-myjob-dist" ng-if="jobs.active.distance !== undefined && jobStep() < 2" ng-bind="formatDistance(jobs.active.distance)"></span>
+							<span class="scp-myjob-what" ng-bind="jobText()"></span>
+						</div>
+						<div class="scp-myjob-buttons" ng-if="jobStep() < 2">
+							<button class="scp-myjob-btn" ng-click="jobsCall('uiNavigate()')"><span class="scp-btn-svg"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19a2 2 0 1 0 0-.01M19 5a2 2 0 1 0 0-.01" fill="none" stroke="currentColor" stroke-width="2"/><path d="M5 17V9a3 3 0 0 1 3-3h3M19 7v8a3 3 0 0 1-3 3h-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>Route</button>
+							<button class="scp-myjob-btn scp-myjob-giveup" ng-click="jobsCall('uiGiveUp()')">Give up</button>
+						</div>
+					</div>
+					<div class="scp-hint" ng-if="jobs.active && jobStep() < 2">Damage costs pay. Park it in the ring at the shop.</div>
+
+					<!-- open jobs -->
+					<div class="scp-label" ng-if="jobs.enabled">Jobs <span ng-bind="openJobCount() + ' open'"></span></div>
+					<div class="scp-job" ng-repeat="j in jobs.jobs track by j.id" ng-if="j.state !== 'mine'" ng-class="{'scp-job-taken': j.state === 'taken'}">
+						<div class="scp-job-head">
+							<span class="scp-job-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 16V11l3-4h6v9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M11 12h6l4 4M11 16h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 12l5-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M19 6v4.5a1.3 1.3 0 1 1-1.3 1.3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="6" cy="17" r="1.8" fill="currentColor"/><circle cx="16.5" cy="17" r="1.8" fill="currentColor"/></svg></span>
+							<span class="scp-job-title">
+								<span class="scp-job-vehicle" ng-bind="j.vehicle"></span>
+								<span class="scp-job-problem" ng-bind="j.flatTire ? 'Engine failure · flat tire' : 'Engine failure'"></span>
+							</span>
+							<span class="scp-job-pay" ng-bind="money(j.pay)"></span>
+						</div>
+						<div class="scp-job-route">
+							<div class="scp-route-row"><span class="scp-route-dot scp-route-from"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z" fill="currentColor"/><circle cx="12" cy="10" r="2.4" fill="rgba(0,0,0,0.45)"/></svg></span><span ng-bind="j.distance !== undefined ? formatDistance(j.distance) + ' away' : '–'"></span></div>
+							<div class="scp-route-line"></div>
+							<div class="scp-route-row"><span class="scp-route-dot scp-route-to"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z" fill="currentColor"/><circle cx="12" cy="10" r="2.4" fill="rgba(0,0,0,0.45)"/></svg></span><span class="scp-route-dest" ng-bind="j.dest"></span><span class="scp-route-len" ng-bind="formatDistance(j.length) + ' tow'"></span></div>
+						</div>
+						<button class="scp-wide scp-job-take" ng-if="j.state === 'open' && !jobs.active" ng-click="jobsCall('uiTake(' + j.id + ')')">Take job</button>
+						<div class="scp-job-status" ng-if="j.state === 'taken'" ng-bind="'Taken by ' + (j.takenBy || 'another player')"></div>
+					</div>
+					<div class="scp-jobs-empty" ng-if="jobs.enabled && !openJobCount() && !jobs.active">
+						<span class="scp-jobs-empty-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.9"/><rect x="8.5" y="2.5" width="7" height="3.6" rx="1.2" fill="currentColor"/><path d="M8.5 12.5l2.4 2.4 4.6-4.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.5 18h7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" opacity="0.7"/></svg></span>
+						<div class="scp-empty-title">No jobs right now</div>
+						<div class="scp-empty-text">New ones come every few minutes.</div>
+					</div>
+				</div>
+				<!-- Tow: rope and winch, as a remote control (grab.lua). Without a rope: attach it (where you
+				     look, or to a vehicle nearby). With a rope: a status card, then two tabs – Winch and
+				     Anchor (the remote; the anchor hooks onto a tow hitch by itself, see grab.lua). -->
 				<div class="scp-appbody scp-tow" ng-if="currentApp.id === 'tow'">
-					<div class="scp-card">
-						<div class="scp-card-title" ng-bind="tow.attached ? tow.vehicle : 'No rope attached'"></div>
-						<div class="scp-card-sub" ng-if="tow.attached">
-							Rope <b ng-bind="meters(tow.length)"></b> · to anchor <b ng-bind="meters(tow.distance)"></b>
+					<button class="scp-jobstrip" ng-if="jobs.active && jobStep() < 2" ng-click="openJobs()" title="Open the Jobs app">
+						<span class="scp-jobstrip-label">Job</span>
+						<span class="scp-row-name" ng-bind="jobStepText()"></span>
+						<span class="scp-row-right" ng-if="jobs.active.distance !== undefined" ng-bind="formatDistance(jobs.active.distance)"></span>
+					</button>
+
+					<!-- no rope yet -->
+					<div ng-if="!tow.attached">
+						<div class="scp-hint scp-hint-box" ng-if="!tow.allowed">Ropes are off on this server.</div>
+						<div ng-if="tow.allowed">
+							<div class="scp-tow-intro">Attach the rope:</div>
+							<div class="scp-tiles">
+								<button class="scp-tile scp-tile-main" ng-click="towCall('uiAttachView()')" title="Aim with the screen center">
+									<span class="scp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2.2" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span><span>Where I look</span>
+								</button>
+								<button class="scp-tile scp-tile-road" ng-if="tow.towToRoad" ng-click="towCall('uiTowToRoad()')"
+									title="Put the vehicle you look at back on the road (free)">
+									<span class="scp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3 L3 21 M16 3 L21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/><path d="M12 4v3M12 10.5v3M12 17v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span><span>To the road</span>
+								</button>
+							</div>
+							<div class="scp-label" ng-if="tow.nearby.length">Your vehicles</div>
+							<button class="scp-list-row" ng-repeat="v in tow.nearby track by v.id" ng-click="towCall('uiAttachVehicle(' + v.id + ')')"
+								title="Attach the rope">
+								<span class="scp-ic scp-ic-car"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 15l1.6-5.2A2 2 0 0 1 7.5 8.4h9a2 2 0 0 1 1.9 1.4L20 15v3.5h-2.3v-1.8H6.3v1.8H4z" fill="currentColor"/><circle cx="7.5" cy="14" r="1.3" fill="rgba(0,0,0,0.45)"/><circle cx="16.5" cy="14" r="1.3" fill="rgba(0,0,0,0.45)"/></svg></span><span class="scp-row-name" ng-bind="v.name"></span><span class="scp-row-right" ng-bind="v.distance + ' m'"></span>
+							</button>
+							<div class="scp-hint" ng-if="!tow.nearby.length">No vehicle nearby.</div>
 						</div>
-						<div class="scp-strain" ng-if="tow.attached" title="How hard the rope pulls">
-							<i ng-style="{'width': (tow.slack ? 0 : tow.strain * 100) + '%', 'background': strainColor(tow.strain)}"></i>
-						</div>
-						<div class="scp-card-sub" ng-if="tow.attached" ng-bind="tow.slack ? 'Rope slack' : 'Pulling – ' + strainText(tow.strain)"></div>
-						<div class="scp-card-sub" ng-if="!tow.attached && !tow.allowed">Switched off on this server</div>
 					</div>
 
-					<div ng-if="!tow.attached && tow.allowed">
-						<button class="scp-wide scp-primary" ng-click="towCall('uiAttachView()')"><svg class="scp-btn-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v9" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M12 11a5 5 0 1 0 5 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg><span>Attach where I look</span></button>
-						<div class="scp-hint">Aim with the middle of the screen – a blue ball shows where.</div>
-						<div class="scp-label" ng-if="tow.nearby.length">Your vehicles nearby</div>
-						<button class="scp-row" ng-repeat="v in tow.nearby track by v.id" ng-click="towCall('uiAttachVehicle(' + v.id + ')')">
-							<span class="scp-row-name" ng-bind="v.name"></span><span class="scp-row-right" ng-bind="v.distance + ' m'"></span>
-						</button>
-						<div class="scp-hint" ng-if="!tow.nearby.length">None of your vehicles is nearby.</div>
-						<button class="scp-wide scp-hazard" ng-if="tow.towToRoad" ng-click="towCall('uiTowToRoad()')"><span class="scp-hazard-plate"><svg class="scp-btn-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3 L3 21 M16 3 L21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/><path d="M12 4v3M12 10.5v3M12 17v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Tow to the road</span></span></button>
-						<div class="scp-hint" ng-if="tow.towToRoad">For the vehicle you look at: puts it on the last road it drove on, free of charge. The damage stays.</div>
-					</div>
-
+					<!-- rope on: status, then the tabs -->
 					<div ng-if="tow.attached">
-						<div class="scp-label">Anchor <span class="scp-chip" ng-class="{'scp-chip-on': tow.fine}" ng-click="towCall('uiFine(' + !tow.fine + ')')">Fine</span></div>
-						<div class="scp-remote">
-							<span></span>
-							<button class="scp-key" title="Away from me" ng-mousedown="nudge(1,0,0)" ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()">&#9650;</button>
-							<span></span>
-							<button class="scp-key scp-key-side" title="Up" ng-mousedown="nudge(0,0,1)" ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()">Up</button>
-							<button class="scp-key" title="Left" ng-mousedown="nudge(0,-1,0)" ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()">&#9664;</button>
-							<button class="scp-key scp-key-center" title="Anchor to the middle of my view" ng-click="towCall('uiAnchorToView()')">&#9678;</button>
-							<button class="scp-key" title="Right" ng-mousedown="nudge(0,1,0)" ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()">&#9654;</button>
-							<span></span>
-							<span></span>
-							<button class="scp-key" title="Towards me" ng-mousedown="nudge(-1,0,0)" ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()">&#9660;</button>
-							<span></span>
-							<button class="scp-key scp-key-side" title="Down" ng-mousedown="nudge(0,0,-1)" ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()">Down</button>
+						<div class="scp-status-card">
+							<div class="scp-status-top">
+								<span class="scp-status-name" ng-bind="tow.vehicle"></span>
+								<button class="scp-iconbtn scp-iconbtn-road" ng-if="tow.towToRoad" ng-click="towCall('uiTowToRoad()')"
+									title="Put it back on the road (free)"><span class="scp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3 L3 21 M16 3 L21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/><path d="M12 4v3M12 10.5v3M12 17v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span></button>
+								<button class="scp-iconbtn scp-iconbtn-cut" ng-click="towCall('uiRelease()')" title="Remove the rope"><span class="scp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="18" r="2.6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="18" cy="18" r="2.6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M7.8 16 L17 4 M16.2 16 L7 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span></button>
+							</div>
+							<!-- the winch's load (segments) and the rope's (a chip): two different things -->
+							<div class="scp-meter" title="How hard the winch works">
+								<span class="scp-ic scp-meter-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="7" width="12" height="10" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M7 7v10M10 7v10M13 7v10" stroke="currentColor" stroke-width="1.4" opacity="0.7"/><path d="M16 12h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span><span class="scp-meter-name">Winch</span>
+								<span class="scp-segs"><i ng-repeat="n in winchSegs track by $index" ng-style="segStyle($index)"></i></span>
+								<span class="scp-meter-text" ng-class="{'scp-meter-limit': tow.winch === 1 && tow.strain >= 0.95}" ng-bind="winchText()"></span>
+							</div>
+							<div class="scp-meter" title="How close the rope is to breaking">
+								<span class="scp-ic scp-meter-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17c3-6 6 0 9-6s6 0 9-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span><span class="scp-meter-name">Rope</span>
+								<span class="scp-rope-state" ng-class="ropeState().cls" ng-bind="ropeState().text"></span>
+							</div>
+							<div class="scp-status-chips">
+								<span class="scp-mini">Rope <b ng-bind="meters(tow.length)"></b></span>
+								<span class="scp-mini" ng-if="!tow.anchorVehicle">To anchor <b ng-bind="meters(tow.distance)"></b></span>
+								<span class="scp-mini scp-mini-hitch" ng-if="tow.anchorVehicle"><span class="scp-ic scp-ic-tiny"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="17" cy="7" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M14.6 9.4L8 16M3 16h7v4H3z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span ng-bind="tow.anchorVehicle"></span></span>
+							</div>
 						</div>
-						<div class="scp-hint">Hold to move · &#9678; = to the middle of my view</div>
-						<div class="scp-label">Winch</div>
-						<div class="scp-seg">
-							<button ng-class="{'scp-seg-on scp-seg-out': tow.winch === -1}" ng-click="towCall('uiWinch(-1)')">Pay out</button>
-							<button ng-class="{'scp-seg-on': tow.winch === 0}" ng-click="towCall('uiWinch(0)')">Stop</button>
-							<button ng-class="{'scp-seg-on scp-seg-in': tow.winch === 1}" ng-click="towCall('uiWinch(1)')">Haul in</button>
+
+						<div class="scp-tabs">
+							<button ng-class="{'scp-tab-on': towTab === 'winch'}" ng-click="setTowTab('winch')"><span class="scp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="7" width="12" height="10" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M7 7v10M10 7v10M13 7v10" stroke="currentColor" stroke-width="1.4" opacity="0.7"/><path d="M16 12h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span><span>Winch</span></button>
+							<button ng-class="{'scp-tab-on': towTab === 'anchor'}" ng-click="setTowTab('anchor')"><span class="scp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7.2V20M8 11h8M4.5 14.5a7.5 7.5 0 0 0 15 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span><span>Anchor</span></button>
 						</div>
-						<div class="scp-label">Strength <span>{{tow.strength}} % of the weight</span></div>
-						<div class="scp-seg scp-seg-strength" ng-style="{'grid-template-columns': 'repeat(' + (tow.strengths.length || 1) + ', 1fr)'}">
-							<button ng-repeat="s in tow.strengths" ng-class="{'scp-seg-on scp-seg-in': tow.strength === s}" ng-click="towCall('uiStrength(' + s + ')')">{{s}} %</button>
+
+						<!-- Winch -->
+						<div ng-if="towTab === 'winch'">
+							<div class="scp-wbtns">
+								<button class="scp-wbtn" ng-class="{'scp-wbtn-out': tow.winch === -1}" ng-click="towCall('uiWinch(-1)')" title="The rope gets longer"><span class="scp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v13M6.5 11.5L12 17l5.5-5.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 20.5h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.6"/></svg></span><span>Pay out</span></button>
+								<button class="scp-wbtn" ng-class="{'scp-wbtn-stop': tow.winch === 0}" ng-click="towCall('uiWinch(0)')" title="Lock the rope"><span class="scp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="6.5" width="11" height="11" rx="2.2" fill="currentColor"/></svg></span><span>Stop</span></button>
+								<button class="scp-wbtn" ng-class="{'scp-wbtn-in': tow.winch === 1}" ng-click="towCall('uiWinch(1)')" title="Pull the vehicle to the anchor"><span class="scp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20V7M6.5 12.5L12 7l5.5 5.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 3.5h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.6"/></svg></span><span>Haul in</span></button>
+							</div>
+							<div class="scp-label">Strength <span>{{tow.strength}} % of its weight</span></div>
+							<div class="scp-chips-row">
+								<button class="scp-pick" ng-repeat="s in tow.strengths" ng-class="{'scp-pick-on': tow.strength === s}" ng-click="towCall('uiStrength(' + s + ')')">{{s}}%</button>
+							</div>
+							<div class="scp-hint scp-hint-warn" ng-if="tow.stuck">Too heavy? Use more strength.</div>
 						</div>
-						<div class="scp-hint scp-hint-warn" ng-if="tow.stuck">The rope has been pulling at its limit: pick more strength, release the handbrake or Park, or tow it to the road.</div>
-						<div class="scp-hint" ng-if="!tow.stuck">Stuck, handbrake or Park: try 100 % or more.</div>
-						<button class="scp-wide scp-hazard" ng-if="tow.towToRoad" ng-click="towCall('uiTowToRoad()')"><span class="scp-hazard-plate"><svg class="scp-btn-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3 L3 21 M16 3 L21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/><path d="M12 4v3M12 10.5v3M12 17v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Tow to the road</span></span></button>
-						<div class="scp-hint" ng-if="tow.towToRoad">Stuck for good? Puts the vehicle on the last road it drove on, free of charge. The damage stays.</div>
-						<button class="scp-wide scp-danger" ng-click="towCall('uiRelease()')"><svg class="scp-btn-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="18" r="2.6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="18" cy="18" r="2.6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M7.8 16 L17 4 M16.2 16 L7 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Remove rope</span></button>
+
+						<!-- Anchor -->
+						<div ng-if="towTab === 'anchor'">
+							<div class="scp-hooked" ng-if="tow.anchorVehicle">
+								<span class="scp-hooked-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="17" cy="7" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M14.6 9.4L8 16M3 16h7v4H3z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+								<span class="scp-hooked-text">
+									<span class="scp-hooked-label" ng-bind="tow.anchorHitch ? 'On the tow hitch of' : 'Hooked onto'"></span>
+									<span class="scp-hooked-title" ng-bind="tow.anchorVehicle"></span>
+								</span>
+								<button class="scp-go" ng-click="towCall('uiAnchorDetach()')" title="The anchor stays where it is">Detach</button>
+							</div>
+							<div class="scp-anchor-controls">
+								<div class="scp-pad">
+									<span></span><button class="scp-pad-key" title="Away from me" ng-mousedown="nudge(1,0,0)" ng-style="padFill('1,0,0')" ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()"><span class="scp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></button><span></span>
+									<button class="scp-pad-key scp-pad-side" title="Up" ng-mousedown="nudge(0,0,1)" ng-style="padFill('0,0,1')" ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()"><span class="scp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V6M7 10.5L12 5.5l5 5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="scp-pad-label">Up</span></button>
+									<button class="scp-pad-key" title="Left" ng-mousedown="nudge(0,-1,0)" ng-style="padFill('0,-1,0')" ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()"><span class="scp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></button>
+									<button class="scp-pad-key scp-pad-center" title="Anchor to the middle of my view" ng-click="towCall('uiAnchorToView()')"><span class="scp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2.2" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span></button>
+									<button class="scp-pad-key" title="Right" ng-mousedown="nudge(0,1,0)" ng-style="padFill('0,1,0')" ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()"><span class="scp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></button>
+									<span></span>
+									<span></span><button class="scp-pad-key" title="Towards me" ng-mousedown="nudge(-1,0,0)" ng-style="padFill('-1,0,0')" ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()"><span class="scp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></button><span></span>
+									<button class="scp-pad-key scp-pad-side" title="Down" ng-mousedown="nudge(0,0,-1)" ng-style="padFill('0,0,-1')" ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()"><span class="scp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v13M7 13.5l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="scp-pad-label">Down</span></button>
+								</div>
+								<div class="scp-pad-foot">
+									<button class="scp-pick" ng-class="{'scp-pick-on': tow.fine}" ng-click="towCall('uiFine(' + !tow.fine + ')')" title="Slower, for exact placing">Fine</button>
+									<span class="scp-hint" ng-if="!tow.anchorVehicle">Hold to move · <span class="scp-ic scp-ic-tiny"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2.2" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span> to my view</span>
+									<span class="scp-hint" ng-if="tow.anchorVehicle">Hold to unhook · <span class="scp-ic scp-ic-tiny"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2.2" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span> to my view</span>
+								</div>
+								<div class="scp-tip scp-tip-warn" ng-if="tow.anchorVehicle && tow.pullBlocked">Stop the {{ tow.anchorVehicle }} to unhook.</div>
+								<div class="scp-tip" ng-if="tow.anchorVehicle && !tow.pullBlocked"><span class="scp-ic scp-ic-tiny"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v13M6.5 11.5L12 17l5.5-5.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Hold an arrow to unhook.</span></div>
+								<div class="scp-tip scp-tip-off" ng-if="!tow.anchorVehicle && tow.unarmed">Detached. Move it to hook on again.</div>
+								<div class="scp-tip" ng-if="!tow.anchorVehicle && !tow.unarmed"><span class="scp-ic scp-ic-tiny"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="17" cy="7" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M14.6 9.4L8 16M3 16h7v4H3z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Let go on a green ring to hook on.</span></div>
+							</div>
+						</div>
 					</div>
 				</div>
 
@@ -160,16 +248,16 @@
 								<span class="scp-fuelkey" ng-bind="f === 'gasoline' ? 'G' : 'D'"></span>{{ formatPrice(st.fuels[f]) }}<span class="scp-disc" ng-if="st.fuels[f].discount > 0"> −{{ st.fuels[f].discount }}%</span>
 							</span>
 							<span class="scp-gap"></span>
-							<button class="scp-go" ng-if="st.canNavigate && fuel.navigating !== st.id" ng-click="navigate(st.id)" title="Set the navigation to this gas station">Go</button>
+							<button class="scp-go" ng-if="st.canNavigate && fuel.navigating !== st.id" ng-click="navigate(st.id)" title="Route to this station">Go</button>
 							<button class="scp-go scp-go-on" ng-if="fuel.navigating === st.id" ng-click="stopNavigate()" title="Stop navigation">Stop</button>
 						</div>
 					</div>
 					<div class="scp-hint" ng-if="!connected">Only on a SharedCareer server</div>
 					<div class="scp-hint" ng-if="connected && !stations().length">No gas stations on this map</div>
-					<div class="scp-hint" ng-if="stations().length">Green = cheaper right now because someone delivered fuel there.</div>
+					<div class="scp-hint" ng-if="stations().length">Green = cheaper after a delivery.</div>
 				</div>
 
-				<div class="scp-appbody" ng-if="currentApp.id !== 'tow' && currentApp.id !== 'fuel'">
+				<div class="scp-appbody" ng-if="currentApp.id !== 'tow' && currentApp.id !== 'fuel' && currentApp.id !== 'jobs'">
 					<span class="scp-app-icon scp-app-icon-big" ng-style="{'background': currentApp.color}" ng-bind="currentApp.icon"></span>
 				</div>
 			</div>

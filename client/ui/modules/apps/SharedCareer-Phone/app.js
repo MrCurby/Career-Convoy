@@ -1,13 +1,14 @@
 // SharedCareer Phone: a tab at the right screen edge (key F4) that takes the phone out.
 // The phone shows the server time, the number of players, the connection and the apps that
 // SharedCareer extensions registered (lua/ge/extensions/sharedCareer/phone.lua). Built-in app
-// screens: Tow (rope and winch, grab.lua) and Fuel (gas station prices, fuel.lua).
+// screens: Jobs (towing jobs, beta, jobs.lua), Tow (rope and winch, grab.lua) and Fuel (gas station
+// prices, fuel.lua). Apps marked beta get a "BETA" badge on the icon and in the title bar.
 // The home screen has, below the clock, how long until day or night (with a bar for the part
-// of it that is over), and two widgets below the apps: the other players with what they are
-// doing, and the cheapest station per fuel (a tap opens the Fuel app).
+// of it that is over), and the app icons.
 //
 // Data: guihook "SharedCareerPhone" {enabled, apps} from phone.lua, "SharedCareerState" (time,
-// players, connection, fuel prices, cheapest fuel) from menu.lua every second, "SharedCareerTow" from grab.lua
+// players, connection, fuel prices) from menu.lua every second, "SharedCareerTow" from grab.lua,
+// "SharedCareerJobs" (jobs and your job) from jobs.lua
 // while the Tow app is open, "SharedCareerPhoneToggle" from the key.
 // menu.lua only sends "SharedCareerState" while someone looks: the phone reports "phone" (out)
 // and "fuel" (Fuel app open) with sharedCareer_menu.uiVisible on every change and every 2 s.
@@ -105,21 +106,57 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 		bngApi.engineLua('if sharedCareer_grab then sharedCareer_grab.' + cmd + ' end');
 	};
 	var nudging = false;
-	$scope.nudge = function (f, r, u) { nudging = true; $scope.towCall('uiNudge(' + f + ',' + r + ',' + u + ')'); };
-	$scope.nudgeStop = function () { if (nudging) { nudging = false; $scope.towCall('uiNudgeStop()'); } };
-	$scope.meters = function (v) { return typeof v === 'number' ? v.toFixed(1) + ' m' : '–'; };
-	$scope.strainColor = function (s) {
-		s = Math.max(0, Math.min(1, s || 0));
-		if (s < 0.6) return '#4cd964';
-		if (s < 0.9) return '#ffcc00';
-		return '#ff3b30';
+	$scope.heldKey = null;
+	$scope.nudge = function (f, r, u) {
+		nudging = true;
+		$scope.heldKey = f + ',' + r + ',' + u;
+		$scope.towCall('uiNudge(' + f + ',' + r + ',' + u + ')');
 	};
+	$scope.nudgeStop = function () {
+		$scope.heldKey = null;
+		if (nudging) { nudging = false; $scope.towCall('uiNudgeStop()'); }
+	};
+	// hooked onto a vehicle: the held arrow fills up until the anchor pops off
+	$scope.padFill = function (key) {
+		var t = $scope.tow;
+		if (!t.anchorVehicle || $scope.heldKey !== key || !(t.pullProgress > 0)) return {};
+		var p = Math.round(t.pullProgress * 100);
+		return {'background': 'linear-gradient(to top, rgba(255, 150, 40, 0.85) ' + p + '%, rgba(255, 255, 255, 0.1) ' + p + '%)'};
+	};
+	$scope.meters = function (v) { return typeof v === 'number' ? v.toFixed(1) + ' m' : '–'; };
 	$scope.strainText = function (s) {
 		s = s || 0;
-		if (s < 0.6) return 'easy';
-		if (s < 0.9) return 'working hard';
-		return 'at the limit';
+		if (s < 0.6) return 'Easy';
+		if (s < 0.9) return 'Working hard';
+		return 'At the limit';
 	};
+	// the winch's load while it hauls in, as 10 segments, green -> yellow -> orange, red at the limit;
+	// stopped the drum is locked (the rope holds like a tow rope), paying out it gives way
+	$scope.winchText = function () {
+		var t = $scope.tow;
+		if (t.winch === 1) return $scope.strainText(t.strain);
+		return t.winch === -1 ? 'Paying out' : 'Locked';
+	};
+	$scope.winchSegs = new Array(10);
+	var SEG_COLORS = ['#4cd964', '#4cd964', '#4cd964', '#8fdc4a', '#c8d93a', '#ffcc00', '#ffcc00', '#ffa020', '#ff8a20', '#ff6a1a'];
+	$scope.segStyle = function (i) {
+		var s = $scope.tow.winch === 1 ? ($scope.tow.strain || 0) : 0;
+		if (s * 10 <= i) return {};
+		return {'background': s >= 0.95 ? '#ff3b30' : SEG_COLORS[i]};
+	};
+	// the rope's load (share of its breaking load), in words
+	$scope.ropeState = function () {
+		var t = $scope.tow;
+		if (t.slack) return {text: 'Slack', cls: 'scp-rope-slack'};
+		var l = t.ropeLoad || 0;
+		if (l < 0.4) return {text: 'OK', cls: 'scp-rope-ok'};
+		if (l < 0.7) return {text: 'High load', cls: 'scp-rope-high'};
+		return {text: 'Near breaking!', cls: 'scp-rope-critical'};
+	};
+	// tabs of the Tow app with a rope on: "anchor" (the remote) right after attaching – that's the
+	// next step –, "winch" once the anchor hooked onto a vehicle
+	$scope.towTab = 'anchor';
+	$scope.setTowTab = function (tab) { $scope.towTab = tab; };
 	//== Fuel app (lua/ge/extensions/sharedCareer/fuel.lua, data with "SharedCareerState") ==
 	var SORT_KEY = "sharedCareerFuelSort";
 	$scope.fuel = null;
@@ -151,11 +188,53 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 	$scope.navigate = function (id) { fuelLua('uiNavigate(' + JSON.stringify(String(id)) + ')'); };
 	$scope.stopNavigate = function () { fuelLua('uiStopNavigate()'); };
 
+	//== Jobs app (lua/ge/extensions/sharedCareer/jobs.lua) ==
+	$scope.jobs = {enabled: false, jobs: [], active: null};
+	$scope.jobSteps = ['Pick up', 'Tow', 'Paid'];
+	$scope.jobsCall = function (cmd) {
+		bngApi.engineLua('if sharedCareer_jobs then sharedCareer_jobs.' + cmd + ' end');
+	};
+	$scope.money = function (v) { return '$' + Math.round(Number(v) || 0).toLocaleString('en-US'); };
+	$scope.openJobCount = function () {
+		return $scope.jobs.jobs.filter(function (j) { return j.state === 'open'; }).length;
+	};
+	// 0 = drive to the vehicle, 1 = tow it (and the check at the shop), 2 = paid
+	$scope.jobStep = function () {
+		var a = $scope.jobs.active;
+		if (!a) return 0;
+		if (a.phase === 'paid') return 2;
+		return a.phase === 'toVehicle' ? 0 : 1;
+	};
+	$scope.jobText = function () {
+		var a = $scope.jobs.active;
+		if (!a) return '';
+		if (a.phase === 'paid') return 'Done – paid';
+		if (a.phase === 'checking') return 'Handing over…';
+		if (a.phase === 'toVehicle') return 'to the ' + a.vehicle;
+		return a.inZone ? 'In the ring – wait' : 'to ' + a.dest;
+	};
+	// short, for the strip in the Tow app
+	$scope.jobStepText = function () {
+		var a = $scope.jobs.active;
+		if (!a) return '';
+		if (a.phase === 'toVehicle') return 'Drive to the breakdown';
+		return a.inZone ? 'In the ring – wait' : 'Tow to ' + a.dest;
+	};
+	$scope.openJobs = function () { var app = appById('jobs'); if (app) $scope.openApp(app); };
+	$scope.$on('SharedCareerJobs', function (event, data) {
+		$scope.$evalAsync(function () {
+			if (!data) return;
+			$scope.jobs = {enabled: data.enabled === true, jobs: Array.isArray(data.jobs) ? data.jobs : [], active: data.active || null};
+		});
+	});
+
 	$scope.$on('SharedCareerTow', function (event, data) {
 		$scope.$evalAsync(function () {
 			if (!data) return;
 			if (!Array.isArray(data.nearby)) data.nearby = [];
 			if (!Array.isArray(data.strengths)) data.strengths = [];
+			if (data.attached && !$scope.tow.attached) $scope.towTab = data.anchorVehicle ? 'winch' : 'anchor';
+			else if (data.anchorVehicle && !$scope.tow.anchorVehicle) $scope.towTab = 'winch';
 			$scope.tow = data;
 		});
 	});
@@ -190,35 +269,10 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 	};
 	$scope.playerCount = function () { return $scope.players; };
 
-	//== Home screen widgets ==
-	var STATUS = {
-		driving: {text: 'Driving', color: '#4cd964'},
-		mission: {text: 'Mission', color: '#ff9500'},
-		walking: {text: 'On foot', color: '#5ac8fa'},
-		loading: {text: 'Loading', color: '#8e8e93'}
-	};
-	var SHOWN_PLAYERS = 4;
-	$scope.others = [];
-	$scope.statusOf = function (p) { return STATUS[p.status] || {text: '', color: '#8e8e93'}; };
-	$scope.shownOthers = function () { return $scope.others.slice(0, SHOWN_PLAYERS); };
-	$scope.moreOthers = function () { return Math.max(0, $scope.others.length - SHOWN_PLAYERS); };
-	// the fuel widget's rows, built once per state (new objects on every digest would make
-	// ng-repeat loop)
-	$scope.cheapestFuels = [];
-	function cheapestRows(c) {
-		if (!c) return [];
-		return ['gasoline', 'diesel'].filter(function (f) { return c[f]; }).map(function (f) {
-			var e = c[f];
-			return {key: f === 'gasoline' ? 'G' : 'D', name: e.name, price: $scope.formatPrice(e), discount: e.discount,
-				distance: typeof e.distance === 'number' ? $scope.formatDistance(e.distance) : null};
-		});
-	}
 	function appById(id) {
 		for (var i = 0; i < $scope.apps.length; i++) if ($scope.apps[i].id === id) return $scope.apps[i];
 		return null;
 	}
-	$scope.hasApp = function (id) { return !!appById(id); };
-	$scope.openFuel = function () { var app = appById('fuel'); if (app) $scope.openApp(app); };
 
 	$scope.$on('SharedCareerPhone', function (event, data) {
 		$scope.$evalAsync(function () {
@@ -240,8 +294,6 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 			$scope.connected = data.connected === true;
 			var list = data.players && Array.isArray(data.players.list) ? data.players.list : null;
 			$scope.players = list ? list.length : '–';
-			$scope.others = list ? list.filter(function (p) { return p && !p.me; }) : [];
-			$scope.cheapestFuels = cheapestRows(data.fuelCheapest);
 			// fuel is false while the Fuel app is closed: keep the last list until fresh prices arrive
 			if (data.fuel !== false) $scope.fuel = data.fuel || null;
 		});
