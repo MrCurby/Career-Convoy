@@ -2618,6 +2618,13 @@ end)()
 	committed = 0
 	veh.updateGFX(0.016)
 	check(committed == 0, "loaded only once")
+	-- a damage whose reset doesn't come is dropped, never loaded on a later reset
+	veh.damageLoad(snap)
+	for _ = 1, 150 do veh.updateGFX(0.016) end
+	committed = 0
+	veh.onReset()
+	veh.updateGFX(0.016)
+	check(committed == 0, "no reset within 2 s: the damage is dropped")
 	-- another vehicle build: ignored
 	ge = {}
 	veh.damageLoad({nn = 3, bn = 4, n = {}, d = {}, b = {}})
