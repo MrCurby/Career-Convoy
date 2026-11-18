@@ -32,7 +32,7 @@ The BeamNG career is made for playing alone. If you try it on a multiplayer serv
 
 **Made for small groups of friends.** SharedCareer is built for a few friends who just want to hang out on a BeamMP server and enjoy the career together, without stress and without things breaking. It's not made for big public servers.
 
-**How it's built.** At its heart, SharedCareer is the normal BeamNG career, made to work with more than one player. Those fixes always run. On top of that come **extras for playing together**, like shared fuel prices, finding your friends or a rope and winch to move vehicles that can't drive. Each extra is listed separately below and can be switched off by the server. The idea came from [Mileage](https://github.com/norto22/Mileage), but SharedCareer is its own mod.
+**How it's built.** At its heart, SharedCareer is the normal BeamNG career, made to work with more than one player. Those fixes always run. On top of that come **extras for playing together**, like shared fuel prices, finding your friends or a rope and winch to move vehicles that can't drive. Each extra is listed separately below and can be switched off by the server.
 
 Players **don't need to install anything**. BeamMP downloads the mod for them when they join.
 
@@ -78,13 +78,12 @@ The mod only runs while you are on a SharedCareer server (BeamMP only loads it t
 - **Console and world editor are locked**, and time, weather and traffic in the pause menu are display-only. This keeps the shared world the same for everyone. The server can allow both.
 - **Two game settings are set by the server** (simplified traffic cars, optionally simplified cars of other players). Your own values come back when you leave.
 - **Your UI layout gets the SharedCareer menu and the phone tab**, once. If you remove them, they don't come back.
-- **If you played on a server with the Mileage mod before**, its apps are still in your UI layout and show up as red "Unknown app" boxes once Mileage is gone. SharedCareer removes those boxes, after a backup of the layout file.
 - **On West Coast USA, the garage computer zones are bigger** (the mod ships a changed copy of that map file).
 
 These changes stay after you leave:
 
 - **Your save** is a normal career save in your BeamNG user folder, named after your BeamMP account.
-- **Your UI layout** keeps the two SharedCareer apps (you can remove them). If old Mileage boxes were removed, they stay removed.
+- **Your UI layout** keeps the two SharedCareer apps (you can remove them).
 - **A small file** `settings/sharedCareer/state.json` remembers choices like "Don't show again".
 
 For server owners: settings move to new defaults automatically on updates, and `./server.sh update` installs the newest release. See [Server setup](docs/server-setup.md).
@@ -148,13 +147,13 @@ echo 'REPO="MrCurby/SharedCareer"' > server.conf
 
 Then set `MaxCars = 100` in `ServerConfig.toml`, because traffic counts as the player's cars. Later updates are again just `./server.sh update`.
 
-The full guide, including manual installation, backups, rollback and switching from Mileage, is in **[docs/server-setup.md](docs/server-setup.md)**.
+The full guide, including manual installation, backups and rollback, is in **[docs/server-setup.md](docs/server-setup.md)**.
 
 ## Documentation
 
 | Guide | Contents |
 |---|---|
-| [Server setup](docs/server-setup.md) | Installation, `server.sh`, updates, rollback, save games, switching from Mileage |
+| [Server setup](docs/server-setup.md) | Installation, `server.sh`, updates, rollback, save games |
 | [In-game guide](docs/features.md) | The menu, welcome dialog, players tab, fuel economy, traffic, garage computers |
 | [Settings & commands](docs/configuration.md) | Chat and console commands, every setting in `config.json` |
 | [Development](docs/development.md) | Building, tests, releases, how the mod works inside, known limitations, project status |

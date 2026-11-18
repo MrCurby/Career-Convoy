@@ -9,7 +9,6 @@ This guide is for people who run a BeamMP server. Players don't need to install 
 - [Manual installation and updates](#manual-installation-and-updates)
 - [Rolling back](#rolling-back)
 - [Save games](#save-games)
-- [Switching from Mileage](#switching-from-mileage)
 
 ## Requirements
 
@@ -184,20 +183,3 @@ Every player has their **own career save on their own PC**. The server decides t
 - `client.saveSuffix` is appended to the profile name, for example `_myserver` gives a separate save per server.
 
 Saves are stored in the player's BeamNG user folder under `settings/cloud/saves/<profile>`.
-
-## Switching from Mileage
-
-SharedCareer and Mileage must **never run on the same server at the same time**.
-
-1. Check whether Mileage used a save suffix:
-   ```bash
-   grep -i save <server-folder>/Resources/Server/Mileage/config/config.json
-   ```
-2. Stop the server and **move** Mileage away instead of deleting it, so you can go back:
-   ```bash
-   mkdir -p <server-folder>/mileage-backup && mv <server-folder>/Resources/Server/Mileage <server-folder>/Resources/Client/Mileage.zip <server-folder>/mileage-backup/
-   ```
-3. Install SharedCareer as described above and start the server.
-4. If Mileage used a suffix (for example `_wcusa`), set the same one: `sc set client.saveSuffix _wcusa`. Otherwise leave it empty. The Mileage saves then keep working, because the profile name is built the same way.
-5. Every player should back up their save folder before the first join (`<BeamNG user folder>/current/settings/cloud/saves/<name>`).
-6. Players who used Mileage still have its apps in their UI layout; without Mileage they show up as red "Unknown app" boxes. SharedCareer removes them automatically on join (`client.cleanupMileageApps`). The mod backs up the layout files first as `.sharedcareer-backup`.
