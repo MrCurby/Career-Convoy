@@ -648,6 +648,8 @@ function M.damageSnapshot()
 			deformed[#deformed + 1] = round3(obj:getBeamRestLength(cid))
 		end
 	end
+	log("I", "sharedCareer.damage", string.format("damage sent: %d bent, %d broken of %d beams",
+		#deformed / 2, #broken, count))
 	reportToDamage("onSnapshot", jsonEncode({n = count, d = deformed, b = broken}))
 end
 
@@ -655,7 +657,10 @@ function M.damageApply(data)
 	if type(data) ~= "table" or type(data.d) ~= "table" or type(data.b) ~= "table" then return end
 	local all, count = beams(), 0
 	for _ in pairs(all) do count = count + 1 end
-	if data.n ~= count then return end
+	if data.n ~= count then
+		log("W", "sharedCareer.damage", string.format("damage not applied: %d beams here, %d at the owner", count, tonumber(data.n) or -1))
+		return
+	end
 	if not originalLengths then
 		-- only beams that are still undamaged here: their rest length is the original one
 		originalLengths = {}
@@ -670,25 +675,36 @@ function M.damageApply(data)
 	for _, cid in ipairs(data.b) do wantBroken[cid] = true end
 	for _, beam in pairs(all) do
 		if obj:beamIsBroken(beam.cid) and not wantBroken[beam.cid] then
+			log("I", "sharedCareer.damage", "damage needs a reset: beam " .. tostring(beam.cid) .. " broke only here")
 			reportToDamage("onNeedsReset")
 			return
 		end
 	end
 	local want = {}
 	for i = 1, #data.d - 1, 2 do want[data.d[i]] = data.d[i + 1] end
+	local bent, straightened, broke, biggest = 0, 0, 0, 0
 	for _, beam in pairs(all) do
 		local cid = beam.cid
 		if wantBroken[cid] then
 			if not obj:beamIsBroken(cid) then
+				broke = broke + 1
 				obj:breakBeam(cid)
 				if beamstate and type(beamstate.beamBroken) == "function" then pcall(beamstate.beamBroken, cid, 1) end
 			end
 		else
 			local length = want[cid]
 			if not length and obj:getBeamDeformation(cid) > DEFORMED then length = originalLengths[cid] end
-			if length and math.abs(obj:getBeamRestLength(cid) - length) > 1e-3 then obj:setBeamLength(cid, length) end
+			local now = length and obj:getBeamRestLength(cid)
+			if now and math.abs(now - length) > 1e-3 then
+				if want[cid] then bent = bent + 1 else straightened = straightened + 1 end
+				biggest = math.max(biggest, math.abs(now - length) / math.max(now, 1e-3))
+				obj:setBeamLength(cid, length)
+			end
 		end
 	end
+	log("I", "sharedCareer.damage", string.format(
+		"damage applied: %d of %d bent beams changed, %d straightened, %d broken, biggest change %.0f %%",
+		bent, #data.d / 2, straightened, broke, biggest * 100))
 end
 
 function M.onPhysicsStep(dt)
