@@ -12,6 +12,8 @@ local tmpProfiles = os.tmpname()
 os.remove(tmpProfiles)
 local tmpFuel = os.tmpname()
 os.remove(tmpFuel)
+local tmpPayouts = os.tmpname()
+os.remove(tmpPayouts)
 
 local sent = {}       -- {to, event, data}
 local chats = {}      -- {to, msg}
@@ -55,6 +57,7 @@ local source = assert(io.open("Resources/Server/SharedCareer/main.lua")):read("*
 source = source:gsub('local CONFIG_FILE = CONFIG_DIR %.%. "/config%.json"', 'local CONFIG_FILE = "' .. tmp .. '"')
 source = source:gsub('local PROFILES_FILE = CONFIG_DIR %.%. "/profiles%.json"', 'local PROFILES_FILE = "' .. tmpProfiles .. '"')
 source = source:gsub('local FUEL_FILE = CONFIG_DIR %.%. "/fuelprices%.json"', 'local FUEL_FILE = "' .. tmpFuel .. '"')
+source = source:gsub('local PAYOUTS_FILE = CONFIG_DIR %.%. "/payouts%.json"', 'local PAYOUTS_FILE = "' .. tmpPayouts .. '"')
 assert(load(source, "main.lua"))()
 onInit()
 
@@ -461,13 +464,50 @@ do
 	check(lastTo(0, "sc_jobPaid") == nil, "someone else can't finish it")
 	sc_jobDone(1, json.encode({id = id, pay = 999999}))
 	local paid = lastTo(1, "sc_jobPaid")
-	check(paid and paid.id == id and paid.pay == 480, "finished: paid to Ben, at most the job's pay")
+	check(paid and paid.job == id and paid.pay == 480 and type(paid.payout) == "string"
+		and paid.vehicle == "Gavril Grand Marshal", "finished: paid to Ben, at most the job's pay")
 	check(lastChat(0):find("Ben towed a Gavril Grand Marshal to Belasco Auto") ~= nil, "the others hear about it")
+	local function storedPayouts()
+		local f = io.open(tmpPayouts)
+		if not f then return {} end
+		local stored = json.decode(f:read("*a"))
+		f:close()
+		return stored
+	end
+	check(storedPayouts()[paid.payout] and storedPayouts()[paid.payout].pay == 480 and storedPayouts()[paid.payout].profile == "ben",
+		"the payout is saved until Ben's client confirms it (survives a server restart)")
 	local paidCount = countTo(1, "sc_jobPaid")
 	sc_jobDone(1, json.encode({id = id, pay = 480}))
 	check(countTo(1, "sc_jobPaid") == paidCount and #jobsOf(1).jobs == 1, "paid once; the job is gone")
 	sc_jobDone(1, json.encode({id = second, pay = 100}))
 	check(countTo(1, "sc_jobPaid") == paidCount, "a job that isn't yours isn't paid")
+	-- no confirmation: sent again every 10 s, to Ben only
+	fakeTime = fakeTime + 5
+	sc_tick()
+	check(countTo(1, "sc_jobPaid") == paidCount, "not sent again within 10 s")
+	fakeTime = fakeTime + 6
+	sc_tick()
+	check(countTo(1, "sc_jobPaid") == paidCount + 1 and lastTo(1, "sc_jobPaid").payout == paid.payout,
+		"not confirmed: sent again")
+	check(onConsoleInput("sc jobs"):find("payout %$480 for Gavril Grand Marshal to save ben") ~= nil, "sc jobs shows open payouts")
+	sc_jobPaidAck(0, json.encode({payout = paid.payout}))
+	check(storedPayouts()[paid.payout] ~= nil, "someone else can't confirm it")
+	-- Ben drops before confirming: it waits for him and comes on his next career start
+	connected[1] = false
+	onPlayerDisconnect(1)
+	fakeTime = fakeTime + 60
+	sc_tick()
+	join(1, "Ben")
+	check(countTo(1, "sc_jobPaid") == paidCount + 2 and lastTo(1, "sc_jobPaid").payout == paid.payout,
+		"Ben comes back: the open payout arrives at once")
+	sc_jobPaidAck(1, json.encode({payout = paid.payout}))
+	check(next(storedPayouts()) == nil, "confirmed: the payout is done")
+	fakeTime = fakeTime + 60
+	sc_tick()
+	check(countTo(1, "sc_jobPaid") == paidCount + 2, "confirmed: not sent again")
+	sc_jobPaidAck(1, json.encode({payout = paid.payout}))
+	sc_jobPaidAck(1, "broken{")
+	check(true, "a second or broken confirmation is ignored")
 	-- give up / time out / leave: open again
 	sc_jobTake(1, json.encode({id = second}))
 	sc_jobGiveUp(1, json.encode({id = second}))
@@ -498,6 +538,7 @@ check(saved.client.roadTraffic == 3 and saved.server.paymentMax == 1000000, "con
 os.remove(tmp)
 os.remove(tmpProfiles)
 os.remove(tmpFuel)
+os.remove(tmpPayouts)
 
 print(string.format("Server: %d ok, %d failed", passed, failures))
 os.exit(failures == 0 and 0 or 1)

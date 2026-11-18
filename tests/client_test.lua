@@ -2535,11 +2535,27 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	local done = lastSent("sc_jobDone")
 	check(done and done.id == 7 and done.pay == 450, "new damage costs part of the pay (half the max: 25 %, $600 -> $450)")
 	-- paid by the server: money in the career, the vehicle goes away a few seconds later
-	handlers.sc_jobPaid(json.encode({id = 7, pay = 450}))
+	local payout = json.encode({payout = "p-7", job = 7, pay = 450, vehicle = "Gavril Grand Marshal"})
+	local realIsActive = career_career.isActive
+	career_career.isActive = function() return false end
+	handlers.sc_jobPaid(payout)
+	check(career_modules_playerAttributes.money() == 1000 and lastSent("sc_jobPaidAck") == nil,
+		"career not running (loading): not credited, not confirmed, the server sends it again")
+	career_career.isActive = realIsActive
+	local savesBefore = world.saved or 0
+	handlers.sc_jobPaid(payout)
 	check(career_modules_playerAttributes.money() == 1450 and lastToastMsg():find("%+%$450") and lastToastMsg():find("%$150 damage"),
 		"paid: +$450 in the career, the deduction is shown")
-	handlers.sc_jobPaid(json.encode({id = 7, pay = 450}))
-	check(career_modules_playerAttributes.money() == 1450, "paid once")
+	check((world.saved or 0) == savesBefore + 1 and lastSent("sc_jobPaidAck").payout == "p-7",
+		"the career is saved, then the server gets the confirmation")
+	local function acks()
+		local n = 0
+		for _, s in ipairs(sentToServer) do if s.event == "sc_jobPaidAck" then n = n + 1 end end
+		return n
+	end
+	local acksBefore = acks()
+	handlers.sc_jobPaid(payout)
+	check(career_modules_playerAttributes.money() == 1450 and acks() == acksBefore + 1, "sent again: only confirmed, paid once")
 	sendList(nil)
 	check(jobs.getActive() ~= nil and not spawnedVeh.deleted, "the server drops the job: the vehicle stays a moment")
 	for _ = 1, 70 do update(0.1) end
@@ -2596,6 +2612,12 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	local still = false
 	for _, app in ipairs(sharedCareer_phone.state().apps) do if app.id == "jobs" then still = true end end
 	check(not still, "switched off on the server: no Jobs app")
+	-- a payout sent again after a reconnect is only confirmed, not credited twice
+	jobs.onBeamMPServerLeave()
+	acksBefore = acks()
+	handlers.sc_jobPaid(payout)
+	check(career_modules_playerAttributes.money() == 1450 and acks() == acksBefore + 1,
+		"after a reconnect: a payout sent again is only confirmed")
 	_G.map, _G.freeroam_facilities, _G.jsonReadFile, _G.util_configListGenerator, _G.core_groundMarkers = nil, nil, nil, nil, nil
 end)()
 

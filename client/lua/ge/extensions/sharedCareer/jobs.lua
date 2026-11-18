@@ -24,12 +24,14 @@
 --   3. standing still in the drop-off zone (DROP_RADIUS m around the shop's doors) for DROP_STILL
 --      s, nobody inside: the job is done (sc_jobDone with the pay). New damage since the
 --      breakdown costs up to PENALTY_MAX of the pay (DAMAGE_FOR_MAX damage points cost all of it)
---   4. the server answers sc_jobPaid: the pay goes to the career (playerAttributes), the vehicle
---      is removed REMOVE_AFTER s later
+--   4. the server answers sc_jobPaid: the pay goes to the career (playerAttributes), the career is
+--      saved and the server gets sc_jobPaidAck; until then it sends the pay again (also after a
+--      crash or reconnect, see main.lua "Payouts of towing jobs"). The vehicle is removed
+--      REMOVE_AFTER s later
 -- Giving up removes the vehicle; the job is open again for everyone. A vehicle that vanished
 -- (deleted, reloaded, or refused by the server's vehicle limit) appears again at its place when
 -- you come near, at most every SPAWN_RETRY s. Without the server's answer to sc_jobDone within
--- PAID_WAIT s the job ends here (the server pays only once anyway).
+-- PAID_WAIT s the job ends here (a pay the server did book still arrives later).
 --
 -- What you see: a marker above the broken-down vehicle while you drive there, and the drop-off
 -- zone (a flat ring with a sign) near the repair shop while you tow.
@@ -75,7 +77,9 @@ local list = {}               -- jobs from the server (sc_jobs)
 local enabled = false
 local active = nil            -- {id, job, vehId, spawnedAt, brokenDown, sentAt, damageStart, phase,
                               --  stillFor, checkingSince, damageNow, doneSent, doneAt, paidAt}
-local paidIds = {}            -- jobs already credited (a message that arrives twice)
+-- payout ids already credited: a payout the server sends again is only confirmed. Kept when leaving
+-- the server, so a payout sent again after a reconnect isn't credited twice.
+local creditedPayouts = {}
 local clock = 0
 local sinceCheck, sincePush = 0, 0
 local roadNodes = nil         -- {level, names} road nodes a job may be placed at
@@ -453,20 +457,34 @@ local function rxGenerate()
 	end
 end
 
+-- A payout for a finished job: {payout, job, pay, vehicle}. Credited and saved, then confirmed
+-- (sc_jobPaidAck); without the confirmation the server sends it again (also after a reconnect).
 local function rxPaid(data)
 	local msg = U.decode(data)
 	local pay = msg and tonumber(msg.pay)
-	if not msg or not pay or pay < 0 or paidIds[msg.id] then return end
-	paidIds[msg.id] = true
-	local name = active and active.id == msg.id and active.job.vehicle.name or "vehicle"
-	local attributes = rawget(_G, "career_modules_playerAttributes")
-	if attributes and type(attributes.addAttributes) == "function" and pay > 0 then
-		pcall(attributes.addAttributes, {money = pay}, {tags = {"gameplay"}, label = "Towing job: " .. name})
+	if not msg or type(msg.payout) ~= "string" or not pay or pay < 0 then return end
+	if creditedPayouts[msg.payout] then
+		U.send("sc_jobPaidAck", {payout = msg.payout})
+		return
 	end
-	local deduction = active and active.id == msg.id and active.deduction or 0
+	local attributes = rawget(_G, "career_modules_playerAttributes")
+	if not U.careerActive() or not attributes or type(attributes.addAttributes) ~= "function" then return end
+	local mine = active ~= nil and active.id == msg.job
+	local name = mine and active.job.vehicle.name or (type(msg.vehicle) == "string" and msg.vehicle) or "vehicle"
+	if pay > 0 then
+		local ok, err = pcall(attributes.addAttributes, {money = pay}, {tags = {"gameplay"}, label = "Towing job: " .. name})
+		if not ok then
+			U.log("E", "jobs", "could not credit the pay of job " .. tostring(msg.job) .. ": " .. tostring(err))
+			return
+		end
+		U.saveCareer("jobs")
+	end
+	creditedPayouts[msg.payout] = true
+	U.send("sc_jobPaidAck", {payout = msg.payout})
+	local deduction = mine and active.deduction or 0
 	U.toast("success", string.format("Job done: +$%d", pay)
 		.. (deduction > 0 and string.format(" (−$%d damage)", deduction) or ""), 8)
-	if active and active.id == msg.id then
+	if mine then
 		active.paidAt = clock
 		navigate(nil)
 	end
@@ -622,7 +640,7 @@ end
 
 function M.onBeamMPServerLeave()
 	navigate(nil)
-	active, list, enabled, paidIds, roadNodes = nil, {}, false, {}, nil
+	active, list, enabled, roadNodes = nil, {}, false, nil
 	appOpen = false
 end
 

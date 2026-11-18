@@ -20,13 +20,6 @@ local function money()
 	return type(attribute) == "table" and tonumber(attribute.value) or nil
 end
 
-local function save()
-	if career_saveSystem and type(career_saveSystem.saveCurrent) == "function" then
-		local ok, err = pcall(career_saveSystem.saveCurrent)
-		if not ok then U.log("E", "money", "saving failed: " .. tostring(err)) end
-	end
-end
-
 local function validAmount(n)
 	n = tonumber(n)
 	return n and n >= 1 and n == math.floor(n) and n or nil
@@ -56,7 +49,7 @@ local function rxDebit(data)
 	career_modules_playerAttributes.addAttributes({money = -amount},
 		{tags = {"gameplay"}, label = "Payment to " .. tostring(msg.to)})
 	debited[msg.id] = true
-	save()
+	U.saveCareer("money")
 	U.send("sc_payDebitResult", {id = msg.id, ok = true})
 	U.toast("info", string.format("-$%d to %s", amount, tostring(msg.to)))
 end
@@ -73,7 +66,7 @@ local function rxCredit(data)
 	local label = msg.refund and "Refund" or ("Payment from " .. tostring(msg.from))
 	career_modules_playerAttributes.addAttributes({money = amount}, {tags = {"gameplay"}, label = label})
 	credited[msg.id] = true
-	save()
+	U.saveCareer("money")
 	U.send("sc_payCreditAck", {id = msg.id})
 	U.toast("success", string.format("+$%d – %s", amount, label))
 end

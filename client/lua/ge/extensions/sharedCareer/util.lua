@@ -3,6 +3,8 @@
 --   VERSION          mod version; must match the server version (otherwise a warning dialog)
 --   log              log line under "sharedCareer.<area>" in beamng.log
 --   isMP             true on a BeamMP server (otherwise the mod does nothing)
+--   careerActive     the career is running
+--   saveCareer       save the running career at once (after money changed hands)
 --   send / on        message to the server / handler for server messages
 --   decode           read JSON safely (broken data -> nil instead of a crash)
 --   toast            short notification in the game
@@ -20,7 +22,7 @@
 
 local M = {}
 
-M.VERSION = "0.20.0"
+M.VERSION = "0.20.1"
 
 local unpack = table.unpack or unpack
 
@@ -36,6 +38,15 @@ end
 --- The career is running (in single player too; combine with isMP for the multiplayer career).
 function M.careerActive()
 	return career_career and type(career_career.isActive) == "function" and career_career.isActive() == true
+end
+
+--- Saves the running career at once (after money changed hands). Logs under `tag` if that fails.
+function M.saveCareer(tag)
+	local saveSystem = rawget(_G, "career_saveSystem")
+	if not saveSystem or type(saveSystem.saveCurrent) ~= "function" then return false end
+	local ok, err = pcall(saveSystem.saveCurrent)
+	if not ok then M.log("E", tag, "saving failed: " .. tostring(err)) end
+	return ok
 end
 
 -- true while we are on a BeamMP server.
