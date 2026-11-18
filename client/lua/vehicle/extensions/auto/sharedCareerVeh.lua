@@ -611,21 +611,32 @@ end
 -- saved vehicle (beamstate.load): node positions, beam rest lengths, broken beams, commitLoad.
 -- Changing beams of a moving car instead makes its physics blow up.
 --   damageSnapshot()  owner: every node's position in the vehicle's own frame (right, forward,
---                     up from the reference node), every deformed beam {cid, rest length,
---                     deformation} and every broken beam -> sharedCareer_damage.onSnapshot(id, json)
+--                     up from the reference node; all of them, or neighbouring parts tear apart on
+--                     loading), every bent body beam {cid, rest length, recorded deformation} and
+--                     every broken beam -> sharedCareer_damage.onSnapshot(id, json)
 --   damageLoad(data)  other PCs, only while the car stands still: keeps the damage and asks to be
 --                     reset in place (sharedCareer_damage.onReadyToLoad); on the first frame after
 --                     that reset the undamaged car takes the owner's shape (loadDamage)
 -- obj:getNodePosition is relative to the reference node in world axes, so positions are turned
 -- into the vehicle's frame and back with its direction vectors. A damage of a vehicle with other
 -- node or beam counts (other parts) is ignored.
--- A bent beam is one whose rest length differs from the undamaged one: obj:getBeamDeformation
--- reads 0 even on a crashed car. The undamaged rest lengths are read on the first frame after
--- the vehicle spawned or was reset.
+-- A bent beam is a body beam (no wheel, pressured or other moving beam) whose rest length differs
+-- from the undamaged one by more than BENT: obj:getBeamDeformation reads 0 even on a crashed car,
+-- and a healthy car settles by up to about 2.5 mm. The undamaged rest lengths are read on the
+-- first frame after the vehicle spawned or was reset. The deformation the game recorded for a
+-- beam (beamstate.deformedBeams, e.g. broken glass and lights) is replayed with
+-- beamstate.onBeamDeformed.
 
-local BENT = 1e-3           -- m: a beam whose rest length changed more than this is bent
+local BENT = 0.003          -- m: a body beam whose rest length changed more than this is bent
 local undamagedLengths = nil -- cid -> rest length of the undamaged beam
 local pendingDamage = nil    -- the damage to load after the next reset: {data, armed}
+
+-- beam types that hold the body together (normal, anisotropic); the others move by design
+local BODY_BEAM = {[0] = true, [1] = true}
+
+local function isBodyBeam(beam)
+	return beam.wheelID == nil and (beam.beamType == nil or BODY_BEAM[beam.beamType] == true)
+end
 
 local function count(list)
 	local n = 0
@@ -637,8 +648,8 @@ local function vehicleData(key)
 	return type(v) == "table" and type(v.data) == "table" and type(v.data[key]) == "table" and v.data[key] or {}
 end
 
-local function round3(x)
-	return math.floor(x * 1000 + 0.5) / 1000
+local function round4(x)
+	return math.floor(x * 10000 + 0.5) / 10000
 end
 
 -- the vehicle's frame: right, forward, up (unit vectors in world axes)
@@ -660,8 +671,9 @@ function M.damageSnapshot()
 		nodeCount = nodeCount + 1
 		local p = obj:getNodePosition(node.cid)
 		local i = #nodes
-		nodes[i + 1], nodes[i + 2], nodes[i + 3], nodes[i + 4] = node.cid, round3(p:dot(right)), round3(p:dot(fwd)), round3(p:dot(up))
+		nodes[i + 1], nodes[i + 2], nodes[i + 3], nodes[i + 4] = node.cid, round4(p:dot(right)), round4(p:dot(fwd)), round4(p:dot(up))
 	end
+	local recorded = beamstate and type(beamstate.deformedBeams) == "table" and beamstate.deformedBeams or {}
 	local deformed, broken, beamCount = {}, {}, 0
 	for _, beam in pairs(vehicleData("beams")) do
 		beamCount = beamCount + 1
@@ -669,11 +681,12 @@ function M.damageSnapshot()
 		local undamaged = undamagedLengths and undamagedLengths[cid]
 		if obj:beamIsBroken(cid) then
 			broken[#broken + 1] = cid
-		elseif undamaged then
+		elseif undamaged and isBodyBeam(beam) then
 			local length = obj:getBeamRestLength(cid)
-			if math.abs(length - undamaged) > BENT then
+			local ratio = tonumber(recorded[cid]) or 0
+			if math.abs(length - undamaged) > BENT or ratio ~= 0 then
 				local i = #deformed
-				deformed[i + 1], deformed[i + 2], deformed[i + 3] = cid, length, math.abs(length / math.max(undamaged, 1e-3) - 1)
+				deformed[i + 1], deformed[i + 2], deformed[i + 3] = cid, length, ratio
 			end
 		end
 	end
@@ -702,9 +715,10 @@ local function loadDamage(data)
 		obj:setNodePosition(n[i], right * n[i + 1] + fwd * n[i + 2] + up * n[i + 3])
 	end
 	local d = data.d
+	local replay = beamstate and type(beamstate.onBeamDeformed) == "function" and beamstate.onBeamDeformed
 	for i = 1, #d - 2, 3 do
-		obj:setBeamLength(d[i], d[i + 1])
-		if beamstate and type(beamstate.beamDeformed) == "function" then pcall(beamstate.beamDeformed, d[i], d[i + 2]) end
+		if d[i + 1] > 0 then obj:setBeamLength(d[i], d[i + 1]) end
+		if replay and d[i + 2] ~= 0 then pcall(replay, d[i], d[i + 2]) end
 	end
 	for _, cid in ipairs(data.b) do obj:breakBeam(cid) end
 	obj:commitLoad()

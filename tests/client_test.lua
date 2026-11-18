@@ -2558,18 +2558,19 @@ end)()
 	}
 	vecMeta.__add = function(a, b) return vec(a.x + b.x, a.y + b.y, a.z + b.z) end
 	vecMeta.__mul = function(a, k) return vec(a.x * k, a.y * k, a.z * k) end
-	-- 2 nodes, 3 beams: 0 fine, 1 bent, 2 broken
+	-- 2 nodes, 4 beams: 0 fine, 1 bent, 2 broken, 3 a tire beam (moves by design, never sent)
 	local nodes = {[0] = {cid = 0}, [1] = {cid = 1}}
-	local beams = {[0] = {cid = 0}, [1] = {cid = 1}, [2] = {cid = 2}}
+	local beams = {[0] = {cid = 0}, [1] = {cid = 1}, [2] = {cid = 2}, [3] = {cid = 3, wheelID = 0}}
 	local pos = {[0] = vec(0, 0, 0), [1] = vec(0, 2, 0.5)} -- owner faces +y: node 1 is 2 m ahead
-	local rest = {[0] = 1, [1] = 1, [2] = 1}
+	local rest = {[0] = 1, [1] = 1, [2] = 1, [3] = 1}
 	local broken = {}
+	local recorded = {}
 	local dir, up = vec(0, 1, 0), vec(0, 0, 1)
 	local ge, setPos, setLen, broke, deformed, committed = {}, {}, {}, {}, {}, 0
 	local env = setmetatable({
 		v = {data = {nodes = nodes, beams = beams}},
 		jsonEncode = json.encode,
-		beamstate = {beamDeformed = function(cid, ratio) deformed[cid] = ratio end},
+		beamstate = {deformedBeams = recorded, onBeamDeformed = function(cid, ratio) deformed[cid] = ratio end},
 		obj = {
 			getId = function() return 90 end,
 			queueGameEngineLua = function(_, cmd) table.insert(ge, cmd) end,
@@ -2588,15 +2589,17 @@ end)()
 	setfenv(chunk, env)
 	local veh = chunk()
 	veh.updateGFX(0.016) -- first frame: the undamaged rest lengths are read
-	rest[1], broken[2] = 0.8, true -- the crash
+	rest[1], broken[2], recorded[1] = 0.8, true, 0.2 -- the crash
+	rest[0] = 1.002 -- settling of a healthy car: not bent
+	rest[3] = 0.9   -- the tire
 	veh.damageSnapshot()
 	local raw = ge[#ge] and ge[#ge]:match('onSnapshot%(90, "(.*)"%)')
 	local snap = raw and json.decode((raw:gsub('\\"', '"')))
-	check(snap and snap.nn == 2 and snap.bn == 3, "snapshot: node and beam counts")
+	check(snap and snap.nn == 2 and snap.bn == 4, "snapshot: node and beam counts")
 	check(snap and snap.n[5] == 1 and snap.n[6] == 0 and snap.n[7] == 2 and snap.n[8] == 0.5,
 		"snapshot: node position in the vehicle's frame (right, forward, up)")
-	check(snap and snap.d[1] == 1 and snap.d[2] == 0.8 and math.abs(snap.d[3] - 0.2) < 1e-6 and #snap.d == 3 and snap.b[1] == 2,
-		"snapshot: bent beam (rest length changed) with its length and deformation, broken beam")
+	check(snap and snap.d[1] == 1 and snap.d[2] == 0.8 and snap.d[3] == 0.2 and #snap.d == 3 and snap.b[1] == 2,
+		"snapshot: only the bent body beam with its length and recorded deformation, and the broken beam")
 
 	-- another PC, where the car faces +x: the shape is turned with it
 	dir = vec(1, 0, 0)
@@ -2617,7 +2620,7 @@ end)()
 	check(committed == 0, "loaded only once")
 	-- another vehicle build: ignored
 	ge = {}
-	veh.damageLoad({nn = 3, bn = 3, n = {}, d = {}, b = {}})
+	veh.damageLoad({nn = 3, bn = 4, n = {}, d = {}, b = {}})
 	check(#ge == 0, "different node count: ignored")
 end)()
 
