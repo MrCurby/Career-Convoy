@@ -1151,12 +1151,74 @@ check(count("sphere") == 0 and count("line") > 6 and count("cylinder") == 2, "no
 _G.debugDrawer, _G.String, _G.ColorI = lineOnly, nil, nil
 sharedCareer_grab.resetShapes()
 end
--- let go
+-- winch marks: light marks travel with the rope while it runs through the winch, at its speed
+do
+local function dist(a, b)
+	local dx, dy, dz = a.x - b.x, a.y - b.y, a.z - b.z
+	return math.sqrt(dx * dx + dy * dy + dz * dz)
+end
+local function marks()
+	local out = {}
+	for _, d in ipairs(drawn) do
+		if math.abs(dist(d.p1, d.p2) - 0.12) < 0.01 then table.insert(out, d) end
+	end
+	return out
+end
+-- distance of the mark nearest to the anchor (the rope line ends at the anchor)
+local function markPhase()
+	local anchor, best = drawn[1].p2, math.huge
+	for _, d in ipairs(marks()) do best = math.min(best, dist(d.p2, anchor)) end
+	return best
+end
+-- the vehicle reports a rope that gets shorter (rate < 0) or longer, 10 times per second
+local function runRope(rate, seconds)
+	alive = nil
+	local length = 4
+	for _ = 1, seconds * 10 do
+		length = length + rate * 0.1
+		sharedCareer_grab.onHandState(60, 9, 0, 1, 0.5, 0, length)
+		frames(0.1)
+	end
+	drawn = {}
+	frames(1 / 60)
+	local before = markPhase()
+	drawn = {}
+	frames(1 / 60)
+	local moved = (markPhase() - before + 0.3) % 0.6 - 0.3
+	return #marks(), moved
+end
+local n, moved = runRope(-0.5, 1)
+check(n >= 4 and moved < -0.003, string.format("hauling in: marks on the rope travel to the anchor (%d marks, %.4f m)", n, moved))
+n, moved = runRope(0.5, 1)
+check(n >= 4 and moved > 0.003, string.format("paying out: the marks travel to the vehicle (%d marks, %.4f m)", n, moved))
+n = runRope(0, 1.5)
+check(n == 0, "the rope stands (stuck, or the winch stopped): no marks")
+n = runRope(-30, 1)
+check(n == 0, "the rope length jumps (anchor to my view): no racing marks")
+handState(60, 9, 0, 1, 0.5, 0, 4)
+end
+-- let go: a taut rope snaps back to the anchor and fades out, then nothing is drawn
+do
+frames(0.5)
+drawn = {}
+frames(1 / 60)
+local anchorAt = drawn[1].p2
 sharedCareer_grab.uiRelease()
 check(not sharedCareer_grab.isHolding() and lastHand(truck) == "handRelease", "remove rope: handRelease sent")
 drawn = {}
 frames(1 / 60)
-check(#drawn == 0, "let go: nothing drawn")
+local snapStart = drawn[1]
+frames(0.1)
+drawn = {}
+frames(1 / 60)
+local function toAnchor(d) return math.abs(d.p1.x - anchorAt.x) + math.abs(d.p1.y - anchorAt.y) + math.abs(d.p1.z - anchorAt.z) end
+check(snapStart and drawn[1] and toAnchor(drawn[1]) < toAnchor(snapStart) - 1 and drawn[1].c.a < snapStart.c.a,
+	"let go (taut): the loose end snaps back to the anchor and fades out")
+frames(0.5)
+drawn = {}
+frames(1 / 60)
+check(#drawn == 0, "let go: gone after a moment")
+end
 -- staying in step with the vehicle: every way the rope can be lost ends in a clean release
 do
 local function lastToast()
@@ -1245,7 +1307,19 @@ local lowestDrop = math.huge
 for _, d in ipairs(drawn) do lowestDrop = math.min(lowestDrop, d.p2.z) end
 check(math.abs(lowestDrop) < 0.05, "the drop line reaches the ground")
 _G.castRayStatic = nil
+-- let go of a slack rope: its loose end drops and the rope fades out
+handState(60, 9, 0, 1, 0, 1, 4)
+frames(1)
 sharedCareer_grab.uiRelease()
+drawn = {}
+frames(1 / 60)
+local dropStart = drawn[1]
+frames(0.3)
+drawn = {}
+frames(1 / 60)
+check(dropStart and drawn[1] and drawn[1].p1.z < dropStart.p1.z - 0.2 and drawn[1].c.a < dropStart.c.a,
+	"let go (slack): the loose end drops and the rope fades out")
+frames(0.5)
 alive = nil
 end
 -- preview: only while the Tow app is open (not just on foot); it aims with the view

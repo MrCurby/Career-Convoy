@@ -177,7 +177,9 @@ What you see:
 
 - **Rope:** a thin rope from the vehicle to the anchor, grey when slack, and it sags – the more rope is out, the deeper; it straightens as it is pulled taut. When taut, the color shows how hard the winch works: **green** is easy, **yellow** is working hard, **red** means it's at its force limit (too heavy, stuck, or trying to lift too much). The colors fade smoothly into each other, and the rope stays on the vehicle while it moves.
 - **Anchor:** a pin (a post with a ball on top); white when resting, cyan while you move it, orange while the winch hauls in (the ball pulses), purple while it pays out. When it hangs in the air, a dashed line down to a disc on the ground shows where it is. While the Tow app is open, a sign above it shows the distance to the vehicle, and "at the limit" when the rope has been pulling as hard as it can for a while.
+- **Winch running:** while the rope runs through the winch, light marks on it travel with it: towards the anchor when it hauls in, towards the vehicle when it pays out. They move as fast as the rope really does, so when they stand still while hauling in, the vehicle is stuck.
 - **Grip:** a small ball where the rope is tied – the point you aimed at, where the blue preview ball was.
+- **Rope off:** when the rope comes off, it doesn't just vanish. A taut rope snaps back to the anchor, a slack one drops; both fade out within a moment.
 
 The rope comes off by itself, with a short message, when the vehicle is reset or moved by the game (e.g. recovery), when the part it is tied to tears off, or when the vehicle stops answering (e.g. after reloading it). Otherwise it would pull the vehicle back to the old anchor, or drag the loose part around.
 
