@@ -275,11 +275,10 @@ function M.generate(tier)
 				local flatTire = math.random() < t.flatTire
 				local vehicle = pickVehicle(t.heavy)
 				local crash = pickCrash(t)
---<<<<<<< HEAD
-				return {title = vehicle.bodyType, pos = spot.pos, dest = {name = pick.shop.name, pos = pick.shop.pos},
---=======
-				--return {title = vehicle.name, pos = spot.pos, dest = {name = pick.shop.name, pos = pick.shop.pos},
--->>>>>>> 9ab1cbd (Update towJobs.lua)
+
+				local modelData = core_vehicles.getModel(vehicle.model)
+				local bodyStyle = modelData and modelData.BodyStyle or vehicle.name
+				return {title = bodyStyle, pos = spot.pos, dest = {name = pick.shop.name, pos = pick.shop.pos},
 					length = length, pay = M.payFor(length, flatTire, tier),
 					data = {vehicle = {model = vehicle.model, config = vehicle.config}, flatTire = flatTire, heavy = t.heavy,
 						crash = crash, dir = spot.dir}}
