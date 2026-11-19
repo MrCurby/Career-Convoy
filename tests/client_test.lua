@@ -1600,6 +1600,25 @@ check(sharedCareer_tow.appState().towToRoad == false and not sharedCareer_tow.ui
 	"tow to the road switched off on the server")
 cfgG.allowTowToRoad = true
 handlers.sc_configUpdate(json.encode(cfgG))
+-- flip upright: only for a vehicle on its roof or side; the game's own "Flip upright", damage kept
+do
+	local flipped = {}
+	_G.spawn.safeTeleport = function(veh, pos, rot, a1, a2, a3, a4, resetVehicle)
+		table.insert(flipped, {id = veh:getID(), rot = rot, reset = resetVehicle})
+	end
+	_G.quatFromDir = function(d) return {dir = d} end
+	truck.getDirectionVector = function() return {x = 1, y = 0, z = 0} end
+	truck.getDirectionVectorUp = function() return {x = 0, y = 0, z = 1} end
+	check(sharedCareer_tow.appState().flip == false and not sharedCareer_tow.uiFlipUpright() and #flipped == 0
+		and towToasts[#towToasts]:find("wheels"), "flip upright: not for a vehicle on its wheels (no button)")
+	truck.getDirectionVectorUp = function() return {x = 0, y = 0.2, z = -0.98} end
+	check(sharedCareer_tow.appState().flip == true, "on its roof: the Tow app offers Flip upright")
+	check(sharedCareer_tow.uiFlipUpright() and #flipped == 1 and flipped[1].id == 60 and flipped[1].reset == false
+		and flipped[1].rot.dir.x == 1 and towToasts[#towToasts] == "On its wheels",
+		"flipped where it is, facing the same way, damage kept")
+	check(not sharedCareer_tow.isHolding(), "flip upright: the rope comes off")
+	truck.getDirectionVector, truck.getDirectionVectorUp, _G.quatFromDir = nil, nil, nil
+end
 sharedCareer_tow.release()
 truck.getVelocity, fwd = nil, nil
 _G.spawn, _G.gameplay_traffic = nil, nil

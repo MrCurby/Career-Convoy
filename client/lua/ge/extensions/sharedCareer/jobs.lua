@@ -276,7 +276,11 @@ local function branchKey(name)
 	if type(name) ~= "string" or not branches or type(branches.getSortedBranches) ~= "function" then return nil end
 	local ok, list = pcall(branches.getSortedBranches)
 	if not ok or type(list) ~= "table" then return nil end
-	local function fits(v) return type(v) == "string" and (v == name or v:sub(-#name - 1) == "/" .. name or v:sub(-#name - 1) == "-" .. name) end
+	local function fits(v)
+		if type(v) ~= "string" then return false end
+		local tail = v:sub(-#name - 1)
+		return v == name or tail == "/" .. name or tail == "-" .. name or tail == "_" .. name
+	end
 	for _, b in ipairs(list) do
 		if type(b) == "table" and type(b.attributeKey) == "string" and (fits(b.attributeKey) or fits(b.id) or fits(b.pathId)) then
 			return b.attributeKey

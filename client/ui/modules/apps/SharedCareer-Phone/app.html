@@ -152,6 +152,9 @@
 								<span class="scp-attach-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2.2" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
 								<span class="scp-attach-text"><b>Attach rope</b><span>Where I look</span></span>
 							</button>
+							<button class="scp-flip" ng-if="tow.flip" ng-click="towCall('uiFlipUpright()')" title="Put the vehicle you look at on its wheels (free)">
+								<span class="scp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9a8 8 0 0 1 14-3l2 2M20 15a8 8 0 0 1-14 3l-2-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M20 3v5h-5M4 21v-5h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Flip upright</span>
+							</button>
 							<button class="scp-road" ng-if="tow.towToRoad" ng-click="towCall('uiTowToRoad()')" title="Put the vehicle you look at back on the road (free)">
 								<span class="scp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3 L3 21 M16 3 L21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/><path d="M12 4v3M12 10.5v3M12 17v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span><span>To the road</span>
 							</button>
@@ -174,6 +177,10 @@
 								title="Put it back on the road (free)"><span class="scp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3 L3 21 M16 3 L21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/><path d="M12 4v3M12 10.5v3M12 17v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span></button>
 							<button class="scp-iconbtn scp-iconbtn-cut" ng-click="towCall('uiRelease()')" title="Remove the rope"><span class="scp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="18" r="2.6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="18" cy="18" r="2.6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M7.8 16 L17 4 M16.2 16 L7 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span></button>
 						</div>
+
+						<button class="scp-flip" ng-if="tow.flip" ng-click="towCall('uiFlipUpright()')" title="Put it on its wheels (free)">
+							<span class="scp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9a8 8 0 0 1 14-3l2 2M20 15a8 8 0 0 1-14 3l-2-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M20 3v5h-5M4 21v-5h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Flip upright</span>
+						</button>
 
 						<!-- the rope: vehicle – rope (sags when slack, colored by its load, marks run while the winch turns) – anchor -->
 						<div class="scp-ropeview" ng-class="ropeState().cls">

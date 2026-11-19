@@ -183,6 +183,8 @@ The ring picks a tow hitch within 0.7 m first, otherwise the nearest sturdy poin
 
 **Pull strength:** pick 30, 60, 100 or 150 % of the vehicle's weight in the app (60 % at first). If the vehicle doesn't follow, it's stuck or the parking brake is on: pick more.
 
+**Flip upright:** shows only while the vehicle lies on its roof or side. It turns it onto its wheels where it is, free of charge, damage included.
+
 **To the road:** for a vehicle the rope can't free, for example one wrapped around a lamp post. It puts the vehicle back on the last road it drove on, free of charge, damage included. The vehicle must stand still, and it doesn't work during a police chase.
 
 <img src="images/rope-towing.jpg" width="320" alt="A truck tows a car on the rope"> <img src="images/rope-hitch.jpg" width="320" alt="The anchor hooked onto a truck's tow hitch, the winch locked"> <img src="images/rope-winch-gauge.jpg" width="240" alt="The winch gauge above the anchor while the winch lifts a car">
@@ -227,7 +229,7 @@ Cars break down at the roadside, and somebody has to tow them to a repair shop. 
 
 1. **Find a job:** phone (**F4**) → **Jobs**. Every job shows the vehicle, what's wrong (engine failure, sometimes a flat tire too), how far it is from you, the repair shop, the length of the tow and your pay. The jobs are sorted by the level they need, see [Levels](#levels).
 2. **Take it:** the route leads you to the breakdown. A marker floats above the car when you are close. It's yours now: the others see the job as taken.
-3. **Pick it up:** the car stands beside the road with the hazard lights on. From level 3 on, some jobs are **crashes**: the car is wrecked, sometimes on its roof (**To the road** in the Tow app puts it back on its wheels). Its engine won't start (resetting it doesn't help), it's in neutral with the parking brake off, so you can tow it: on a flatbed, on a trailer, or with the rope and winch from the Tow app. Close to it, the route switches to the repair shop.
+3. **Pick it up:** the car stands beside the road with the hazard lights on. From level 3 on, some jobs are **crashes**: the car is wrecked, sometimes on its roof (**Flip upright** in the Tow app puts it back on its wheels). Its engine won't start (resetting it doesn't help), it's in neutral with the parking brake off, so you can tow it: on a flatbed, on a trailer, or with the rope and winch from the Tow app. Close to it, the route switches to the repair shop.
 4. **Deliver it:** at the shop a ring on the ground shows the drop-off zone. Leave the car standing in it for 3 seconds, with nobody inside. The pay goes to your account and the car is taken away. If you crash or lose the connection right then, the pay arrives on your next join.
 
 - **Pay:** $150 plus $120 per km of the tow, 25 % more with a flat tire, more for harder jobs and for your level (see below). The server can change it (`client.jobPay`).

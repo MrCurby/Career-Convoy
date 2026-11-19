@@ -288,6 +288,12 @@
 	background: repeating-linear-gradient(-45deg, rgba(255, 204, 0, 0.14) 0 6px, rgba(0, 0, 0, 0.22) 6px 12px), #1f1f1f;
 }
 .scp-road:hover { filter: brightness(1.25); }
+.scp-flip {
+	width: 100%; display: flex; align-items: center; justify-content: center; gap: 7px; margin: 6px 0; padding: 8px; border: none;
+	border-radius: 12px; cursor: pointer; font-family: inherit; font-size: 12px; font-weight: 700; color: #fff;
+	background: linear-gradient(135deg, #e0573a, #b8372a); animation: scp-pop 0.2s ease-out;
+}
+.scp-flip:hover { filter: brightness(1.12); }
 .scp-veh-icon { flex: none; width: 26px; height: 26px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #ffa45c; background: rgba(255, 140, 40, 0.16); }
 .scp-veh-icon svg { width: 17px; height: 17px; }
 .scp-veh-plus { display: flex; flex: none; opacity: 0.5; }
