@@ -6,15 +6,17 @@
 --     a place     a random road node far from every vehicle, moved off the road onto the
 --                 roadside (ROADSIDE m beyond the road's edge), standing along the road
 --     a vehicle   tiers 1-2: an old car from the career's own delivery filter (gameplay/delivery/
---                 vehicles.deliveryVehicles.json, JUNKER_FILTER) via util_configListGenerator, a
---                 few common models if that is missing; tiers 3-4: a heavy vehicle (HEAVY_MODELS)
+--                 vehicles.deliveryVehicles.json, JUNKER_FILTER) via util_configListGenerator –
+--                 no pickup, van or truck (LIGHT_TRIES draws), a few common cars if that is
+--                 missing; tiers 3-4: a heavy vehicle (HEAVY_MODELS). Its class (classOf, from
+--                 the game's model info) shows on the job
 --     a shop      a garage of the map (freeroam_facilities, the middle of its doors), as far away
 --                 as the tier says (the nearest fit if none is)
 --     the pay     (PAY_BASE + PAY_PER_KM per km of the tow (straight line x ROAD_FACTOR)) x the
 --                 tier's pay, x PAY_FLAT with a flat tire, x client.jobPay
 --     a crash    from tier 2 on, some jobs are crashes (the tier's crash chance) instead of a
 --                 breakdown: the car is wrecked (see "Crashes" below)
---     job.data = {vehicle = {model, config}, flatTire, heavy, crash = {kind, speed}, dir};
+--     job.data = {vehicle = {model, config, class}, flatTire, heavy, crash = {kind, speed}, dir};
 --     job.title = the vehicle's name
 --   doing it
 --     1. the route leads to the place; within SPAWN_RANGE m the broken-down vehicle appears there
@@ -87,8 +89,13 @@ local MARKER_RANGE = 250      -- m: the markers show within this distance
 
 local JUNKER_FILTER = "junkerVehFilter"
 local FILTER_FILE = "gameplay/delivery/vehicles.deliveryVehicles.json"
-local FALLBACK_MODELS = {"fullsize", "midsize", "pickup", "covet", "pessima", "van"}
+local FALLBACK_MODELS = {"fullsize", "midsize", "covet", "pessima"}
 local HEAVY_MODELS = {"pickup", "van", "roamer"}
+local LIGHT_TRIES = 8         -- draws from the delivery filter for a car that isn't heavy
+-- vehicle classes, from words in the game's "Type" and "Body Style" of a model (the first that
+-- fits); the heavy ones don't come in tiers 1-2
+local CLASSES = {{"pickup", "Pickup"}, {"van", "Van"}, {"bus", "Bus"}, {"suv", "SUV"}, {"truck", "Truck"}, {"car", "Car"}}
+local HEAVY_CLASSES = {Pickup = true, Van = true, Bus = true, Truck = true}
 
 M.id = "tow"
 M.name = "Towing"
@@ -186,39 +193,64 @@ local function repairShops()
 	return shops
 end
 
-local function modelName(model)
-	local name = model:gsub("^%l", string.upper)
-	if core_vehicles and type(core_vehicles.getModel) == "function" then
-		local ok, data = pcall(core_vehicles.getModel, model)
-		local m = ok and type(data) == "table" and data.model
-		if type(m) == "table" and m.Name then name = (m.Brand and (m.Brand .. " ") or "") .. m.Name end
-	end
-	return name
+-- The game's info of a model (name, brand, type, body style), or nil.
+local function modelInfo(model)
+	if not (core_vehicles and type(core_vehicles.getModel) == "function") then return nil end
+	local ok, data = pcall(core_vehicles.getModel, model)
+	local m = ok and type(data) == "table" and data.model
+	return type(m) == "table" and m or nil
 end
 
--- An old car from the career's delivery filter, or a heavy vehicle: {model, config, name}.
+local function modelName(model)
+	local m = modelInfo(model)
+	if m and m.Name then return (m.Brand and (m.Brand .. " ") or "") .. m.Name end
+	return (model:gsub("^%l", string.upper))
+end
+
+-- The class of a vehicle ("Car", "SUV", "Pickup", "Van", "Truck", ...): from its config's info, or
+-- its model's; nil if the game doesn't say.
+local function classOf(model, info)
+	local function words(t)
+		if type(t) ~= "table" then return "" end
+		return (tostring(t["Body Style"] or "") .. " " .. tostring(t.Type or "")):lower()
+	end
+	local text = words(info) .. " " .. words(modelInfo(model))
+	for _, c in ipairs(CLASSES) do
+		if text:find(c[1], 1, true) then return c[2] end
+	end
+	return nil
+end
+
+-- One old car from the career's delivery filter: {model, config, name, class}, or nil.
+local function fromFilter()
+	local gen = rawget(_G, "util_configListGenerator")
+	if not (gen and type(gen.getRandomVehicleInfos) == "function" and type(jsonReadFile) == "function") then return nil end
+	local ok, info = pcall(function()
+		local filters = jsonReadFile(FILTER_FILE)
+		local filter = type(filters) == "table" and filters[JUNKER_FILTER]
+		if not filter then return nil end
+		local eligible = type(gen.getEligibleVehicles) == "function" and gen.getEligibleVehicles(false, false) or nil
+		local infos = gen.getRandomVehicleInfos(filter, 1, eligible)
+		return infos and infos[1]
+	end)
+	if not ok or type(info) ~= "table" or not info.model_key then return nil end
+	local name = info.Name and ((info.Brand and (info.Brand .. " ") or "") .. info.Name) or info.model_key
+	return {model = info.model_key, config = info.key, name = name, class = classOf(info.model_key, info)}
+end
+
+-- An old car (not heavy) or a heavy vehicle: {model, config, name, class}.
 local function pickVehicle(heavy)
 	if heavy then
 		local model = HEAVY_MODELS[math.random(#HEAVY_MODELS)]
-		return {model = model, name = modelName(model)}
+		return {model = model, name = modelName(model), class = classOf(model)}
 	end
-	local gen = rawget(_G, "util_configListGenerator")
-	if gen and type(gen.getRandomVehicleInfos) == "function" and type(jsonReadFile) == "function" then
-		local ok, info = pcall(function()
-			local filters = jsonReadFile(FILTER_FILE)
-			local filter = type(filters) == "table" and filters[JUNKER_FILTER]
-			if not filter then return nil end
-			local eligible = type(gen.getEligibleVehicles) == "function" and gen.getEligibleVehicles(false, false) or nil
-			local infos = gen.getRandomVehicleInfos(filter, 1, eligible)
-			return infos and infos[1]
-		end)
-		if ok and type(info) == "table" and info.model_key then
-			local name = info.Name and ((info.Brand and (info.Brand .. " ") or "") .. info.Name) or info.model_key
-			return {model = info.model_key, config = info.key, name = name}
-		end
+	for _ = 1, LIGHT_TRIES do
+		local v = fromFilter()
+		if not v then break end
+		if not HEAVY_CLASSES[v.class] then return v end
 	end
 	local model = FALLBACK_MODELS[math.random(#FALLBACK_MODELS)]
-	return {model = model, name = modelName(model)}
+	return {model = model, name = modelName(model), class = classOf(model)}
 end
 
 local function roundTo(x, step) return math.floor(x / step + 0.5) * step end
@@ -277,7 +309,7 @@ function M.generate(tier)
 				local crash = pickCrash(t)
 				return {title = vehicle.name, pos = spot.pos, dest = {name = pick.shop.name, pos = pick.shop.pos},
 					length = length, pay = M.payFor(length, flatTire, tier),
-					data = {vehicle = {model = vehicle.model, config = vehicle.config}, flatTire = flatTire, heavy = t.heavy,
+					data = {vehicle = {model = vehicle.model, config = vehicle.config, class = vehicle.class}, flatTire = flatTire, heavy = t.heavy,
 						crash = crash, dir = spot.dir}}
 			end
 		end
@@ -291,7 +323,12 @@ function M.tags(job)
 	local crash = type(d.crash) == "table" and crashOf(d.crash.kind)
 	local tags = {crash and {text = crash.tag, kind = "crash"} or {text = "Engine failure", kind = "engine"}}
 	if d.flatTire == true then table.insert(tags, {text = "Flat tire", kind = "tire"}) end
-	if d.heavy == true then table.insert(tags, {text = "Heavy", kind = "heavy"}) end
+	local class = type(d.vehicle) == "table" and type(d.vehicle.class) == "string" and d.vehicle.class
+	if class and class ~= "Car" then
+		table.insert(tags, {text = class, kind = HEAVY_CLASSES[class] and "heavy" or "class"})
+	elseif d.heavy == true then
+		table.insert(tags, {text = "Heavy", kind = "heavy"})
+	end
 	return tags
 end
 

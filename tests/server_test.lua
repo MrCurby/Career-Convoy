@@ -480,7 +480,8 @@ do
 	local list = jobsOf(1).jobs
 	check(#list == 1 and list[1].state == "open" and list[1].pay == 480 and list[1].dest.name == "Belasco Auto"
 		and list[1].type == "tow" and list[1].title == "Gavril Grand Marshal" and list[1].data.flatTire == true
-		and list[1].data.vehicle.model == "fullsize" and list[1].tier == 1 and list[1].minLevel == 1 and not list[1].locked,
+		and list[1].data.vehicle.model == "fullsize" and list[1].tier == 1 and list[1].minLevel == 1 and not list[1].locked
+		and list[1].xp == 40,
 		"a made-up job goes to everyone, with its type's own fields and its tier")
 	check(jobsOf(1).levels.tow.level == 1 and jobsOf(1).levels.tow.to == 100, "everyone starts at level 1 (100 XP to level 2)")
 	local id = list[1].id
@@ -624,7 +625,7 @@ do
 	onConsoleInput("sc jobs reset")
 	offer(2)
 	local j = findJob(1, 2)
-	check(j and j.locked and j.minLevel == 3, "a tier-2 job: locked for Ben (needs level 3)")
+	check(j and j.locked and j.minLevel == 3 and j.xp == 70, "a tier-2 job: locked for Ben (needs level 3), shows its 70 XP")
 	sc_jobTake(1, json.encode({id = j.id}))
 	check(findJob(1, 2) and lastChat(1):find("Needs level 3") ~= nil, "taking it is refused, Ben hears why")
 	-- damage costs XP too: half the pay, half the XP
@@ -664,6 +665,9 @@ do
 	-- a low tier gives less XP to a strong player
 	for _ = 1, 15 do finish(1, 2) end
 	check(jobsOf(1).levels.tow.level >= 5, "Ben reaches level 5 (tier 3)")
+	onConsoleInput("sc jobs reset")
+	offer(1)
+	check(findJob(1, 1).xp == 20 and findJob(0, 1).xp == 40, "the job list shows each player the XP they would get")
 	paid = finish(1, 1)
 	check(paid.xp == 20, "a tier-1 job two tiers below his: half the XP")
 	-- a job type with its own rules (two tiers, from level 1 and 2; 100 XP for tier 1); levels apart

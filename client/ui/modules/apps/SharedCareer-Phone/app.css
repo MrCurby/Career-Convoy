@@ -145,7 +145,7 @@
 .scp-myjob-top { display: flex; align-items: center; justify-content: space-between; }
 .scp-myjob-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; opacity: 0.8; font-weight: 700; }
 .scp-myjob-pay { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
-.scp-myjob-title { font-size: 17px; font-weight: 700; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.scp-myjob-title { font-size: 17px; font-weight: 700; margin-top: 2px; line-height: 1.2; overflow-wrap: anywhere; }
 .scp-chips { display: flex; gap: 5px; margin-top: 6px; flex-wrap: wrap; }
 .scp-chip-tag { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 7px; }
 .scp-tag-engine { background: rgba(255, 90, 80, 0.22); color: #ffb3ad; }
@@ -195,6 +195,8 @@
 .scp-group-locked { opacity: 0.5; }
 .scp-tag-heavy { background: rgba(160, 120, 255, 0.24); color: #d9c9ff; }
 .scp-tag-crash { background: rgba(255, 60, 60, 0.3); color: #ffc2c2; }
+.scp-tag-class { background: rgba(255, 255, 255, 0.14); color: #e6e6e6; }
+.scp-myjob .scp-tag-class { background: rgba(255, 255, 255, 0.16); color: #fff; }
 .scp-myjob .scp-tag-crash { background: rgba(255, 80, 80, 0.45); color: #fff; }
 .scp-myjob .scp-tag-heavy { background: rgba(255, 255, 255, 0.16); color: #fff; }
 .scp-job-head { display: flex; align-items: center; gap: 9px; min-width: 0; }
@@ -204,7 +206,11 @@
 }
 .scp-job-icon svg { width: 21px; height: 21px; }
 .scp-job-title { display: flex; flex-direction: column; min-width: 0; flex: 1; }
-.scp-job-name { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.scp-job-name { font-size: 13px; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
+/* the pay and the XP of a job, one under the other */
+.scp-reward { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+.scp-xp { font-size: 10px; font-weight: 800; color: #8fb6ff; font-variant-numeric: tabular-nums; }
+.scp-myjob .scp-xp { color: #dbe7ff; }
 .scp-job-tags { font-size: 11px; opacity: 0.65; }
 .scp-job-pay {
 	flex: none; font-size: 13px; font-weight: 800; padding: 3px 8px; border-radius: 8px; font-variant-numeric: tabular-nums;
