@@ -179,6 +179,8 @@ With a rope on, everything is on one screen: at the top the rope itself – your
 
 **Towing with another vehicle:** the anchor can go onto any of your vehicles, at any point. Move it close to one: a **ring** shows where it would hook on, with a dashed line from the anchor. It is **green** on a tow hitch and **white** elsewhere. Tow hitches within a few meters show as faint green rings, so you can find them. Then tap **Hook on**; nothing hooks on by itself. The anchor now moves with that vehicle: drive off to tow, or stand still and haul in like a tow truck. **Unhook** leaves the anchor where it is, and you can move it again. Drive off gently, because a hard jolt can snap the rope.
 
+**Loading it onto a tow truck:** hook the anchor onto the truck, haul the car up onto it and tap **Stop**. Once the rope is short (3 m or less), a yellow **Strap down** button appears below the anchor. It straps the car down onto that truck, the same as in the Straps app, without aiming. Afterwards the Straps app offers **Remove rope**, so you can take the rope off there.
+
 The ring picks a tow hitch within 0.7 m first, otherwise the nearest sturdy point within 0.5 m. Light parts like mirrors, glass or thin panels are passed over if a sturdy point is in reach, because the rope would only tear them off.
 
 **Pull strength:** pick 30, 60, 100 or 150 % of the vehicle's weight in the app (60 % at first). If the vehicle doesn't follow, it's stuck or the parking brake is on: pick more.
@@ -209,6 +211,8 @@ A car on a flatbed or a trailer slides off in the first curve. The **Straps** ap
 - **Strap down:** look at the car and tap it. Four straps go on at once, one at each corner of the car, down to the nearest sturdy point of your vehicle below. If a corner has nothing in reach, it is left out ("3 of 4 strapped").
 - **Add strap:** one strap by hand. *1.* Look at the car (a blue ball shows where the strap goes) and tap **Here**. *2.* Look at the truck or trailer (a ring shows where it hooks on) and tap **Here**. A dashed line runs from the car to the ring; it turns red if the strap would be longer than 3 m. **Cancel** takes it off again.
 - **The list** shows every strap with a dot for its load: green is fine, yellow is high, red is close to snapping, grey is slack. Remove one with its button, or all with **Remove all**.
+- **Remove rope:** if the tow rope from the Tow app is still on a strapped car, this button takes it off.
+- **Coming from the Tow app:** a car you hauled onto a truck can be strapped down right there, see [Loading it onto a tow truck](#using-the-tow-app).
 
 In the world, straps are a **wide yellow band** with a **ratchet** (a dark block with a yellow lever) at the lower end. Like the rope, they turn orange and red under a high load.
 
@@ -234,7 +238,7 @@ Cars break down at the roadside, and somebody has to tow them to a repair shop. 
 
 - **Pay:** $150 plus $120 per km of the tow, 25 % more with a flat tire, more for harder jobs and for your level (see below). The server can change it (`client.jobPay`).
 - **Damage costs:** new damage on the way costs part of the pay, up to half of it. Dragging the car along on the rope is allowed, but it usually costs more than loading it.
-- **Your job on the phone:** the Jobs app shows your job with its steps (*Pick up → Tow → Paid*), the distance and **Route** to set the route again. The Tow app shows it in a small strip at the top.
+- **Your job on the phone:** the Jobs app shows your job with its steps (*Pick up → Tow → Paid*), the distance and **Route** to set the route again. The Tow and Straps apps show it in a small strip at the top.
 - **Give up** in the Jobs app removes the car; the job is open again for everyone. If you leave the server or don't finish within 30 minutes, it is open again too.
 - New jobs come in by themselves. There are always some for everyone on the server: 3 open jobs for beginners and 3 at the highest level each player has reached. They appear only on normal roads and never right next to a player.
 

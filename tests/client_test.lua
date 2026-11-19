@@ -3792,7 +3792,35 @@ end)()
 	check(messages[#messages] == "Strapped down" and #sharedCareer_rope.list(sharedCareer_rope.STRAP) == 4, "four corners: strapped down")
 	straps.uiRemoveAll()
 	check(#sharedCareer_rope.list() == 0, "Remove all")
-	-- the tow rope and the straps live side by side
+	-- the tow rope and the straps live side by side: a car hauled up onto the truck is strapped down
+	-- from the Tow app, onto the truck the rope is hooked on only
+	local tow = sharedCareer_tow
+	local other = placed(74, 3, 0, 0.5)
+	check(tow.uiAttachVehicle(70), "tow rope on the car")
+	local towId = tow.rope().id
+	sharedCareer_rope.onRopeTied(70, towId, 0, 0, 2, 1.5, 5)
+	check(not tow.appState().strapDown, "not hooked on yet: no Strap down")
+	sharedCareer_rope.hook(tow.rope(), 71, 11)
+	sharedCareer_rope.onAnchorNode(71, towId, 11, 0)
+	tow.setWinch(1)
+	frames(1)
+	check(tow.rope().length == 1 and not tow.appState().strapDown, "winch hauling in: no Strap down")
+	tow.setWinch(0)
+	check(tow.appState().strapDown, "pulled up and stopped: Strap down")
+	check(tow.uiStrapDown(), "Strap down from the Tow app")
+	req = last(car, "strapCorners").nums[1]
+	straps.onStrapCorners(70, req, "1,-0.9,2,1;2,0.9,2,1;3,-0.9,-2,1;4,0.9,-2,1")
+	check(last(truck, "hookBelow").nums[1] == req and #calls(other, "hookBelow") == 0,
+		"only the truck the rope is hooked on is asked")
+	straps.onHookBelow(71, req, "1,11,0.1;2,12,0.1;3,13,0.1;4,14,0.1")
+	for _, t in ipairs(calls(car, "ropeTieNode")) do sharedCareer_rope.onRopeTied(70, t.nums[1], 0, 0, 0, 1, t.nums[3]) end
+	check(straps.isStrapped(70) and not tow.appState().strapDown, "strapped: the button is gone")
+	-- the Straps app takes the tow rope off
+	check(straps.appState().towRope, "Straps app: Remove rope")
+	straps.uiRemoveRope()
+	check(tow.rope() == nil and not straps.appState().towRope and #sharedCareer_rope.list(sharedCareer_rope.STRAP) == 4,
+		"Remove rope: the rope is off, the straps stay")
+	straps.uiRemoveAll()
 	sharedCareer_phone.uiCloseApp("straps")
 	sharedCareer_util.toast = realToast
 	_G.core_camera, _G.debugDrawer = nil, nil

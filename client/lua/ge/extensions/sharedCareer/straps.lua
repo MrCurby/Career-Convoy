@@ -15,6 +15,10 @@
 --                shows where it hooks on, a dashed line runs from the car to it, red while it is
 --                too far) -> "Here". "Cancel" in between takes it off again
 --   the list     every strap with a dot for its load (green, yellow, red); remove one, or all
+--   Remove rope  while the tow rope (Tow app) is still on a strapped car: takes it off, so you
+--                don't need to go back to the Tow app
+-- The Tow app has its own "Strap down" (strapOnto): once the car on the rope is pulled up onto the
+-- vehicle the rope is hooked on, it straps it onto that vehicle, without aiming.
 --
 -- What you see: straps are a wide yellow band (rope.lua) with a ratchet at the lower end – a
 -- dark block with a yellow lever. They turn orange and red as their load gets close to breaking.
@@ -97,19 +101,36 @@ local function cargoInView()
 	return found
 end
 
+-- Four straps at the corners of a car: onto `carrier` only, or with nil onto any of your vehicles
+-- near it.
+local function strapCar(cargo, carrier)
+	if not R.allowed() then return false, "Ropes are off on this server" end
+	if pending then return false end
+	if strapCount(cargo) > 0 then return false, "Already strapped" end
+	if strapCount() + 4 > MAX_STRAPS then return false, "Too many straps" end
+	pending = {req = nextReq, cargo = cargo, carrier = carrier, at = clock, asked = {}, best = {}}
+	nextReq = nextReq + 1
+	R.sendToVehicle(cargo, string.format("sharedCareerVeh.strapCorners(%d)", pending.req))
+	return true
+end
+
 --- Strap down: four straps at the corners of the car you look at.
 function M.strapDown()
 	if not R.allowed() then return false, "Ropes are off on this server" end
-	if pending then return false end
 	local found, err = cargoInView()
 	if not found then return false, err end
-	if strapCount(found.id) > 0 then return false, "Already strapped" end
-	if strapCount() + 4 > MAX_STRAPS then return false, "Too many straps" end
-	pending = {req = nextReq, cargo = found.id, at = clock, asked = {}, best = {}}
-	nextReq = nextReq + 1
-	R.sendToVehicle(found.id, string.format("sharedCareerVeh.strapCorners(%d)", pending.req))
-	return true
+	return strapCar(found.id)
 end
+
+--- Strap a car down onto one vehicle (the Tow app: the car on the rope onto the vehicle the rope is
+--- hooked on).
+function M.strapOnto(cargo, carrier) return strapCar(cargo, carrier) end
+
+--- The car has straps on.
+function M.isStrapped(cargo) return strapCount(cargo) > 0 end
+
+--- A Strap down is waiting for the vehicles' answers.
+function M.busy() return pending ~= nil end
 
 -- All answers are in (or the time is up): tie a strap at each corner that has a point below it.
 local function finishStrapDown()
@@ -158,7 +179,8 @@ function M.onStrapCorners(id, req, list)
 		local veh = be:getObject(i)
 		local vid = veh and type(veh.getID) == "function" and veh:getID()
 		local p = vid and type(veh.getPosition) == "function" and R.vecOf(veh:getPosition())
-		if p and R.canHold(veh, vid, id) and R.distance(p, at) <= CARRIER_SEARCH then
+		if p and (not pending.carrier or vid == pending.carrier) and R.canHold(veh, vid, id)
+			and R.distance(p, at) <= CARRIER_SEARCH then
 			pending.asked[vid] = true
 			R.sendToVehicle(vid, string.format("sharedCareerVeh.hookBelow(%d, %q)", req, table.concat(text, ";")))
 		end
@@ -226,9 +248,19 @@ end
 
 --== Straps app (phone) ============================================================
 
+-- The tow rope (Tow app), while it is on a car that has straps: then the Straps app offers to
+-- take it off.
+local function towRopeOnStrapped()
+	local tow = U.ext("sharedCareer_tow")
+	local r = tow and tow.rope()
+	if r and strapCount(r.veh) > 0 then return r end
+	return nil
+end
+
 --- State for the Straps app.
 function M.appState()
-	local state = {allowed = R.allowed(), step = pick and pick.step or 0, busy = pending ~= nil, straps = {}}
+	local state = {allowed = R.allowed(), step = pick and pick.step or 0, busy = pending ~= nil, straps = {},
+		towRope = towRopeOnStrapped() ~= nil}
 	if pick and pick.step == 2 then
 		local a, p = R.gripNow(pick.rope), R.probeResult()
 		state.aimed = p ~= nil and p.mode == "hook"
@@ -272,6 +304,11 @@ function M.uiHere() return tell(M.here()) end
 function M.uiCancel() M.cancel(); pushApp() end
 function M.uiRemove(rid) R.release(R.get(tonumber(rid))); pushApp() end
 function M.uiRemoveAll() M.cancel(); R.releaseAll(R.STRAP); pushApp() end
+--- The tow rope comes off the strapped car.
+function M.uiRemoveRope()
+	if towRopeOnStrapped() then U.ext("sharedCareer_tow").release() end
+	pushApp()
+end
 
 local function registerPhoneApp()
 	local phone = U.ext("sharedCareer_phone")

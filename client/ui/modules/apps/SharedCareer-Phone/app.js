@@ -242,10 +242,15 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 		if (a.phase === 'checking') return 'Handing over…';
 		return a.text || '';
 	};
-	// short, for the job strip in the Tow app
+	// short, for the job strip above the Tow and Straps apps
 	$scope.jobStepText = function () {
 		var a = $scope.jobs.active;
 		return a ? (a.short || '') : '';
+	};
+	// the job strip above the Tow and Straps apps, while you are on the way to the shop
+	$scope.jobStripShown = function () {
+		var id = $scope.currentApp && $scope.currentApp.id;
+		return (id === 'tow' || id === 'straps') && !!$scope.jobs.active && !$scope.jobPaid();
 	};
 	$scope.openJobs = function () { var app = appById('jobs'); if (app) $scope.openApp(app); };
 	$scope.$on('SharedCareerJobs', function (event, data) {

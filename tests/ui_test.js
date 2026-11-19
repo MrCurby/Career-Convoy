@@ -140,7 +140,7 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 	phone.emit('SharedCareerTow', {allowed: true, attached: true, slack: true, winch: 0, strain: 0.3, ropeLoad: 0});
 	check(!phone.segStyle(0).background && phone.winchText() === 'Locked' && phone.ropeState().text === 'Slack',
 		'winch stopped: "Locked", empty segments; rope "Slack"');
-	// Jobs app (beta): list, your job, the steps; the strip in the Tow app opens it. What a job shows
+	// Jobs app (beta): list, your job, the steps; the strip above the Tow and Straps apps opens it. What a job shows
 	// comes from its job type (jobs.lua appState); the window only lays it out.
 	phone.emit('SharedCareerPhone', {enabled: true, apps: [{id: 'jobs', title: 'Jobs', beta: true}, {id: 'tow'}, {id: 'fuel'}]});
 	phone.emit('SharedCareerJobs', {enabled: true, open: 1, sections: [{type: 'tow', name: 'Towing', icon: 'tow', open: 1,
@@ -171,6 +171,11 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 		&& phone.jobs.active.tags.length === 0 && !phone.jobPaid(), 'your job, step 1: the texts of its job type');
 	phone.emit('SharedCareerJobs', {enabled: true, jobs: [], active: active({phase: 'running', step: 1, short: 'In the ring – wait'})});
 	check(phone.jobStep() === 1 && phone.jobStepText() === 'In the ring – wait', 'step 2');
+	phone.openApp({id: 'straps'});
+	const inStraps = phone.jobStripShown();
+	phone.openApp({id: 'fuel'});
+	check(inStraps && !phone.jobStripShown(), 'the job strip: above the Tow and Straps apps, not in Fuel');
+	phone.goHome();
 	phone.emit('SharedCareerJobs', {enabled: true, jobs: [], active: active({phase: 'checking', step: 1})});
 	check(phone.jobText() === 'Handing over…', 'handed over: waiting for the server');
 	phone.emit('SharedCareerJobs', {enabled: true, jobs: [], active: active({phase: 'paid', step: 2})});
