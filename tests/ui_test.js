@@ -140,7 +140,7 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 	phone.emit('SharedCareerTow', {allowed: true, attached: true, slack: true, winch: 0, strain: 0.3, ropeLoad: 0});
 	check(!phone.segStyle(0).background && phone.winchText() === 'Locked' && phone.ropeState().text === 'Slack',
 		'winch stopped: "Locked", empty segments; rope "Slack"');
-	// Jobs app (beta): list, your job, the steps; the strip in the Tow app opens it
+	// Jobs app (beta): list, your job, the steps; the strip above the Tow and Straps apps opens it
 	phone.emit('SharedCareerPhone', {enabled: true, apps: [{id: 'jobs', title: 'Jobs', beta: true}, {id: 'tow'}, {id: 'fuel'}]});
 	phone.emit('SharedCareerJobs', {enabled: true, jobs: [
 		{id: 1, vehicle: 'Gavril Grand Marshal', dest: 'Belasco Auto', pay: 600, state: 'open', length: 2600, distance: 1200},
@@ -154,6 +154,11 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 	phone.emit('SharedCareerJobs', {enabled: true, jobs: [], active: {id: 3, vehicle: 'Gavril D-Series', dest: 'Belasco Auto',
 		pay: 820, phase: 'toDestination', inZone: true}});
 	check(phone.jobStep() === 1 && phone.jobStepText() === 'In the ring – wait', 'step 2: tow it; in the drop-off ring: wait');
+	phone.openApp({id: 'straps'});
+	const inStraps = phone.jobStripShown();
+	phone.openApp({id: 'fuel'});
+	check(inStraps && !phone.jobStripShown(), 'the job strip: above the Tow and Straps apps, not in Fuel');
+	phone.goHome();
 	phone.emit('SharedCareerJobs', {enabled: true, jobs: [], active: {id: 3, vehicle: 'Gavril D-Series', dest: 'Belasco Auto',
 		pay: 820, phase: 'paid'}});
 	check(phone.jobStep() === 2 && phone.jobText().indexOf('Done') === 0, 'step 3: paid');
