@@ -251,7 +251,7 @@ Every job you finish gives you **XP**, and with enough XP you reach the next **l
 
 - **More pay:** every level above 1 adds 5 % to your pay. Everyone sees their own pay on a job.
 - **XP:** a harder job gives more XP (40, 70, 110, 160). Damage costs XP as it costs pay. A job two or more kinds below your best gives only half the XP, so the easy ones are left for beginners.
-- The game's own career XP grows too (BeamXP and the Labourer branch).
+- The game's own career XP grows too (BeamXP and the Commercial branch).
 - Your level is kept by the server, per server. A new save keeps it; the server owner can reset it (`sc levels reset <name>`).
 
 ## Phone

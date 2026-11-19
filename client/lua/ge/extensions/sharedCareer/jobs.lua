@@ -6,8 +6,10 @@
 --   id               short name, sent with every job ("tow")
 --   name             its name in the Jobs app ("Towing") and in the money history ("Towing job: <title>")
 --   icon             the icon of its jobs in the Jobs app (a name the app knows, e.g. "tow")
---   branch           optional: the career branch whose XP a job also gives ("labourer"), next to
---                    the game's BeamXP – only if the career has that attribute
+--   branch           optional: the career branch whose XP a job also gives, next to the game's
+--                    BeamXP ("commercial"): the branch whose attribute key, id or path id is or
+--                    ends with it (career_branches; the names change between game versions).
+--                    No branch XP if the career has no such branch
 --   steps            the steps of a job in the Jobs app, e.g. {"Pick up", "Tow", "Paid"}; the last
 --                    one is reached when the pay arrives
 --   generate(tier)   makes up a job of this tier (1 easy .. 4 hard, see main.lua "Job levels") on
@@ -267,6 +269,21 @@ end
 -- A payout for a finished job: {payout, job, type, title, pay, deduction, xp}. Credited and saved,
 -- then confirmed (sc_jobPaidAck); without the confirmation the server sends it again (also after a
 -- reconnect). The XP also go to the career: BeamXP and the job type's branch, if the career has them.
+
+-- The career's attribute key of a branch (see "branch" at the top), or nil.
+local function branchKey(name)
+	local branches = rawget(_G, "career_branches")
+	if type(name) ~= "string" or not branches or type(branches.getSortedBranches) ~= "function" then return nil end
+	local ok, list = pcall(branches.getSortedBranches)
+	if not ok or type(list) ~= "table" then return nil end
+	local function fits(v) return type(v) == "string" and (v == name or v:sub(-#name - 1) == "/" .. name or v:sub(-#name - 1) == "-" .. name) end
+	for _, b in ipairs(list) do
+		if type(b) == "table" and type(b.attributeKey) == "string" and (fits(b.attributeKey) or fits(b.id) or fits(b.pathId)) then
+			return b.attributeKey
+		end
+	end
+	return nil
+end
 local function rxPaid(data)
 	local msg = U.decode(data)
 	local pay = msg and tonumber(msg.pay)
@@ -288,7 +305,8 @@ local function rxPaid(data)
 	end
 	if xp > 0 then
 		if has("beamXP") then change.beamXP = xp end
-		if t and type(t.branch) == "string" and has(t.branch) then change[t.branch] = xp end
+		local key = t and branchKey(t.branch)
+		if key and has(key) then change[key] = xp end
 	end
 	if pay > 0 or xp > 0 then
 		local ok, err = pcall(attributes.addAttributes, change, {tags = {"gameplay"}, label = label})
@@ -497,25 +515,28 @@ function M.onVehicleResetted(id)
 	end
 end
 
--- The career save's folder, or nil.
-local function savePath()
-	local saveSystem = rawget(_G, "career_saveSystem")
-	if not saveSystem or type(saveSystem.getCurrentSaveSlot) ~= "function" then return nil end
-	local ok, _, path = pcall(saveSystem.getCurrentSaveSlot)
-	return ok and type(path) == "string" and path or nil
+-- The career save's folder: the game names it when it loads a profile (career_saveSystem).
+local savePath = nil
+
+function M.onSetProfile(currentSavePath)
+	savePath = type(currentSavePath) == "string" and currentSavePath or nil
 end
 
--- The game saves the career: a copy of your levels goes with it.
-function M.onSaveCurrentSaveSlot(currentSavePath)
-	if type(currentSavePath) ~= "string" or not next(levels) or type(jsonWriteFile) ~= "function" then return end
-	local ok, err = pcall(jsonWriteFile, currentSavePath .. LEVELS_FILE, {version = 1, levels = levels}, true)
+-- The game saves the career: a copy of your levels goes with it (written like the career's own files).
+function M.onSaveCurrentProfile(currentSavePath)
+	if type(currentSavePath) ~= "string" or not next(levels) then return end
+	savePath = currentSavePath
+	local saveSystem = rawget(_G, "career_saveSystem")
+	local write = saveSystem and type(saveSystem.jsonWriteFileSafe) == "function" and saveSystem.jsonWriteFileSafe or rawget(_G, "jsonWriteFile")
+	if type(write) ~= "function" then return end
+	local ok, err = pcall(write, currentSavePath .. LEVELS_FILE, {version = 1, levels = levels}, true)
 	if not ok then U.log("W", "jobs", "could not save the job levels: " .. tostring(err)) end
 end
 
 function M.onCareerActive(on)
 	if on and U.isMP() then
 		-- the copy in the save, until the server's list arrives
-		local path = savePath()
+		local path = savePath
 		if path and not next(levels) and type(jsonReadFile) == "function" then
 			local ok, saved = pcall(jsonReadFile, path .. LEVELS_FILE)
 			if ok and type(saved) == "table" and type(saved.levels) == "table" then levels = saved.levels end

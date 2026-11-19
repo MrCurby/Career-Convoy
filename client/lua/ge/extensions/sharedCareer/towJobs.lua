@@ -93,7 +93,7 @@ local HEAVY_MODELS = {"pickup", "van", "roamer"}
 M.id = "tow"
 M.name = "Towing"
 M.icon = "tow"
-M.branch = "labourer"
+M.branch = "commercial"
 M.steps = {"Pick up", "Tow", "Paid"}
 
 local clock = 0

@@ -170,7 +170,7 @@ local function installCareer(opts)
 		end,
 	}
 	local money = opts.money or 1000
-	local xp = {beamXP = 0, labourer = 0} -- the career's own XP attributes
+	local xp = {beamXP = 0, apmCommercial = 0} -- the career's own XP attributes
 	_G.career_modules_playerAttributes = {
 		getAttribute = function(k)
 			if k == "money" then return {value = money} end
@@ -2949,17 +2949,17 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	check(sec.level.level == 4 and math.abs(sec.level.share - 80 / 280) < 1e-9 and sec.level.toGo == 200,
 		"your towing level: 4, the ring part way, 200 XP to go")
 	-- the levels go with the career save, and come back from it before the server's list
-	_G.career_saveSystem.getCurrentSaveSlot = function() return "slot1", "/saves/slot1" end
 	local saved = {}
-	_G.jsonWriteFile = function(path, data) saved[path] = json.decode(json.encode(data)); return true end
-	extensions.hook("onSaveCurrentSaveSlot", "/saves/slot1")
+	_G.career_saveSystem.jsonWriteFileSafe = function(path, data) saved[path] = json.decode(json.encode(data)); return true end
+	extensions.hook("onSetProfile", "/saves/slot1", "ben")
+	extensions.hook("onSaveCurrentProfile", "/saves/slot1")
 	check(saved["/saves/slot1/career/sharedCareerJobLevels.json"].levels.tow.level == 4, "saving the career: a copy of the levels goes with it")
 	jobs.onBeamMPServerLeave()
 	local readFile = _G.jsonReadFile
 	_G.jsonReadFile = function(path) return saved[path] or readFile(path) end
 	extensions.hook("onCareerActive", true)
 	check(jobs.appState().sections[1].level.level == 4, "next career start: the saved levels show until the server's list comes")
-	_G.jsonReadFile, _G.jsonWriteFile, _G.career_saveSystem.getCurrentSaveSlot = readFile, nil, nil
+	_G.jsonReadFile, _G.career_saveSystem.jsonWriteFileSafe = readFile, nil
 	sendList("open")
 	jobs.uiTake(7)
 	check(lastSent("sc_jobTake").id == 7, "take: asks the server")
@@ -3014,13 +3014,19 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 		"career not running (loading): not credited, not confirmed, the server sends it again")
 	career_career.isActive = realIsActive
 	local savesBefore = world.saved or 0
+	_G.career_branches = {getSortedBranches = function()
+		return {{id = "motorsport", attributeKey = "apmMotorsport", pathId = "apm/motorsport"},
+			{id = "apmCommercial", attributeKey = "apmCommercial", pathId = "apm/commercial"}}
+	end}
 	handlers.sc_jobPaid(payout)
+	_G.career_branches = nil
 	check(career_modules_playerAttributes.money() == 1450 and lastToastMsg():find("%+%$450") and lastToastMsg():find("%$150 damage"),
 		"paid: +$450 in the career, the deduction is shown")
 	check(world.moneyLabel == "Towing job: Gavril Grand Marshal" and jobs.appState().active.step == 2,
 		"in the money history as a towing job; the last step (paid)")
 	check(lastToastMsg():find("%+30 XP") and career_modules_playerAttributes.xp("beamXP") == 30
-		and career_modules_playerAttributes.xp("labourer") == 30, "the XP are shown and go to the career's BeamXP and labourer branch")
+		and career_modules_playerAttributes.xp("apmCommercial") == 30,
+		"the XP are shown and go to the career's BeamXP and its commercial branch (found by its path id)")
 	check((world.saved or 0) == savesBefore + 1 and lastSent("sc_jobPaidAck").payout == "p-7",
 		"the career is saved, then the server gets the confirmation")
 	local function acks()
