@@ -453,12 +453,12 @@ sc_fuelDelivered(1, json.encode({station = "apex", fuel = "gasoline", amount = 1
 check(countTo(0, "sc_fuelPrices") == fpCount, "switched off: deliveries change nothing")
 onConsoleInput("sc set server.fuelEconomy true")
 
---== Towing jobs (beta) ==
+--== Jobs (beta) ==
 do
 	local function offer(from, pay)
-		sc_jobOffer(from, json.encode({vehicle = {model = "fullsize", config = "base", name = "Gavril Grand Marshal"},
-			flatTire = true, pos = {x = 100, y = 200, z = 10}, dir = {x = 1, y = 0},
-			dest = {name = "Belasco Auto", pos = {x = 1100, y = 200, z = 12}}, length = 1300, pay = pay or 480}))
+		sc_jobOffer(from, json.encode({type = "tow", title = "Gavril Grand Marshal", pos = {x = 100, y = 200, z = 10},
+			dest = {name = "Belasco Auto", pos = {x = 1100, y = 200, z = 12}}, length = 1300, pay = pay or 480,
+			data = {vehicle = {model = "fullsize", config = "base"}, flatTire = true, dir = {x = 1, y = 0}}}))
 	end
 	local function jobsOf(id) return lastTo(id, "sc_jobs") end
 	onConsoleInput("sc jobs reset")
@@ -472,15 +472,29 @@ do
 	offer(0)
 	local list = jobsOf(1).jobs
 	check(#list == 1 and list[1].state == "open" and list[1].pay == 480 and list[1].dest.name == "Belasco Auto"
-		and list[1].flatTire == true, "a made-up job goes to everyone")
+		and list[1].type == "tow" and list[1].title == "Gavril Grand Marshal" and list[1].data.flatTire == true
+		and list[1].data.vehicle.model == "fullsize", "a made-up job goes to everyone, with its type's own fields")
 	local id = list[1].id
 	offer(0); offer(1)
 	offer(0) -- fourth: more than server.jobsOpen (3)
 	check(#jobsOf(1).jobs == 3, "at most server.jobsOpen open jobs")
-	local before = #jobsOf(1).jobs
-	sc_jobOffer(0, json.encode({vehicle = {model = "x"}, pos = {x = "a"}}))
+	onConsoleInput("sc jobs reset")
+	sc_jobOffer(0, json.encode({type = "tow", title = "x", pos = {x = "a"}}))
 	sc_jobOffer(0, "broken{")
-	check(#jobsOf(1).jobs == before, "invalid offers are ignored")
+	local valid = {type = "tow", title = "x", pos = {x = 1, y = 2, z = 3}, dest = {pos = {x = 4, y = 5, z = 6}}, length = 1, pay = 1}
+	local function without(key, value)
+		local o = {}
+		for k, v in pairs(valid) do o[k] = v end
+		o[key] = value
+		return json.encode(o)
+	end
+	sc_jobOffer(0, without("type", nil))
+	sc_jobOffer(0, without("type", "no spaces"))
+	sc_jobOffer(0, without("title", nil))
+	sc_jobOffer(0, without("data", {text = string.rep("x", 3000)}))
+	check(#jobsOf(1).jobs == 0, "invalid offers are ignored (also without a type or title, or with too much data)")
+	sc_jobOffer(0, without("data", nil))
+	check(#jobsOf(1).jobs == 1 and jobsOf(1).jobs[1].dest.name == "Destination", "a job without own fields or a destination name is fine")
 	onConsoleInput("sc jobs reset")
 	offer(0, 999999)
 	check(jobsOf(0).jobs[1].pay == 5000, "the pay is capped at server.jobPayMax")
@@ -503,8 +517,8 @@ do
 	sc_jobDone(1, json.encode({id = id, pay = 999999}))
 	local paid = lastTo(1, "sc_jobPaid")
 	check(paid and paid.job == id and paid.pay == 480 and type(paid.payout) == "string"
-		and paid.vehicle == "Gavril Grand Marshal", "finished: paid to Ben, at most the job's pay")
-	check(lastChat(0):find("Ben towed a Gavril Grand Marshal to Belasco Auto") ~= nil, "the others hear about it")
+		and paid.type == "tow" and paid.title == "Gavril Grand Marshal", "finished: paid to Ben, at most the job's pay")
+	check(lastChat(0):find("Ben brought the Gavril Grand Marshal to Belasco Auto") ~= nil, "the others hear about it")
 	local function storedPayouts()
 		local f = io.open(tmpPayouts)
 		if not f then return {} end

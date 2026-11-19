@@ -777,7 +777,7 @@ end
 --== Towing jobs: the broken-down vehicle ========================================
 -- jobBreakDown(flatTire): engines off and disabled (they don't start again), neutral, parking brake
 -- off (so it can be towed or rolled), hazard lights on, optionally a flat tire. Reports
--- sharedCareer_jobs.onJobBrokenDown(id, damage) with the damage so far (beamstate.damage), so the
+-- sharedCareer_towJobs.onJobBrokenDown(id, damage) with the damage so far (beamstate.damage), so the
 -- job can tell new damage at the drop-off (jobReportDamage -> onJobDamage). Every step is
 -- optional: a vehicle without one of them breaks down without it.
 
@@ -787,7 +787,7 @@ end
 
 local function reportToJobs(fn, value)
 	if type(obj.queueGameEngineLua) ~= "function" then return end
-	obj:queueGameEngineLua(string.format("if sharedCareer_jobs then sharedCareer_jobs.%s(%d, %.1f) end", fn, obj:getId(), value))
+	obj:queueGameEngineLua(string.format("if sharedCareer_towJobs then sharedCareer_towJobs.%s(%d, %.1f) end", fn, obj:getId(), value))
 end
 
 function M.jobBreakDown(flatTire)

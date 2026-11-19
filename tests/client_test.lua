@@ -172,7 +172,10 @@ local function installCareer(opts)
 	local money = opts.money or 1000
 	_G.career_modules_playerAttributes = {
 		getAttribute = function(k) return k == "money" and {value = money} or nil end,
-		addAttributes = function(change) money = money + (change.money or 0) end,
+		addAttributes = function(change, reason)
+			money = money + (change.money or 0)
+			world.moneyLabel = type(reason) == "table" and reason.label or nil
+		end,
 		money = function() return money end,
 	}
 end
@@ -2790,7 +2793,7 @@ check(sharedCareer_core.getConfig() == nil and not sharedCareer_core.isStarted()
 check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue("simplifyRemoteVehicles") == false,
 	"the player's own settings restored")
 
---== 10. Towing jobs (beta) =====================================================
+--== 10. Jobs (beta): towing jobs, and a job type of the tests ===================
 -- (in a function of its own: the main chunk is at Lua's limit of 200 local variables)
 ;(function()
 	resetWorld()
@@ -2845,30 +2848,30 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 		for i = #toasts, 1, -1 do if toasts[i].msg then return toasts[i].msg end end
 		return ""
 	end
-	local jobs = sharedCareer_jobs
+	local jobs, tow = sharedCareer_jobs, sharedCareer_towJobs
 
 	-- making up a job: on a normal road, off the road, far from every vehicle, a shop 0.8-6 km away
-	check(jobs.payFor(1000, false) == 270 and jobs.payFor(1000, true) == 340, "pay: $150 + $120 per km, a flat tire pays 25 % more")
+	check(tow.payFor(1000, false) == 270 and tow.payFor(1000, true) == 340, "pay: $150 + $120 per km, a flat tire pays 25 % more")
 	handlers.sc_jobGenerate("")
 	check(lastSent("sc_jobOffer") == nil, "before the server's job list (jobs on?) no job is made up")
 	handlers.sc_jobs(json.encode({enabled = true, jobs = {}}))
 	handlers.sc_jobGenerate("")
 	local offer = lastSent("sc_jobOffer")
-	check(offer and offer.vehicle.model == "fullsize" and offer.vehicle.config == "base" and offer.vehicle.name == "Gavril Grand Marshal",
-		"made up a job with an old car from the career's delivery filter")
+	check(offer and offer.type == "tow" and offer.title == "Gavril Grand Marshal" and offer.data.vehicle.model == "fullsize"
+		and offer.data.vehicle.config == "base", "made up a towing job with an old car from the career's delivery filter")
 	local okAll = true
 	for _ = 1, 60 do
-		local job = jobs.generate()
+		local job = tow.generate()
 		local destDist = math.sqrt((job.dest.pos.x - job.pos.x) ^ 2 + (job.dest.pos.y - job.pos.y) ^ 2)
 		if math.abs(math.abs(job.pos.y) - 5.8) > 1e-6 or job.pos.x < 350 or destDist < 800 or destDist > 6000
-			or job.pay ~= jobs.payFor(job.length, job.flatTire) then
+			or job.pay ~= tow.payFor(job.length, job.data.flatTire) then
 			okAll = false
 		end
 	end
 	check(okAll, "places: always beside the road (5.8 m from its middle), never near a vehicle or on a dirt track; shop 0.8-6 km away")
 	cfgJ.jobPay = 2
 	handlers.sc_configUpdate(json.encode(cfgJ))
-	check(jobs.payFor(1000, false) == 540, "client.jobPay doubles the pay")
+	check(tow.payFor(1000, false) == 540, "client.jobPay doubles the pay")
 	cfgJ.jobPay = 1
 	handlers.sc_configUpdate(json.encode(cfgJ))
 	local sentBefore = #sentToServer
@@ -2879,9 +2882,9 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	freeroam_facilities.getFacilities = realFacilities
 
 	-- the list arrives: the Jobs app (beta) is on the phone
-	local job = {id = 7, vehicle = {model = "fullsize", config = "base", name = "Gavril Grand Marshal"}, flatTire = true,
-		pos = {x = 2000, y = -5.8, z = 10}, dir = {x = 1, y = 0}, dest = {name = "Belasco Auto", pos = doors.belasco},
-		length = 2600, pay = 600}
+	local job = {id = 7, type = "tow", title = "Gavril Grand Marshal", pos = {x = 2000, y = -5.8, z = 10},
+		dest = {name = "Belasco Auto", pos = doors.belasco}, length = 2600, pay = 600,
+		data = {vehicle = {model = "fullsize", config = "base"}, flatTire = true, dir = {x = 1, y = 0}}}
 	local function sendList(state)
 		local j = json.decode(json.encode(job))
 		j.state = state
@@ -2894,6 +2897,8 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	local st = jobs.appState()
 	check(st.enabled and #st.jobs == 1 and st.jobs[1].state == "open" and math.abs(st.jobs[1].distance - 2000) < 20,
 		"the app lists the job with its distance from you")
+	check(st.jobs[1].icon == "tow" and st.jobs[1].title == "Gavril Grand Marshal" and #st.jobs[1].tags == 2
+		and st.jobs[1].tags[2].text == "Flat tire", "its icon, title and tags come from the towing job type")
 	jobs.uiTake(7)
 	check(lastSent("sc_jobTake").id == 7, "take: asks the server")
 	sendList("mine")
@@ -2909,16 +2914,18 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	local cmds = #spawnedVeh.lua
 	for _ = 1, 35 do update(0.1) end
 	check(#spawnedVeh.lua > cmds and lastCmd(spawnedVeh):find("jobBreakDown"), "no answer from the vehicle: broken down again")
-	jobs.onJobBrokenDown(80, 100)
+	tow.onJobBrokenDown(80, 100)
+	local a = jobs.appState().active
+	check(a.step == 0 and a.text == "to the Gavril Grand Marshal" and a.steps[1] == "Pick up" and a.hint, "step 1: drive to it")
 	-- close to it: the route goes to the shop
 	me.p = {x = 1990, y = -20, z = 10}
 	for _ = 1, 3 do update(0.1) end
-	check(paths[#paths].x == 4000 and jobs.appState().active.phase == "toDestination", "near the vehicle: route to the repair shop")
+	check(paths[#paths].x == 4000 and jobs.appState().active.step == 1, "near the vehicle: route to the repair shop")
 	-- a reset repairs it: broken down again
 	cmds = #spawnedVeh.lua
 	extensions.hook("onVehicleResetted", 80)
 	check(#spawnedVeh.lua == cmds + 1 and lastCmd(spawnedVeh):find("jobBreakDown%(true%)"), "reset (R): broken down again")
-	jobs.onJobBrokenDown(80, 100)
+	tow.onJobBrokenDown(80, 100)
 	-- at the shop: someone inside doesn't count; standing still and empty for 3 s does
 	spawnedVeh.p = {x = 4005, y = 52, z = 10}
 	world.playerVeh = 80
@@ -2931,12 +2938,12 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	spawnedVeh.v = {x = 0, y = 0, z = 0}
 	for _ = 1, 35 do update(0.1) end
 	check(lastCmd(spawnedVeh):find("jobReportDamage"), "standing still in the zone for 3 s: the vehicle is asked for its damage")
-	jobs.onJobDamage(80, 100 + 20000)
+	tow.onJobDamage(80, 100 + 20000)
 	update(0.3)
 	local done = lastSent("sc_jobDone")
 	check(done and done.id == 7 and done.pay == 450, "new damage costs part of the pay (half the max: 25 %, $600 -> $450)")
 	-- paid by the server: money in the career, the vehicle goes away a few seconds later
-	local payout = json.encode({payout = "p-7", job = 7, pay = 450, vehicle = "Gavril Grand Marshal"})
+	local payout = json.encode({payout = "p-7", job = 7, type = "tow", title = "Gavril Grand Marshal", pay = 450})
 	local realIsActive = career_career.isActive
 	career_career.isActive = function() return false end
 	handlers.sc_jobPaid(payout)
@@ -2947,6 +2954,8 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	handlers.sc_jobPaid(payout)
 	check(career_modules_playerAttributes.money() == 1450 and lastToastMsg():find("%+%$450") and lastToastMsg():find("%$150 damage"),
 		"paid: +$450 in the career, the deduction is shown")
+	check(world.moneyLabel == "Towing job: Gavril Grand Marshal" and jobs.appState().active.step == 2,
+		"in the money history as a towing job; the last step (paid)")
 	check((world.saved or 0) == savesBefore + 1 and lastSent("sc_jobPaidAck").payout == "p-7",
 		"the career is saved, then the server gets the confirmation")
 	local function acks()
@@ -2968,11 +2977,11 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	me.p = {x = 1990, y = -20, z = 10}
 	for _ = 1, 3 do update(0.1) end
 	local unpaid = spawnedVeh
-	jobs.onJobBrokenDown(80, 0)
+	tow.onJobBrokenDown(80, 0)
 	update(0.3)
 	unpaid.p = {x = 4005, y = 52, z = 10}
 	for _ = 1, 40 do update(0.1) end
-	jobs.onJobDamage(80, 0)
+	tow.onJobDamage(80, 0)
 	update(0.3)
 	check(lastSent("sc_jobDone").id == 10 and jobs.getActive() ~= nil, "handed over, waiting for the server")
 	for _ = 1, 160 do update(0.1) end
@@ -3007,6 +3016,38 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	local third = spawnedVeh
 	sendList("open")
 	check(jobs.getActive() == nil and third.deleted, "taken away by the server: ended, vehicle removed")
+	-- another job type: the core works without anything of the towing jobs
+	local calls = {}
+	local test = {id = "test", name = "Test job", icon = "T", steps = {"Go", "Paid"},
+		generate = function() return {title = "Box", pos = {x = 10, y = 0, z = 0}, dest = {name = "Depot", pos = {x = 20, y = 0, z = 0}},
+			length = 10, pay = 100, data = {weight = 3}} end,
+		tags = function(j) return {{text = j.data.weight .. " t", kind = "load"}} end,
+		start = function(a) table.insert(calls, "start"); a.left = 2 end,
+		step = function(a) a.left = a.left - 1; if a.left <= 0 then jobs.handOver(a, 90, 10) end end,
+		status = function() return {step = 0, text = "to the depot", short = "Bring the box", target = {x = 20, y = 0, z = 0}} end,
+		stop = function() table.insert(calls, "stop") end}
+	jobs.registerType(test)
+	local offers = {}
+	for _ = 1, 4 do
+		local j = jobs.generate()
+		offers[j.type] = (offers[j.type] or 0) + 1
+	end
+	check(offers.tow == 2 and offers.test == 2, "making up jobs: the job types take turns")
+	local tj = {id = 20, type = "test", title = "Box", pos = {x = 10, y = 0, z = 0}, dest = {name = "Depot", pos = {x = 20, y = 0, z = 0}},
+		length = 10, pay = 100, data = {weight = 3}, state = "mine"}
+	handlers.sc_jobs(json.encode({enabled = true, jobs = {tj}}))
+	st = jobs.appState()
+	check(calls[1] == "start" and paths[#paths].x == 20 and st.active.icon == "T" and st.active.tags[1].text == "3 t"
+		and st.active.short == "Bring the box", "a test job: started, route to its target, its texts in the app")
+	for _ = 1, 10 do update(0.1) end
+	check(lastSent("sc_jobDone").id == 20 and lastSent("sc_jobDone").pay == 90, "the job type hands it over")
+	handlers.sc_jobPaid(json.encode({payout = "p-20", job = 20, type = "test", title = "Box", pay = 90}))
+	check(world.moneyLabel == "Test job: Box" and lastToastMsg():find("%$10 damage"), "paid, named after its job type")
+	for _ = 1, 70 do update(0.1) end
+	check(calls[2] == "stop" and jobs.getActive() == nil, "a few seconds later the job ends: the type cleans up")
+	handlers.sc_jobs(json.encode({enabled = true, jobs = {{id = 21, type = "unknown", title = "?", pos = tj.pos, dest = tj.dest,
+		pay = 1, state = "mine"}}}))
+	check(jobs.getActive() == nil and jobs.appState().jobs[1].icon == "?", "a job of a type this client doesn't know: listed, not started")
 	-- switched off on the server: the app goes away
 	cfgJ.ui.jobs = false
 	handlers.sc_configUpdate(json.encode(cfgJ))
@@ -3016,8 +3057,9 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	-- a payout sent again after a reconnect is only confirmed, not credited twice
 	jobs.onBeamMPServerLeave()
 	acksBefore = acks()
+	local moneyBefore = career_modules_playerAttributes.money()
 	handlers.sc_jobPaid(payout)
-	check(career_modules_playerAttributes.money() == 1450 and acks() == acksBefore + 1,
+	check(career_modules_playerAttributes.money() == moneyBefore and acks() == acksBefore + 1,
 		"after a reconnect: a payout sent again is only confirmed")
 	_G.map, _G.freeroam_facilities, _G.jsonReadFile, _G.util_configListGenerator, _G.core_groundMarkers = nil, nil, nil, nil, nil
 end)()
@@ -3045,7 +3087,7 @@ end)()
 	local all = table.concat(calls, ", ")
 	check(all == "engine off, gear 0, parkingbrake 0, hazard true, flat",
 		"breakdown: engine off, neutral, parking brake off, hazard lights, flat tire (" .. all .. ")")
-	check(ge[#ge]:find("sharedCareer_jobs.onJobBrokenDown%(80, 1234%.5%)"), "reports the damage so far")
+	check(ge[#ge]:find("sharedCareer_towJobs.onJobBrokenDown%(80, 1234%.5%)"), "reports the damage so far")
 	veh.jobReportDamage()
 	check(ge[#ge]:find("onJobDamage%(80, 1234%.5%)"), "reports the damage at the drop-off")
 	env.powertrain, env.controller, env.electrics = nil, nil, nil

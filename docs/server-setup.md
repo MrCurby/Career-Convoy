@@ -127,7 +127,7 @@ After an update:
 - **Players** get the new client mod automatically from BeamMP on their next join. If a player still has an old version cached, they see a dialog asking them to restart BeamNG and reconnect.
 - **Settings** in `config/config.json` are kept. Values you never changed move to the new default automatically. Values you changed stay as they are. The server console lists what was changed.
 - **Save game mapping** in `config/profiles.json` is kept.
-- **Unpaid towing jobs** in `config/payouts.json` are kept. A player gets the pay on their next join.
+- **Unpaid jobs** in `config/payouts.json` are kept. A player gets the pay on their next join.
 - A **broken `config.json`**, for example one with a typo, is saved as `config.json.broken` instead of being overwritten.
 
 ## Manual installation and updates

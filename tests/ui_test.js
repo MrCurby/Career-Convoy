@@ -140,23 +140,31 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 	phone.emit('SharedCareerTow', {allowed: true, attached: true, slack: true, winch: 0, strain: 0.3, ropeLoad: 0});
 	check(!phone.segStyle(0).background && phone.winchText() === 'Locked' && phone.ropeState().text === 'Slack',
 		'winch stopped: "Locked", empty segments; rope "Slack"');
-	// Jobs app (beta): list, your job, the steps; the strip in the Tow app opens it
+	// Jobs app (beta): list, your job, the steps; the strip in the Tow app opens it. What a job shows
+	// comes from its job type (jobs.lua appState); the window only lays it out.
 	phone.emit('SharedCareerPhone', {enabled: true, apps: [{id: 'jobs', title: 'Jobs', beta: true}, {id: 'tow'}, {id: 'fuel'}]});
 	phone.emit('SharedCareerJobs', {enabled: true, jobs: [
-		{id: 1, vehicle: 'Gavril Grand Marshal', dest: 'Belasco Auto', pay: 600, state: 'open', length: 2600, distance: 1200},
-		{id: 2, vehicle: 'Ibishu Covet', dest: 'Firwood', pay: 400, state: 'taken', takenBy: 'Ben'}]});
+		{id: 1, icon: 'tow', title: 'Gavril Grand Marshal', tags: [{text: 'Engine failure', kind: 'engine'}, {text: 'Flat tire', kind: 'tire'}],
+			dest: 'Belasco Auto', pay: 600, state: 'open', length: 2600, distance: 1200},
+		{id: 2, icon: 'tow', title: 'Ibishu Covet', dest: 'Firwood', pay: 400, state: 'taken', takenBy: 'Ben'}]});
 	check(phone.jobs.enabled && phone.openJobCount() === 1 && phone.money(1234.4) === '$1,234' && phone.jobStep() === 0,
 		'jobs list: one open, money formatted, no job of your own');
-	phone.emit('SharedCareerJobs', {enabled: true, jobs: [], active: {id: 3, vehicle: 'Gavril D-Series', dest: 'Belasco Auto',
-		pay: 820, phase: 'toVehicle', distance: 900}});
-	check(phone.jobStep() === 0 && phone.jobText() === 'to the Gavril D-Series' && phone.jobStepText() === 'Drive to the breakdown',
-		'your job, step 1: drive to the breakdown');
-	phone.emit('SharedCareerJobs', {enabled: true, jobs: [], active: {id: 3, vehicle: 'Gavril D-Series', dest: 'Belasco Auto',
-		pay: 820, phase: 'toDestination', inZone: true}});
-	check(phone.jobStep() === 1 && phone.jobStepText() === 'In the ring – wait', 'step 2: tow it; in the drop-off ring: wait');
-	phone.emit('SharedCareerJobs', {enabled: true, jobs: [], active: {id: 3, vehicle: 'Gavril D-Series', dest: 'Belasco Auto',
-		pay: 820, phase: 'paid'}});
-	check(phone.jobStep() === 2 && phone.jobText().indexOf('Done') === 0, 'step 3: paid');
+	check(phone.tagLine(phone.jobs.jobs[0]) === 'Engine failure · Flat tire' && phone.tagLine(phone.jobs.jobs[1]) === '',
+		'a job\'s tags in one line');
+	const active = function (more) {
+		return Object.assign({id: 3, icon: 'tow', title: 'Gavril D-Series', dest: 'Belasco Auto', pay: 820,
+			steps: ['Pick up', 'Tow', 'Paid']}, more);
+	};
+	phone.emit('SharedCareerJobs', {enabled: true, jobs: [], active: active({phase: 'running', step: 0,
+		text: 'to the Gavril D-Series', short: 'Drive to the breakdown', distance: 900})});
+	check(phone.jobStep() === 0 && phone.jobText() === 'to the Gavril D-Series' && phone.jobStepText() === 'Drive to the breakdown'
+		&& phone.jobs.active.tags.length === 0 && !phone.jobPaid(), 'your job, step 1: the texts of its job type');
+	phone.emit('SharedCareerJobs', {enabled: true, jobs: [], active: active({phase: 'running', step: 1, short: 'In the ring – wait'})});
+	check(phone.jobStep() === 1 && phone.jobStepText() === 'In the ring – wait', 'step 2');
+	phone.emit('SharedCareerJobs', {enabled: true, jobs: [], active: active({phase: 'checking', step: 1})});
+	check(phone.jobText() === 'Handing over…', 'handed over: waiting for the server');
+	phone.emit('SharedCareerJobs', {enabled: true, jobs: [], active: active({phase: 'paid', step: 2})});
+	check(phone.jobStep() === 2 && phone.jobPaid() && phone.jobText().indexOf('Done') === 0, 'step 3: paid');
 	phone.openJobs();
 	check(phone.currentApp && phone.currentApp.id === 'jobs' && phone.currentApp.beta === true, 'the job strip opens the Jobs app (beta)');
 	phone.goHome();

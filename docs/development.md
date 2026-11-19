@@ -14,7 +14,7 @@
 ```
 client/                          client mod (packed into Resources/Client/SharedCareer.zip)
   lua/ge/extensions/sharedCareer/  game-engine Lua, one file per area (see below)
-  lua/vehicle/extensions/auto/     vehicle Lua (sharedCareerVeh: ghost, AI, ropes, jobs, damage;
+  lua/vehicle/extensions/auto/     vehicle Lua (sharedCareerVeh: ghost, AI, ropes, towing jobs, damage;
                                    sharedCareerPauseGuard: BeamMP's position sync during a pause)
   scripts/sharedCareer/            mod entry point (loads the extensions)
   ui/modules/apps/                 the two UI apps: SharedCareer-Menu (the menu with the steering
@@ -121,7 +121,20 @@ One line per problem. Each file starts with a comment that explains the details.
 | A vehicle wrapped around a lamp post can't be pulled free, and the career's "Tow to road" costs $75 | "To the road" in the Tow app uses the game's own `spawn.teleportToLastRoad`, free, while the vehicle stands still and isn't chased by the police | `tow.lua` |
 | One place for SharedCareer apps | The phone with an app registry (`phone.registerApp`); the UI app is only a tab at the screen edge | `phone.lua`, `ui/…/SharedCareer-Phone` |
 | Sending money to other players | `/pay` as a two-step transfer with refund | `money.lua`, server |
-| Towing jobs (beta) for everyone | The server keeps one job list and asks a client to make up each job (roadside spot, old car, repair shop). The taker spawns the broken-down car (`jobBreakDown`), new damage lowers the pay, and the server pays exactly once, also after a crash or reconnect (`config/payouts.json`, `sc_jobPaid` / `sc_jobPaidAck`) | `jobs.lua`, `sharedCareerVeh.lua`, server, `ui/…/SharedCareer-Phone` |
+| Jobs (beta) for everyone | The server keeps one job list and asks a client to make up each job. What all jobs share (taking, giving up, the route, the Jobs app, a pay that arrives exactly once, also after a crash or reconnect: `config/payouts.json`, `sc_jobPaid` / `sc_jobPaidAck`) is in `jobs.lua`; each kind of job is a job type, see [Job types](#job-types) | `jobs.lua`, server, `ui/…/SharedCareer-Phone` |
+| Towing jobs (the first job type) | A roadside spot, an old car and a repair shop; the taker spawns the broken-down car (`jobBreakDown`), new damage lowers the pay | `towJobs.lua`, `sharedCareerVeh.lua` |
+
+### Job types
+
+The Jobs app knows nothing about towing: `jobs.lua` is the core, and each kind of job is a job type in a file of its own. `towJobs.lua` is the first one and the example to follow. A new job type is:
+
+1. **A file** `client/lua/ge/extensions/sharedCareer/<name>Jobs.lua`, loaded in `modScript.lua` after `jobs`. In `onExtensionLoaded` it calls `sharedCareer_jobs.registerType(M)`.
+2. **What it brings** (the list is at the top of `jobs.lua`): `id`, `name` (for the money history), `icon`, `steps`, and the functions `generate`, `tags`, `start`, `step`, `status`, `stop`, optionally `draw` and `vehicleReset`. Don't use the game's hook names (`onUpdate`, `onVehicleResetted`, …) for them: the game calls those on every extension.
+3. **Its own fields** go into `job.data` (at most 2 KB as JSON). The server checks only what every job has (`type`, `title`, `pos`, `dest`, `length`, `pay`) and passes `data` on.
+4. **When the job is done**, `step` calls `jobs.handOver(a, pay, deduction)`. The core sends it to the server, which pays it once (at most `server.jobPayMax`).
+5. **An icon** in the Jobs app: the job card shows the SVG for `icon` in `app.html` (`scp-job-icon`); without one it shows `icon` as text.
+
+The server needs no change for a new job type. A client that doesn't know a job's type (an older mod version) lists it but doesn't start it. Making up jobs, the job types take turns; `server.jobsOpen` counts all of them.
 
 ### Join flow
 

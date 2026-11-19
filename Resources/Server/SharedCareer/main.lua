@@ -10,7 +10,7 @@
 --   * splits the traffic amount fairly across all players
 --   * runs the clock (time of day, day and night at different speeds) and the traffic light cycle
 --   * handles money transfers between players in two steps (debit first, then credit)
---   * keeps the shared list of towing jobs (beta): every job goes to one player, is paid once
+--   * keeps the shared list of jobs (beta): every job goes to one player, is paid once
 --
 -- Only the BeamMP server API (MP.*, Util.*, FS.*), no game code.
 --
@@ -19,7 +19,7 @@
 --                  with (_defaults; for automatic updates)
 --   profiles.json  BeamMP account ID -> profile name
 --   fuelprices.json station discounts from fuel deliveries (station -> fuel -> %)
---   payouts.json   pay of finished towing jobs the player's client hasn't confirmed yet
+--   payouts.json   pay of finished jobs the player's client hasn't confirmed yet
 --
 -- SERVER CONSOLE COMMANDS
 --   sc help                           short help
@@ -32,7 +32,7 @@
 --   sc time stop | start              pause the clock (time stands still) / let it run again
 --   sc players                        players and whether their career is running
 --   sc fuel | sc fuel reset           show station discounts / reset all of them
---   sc jobs | sc jobs reset           show the towing jobs / drop all of them (new ones follow)
+--   sc jobs | sc jobs reset           show the jobs / drop all of them (new ones follow)
 --   sc reload                         read config.json again
 --
 -- CHAT COMMANDS (for players; they are not shown in the chat)
@@ -62,11 +62,11 @@
 --   Server -> Client: sc_players {players = [{id, name, status}]}  (Players tab, name tags)
 --   sc_fuelDelivered    {station, fuel, amount, stationName}  own fuel delivery to a station
 --   Server -> Client: sc_fuelPrices {enabled, factors = {[station] = {gasoline = 0.9, ...}}}
---   Towing jobs (beta, see "Towing jobs" below):
+--   Jobs (beta, see "Jobs" below):
 --   sc_jobsRequest                    sc_jobs        {enabled, jobs = [job, with state "open" |
 --   sc_jobOffer   {a new job}                         "taken" | "mine", takenBy (name)]}
 --   sc_jobTake    {id}                sc_jobGenerate {}  please make up a new job (sc_jobOffer)
---   sc_jobDone    {id, pay}           sc_jobPaid     {payout, job, pay, vehicle}  credit this
+--   sc_jobDone    {id, pay}           sc_jobPaid     {payout, job, type, title, pay}  credit this
 --   sc_jobGiveUp  {id}                               (again until sc_jobPaidAck)
 --   sc_jobPaidAck {payout}
 --                       (from the SharedCareer menu window)
@@ -123,8 +123,8 @@ local DEFAULTS = {
 		-- then the limit is split evenly.
 		roadTrafficTotal = 20,
 		parkedTrafficTotal = 24,
-		-- Towing jobs (beta): broken-down cars at the roadside, taken in the Jobs app on the phone
-		-- and towed to a repair shop. One list for everyone, every job goes to one player.
+		-- Jobs (beta) in the Jobs app on the phone, for now towing jobs: broken-down cars at the
+		-- roadside, towed to a repair shop. One list for everyone, every job goes to one player.
 		jobs = true,
 		jobsOpen = 3,              -- this many open jobs at most (new ones are made up as needed)
 		jobTimeoutMinutes = 30,    -- a taken job is open again after this many minutes
@@ -210,7 +210,7 @@ local DEFAULTS = {
 		-- "Tow to the road" in the Tow app: the game's own recovery (puts the vehicle on the last
 		-- road it drove on, the damage stays), free instead of the career's $75.
 		allowTowToRoad = true,
-		-- Pay of towing jobs: factor on the base pay (1 = normal, 2 = double).
+		-- Pay of jobs: factor on the base pay (1 = normal, 2 = double).
 		jobPay = 1,
 	},
 }
@@ -232,7 +232,7 @@ local transfers = {}
 local transferSeq = 0
 -- player_id -> {road, parked} traffic share sent last
 local sharesSent = {}
--- towing jobs: id -> job (see "Towing jobs")
+-- jobs: id -> job (see "Jobs")
 local jobs = {}
 local jobSeq = 0
 
@@ -855,15 +855,19 @@ local function fuelRecoveryTick(dt)
 end
 
 
---== Towing jobs (beta) =========================================================
+--== Jobs (beta) ================================================================
 -- The server keeps one list for everyone; the clients make the jobs up (they know the map: road
 -- network, repair shops, vehicles) when the server asks one of them (sc_jobGenerate). A job goes
--- to the first player who takes it, is paid once (a payout, see "Payouts of towing jobs") and is
--- open again if that player leaves, gives up or runs out of time.
--- job = {id, vehicle = {model, config, name}, flatTire, pos = {x, y, z}, dir = {x, y},
---        dest = {name, pos = {x, y, z}}, length (m), pay, takenBy (player id), takenAt}
+-- to the first player who takes it, is paid once (a payout, see "Payouts of jobs") and is open
+-- again if that player leaves, gives up or runs out of time.
+-- What a job is about is up to its job type on the client (jobs.lua, towJobs.lua); the server only
+-- knows what every job has:
+-- job = {id, type ("tow"), title (e.g. the vehicle), pos = {x, y, z} (where it starts),
+--        dest = {name, pos = {x, y, z}}, length (m), pay, data (the type's own fields, passed on
+--        as they are, at most JOB_DATA_MAX bytes as JSON), takenBy (player id), takenAt}
 local JOB_ASK_EVERY = 15       -- s between two requests for a new job
 local JOB_TEXT_MAX = 128
+local JOB_DATA_MAX = 2048
 local jobAskedAt = -math.huge
 
 local function jobsEnabled()
@@ -883,6 +887,21 @@ local function text(v)
 	return v:sub(1, JOB_TEXT_MAX)
 end
 
+-- A job type's id: a short word.
+local function jobType(v)
+	if type(v) ~= "string" or #v > 32 or not v:match("^%a[%w_]*$") then return nil end
+	return v
+end
+
+-- A job type's own fields: a table, small enough.
+local function jobData(v)
+	if v == nil then return {} end
+	if type(v) ~= "table" then return nil end
+	local ok, json = pcall(encode, v)
+	if not ok or type(json) ~= "string" or #json > JOB_DATA_MAX then return nil end
+	return v
+end
+
 local function openJobCount()
 	local n = 0
 	for _, job in pairs(jobs) do if not job.takenBy then n = n + 1 end end
@@ -890,8 +909,8 @@ local function openJobCount()
 end
 
 local function jobFor(job, player_id)
-	return {id = job.id, vehicle = job.vehicle, flatTire = job.flatTire, pos = job.pos, dir = job.dir,
-		dest = job.dest, length = job.length, pay = job.pay,
+	return {id = job.id, type = job.type, title = job.title, pos = job.pos, dest = job.dest, length = job.length,
+		pay = job.pay, data = job.data,
 		state = job.takenBy == nil and "open" or (job.takenBy == player_id and "mine" or "taken"),
 		takenBy = job.takenBy and playerName(job.takenBy) or nil}
 end
@@ -919,7 +938,7 @@ local function reopenJob(job, why)
 	local taker = job.takenBy
 	job.takenBy, job.takenAt = nil, nil
 	log(string.format("job %d is open again (%s)", job.id, why))
-	if taker and MP.IsPlayerConnected(taker) then notify(taker, "Towing job cancelled: " .. why, "warning") end
+	if taker and MP.IsPlayerConnected(taker) then notify(taker, "Job cancelled: " .. why, "warning") end
 end
 
 function sc_jobsRequest(player_id)
@@ -933,24 +952,23 @@ function sc_jobOffer(player_id, data)
 	local msg = decodeTable(data)
 	if not entry or not entry.careerActive or not msg or not jobsEnabled() then return end
 	if openJobCount() >= math.max(0, tonumber(Config.server.jobsOpen) or 3) then return end
-	local v, dest = msg.vehicle, msg.dest
-	local pos, dir = vecOf(msg.pos, true), vecOf(msg.dir)
+	local dest = msg.dest
+	local kind, title, data = jobType(msg.type), text(msg.title), jobData(msg.data)
+	local pos = vecOf(msg.pos, true)
 	local destPos = type(dest) == "table" and vecOf(dest.pos, true)
-	local model = type(v) == "table" and text(v.model)
 	local length, pay = tonumber(msg.length), tonumber(msg.pay)
-	if not (pos and dir and destPos and model and length and pay) or length ~= length or pay ~= pay then return end
+	if not (kind and title and data and pos and destPos and length and pay) or length ~= length or pay ~= pay then return end
 	jobSeq = jobSeq + 1
 	local job = {
 		id = jobSeq,
-		vehicle = {model = model, config = text(v.config), name = text(v.name) or model},
-		flatTire = msg.flatTire == true,
-		pos = pos, dir = dir,
-		dest = {name = text(dest.name) or "Repair shop", pos = destPos},
+		type = kind, title = title, data = data,
+		pos = pos,
+		dest = {name = text(dest.name) or "Destination", pos = destPos},
 		length = math.max(0, math.min(1e5, length)),
 		pay = math.floor(math.max(0, math.min(tonumber(Config.server.jobPayMax) or 5000, pay)) + 0.5),
 	}
 	jobs[job.id] = job
-	log(string.format("new towing job %d: %s to %s, $%d", job.id, job.vehicle.name, job.dest.name, job.pay))
+	log(string.format("new job %d (%s): %s to %s, $%d", job.id, job.type, job.title, job.dest.name, job.pay))
 	sendJobsToAll()
 end
 
@@ -972,7 +990,7 @@ function sc_jobTake(player_id, data)
 		end
 	end
 	job.takenBy, job.takenAt = player_id, now()
-	log(string.format("%s took towing job %d", playerName(player_id), job.id))
+	log(string.format("%s took job %d", playerName(player_id), job.id))
 	sendJobsToAll()
 end
 
@@ -981,17 +999,17 @@ function sc_jobGiveUp(player_id, data)
 	local job = msg and jobs[tonumber(msg.id)]
 	if not job or job.takenBy ~= player_id then return end
 	job.takenBy, job.takenAt = nil, nil
-	log(string.format("%s gave up towing job %d", playerName(player_id), job.id))
+	log(string.format("%s gave up job %d", playerName(player_id), job.id))
 	sendJobsToAll()
 end
 
---== Payouts of towing jobs ===================================================
+--== Payouts of jobs ==========================================================
 -- A finished job becomes a payout for the taker's save (profile). It is kept in
 -- config/payouts.json and sent (sc_jobPaid) until that player's client confirms that it credited
 -- and saved it (sc_jobPaidAck): every PAYOUT_RESEND s while they play, and at once on their next
 -- career start. So a crash, a lost connection or a loading screen never costs the pay; the
 -- client credits each payout id only once.
--- payout = {id (string, unique across server restarts), job (job id), pay, profile, vehicle, sentAt}
+-- payout = {id (string, unique across server restarts), job (job id), type, title, pay, profile, sentAt}
 local PAYOUTS_FILE = CONFIG_DIR .. "/payouts.json"
 local PAYOUT_RESEND = 10
 local payouts = {}
@@ -1000,7 +1018,7 @@ local payoutSeq = 0
 local function savePayouts()
 	local stored = {}
 	for id, p in pairs(payouts) do
-		stored[id] = {job = p.job, pay = p.pay, profile = p.profile, vehicle = p.vehicle}
+		stored[id] = {job = p.job, type = p.type, title = p.title, pay = p.pay, profile = p.profile}
 	end
 	writeJson(PAYOUTS_FILE, stored)
 end
@@ -1012,21 +1030,23 @@ local function loadPayouts()
 	if not ok or type(value) ~= "table" then
 		local f = io.open(PAYOUTS_FILE .. ".broken", "w")
 		if f then f:write(raw); f:close() end
-		log("payouts.json is not valid JSON – saved as payouts.json.broken, open towing payouts are not sent")
+		log("payouts.json is not valid JSON – saved as payouts.json.broken, open job payouts are not sent")
 		return
 	end
 	payouts = {}
 	for id, p in pairs(value) do
 		local pay = type(p) == "table" and tonumber(p.pay)
 		if type(id) == "string" and pay and pay >= 0 and type(p.profile) == "string" then
-			payouts[id] = {id = id, job = tonumber(p.job), pay = pay, profile = p.profile, vehicle = text(p.vehicle)}
+			-- older versions only had towing jobs and called the title "vehicle"
+			payouts[id] = {id = id, job = tonumber(p.job), type = jobType(p.type) or "tow", title = text(p.title) or text(p.vehicle),
+				pay = pay, profile = p.profile}
 		end
 	end
 end
 
 local function sendPayout(player_id, p)
 	p.sentAt = now()
-	send(player_id, "sc_jobPaid", {payout = p.id, job = p.job, pay = p.pay, vehicle = p.vehicle})
+	send(player_id, "sc_jobPaid", {payout = p.id, job = p.job, type = p.type, title = p.title, pay = p.pay})
 end
 
 -- Sends this player every payout of their save that is still open.
@@ -1059,7 +1079,7 @@ function sc_jobPaidAck(player_id, data)
 	if not entry or not p or p.profile ~= entry.profile then return end
 	payouts[p.id] = nil
 	savePayouts()
-	log(string.format("%s received $%d for towing job %s", playerName(player_id), p.pay, tostring(p.job)))
+	log(string.format("%s received $%d for job %s", playerName(player_id), p.pay, tostring(p.job)))
 end
 
 -- The vehicle is at the repair shop: {id, pay} (pay after the deduction for new damage). Paid once,
@@ -1072,15 +1092,15 @@ function sc_jobDone(player_id, data)
 	local pay = math.floor(math.max(0, math.min(job.pay, tonumber(msg.pay) or job.pay)) + 0.5)
 	jobs[job.id] = nil
 	payoutSeq = payoutSeq + 1
-	local p = {id = string.format("%d-%d-%d", os.time(), job.id, payoutSeq), job = job.id, pay = pay,
-		profile = entry.profile or sanitizeProfile(playerName(player_id)), vehicle = job.vehicle.name}
+	local p = {id = string.format("%d-%d-%d", os.time(), job.id, payoutSeq), job = job.id, type = job.type,
+		title = job.title, pay = pay, profile = entry.profile or sanitizeProfile(playerName(player_id))}
 	payouts[p.id] = p
 	savePayouts()
 	sendPayout(player_id, p)
-	log(string.format("%s finished towing job %d: $%d", playerName(player_id), job.id, pay))
+	log(string.format("%s finished job %d: $%d", playerName(player_id), job.id, pay))
 	for id, e in pairs(players) do
 		if e.careerActive and MP.IsPlayerConnected(id) and id ~= player_id then
-			notify(id, string.format("%s towed a %s to %s", playerName(player_id), job.vehicle.name, job.dest.name), "local_shipping")
+			notify(id, string.format("%s brought the %s to %s", playerName(player_id), job.title, job.dest.name), "local_shipping")
 		end
 	end
 	sendJobsToAll()
@@ -1529,7 +1549,7 @@ local CONSOLE_HELP = table.concat({
 	"  sc time stop | start                pause / resume the clock",
 	"  sc players                          players and career status",
 	"  sc fuel | sc fuel reset             show fuel discounts / reset all to normal",
-	"  sc jobs | sc jobs reset             show towing jobs / drop all of them",
+	"  sc jobs | sc jobs reset             show jobs / drop all of them",
 	"  sc reload                           reload config.json",
 	"  examples: sc set client.trafficAggression 0.15 | sc set server.nightMinutes 5",
 	"            sc set client.saveSuffix   (no value = empty)",
@@ -1703,20 +1723,20 @@ function onConsoleInput(input)
 		if words[3] and words[3]:lower() == "reset" then
 			jobs = {}
 			sendJobsToAll()
-			return "Towing jobs dropped (new ones follow)"
+			return "Jobs dropped (new ones follow)"
 		end
 		local lines = {}
 		for _, job in pairs(jobs) do
-			table.insert(lines, string.format("  #%d %s to %s, %.1f km, $%d%s", job.id, job.vehicle.name, job.dest.name,
+			table.insert(lines, string.format("  #%d %s: %s to %s, %.1f km, $%d%s", job.id, job.type, job.title, job.dest.name,
 				job.length / 1000, job.pay, job.takenBy and (" – taken by " .. playerName(job.takenBy)) or " – open"))
 		end
 		for _, p in pairs(payouts) do
 			table.insert(lines, string.format("  payout $%d for %s to save %s – not confirmed yet", p.pay,
-				tostring(p.vehicle), p.profile))
+				tostring(p.title), p.profile))
 		end
 		table.sort(lines)
-		if #lines == 0 then return "Towing jobs: none" .. (jobsEnabled() and "" or " (switched off)") end
-		return "Towing jobs:\n" .. table.concat(lines, "\n")
+		if #lines == 0 then return "Jobs: none" .. (jobsEnabled() and "" or " (switched off)") end
+		return "Jobs:\n" .. table.concat(lines, "\n")
 	elseif sub == "reload" then
 		loadConfig()
 		return "Configuration reloaded"
@@ -1792,7 +1812,7 @@ end
 
 --== Timers ====================================================================
 -- sc_signalTick every 10 s (traffic lights), sc_timeTick every 30 s (time of day),
--- sc_tick every second (time limits for transfers, fuel discounts, towing jobs).
+-- sc_tick every second (time limits for transfers, fuel discounts, jobs).
 
 function sc_signalTick()
 	if not Config.server.trafficSignalSync then return end
