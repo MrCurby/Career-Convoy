@@ -238,6 +238,11 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 		if (a.phase === 'toVehicle') return 'Drive to the breakdown';
 		return a.inZone ? 'In the ring – wait' : 'Tow to ' + a.dest;
 	};
+	// the job strip above the Tow and Straps apps, while you are on the way to the shop
+	$scope.jobStripShown = function () {
+		var id = $scope.currentApp && $scope.currentApp.id;
+		return (id === 'tow' || id === 'straps') && !!$scope.jobs.active && $scope.jobStep() < 2;
+	};
 	$scope.openJobs = function () { var app = appById('jobs'); if (app) $scope.openApp(app); };
 	$scope.$on('SharedCareerJobs', function (event, data) {
 		$scope.$evalAsync(function () {

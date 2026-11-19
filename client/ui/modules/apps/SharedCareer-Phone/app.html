@@ -62,6 +62,14 @@
 					<span class="scp-appbar-title" ng-bind="currentApp.title"></span>
 					<span class="scp-beta-pill" ng-if="currentApp.beta" title="Experimental: this app is new and may still change">BETA</span>
 				</div>
+				<!-- your job, as a strip above the apps you use for it (Tow, Straps) -->
+				<div class="scp-jobstrip-bar" ng-if="jobStripShown()">
+					<button class="scp-jobstrip" ng-click="openJobs()" title="Open the Jobs app">
+						<span class="scp-jobstrip-label">Job</span>
+						<span class="scp-row-name" ng-bind="jobStepText()"></span>
+						<span class="scp-row-right" ng-if="jobs.active.distance !== undefined" ng-bind="formatDistance(jobs.active.distance)"></span>
+					</button>
+				</div>
 				<!-- Jobs (beta): towing jobs for everyone on the server (jobs.lua) -->
 				<div class="scp-appbody scp-tow scp-jobs" ng-if="currentApp.id === 'jobs'">
 					<div class="scp-hint" ng-if="!jobs.enabled">Jobs are off on this server.</div>
@@ -122,12 +130,6 @@
 				     look, or to a vehicle nearby). With a rope, all on one screen: the rope at a glance, the
 				     winch, and the anchor (the remote; near a vehicle, "Hook on" puts it where the ring shows). -->
 				<div class="scp-appbody scp-tow" ng-if="currentApp.id === 'tow'">
-					<button class="scp-jobstrip" ng-if="jobs.active && jobStep() < 2" ng-click="openJobs()" title="Open the Jobs app">
-						<span class="scp-jobstrip-label">Job</span>
-						<span class="scp-row-name" ng-bind="jobStepText()"></span>
-						<span class="scp-row-right" ng-if="jobs.active.distance !== undefined" ng-bind="formatDistance(jobs.active.distance)"></span>
-					</button>
-
 					<!-- no rope yet: where I look (big), to the road, your vehicles nearby -->
 					<div ng-if="!tow.attached">
 						<div class="scp-hint scp-hint-box" ng-if="!tow.allowed">Ropes are off on this server.</div>
@@ -210,6 +212,11 @@
 								</span>
 								<button class="scp-go" ng-click="towCall('uiUnhook()')" title="The anchor stays where it is">Unhook</button>
 							</div>
+							<button class="scp-hookon scp-strapdown" ng-if="tow.strapDown" ng-disabled="tow.strapBusy" ng-click="towCall('uiStrapDown()')"
+								title="Strap it onto this vehicle">
+								<span class="scp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l2.2-5.6A2 2 0 0 1 7.1 10h9.8a2 2 0 0 1 1.9 1.4L21 17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M2 17h20v2.5H2z" fill="currentColor" opacity="0.55"/><path d="M8.5 5v16" stroke="currentColor" stroke-width="2.6"/><rect x="6.5" y="13" width="4" height="3.4" rx="0.8" fill="currentColor"/></svg></span>
+								<span class="scp-hookon-text"><b>Strap down</b><span ng-bind="tow.anchorVehicle"></span></span>
+							</button>
 							<div class="scp-remote" ng-if="!tow.anchorVehicle">
 								<div class="scp-pad">
 									<span></span><button class="scp-pad-key" title="Away from me (hold)" ng-mousedown="nudge(1,0,0)" ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()"><span class="scp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></button><span></span>
@@ -234,7 +241,8 @@
 
 				<!-- Straps: ratchet straps that hold a car on a trailer or truck (straps.lua). "Strap down"
 				     straps the car you look at at its four corners; "Add strap" adds one by hand in two
-				     steps (aim at the car, then at the truck). Below: the straps, each with its load. -->
+				     steps (aim at the car, then at the truck). Below: the straps, each with its load, and
+				     "Remove rope" while the tow rope is still on a strapped car. -->
 				<div class="scp-appbody scp-tow scp-straps" ng-if="currentApp.id === 'straps'">
 					<div class="scp-hint scp-hint-box" ng-if="!straps.allowed">Straps are off on this server.</div>
 					<div ng-if="straps.allowed">
@@ -260,6 +268,9 @@
 							<span class="scp-dot" ng-class="strapDot(s)"></span><span class="scp-row-name" ng-bind="'Strap ' + s.n"></span><span class="scp-row-right" ng-bind="s.vehicle"></span>
 							<button class="scp-iconbtn scp-iconbtn-cut" ng-click="strapsCall('uiRemove(' + s.id + ')')" title="Remove the strap"><span class="scp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="18" r="2.6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="18" cy="18" r="2.6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M7.8 16 L17 4 M16.2 16 L7 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span></button>
 						</div>
+						<button class="scp-wide scp-rope-off" ng-if="straps.towRope && !straps.step" ng-click="strapsCall('uiRemoveRope()')" title="Take the tow rope off">
+							<span class="scp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="18" r="2.6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="18" cy="18" r="2.6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M7.8 16 L17 4 M16.2 16 L7 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span><span>Remove rope</span>
+						</button>
 					</div>
 				</div>
 

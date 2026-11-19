@@ -19,6 +19,9 @@
 --             the rope, or haul in with the winch "on" the tow truck. "Unhook" leaves the anchor
 --             where it is. If the anchor vehicle is gone or reset, the anchor stays where it was
 --   strength  30/60/100/150 % of the vehicle's weight
+--   strap down  once the vehicle is pulled up onto the one the anchor is hooked on (anchor on a
+--             vehicle, winch stopped, rope at most STRAP_ROPE m): straps it onto that vehicle
+--             (straps.lua), the same as "Strap down" in the Straps app, without aiming
 --   to road   the game's own recovery "Tow to road" for the vehicle on the rope, or without a rope
 --             for the vehicle you look at; free of charge (see "Tow to the road" below)
 --   remove
@@ -49,6 +52,7 @@ local FINE = 0.25          -- fine mode: speed factor for the winch and the anch
 local NEARBY_RANGE = 60    -- m: vehicles listed in the Tow app
 local APP_PUSH_EVERY = 0.2 -- s: how often the Tow app gets the state while it's open
 local STRENGTHS = {30, 60, 100, 150} -- strength choices in the Tow app (% of the vehicle's weight)
+local STRAP_ROPE = 3       -- m: a locked rope this short to a vehicle = the car is pulled up onto it
 
 local rope = nil           -- the tow rope (rope.lua), with nudge = {f, r, u} while a button is held
 local fine = false         -- fine mode
@@ -352,6 +356,15 @@ end
 
 --== Tow app (phone) =============================================================
 
+local function straps() return U.ext("sharedCareer_straps") end
+
+-- The vehicle on the rope is pulled up onto the one the anchor is hooked on and not strapped yet.
+local function canStrapDown()
+	local s = straps()
+	return rope ~= nil and rope.anchorVeh ~= nil and rope.winch == 0 and rope.length ~= nil
+		and rope.length <= STRAP_ROPE and s ~= nil and not s.isStrapped(rope.veh)
+end
+
 -- own vehicles near the camera that can take a rope, nearest first (at most 6)
 local function nearbyVehicles()
 	local cam = R.cameraPos()
@@ -396,6 +409,8 @@ function M.appState()
 		if rope.anchorVeh then
 			state.anchorVehicle = rope.anchorVeh.name
 			state.anchorHitch = rope.anchorVeh.hitch
+			state.strapDown = canStrapDown()
+			state.strapBusy = state.strapDown and straps().busy()
 		else
 			local hp = R.hookPoint(rope)
 			if hp then
@@ -424,6 +439,14 @@ function M.setAppOpen(on)
 end
 
 -- buttons of the Tow app
+--- Strap the vehicle on the rope onto the vehicle the anchor is hooked on.
+function M.uiStrapDown()
+	if not canStrapDown() then return false end
+	local ok, err = straps().strapOnto(rope.veh, rope.anchorVeh.id)
+	if not ok and err then R.message(err) end
+	pushApp()
+	return ok
+end
 function M.uiAttachView() local ok = attachAtView(); pushApp(); return ok end
 function M.uiAttachVehicle(id)
 	if not R.allowed() then return false end
