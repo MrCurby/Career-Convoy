@@ -275,13 +275,17 @@ function M.generate(tier)
 				local flatTire = math.random() < t.flatTire
 				local vehicle = pickVehicle(t.heavy)
 				local crash = pickCrash(t)
-
+				
+				if (core_vehicles and type (core_vehicles.getModel) == "function") then
+				
 				local modelData = core_vehicles.getModel(vehicle.model)
 				local bodyStyle = modelData and modelData.BodyStyle or vehicle.name
 				return {title = bodyStyle, pos = spot.pos, dest = {name = pick.shop.name, pos = pick.shop.pos},
 					length = length, pay = M.payFor(length, flatTire, tier),
 					data = {vehicle = {model = vehicle.model, config = vehicle.config}, flatTire = flatTire, heavy = t.heavy,
 						crash = crash, dir = spot.dir}}
+				end
+				return nil
 			end
 		end
 	end
