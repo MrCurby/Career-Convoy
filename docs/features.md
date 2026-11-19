@@ -227,7 +227,7 @@ Cars break down at the roadside, and somebody has to tow them to a repair shop. 
 
 1. **Find a job:** phone (**F4**) → **Jobs**. Every job shows the vehicle, what's wrong (engine failure, sometimes a flat tire too), how far it is from you, the repair shop, the length of the tow and your pay. The jobs are sorted by the level they need, see [Levels](#levels).
 2. **Take it:** the route leads you to the breakdown. A marker floats above the car when you are close. It's yours now: the others see the job as taken.
-3. **Pick it up:** the car stands beside the road with the hazard lights on. Its engine won't start (resetting it doesn't help), it's in neutral with the parking brake off, so you can tow it: on a flatbed, on a trailer, or with the rope and winch from the Tow app. Close to it, the route switches to the repair shop.
+3. **Pick it up:** the car stands beside the road with the hazard lights on. From level 3 on, some jobs are **crashes**: the car is wrecked, sometimes on its roof (**To the road** in the Tow app puts it back on its wheels). Its engine won't start (resetting it doesn't help), it's in neutral with the parking brake off, so you can tow it: on a flatbed, on a trailer, or with the rope and winch from the Tow app. Close to it, the route switches to the repair shop.
 4. **Deliver it:** at the shop a ring on the ground shows the drop-off zone. Leave the car standing in it for 3 seconds, with nobody inside. The pay goes to your account and the car is taken away. If you crash or lose the connection right then, the pay arrives on your next join.
 
 - **Pay:** $150 plus $120 per km of the tow, 25 % more with a flat tire, more for harder jobs and for your level (see below). The server can change it (`client.jobPay`).
@@ -245,9 +245,9 @@ Every job you finish gives you **XP**, and with enough XP you reach the next **l
   | From level | Jobs |
   |---|---|
   | 1 | short tows, now and then a flat tire |
-  | 3 | longer tows, more flat tires (pays 30 % more) |
-  | 5 | heavy vehicles, long tows (pays 70 % more) |
-  | 8 | heavy vehicles, the longest tows, always a flat tire (pays 120 % more) |
+  | 3 | longer tows, more flat tires, sometimes a crash (pays 30 % more) |
+  | 5 | heavy vehicles, long tows, often a crash (pays 70 % more) |
+  | 8 | heavy vehicles, the longest tows, always a flat tire, mostly bad crashes (pays 120 % more) |
 
 - **More pay:** every level above 1 adds 5 % to your pay. Everyone sees their own pay on a job.
 - **XP:** a harder job gives more XP (40, 70, 110, 160). Damage costs XP as it costs pay. A job two or more kinds below your best gives only half the XP, so the easy ones are left for beginners.

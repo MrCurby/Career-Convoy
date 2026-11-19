@@ -194,6 +194,8 @@
 .scp-group-name { display: inline-flex; align-items: center; gap: 4px; }
 .scp-group-locked { opacity: 0.5; }
 .scp-tag-heavy { background: rgba(160, 120, 255, 0.24); color: #d9c9ff; }
+.scp-tag-crash { background: rgba(255, 60, 60, 0.3); color: #ffc2c2; }
+.scp-myjob .scp-tag-crash { background: rgba(255, 80, 80, 0.45); color: #fff; }
 .scp-myjob .scp-tag-heavy { background: rgba(255, 255, 255, 0.16); color: #fff; }
 .scp-job-head { display: flex; align-items: center; gap: 9px; min-width: 0; }
 .scp-job-icon {

@@ -12,7 +12,10 @@
 --                 as the tier says (the nearest fit if none is)
 --     the pay     (PAY_BASE + PAY_PER_KM per km of the tow (straight line x ROAD_FACTOR)) x the
 --                 tier's pay, x PAY_FLAT with a flat tire, x client.jobPay
---     job.data = {vehicle = {model, config}, flatTire, dir}; job.title = the vehicle's name
+--     a crash    from tier 2 on, some jobs are crashes (the tier's crash chance) instead of a
+--                 breakdown: the car is wrecked (see "Crashes" below)
+--     job.data = {vehicle = {model, config}, flatTire, heavy, crash = {kind, speed}, dir};
+--     job.title = the vehicle's name
 --   doing it
 --     1. the route leads to the place; within SPAWN_RANGE m the broken-down vehicle appears there
 --        (spawned by this player, so it is theirs: the rope works on it, BeamMP shows it to
@@ -23,6 +26,13 @@
 --     3. standing still in the drop-off zone (DROP_RADIUS m around the shop's doors) for
 --        DROP_STILL s, nobody inside: handed over (jobs.handOver). New damage since the breakdown
 --        costs up to PENALTY_MAX of the pay (DAMAGE_FOR_MAX damage points cost all of it)
+--     Crashes: the car is spawned in the air, tilted the way the crash kind says (CRASHES: nose,
+--     tail, side, corner or roof first), and falls onto the roadside: it hits the ground at the
+--     crash's speed (the height is worked out from it), so the game's own physics bends it like a
+--     real crash. Only once it lies still (CRASH_STILL s) does it break down, so the crash doesn't
+--     count as new damage against the pay. If it landed too far away (rolled down a slope, fell
+--     through the ground), it is removed and comes back as a plain breakdown. BeamMP shows the fall
+--     to the others; once it lies still they also get its damage (damage.lua).
 --     When the job ends (paid, given up, taken away), the vehicle is removed. A vehicle that
 --     vanished (deleted, reloaded, or refused by the server's vehicle limit) appears again at its
 --     place when you come near, at most every SPAWN_RETRY s.
@@ -48,13 +58,27 @@ local DAMAGE_WAIT = 3         -- s for the vehicle's damage report; then no dedu
 local PAY_BASE, PAY_PER_KM = 150, 120
 local PAY_FLAT = 1.25
 local ROAD_FACTOR = 1.3       -- roads are about this much longer than the straight line
--- the tiers: how far to the shop (m), how often a flat tire, a heavy vehicle, the pay
+-- the tiers: how far to the shop (m), how often a flat tire, a heavy vehicle, the pay; how often a
+-- crash, and its speed (m/s when it hits the ground)
 local TIERS = {
-	{destMin = 800, destMax = 2500, flatTire = 0.2, heavy = false, pay = 1},
-	{destMin = 1500, destMax = 4000, flatTire = 0.4, heavy = false, pay = 1.3},
-	{destMin = 2500, destMax = 6000, flatTire = 0.6, heavy = true, pay = 1.7},
-	{destMin = 3500, destMax = 8000, flatTire = 1, heavy = true, pay = 2.2},
+	{destMin = 800, destMax = 2500, flatTire = 0.2, heavy = false, pay = 1, crash = 0},
+	{destMin = 1500, destMax = 4000, flatTire = 0.4, heavy = false, pay = 1.3, crash = 0.3, crashSpeed = {6, 9}},
+	{destMin = 2500, destMax = 6000, flatTire = 0.6, heavy = true, pay = 1.7, crash = 0.5, crashSpeed = {8, 12}},
+	{destMin = 3500, destMax = 8000, flatTire = 1, heavy = true, pay = 2.2, crash = 0.7, crashSpeed = {10, 14}},
 }
+-- the kinds of crash: how the car is tilted when it falls (pitch: nose down, roll: to the right, in
+-- degrees), how much of the tier's speed (a car on its roof crushes at less), and its tag
+local CRASHES = {
+	{kind = "front", pitch = 70, roll = 0, speed = 1, tag = "Crash"},
+	{kind = "rear", pitch = -70, roll = 0, speed = 1, tag = "Crash"},
+	{kind = "side", pitch = 0, roll = 80, speed = 0.8, tag = "Crash"},
+	{kind = "corner", pitch = 45, roll = 45, speed = 1, tag = "Crash"},
+	{kind = "roof", pitch = 0, roll = 180, speed = 0.5, tag = "On its roof"},
+}
+local CRASH_CLEAR = 3         -- m above the ground the car's middle is at least (a tilted car is tall)
+local CRASH_STILL = 2         -- s lying still: the crash is over
+local CRASH_WAIT = 15         -- s at most for that; then it counts as over
+local CRASH_DRIFT = 20        -- m: landed farther from its place than this, it comes back as a breakdown
 local PENALTY_MAX = 0.5       -- share of the pay new damage can cost at most
 local DAMAGE_FOR_MAX = 40000  -- damage points (beamstate.damage) that cost PENALTY_MAX
 local BREAKDOWN_RETRY = 3     -- s without the vehicle's answer: break it down again
@@ -201,6 +225,19 @@ local function roundTo(x, step) return math.floor(x / step + 0.5) * step end
 
 local function tierOf(tier) return TIERS[math.max(1, math.min(#TIERS, tonumber(tier) or 1))] end
 
+local function crashOf(kind)
+	for _, c in ipairs(CRASHES) do if c.kind == kind then return c end end
+	return nil
+end
+
+-- A crash for a job of this tier, or nil for a breakdown: {kind, speed (m/s when it hits the ground)}.
+local function pickCrash(t)
+	if not t.crashSpeed or math.random() >= t.crash then return nil end
+	local c = CRASHES[math.random(#CRASHES)]
+	local lo, hi = t.crashSpeed[1], t.crashSpeed[2]
+	return {kind = c.kind, speed = math.floor((lo + math.random() * (hi - lo)) * c.speed * 10 + 0.5) / 10}
+end
+
 --- The pay for a tow of `length` m at level 1 (a flat tire and a higher tier pay more).
 function M.payFor(length, flatTire, tier)
 	local pay = (PAY_BASE + PAY_PER_KM * length / 1000) * tierOf(tier).pay * (flatTire and PAY_FLAT or 1) * J.payFactor()
@@ -237,9 +274,11 @@ function M.generate(tier)
 				local length = roundTo(pick.d * ROAD_FACTOR, 10)
 				local flatTire = math.random() < t.flatTire
 				local vehicle = pickVehicle(t.heavy)
+				local crash = pickCrash(t)
 				return {title = vehicle.name, pos = spot.pos, dest = {name = pick.shop.name, pos = pick.shop.pos},
 					length = length, pay = M.payFor(length, flatTire, tier),
-					data = {vehicle = {model = vehicle.model, config = vehicle.config}, flatTire = flatTire, heavy = t.heavy, dir = spot.dir}}
+					data = {vehicle = {model = vehicle.model, config = vehicle.config}, flatTire = flatTire, heavy = t.heavy,
+						crash = crash, dir = spot.dir}}
 			end
 		end
 	end
@@ -249,7 +288,8 @@ end
 --- The labels of a towing job in the Jobs app.
 function M.tags(job)
 	local d = type(job.data) == "table" and job.data or {}
-	local tags = {{text = "Engine failure", kind = "engine"}}
+	local crash = type(d.crash) == "table" and crashOf(d.crash.kind)
+	local tags = {crash and {text = crash.tag, kind = "crash"} or {text = "Engine failure", kind = "engine"}}
 	if d.flatTire == true then table.insert(tags, {text = "Flat tire", kind = "tire"}) end
 	if d.heavy == true then table.insert(tags, {text = "Heavy", kind = "heavy"}) end
 	return tags
@@ -269,21 +309,69 @@ local function breakDown(a)
 	J.sendToVehicle(a.vehId, "sharedCareerVeh.jobBreakDown(" .. tostring(data(a).flatTire == true) .. ")")
 end
 
+-- The way the car faces: forward along the road, tilted for a crash (pitch: nose down, roll: to
+-- the right, in degrees). Returns forward and up as {x, y, z}.
+local function facing(dir, pitch, roll)
+	local len = math.sqrt(dir.x * dir.x + dir.y * dir.y)
+	local f = len > 0.01 and {x = dir.x / len, y = dir.y / len, z = 0} or {x = 0, y = 1, z = 0}
+	local r = {x = f.y, y = -f.x, z = 0} -- right of forward, with up = z
+	local p, q = math.rad(pitch or 0), math.rad(roll or 0)
+	local fwd = {x = f.x * math.cos(p), y = f.y * math.cos(p), z = -math.sin(p)}
+	local up = {x = f.x * math.sin(p), y = f.y * math.sin(p), z = math.cos(p)}
+	up = {x = up.x * math.cos(q) + r.x * math.sin(q), y = up.y * math.cos(q) + r.y * math.sin(q), z = up.z * math.cos(q)}
+	return fwd, up
+end
+
+-- The crash this vehicle falls into, or nil (a breakdown, or a crash that went wrong before).
+local function crashFor(a)
+	local c = data(a).crash
+	if a.crashFailed or type(c) ~= "table" or not crashOf(c.kind) then return nil end
+	return crashOf(c.kind), math.max(1, tonumber(c.speed) or 8)
+end
+
 local function spawnVehicle(a)
 	local job, d = a.job, data(a)
 	local vehicle = type(d.vehicle) == "table" and d.vehicle or {}
 	if not (core_vehicles and type(core_vehicles.spawnNewVehicle) == "function") or type(vehicle.model) ~= "string" then return end
-	local dir = type(d.dir) == "table" and vec3(tonumber(d.dir.x) or 0, tonumber(d.dir.y) or 1, 0) or vec3(0, 1, 0)
-	local options = {pos = vec3(job.pos.x, job.pos.y, job.pos.z), autoEnterVehicle = false, cling = true,
+	local crash, speed = crashFor(a)
+	local fwd, up = facing(type(d.dir) == "table" and {x = tonumber(d.dir.x) or 0, y = tonumber(d.dir.y) or 1} or {x = 0, y = 1},
+		crash and crash.pitch, crash and crash.roll)
+	-- a crash falls from the height that makes it hit the ground at its speed: v^2 / 2g
+	local height = crash and (CRASH_CLEAR + speed * speed / (2 * 9.81)) or 0
+	local options = {pos = vec3(job.pos.x, job.pos.y, job.pos.z + height), autoEnterVehicle = false, cling = not crash,
 		config = vehicle.config}
-	if type(quatFromDir) == "function" then options.rot = quatFromDir(dir, vec3(0, 0, 1)) end
+	if type(quatFromDir) == "function" then options.rot = quatFromDir(vec3(fwd.x, fwd.y, fwd.z), vec3(up.x, up.y, up.z)) end
 	local ok, veh = pcall(core_vehicles.spawnNewVehicle, vehicle.model, options)
 	if not ok or not veh then
 		U.log("E", "jobs", "could not spawn the broken-down vehicle: " .. tostring(veh))
 		return
 	end
 	a.vehId, a.spawnedAt = veh:getID(), clock
-	U.log("I", "jobs", string.format("job %s: %s spawned (%s)", tostring(job.id), job.title, tostring(a.vehId)))
+	U.log("I", "jobs", string.format("job %s: %s spawned (%s)%s", tostring(job.id), job.title, tostring(a.vehId),
+		crash and string.format(", crash %s at %.1f m/s", crash.kind, speed) or ""))
+	if crash then
+		a.crashing, a.stillFor = {since = clock, still = 0}, 0
+	else
+		breakDown(a)
+	end
+end
+
+-- While the crashed car falls and settles: once it lies still it breaks down (the crash is not new
+-- damage against the pay). Landed too far away: removed, it comes back as a plain breakdown.
+local function settle(a, veh, dt)
+	local p, v = J.vecOf(veh:getPosition()), type(veh.getVelocity) == "function" and J.vecOf(veh:getVelocity())
+	local speed = v and math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z) or 0
+	a.crashing.still = speed <= DROP_SPEED and a.crashing.still + dt or 0
+	if a.crashing.still < CRASH_STILL and clock - a.crashing.since < CRASH_WAIT then return end
+	a.crashing = nil
+	local pos = a.job.pos
+	if not p or J.dist2D(p, pos) > CRASH_DRIFT or p.z < pos.z - 5 then
+		U.log("W", "jobs", "job " .. tostring(a.job.id) .. ": the crashed car landed too far away – a breakdown instead")
+		removeVehicle(a)
+		a.vehId, a.crashFailed = nil, true
+		a.spawnedAt = clock - SPAWN_RETRY -- spawned again at once
+		return
+	end
 	breakDown(a)
 end
 
@@ -320,6 +408,10 @@ function M.step(a, dt)
 	if not veh then
 		local waited = clock - (a.spawnedAt or -math.huge) >= SPAWN_RETRY
 		if waited and me and J.dist2D(me, job.pos) <= SPAWN_RANGE then spawnVehicle(a) end
+		return
+	end
+	if a.crashing then
+		settle(a, veh, dt)
 		return
 	end
 	if not a.brokenDown and clock - a.sentAt >= BREAKDOWN_RETRY then breakDown(a) end

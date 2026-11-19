@@ -2810,7 +2810,7 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	handlers.sc_config(json.encode(cfgJ))
 	update()
 	_G.vec3 = function(x, y, z) return {x = x, y = y, z = z} end
-	_G.quatFromDir = function(d) return {dir = d} end
+	_G.quatFromDir = function(d, up) world.spawnedUp = up; return {dir = d, up = up} end
 	_G.getCurrentLevelIdentifier = function() return "west_coast_usa" end
 	_G.castRayStatic = nil
 	local paths = {}
@@ -2879,6 +2879,22 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	end
 	check(okAll, "places: always beside the road (5.8 m from its middle), never near a vehicle or on a dirt track; a shop away from it")
 	check(heavyOk, "tiers 3 and 4: a heavy vehicle; tier 4 always with a flat tire")
+	local crashes = {0, 0, 0, 0}
+	local speedsOk = true
+	for tier = 1, 4 do
+		for _ = 1, 100 do
+			local c = tow.generate(tier).data.crash
+			if c then
+				crashes[tier] = crashes[tier] + 1
+				if c.speed < 2.5 or c.speed > 14 then speedsOk = false end
+			end
+		end
+	end
+	check(crashes[1] == 0 and crashes[2] > 10 and crashes[2] < 50 and crashes[4] > 50 and speedsOk,
+		"crashes: never in tier 1, sometimes in tier 2, mostly in tier 4 (" .. table.concat(crashes, "/") .. ")")
+	local crashJob = {data = {crash = {kind = "roof", speed = 5}, flatTire = true}}
+	check(tow.tags(crashJob)[1].text == "On its roof" and tow.tags({data = {crash = {kind = "front", speed = 9}}})[1].text == "Crash"
+		and tow.tags(crashJob)[2].text == "Flat tire", "a crash shows as \"Crash\" or \"On its roof\" instead of the engine failure")
 	check(tow.payFor(1000, false, 2) == 350 and tow.payFor(1000, false, 4) == 590, "a higher tier pays more (x1.3, x2.2)")
 	handlers.sc_jobGenerate(json.encode({type = "tow", tier = 3}))
 	offer = lastSent("sc_jobOffer")
@@ -3049,6 +3065,38 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	for _ = 1, 60 do update(0.1) end
 	check(spawnedVeh ~= firstRetry, "spawned again after 10 s")
 	jobs.uiGiveUp()
+
+	-- a crash: the car falls from the air, tilted, and breaks down only once it lies still
+	job.id, job.data.crash = 12, {kind = "roof", speed = 5}
+	sendList("mine")
+	me.p = {x = 1700, y = -20, z = 10}
+	for _ = 1, 3 do update(0.1) end
+	local opt = world.spawned[2]
+	check(opt.cling == false and opt.pos.z > 10 + 3 + 1.2 and opt.pos.z < 10 + 3 + 1.4 and opt.rot.dir.z and math.abs(opt.rot.dir.z) < 1e-9,
+		"a crash: spawned in the air (high enough to hit the ground at 5 m/s), not stuck to the ground")
+	local up = world.spawnedUp
+	check(up and up.z < -0.99, "on its roof: spawned upside down")
+	local crashed = spawnedVeh
+	crashed.v = {x = 0, y = 0, z = -5}
+	for _ = 1, 30 do update(0.1) end
+	check(not lastCmd(crashed):find("jobBreakDown"), "still falling and rolling: no breakdown yet")
+	crashed.v = {x = 0, y = 0, z = 0}
+	crashed.p = {x = 2003, y = -6, z = 10}
+	for _ = 1, 30 do update(0.1) end
+	check(lastCmd(crashed):find("jobBreakDown"), "lying still for 2 s: now it breaks down (the crash isn't new damage)")
+	jobs.uiGiveUp()
+	-- a crash that lands too far away (down a slope): removed, it comes back as a breakdown
+	job.id = 13
+	sendList("mine")
+	for _ = 1, 3 do update(0.1) end
+	local rolled = spawnedVeh
+	rolled.v = {x = 0, y = 0, z = 0}
+	rolled.p = {x = 2060, y = -40, z = -2}
+	for _ = 1, 30 do update(0.1) end
+	check(rolled.deleted and spawnedVeh ~= rolled and world.spawned[2].cling == true and lastCmd(spawnedVeh):find("jobBreakDown"),
+		"landed too far away: removed, spawned again at once as a breakdown on the ground")
+	jobs.uiGiveUp()
+	job.data.crash = nil
 
 	-- giving up: the vehicle goes, the server is told
 	job.id = 8
