@@ -61,6 +61,8 @@ source = source:gsub('local PROFILES_FILE = CONFIG_DIR %.%. "/profiles%.json"', 
 source = source:gsub('local FUEL_FILE = CONFIG_DIR %.%. "/fuelprices%.json"', 'local FUEL_FILE = "' .. tmpFuel .. '"')
 source = source:gsub('local PAYOUTS_FILE = CONFIG_DIR %.%. "/payouts%.json"', 'local PAYOUTS_FILE = "' .. tmpPayouts .. '"')
 source = source:gsub('local PROGRESS_FILE = CONFIG_DIR %.%. "/progress%.json"', 'local PROGRESS_FILE = "' .. tmpProgress .. '"')
+-- a job type of the tests with its own level rules (two tiers, more XP)
+source = source:gsub('local LEVEL_RULES_BY_TYPE = {}', 'local LEVEL_RULES_BY_TYPE = {short = {tierLevel = {1, 2}, tierXp = {100, 200}}}')
 assert(load(source, "main.lua"))()
 onInit()
 
@@ -664,6 +666,25 @@ do
 	check(jobsOf(1).levels.tow.level >= 5, "Ben reaches level 5 (tier 3)")
 	paid = finish(1, 1)
 	check(paid.xp == 20, "a tier-1 job two tiers below his: half the XP")
+	-- a job type with its own rules (two tiers, from level 1 and 2; 100 XP for tier 1); levels apart
+	local function offerShort(tier)
+		sc_jobOffer(0, json.encode({type = "short", tier = tier, title = "Box", pos = {x = 1, y = 2, z = 3},
+			dest = {name = "Depot", pos = {x = 4, y = 5, z = 6}}, length = 100, pay = 100}))
+	end
+	onConsoleInput("sc jobs reset")
+	offerShort(3)
+	offerShort(2)
+	local short
+	for _, sj in ipairs(jobsOf(1).jobs) do if sj.type == "short" then short = sj end end
+	check(#jobsOf(1).jobs == 1 and short.minLevel == 2 and short.locked and jobsOf(1).levels.short.level == 1,
+		"own rules: no tier 3, tier 2 from level 2 – and Ben starts this job type at level 1")
+	offerShort(1)
+	for _, sj in ipairs(jobsOf(1).jobs) do if sj.tier == 1 then short = sj end end
+	sc_jobTake(1, json.encode({id = short.id}))
+	sc_jobDone(1, json.encode({id = short.id, share = 1}))
+	sc_jobPaidAck(1, json.encode({payout = lastTo(1, "sc_jobPaid").payout}))
+	check(lastTo(1, "sc_jobPaid").xp == 100 and jobsOf(1).levels.short.level == 2 and jobsOf(1).levels.tow.level >= 5,
+		"100 XP: level 2 in this job type; the towing level stays as it was")
 	-- the levels survive a restart of the server
 	local f = assert(io.open(tmpProgress))
 	local stored = json.decode(f:read("*a"))

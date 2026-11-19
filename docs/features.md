@@ -238,7 +238,7 @@ Cars break down at the roadside, and somebody has to tow them to a repair shop. 
 
 ### Levels
 
-Every job you finish gives you **XP**, and with enough XP you reach the next **level** (up to level 10). At the top of the Jobs app, a ring shows your level and fills up on the way to the next one.
+Every job you finish gives you **XP**, and with enough XP you reach the next **level** (up to level 10). Every kind of job has its own level. In the Jobs app, a ring above the jobs shows your level and fills up on the way to the next one.
 
 - **Harder jobs:** jobs come in four kinds, each from a level on. The Jobs app groups them by that level, yours at the top. The ones you can't take yet are at the bottom, grey with a lock.
 

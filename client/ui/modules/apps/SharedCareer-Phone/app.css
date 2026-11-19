@@ -183,7 +183,8 @@
 }
 .scp-job-taken { opacity: 0.55; }
 .scp-job-locked { opacity: 0.45; filter: grayscale(0.6); }
-/* your level: a ring that fills up to the next level; the jobs by level */
+/* a section per job type: your level (a ring that fills up to the next level), the jobs by level */
+.scp-jobsection + .scp-jobsection { margin-top: 14px; }
 .scp-level { display: flex; align-items: center; gap: 10px; padding: 8px 10px; margin-bottom: 8px; border-radius: 14px; background: rgba(79, 140, 255, 0.12); }
 .scp-level-ring { flex: none; width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
 .scp-level-ring span { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; background: #1b2233; }

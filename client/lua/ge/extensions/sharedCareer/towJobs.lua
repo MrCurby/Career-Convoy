@@ -67,7 +67,7 @@ local FALLBACK_MODELS = {"fullsize", "midsize", "pickup", "covet", "pessima", "v
 local HEAVY_MODELS = {"pickup", "van", "roamer"}
 
 M.id = "tow"
-M.name = "Towing job"
+M.name = "Towing"
 M.icon = "tow"
 M.branch = "labourer"
 M.steps = {"Pick up", "Tow", "Paid"}

@@ -130,10 +130,10 @@ One line per problem. Each file starts with a comment that explains the details.
 The Jobs app knows nothing about towing: `jobs.lua` is the core, and each kind of job is a job type in a file of its own. `towJobs.lua` is the first one and the example to follow. A new job type is:
 
 1. **A file** `client/lua/ge/extensions/sharedCareer/<name>Jobs.lua`, loaded in `modScript.lua` after `jobs`. In `onExtensionLoaded` it calls `sharedCareer_jobs.registerType(M)`.
-2. **What it brings** (the list is at the top of `jobs.lua`): `id`, `name` (for the money history), `icon`, `steps`, optionally `branch` (the career branch whose XP it also gives), and the functions `generate(tier)`, `tags`, `start`, `step`, `status`, `stop`, optionally `draw` and `vehicleReset`. Don't use the game's hook names (`onUpdate`, `onVehicleResetted`, …) for them: the game calls those on every extension.
+2. **What it brings** (the list is at the top of `jobs.lua`): `id`, `name` (its section in the Jobs app, and "<name> job" in the money history), `icon`, `steps`, optionally `branch` (the career branch whose XP it also gives), and the functions `generate(tier)`, `tags`, `start`, `step`, `status`, `stop`, optionally `draw` and `vehicleReset`. Don't use the game's hook names (`onUpdate`, `onVehicleResetted`, …) for them: the game calls those on every extension.
 3. **Its own fields** go into `job.data` (at most 2 KB as JSON). The server checks only what every job has (`type`, `title`, `pos`, `dest`, `length`, `pay`) and passes `data` on.
 4. **When the job is done**, `step` calls `jobs.handOver(a, share)`: how much of the pay was earned (0..1, less after damage, for example). The server turns it into the player's pay and XP and pays it once.
-5. **Tiers:** `generate(tier)` makes a job of tier 1 (easy) to 4 (hard). A harder tier should be harder to do and pay more (`pay` is the pay at level 1). Levels, unlocking, the level bonus and the XP come from the core and the server, the same for every job type.
+5. **Tiers:** `generate(tier)` makes a job of tier 1 (easy) to 4 (hard). A harder tier should be harder to do and pay more (`pay` is the pay at level 1). Levels, unlocking, the level bonus and the XP come from the core and the server. Every job type levels on its own, by the same rules unless it needs others (see [Job levels](#job-levels)).
 6. **An icon** in the Jobs app: the job card shows the SVG for `icon` in `app.html` (`scp-job-icon`); without one it shows `icon` as text.
 
 The server needs no change for a new job type: it keeps levels per job type as soon as it sees the first job of it. A client that doesn't know a job's type (an older mod version) lists it but doesn't start it. Making up jobs, the job types take turns; `server.jobsOpen` counts all of them.
@@ -142,10 +142,13 @@ The server needs no change for a new job type: it keeps levels per job type as s
 
 The server is the referee for levels (`main.lua`, "Job levels"): the job list is shared, so who may take which job can't come from a client. A client's save keeps only a copy to show (`career/sharedCareerJobLevels.json`, written with the career).
 
-- **progress.json:** per profile and job type `{xp, level, stats = {done, givenUp, earned, deducted, bestTier}, history}` (the last 20 jobs). The level follows from the XP: `100 × (level − 1)^1.5` XP for a level, at most level 10.
-- **Tiers:** tier t from level `TIER_LEVEL[t]` = 1, 3, 5, 8. A job of a higher tier is listed with `locked = true` and `sc_jobTake` refuses it.
-- **Pay:** the job's pay (at level 1) + 5 % per level above 1, worked out per player in `sc_jobs` and at the payout.
-- **XP:** `TIER_XP[tier]` (40, 70, 110, 160) × the share earned; half for a job two or more tiers below the player's highest. The payout carries the XP; the client adds it to the career's BeamXP and the job type's branch, if the career has them.
+Every job type levels on its own: towing level 8 doesn't help in a new job type, which starts at level 1. The rules are `LEVEL_RULES`, the same for every job type. A job type that needs other rules (other tiers, faster levels) gets an entry in `LEVEL_RULES_BY_TYPE` with only the values that differ, for example `delivery = {tierLevel = {1, 4, 7}, tierXp = {50, 90, 140}}`. They stay on the server, so a client can't change them.
+
+- **progress.json:** per profile and job type `{xp, level, stats = {done, givenUp, earned, deducted, bestTier}, history}` (the last 20 jobs). The level follows from the XP: `xpBase × (level − 1)^1.5` XP for a level (xpBase 100), at most `maxLevel` (10).
+- **Tiers:** tier t from level `tierLevel[t]` = 1, 3, 5, 8. A job of a higher tier is listed with `locked = true` and `sc_jobTake` refuses it; a tier a job type doesn't have is refused in `sc_jobOffer`.
+- **Pay:** the job's pay (at level 1) + `bonus` (5 %) per level above 1, worked out per player in `sc_jobs` and at the payout.
+- **XP:** `tierXp[tier]` (40, 70, 110, 160) × the share earned; `lowTierXp` (half) for a job two or more tiers below the player's highest. The payout carries the XP; the client adds it to the career's BeamXP and the job type's branch, if the career has them.
+- **The Jobs app** has a section per job type with your level in it (a ring), and its jobs in groups by the level they need: yours first, the locked ones at the bottom.
 - **Enough jobs for everyone:** `wantedTiers` lists, per job type, tier 1 and the highest tier of every player online; the emptiest one is asked for next (`sc_jobGenerate {type, tier}`, every 5 s while one is missing), up to `server.jobsOpen` each.
 
 ### Join flow

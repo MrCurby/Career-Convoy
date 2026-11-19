@@ -868,7 +868,7 @@ end
 -- again if that player leaves, gives up or runs out of time.
 -- What a job is about is up to its job type on the client (jobs.lua, towJobs.lua); the server only
 -- knows what every job has:
--- job = {id, type ("tow"), tier (1..#TIER_LEVEL, see "Job levels"), title (e.g. the vehicle),
+-- job = {id, type ("tow"), tier (1.., see "Job levels"), title (e.g. the vehicle),
 --        pos = {x, y, z} (where it starts), dest = {name, pos = {x, y, z}}, length (m), pay (at
 --        level 1), data (the type's own fields, passed on as they are, at most JOB_DATA_MAX bytes
 --        as JSON), takenBy (player id), takenAt}
@@ -891,41 +891,63 @@ end
 -- Every player has a level per job type. The server keeps it (config/progress.json, per profile
 -- like payouts.json) and is the referee: the shared job list decides who gets which job, so a
 -- level must not come from a client. A client's save only keeps a copy to show (jobs.lua).
---   tiers   every job has a tier; tier t can be taken from level TIER_LEVEL[t]
---   pay     the job's pay + LEVEL_BONUS per level above 1: everyone sees their own pay
---   XP      TIER_XP[tier] x the share of the pay that was earned (new damage costs XP too);
---           LOW_TIER_XP of it for a job two or more tiers below the highest one you can take
---   level   follows from the XP (levelXp: 100 x (level - 1)^1.5), at most MAX_LEVEL
+-- The rules come from LEVEL_RULES: the same for every job type, unless a job type has its own
+-- (LEVEL_RULES_BY_TYPE, only the values that differ):
+--   tierLevel  every job has a tier; tier t can be taken from level tierLevel[t]
+--   bonus      the job's pay + bonus per level above 1: everyone sees their own pay
+--   tierXp     tierXp[tier] x the share of the pay that was earned (new damage costs XP too);
+--              lowTierXp of it for a job two or more tiers below the highest one you can take
+--   level      follows from the XP (levelXp: xpBase x (level - 1)^1.5), at most maxLevel
 -- progress[profile][type] = {xp, level, stats = {done, givenUp, earned, deducted, bestTier},
 --                            history = {{at, job, tier, pay, deduction, xp, levelAfter}, ...}}
 --                            (the last HISTORY_MAX jobs, newest first)
 local PROGRESS_FILE = CONFIG_DIR .. "/progress.json"
-local TIER_LEVEL = {1, 3, 5, 8}
-local TIER_XP = {40, 70, 110, 160}
-local MAX_LEVEL = 10
-local LEVEL_BONUS = 0.05
-local LOW_TIER_XP = 0.5
+local LEVEL_RULES = {
+	tierLevel = {1, 3, 5, 8},
+	tierXp = {40, 70, 110, 160},
+	maxLevel = 10,
+	xpBase = 100,
+	bonus = 0.05,
+	lowTierXp = 0.5,
+}
+-- job type -> the rules that differ from LEVEL_RULES, e.g. delivery = {tierLevel = {1, 4, 7}, tierXp = {50, 90, 140}}
+local LEVEL_RULES_BY_TYPE = {}
 local HISTORY_MAX = 20
 -- job types seen (in progress.json or in an offer): their tiers are kept stocked
 local knownTypes = {}
 
-local function levelXp(level)
-	return math.floor(100 * (level - 1) ^ 1.5 + 0.5)
+-- The level rules of a job type: LEVEL_RULES with the type's own values over them.
+local function rulesOf(kind)
+	local own = LEVEL_RULES_BY_TYPE[kind]
+	if not own then return LEVEL_RULES end
+	local rules = {}
+	for k, v in pairs(LEVEL_RULES) do rules[k] = own[k] ~= nil and own[k] or v end
+	return rules
 end
 
-local function levelOf(xp)
+-- The XP a level needs.
+local function levelXp(rules, level)
+	return math.floor(rules.xpBase * (level - 1) ^ 1.5 + 0.5)
+end
+
+local function levelOf(rules, xp)
 	local level = 1
-	while level < MAX_LEVEL and xp >= levelXp(level + 1) do level = level + 1 end
+	while level < rules.maxLevel and xp >= levelXp(rules, level + 1) do level = level + 1 end
 	return level
 end
 
 -- The highest tier this level can take.
-local function topTier(level)
+local function topTier(rules, level)
 	local tier = 1
-	for t, needed in ipairs(TIER_LEVEL) do
+	for t, needed in ipairs(rules.tierLevel) do
 		if level >= needed then tier = t end
 	end
 	return tier
+end
+
+-- The level a tier needs, or nil for a tier the job type doesn't have.
+local function tierLevel(kind, tier)
+	return rulesOf(kind).tierLevel[tier]
 end
 
 local function profileOf(player_id)
@@ -952,7 +974,7 @@ end
 
 -- The pay of a job for a player of this level.
 local function payAt(job, level)
-	local pay = job.pay * (1 + LEVEL_BONUS * (level - 1))
+	local pay = job.pay * (1 + rulesOf(job.type).bonus * (level - 1))
 	return math.floor(math.min(tonumber(Config.server.jobPayMax) or 5000, pay) + 0.5)
 end
 
@@ -977,7 +999,7 @@ local function loadProgress()
 				local xp = type(p) == "table" and tonumber(p.xp)
 				if type(kind) == "string" and xp and xp >= 0 then
 					local entry = progressOf(profile, kind, true)
-					entry.xp, entry.level = xp, levelOf(xp)
+					entry.xp, entry.level = xp, levelOf(rulesOf(kind), xp)
 					local stats = type(p.stats) == "table" and p.stats or {}
 					for k in pairs(entry.stats) do entry.stats[k] = tonumber(stats[k]) or 0 end
 					entry.history = type(p.history) == "table" and p.history or {}
@@ -989,13 +1011,13 @@ local function loadProgress()
 end
 
 -- A player's levels for the Jobs app: type -> {level, xp, from, to} (from/to: the XP of this level
--- and the next one; to = nil at MAX_LEVEL). Every known job type, level 1 without progress.
+-- and the next one; to = nil at the top level). Every known job type, level 1 without progress.
 local function levelsFor(player_id)
 	local out = {}
 	for kind in pairs(knownTypes) do
-		local p = progressOf(profileOf(player_id), kind)
-		out[kind] = {level = p.level, xp = p.xp, from = levelXp(p.level),
-			to = p.level < MAX_LEVEL and levelXp(p.level + 1) or nil}
+		local p, rules = progressOf(profileOf(player_id), kind), rulesOf(kind)
+		out[kind] = {level = p.level, xp = p.xp, from = levelXp(rules, p.level),
+			to = p.level < rules.maxLevel and levelXp(rules, p.level + 1) or nil}
 	end
 	return out
 end
@@ -1005,12 +1027,13 @@ end
 local function addJobXp(player_id, job, share, pay, deduction)
 	local kind = job.type
 	local p = progressOf(profileOf(player_id), kind, true)
-	local before, levelBefore = topTier(p.level), p.level
-	local xp = (TIER_XP[job.tier] or TIER_XP[1]) * share
-	if before - job.tier >= 2 then xp = xp * LOW_TIER_XP end
+	local rules = rulesOf(kind)
+	local before, levelBefore = topTier(rules, p.level), p.level
+	local xp = (rules.tierXp[job.tier] or rules.tierXp[1]) * share
+	if before - job.tier >= 2 then xp = xp * rules.lowTierXp end
 	xp = math.floor(xp + 0.5)
 	p.xp = p.xp + xp
-	p.level = levelOf(p.xp)
+	p.level = levelOf(rules, p.xp)
 	p.stats.done = p.stats.done + 1
 	p.stats.earned = p.stats.earned + pay
 	p.stats.deducted = p.stats.deducted + deduction
@@ -1019,7 +1042,7 @@ local function addJobXp(player_id, job, share, pay, deduction)
 		xp = xp, levelAfter = p.level})
 	while #p.history > HISTORY_MAX do table.remove(p.history) end
 	saveProgress()
-	return xp, p.level, p.level > levelBefore, topTier(p.level) > before
+	return xp, p.level, p.level > levelBefore, topTier(rules, p.level) > before
 end
 
 local function addGivenUp(player_id, kind)
@@ -1081,7 +1104,7 @@ local function wantedTiers()
 	for kind in pairs(knownTypes) do
 		want(kind, 1)
 		for id, entry in pairs(players) do
-			if entry.careerActive and MP.IsPlayerConnected(id) then want(kind, topTier(levelFor(id, kind))) end
+			if entry.careerActive and MP.IsPlayerConnected(id) then want(kind, topTier(rulesOf(kind), levelFor(id, kind))) end
 		end
 	end
 	if #wanted == 0 then return {{tier = 1, open = 0}} end
@@ -1095,7 +1118,7 @@ end
 
 local function jobFor(job, player_id)
 	local level = levelFor(player_id, job.type)
-	local minLevel = TIER_LEVEL[job.tier] or 1
+	local minLevel = tierLevel(job.type, job.tier) or 1
 	return {id = job.id, type = job.type, tier = job.tier, minLevel = minLevel, locked = level < minLevel,
 		title = job.title, pos = job.pos, dest = job.dest, length = job.length, pay = payAt(job, level), data = job.data,
 		state = job.takenBy == nil and "open" or (job.takenBy == player_id and "mine" or "taken"),
@@ -1145,7 +1168,7 @@ function sc_jobOffer(player_id, data)
 	local pos = vecOf(msg.pos, true)
 	local destPos = type(dest) == "table" and vecOf(dest.pos, true)
 	local length, pay = tonumber(msg.length), tonumber(msg.pay)
-	if not (kind and title and data and tier and TIER_LEVEL[tier] and pos and destPos and length and pay)
+	if not (kind and title and data and tier and tierLevel(kind, tier) and pos and destPos and length and pay)
 		or length ~= length or pay ~= pay then return end
 	if openJobCount(kind, tier) >= jobsOpen() then return end
 	knownTypes[kind] = true
@@ -1180,7 +1203,7 @@ function sc_jobTake(player_id, data)
 			return
 		end
 	end
-	local minLevel = TIER_LEVEL[job.tier] or 1
+	local minLevel = tierLevel(job.type, job.tier) or 1
 	if levelFor(player_id, job.type) < minLevel then
 		notify(player_id, "Needs level " .. minLevel, "warning")
 		sendJobs(player_id)

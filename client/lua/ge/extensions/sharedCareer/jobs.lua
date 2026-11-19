@@ -4,7 +4,7 @@
 -- what all jobs have in common. What a job is about comes from its job type, an extension that
 -- registers itself here (registerType) – towJobs.lua (towing jobs) is the first one. A job type:
 --   id               short name, sent with every job ("tow")
---   name             shown with the pay in the career's money history ("Towing job: <title>")
+--   name             its name in the Jobs app ("Towing") and in the money history ("Towing job: <title>")
 --   icon             the icon of its jobs in the Jobs app (a name the app knows, e.g. "tow")
 --   branch           optional: the career branch whose XP a job also gives ("labourer"), next to
 --                    the game's BeamXP – only if the career has that attribute
@@ -33,8 +33,9 @@
 --                  (sc_jobGenerate {type, tier}); this client asks that job type (without one: its
 --                  job types in turn) and sends the job (sc_jobOffer)
 --   levels         every player has a level per job type; the server keeps it and decides (main.lua
---                  "Job levels"): which tiers you can take, your pay, the XP. The Jobs app shows
---                  your level and the jobs by level, the ones you can't take yet at the bottom.
+--                  "Job levels"): which tiers you can take, your pay, the XP. The Jobs app has a
+--                  section per job type with your level in it and its jobs by level, the ones you
+--                  can't take yet at the bottom.
 --                  The last levels the server sent are kept in the career save (LEVELS_FILE), to
 --                  show them before the server's list has arrived
 --   taking         sc_jobTake, the server gives it to the first one; then the type's start() and
@@ -278,7 +279,7 @@ local function rxPaid(data)
 	if not U.careerActive() or not attributes or type(attributes.addAttributes) ~= "function" then return end
 	local mine = active ~= nil and active.id == msg.job
 	local t = types[msg.type]
-	local label = (t and t.name or "Job") .. ": " .. (type(msg.title) == "string" and msg.title or "?")
+	local label = (t and (t.name .. " job") or "Job") .. ": " .. (type(msg.title) == "string" and msg.title or "?")
 	local xp = math.max(0, math.floor(tonumber(msg.xp) or 0))
 	local change = {money = pay}
 	local function has(key)
@@ -321,58 +322,91 @@ local function tagsOf(job)
 	return ok and type(tags) == "table" and tags or {}
 end
 
--- Your levels for the app: {{type, name, icon, level, share (0..1 to the next level), toGo (XP to
--- the next level; nil at the top)}}, one per job type this client knows.
-local function levelsForApp()
-	local out = {}
-	for _, id in ipairs(typeOrder) do
-		local t, lv = types[id], levels[id]
-		if type(lv) == "table" and tonumber(lv.level) then
-			local xp, from, to = tonumber(lv.xp) or 0, tonumber(lv.from) or 0, tonumber(lv.to)
-			table.insert(out, {type = id, name = t.name, icon = t.icon, level = math.floor(lv.level),
-				share = to and to > from and math.max(0, math.min(1, (xp - from) / (to - from))) or 1,
-				toGo = to and math.max(0, math.ceil(to - xp)) or nil})
-		end
-	end
-	return out
+-- Your level in a job type for the app: {level, share (0..1 of the way to the next level), toGo
+-- (XP to the next level; nil at the top)}, or nil before the server has sent it.
+local function levelForApp(id)
+	local lv = levels[id]
+	if type(lv) ~= "table" or not tonumber(lv.level) then return nil end
+	local xp, from, to = tonumber(lv.xp) or 0, tonumber(lv.from) or 0, tonumber(lv.to)
+	return {level = math.floor(lv.level), share = to and to > from and math.max(0, math.min(1, (xp - from) / (to - from))) or 1,
+		toGo = to and math.max(0, math.ceil(to - xp)) or nil}
 end
 
---- State for the Jobs app. The jobs come in groups by the level they need: the ones you can take
---- first, the hardest at the top; the ones you can't take yet at the bottom, the nearest level first.
-function M.appState()
-	local me = myPosition()
-	local byLevel = {}
-	for _, job in ipairs(list) do
-		local t = types[job.type]
-		local minLevel = math.max(1, math.floor(tonumber(job.minLevel) or 1))
-		local entry = {id = job.id, icon = t and t.icon or "?", title = job.title or "?", tags = tagsOf(job),
-			dest = job.dest and job.dest.name or "?", length = job.length, pay = job.pay, state = job.state,
-			takenBy = job.takenBy, locked = job.locked == true, minLevel = minLevel,
-			distance = me and job.pos and dist2D(me, job.pos) or nil}
-		if job.state ~= "mine" then
-			local key = minLevel .. (entry.locked and "L" or "")
-			byLevel[key] = byLevel[key] or {minLevel = minLevel, locked = entry.locked, jobs = {}}
-			table.insert(byLevel[key].jobs, entry)
+-- One job of the list, for the app.
+local function jobForApp(job, me)
+	local t = types[job.type]
+	return {id = job.id, icon = t and t.icon or "?", title = job.title or "?", tags = tagsOf(job),
+		dest = job.dest and job.dest.name or "?", length = job.length, pay = job.pay, state = job.state,
+		takenBy = job.takenBy, locked = job.locked == true, minLevel = math.max(1, math.floor(tonumber(job.minLevel) or 1)),
+		distance = me and job.pos and dist2D(me, job.pos) or nil}
+end
+
+-- A job type's jobs in groups by the level they need: the ones you can take first, the hardest at
+-- the top; the ones you can't take yet at the bottom, the nearest level first.
+local function levelGroups(jobs)
+	local byLevel, groups = {}, {}
+	for _, j in ipairs(jobs) do
+		local key = j.minLevel .. (j.locked and "L" or "")
+		if not byLevel[key] then
+			byLevel[key] = {minLevel = j.minLevel, locked = j.locked, open = 0, jobs = {}}
+			table.insert(groups, byLevel[key])
 		end
+		table.insert(byLevel[key].jobs, j)
+		if j.state == "open" then byLevel[key].open = byLevel[key].open + 1 end
 	end
-	local groups = {}
-	for _, g in pairs(byLevel) do
+	for _, g in ipairs(groups) do
 		table.sort(g.jobs, function(a, b)
 			if (a.state == "open") ~= (b.state == "open") then return a.state == "open" end
 			return (a.distance or 1e12) < (b.distance or 1e12)
 		end)
-		g.open = 0
-		for _, j in ipairs(g.jobs) do if j.state == "open" then g.open = g.open + 1 end end
-		table.insert(groups, g)
 	end
 	table.sort(groups, function(a, b)
 		if a.locked ~= b.locked then return not a.locked end
 		if a.locked then return a.minLevel < b.minLevel end
 		return a.minLevel > b.minLevel
 	end)
-	local open = 0
-	for _, g in ipairs(groups) do if not g.locked then open = open + g.open end end
-	local state = {enabled = enabled and serverAllows(), groups = groups, open = open, levels = levelsForApp()}
+	return groups
+end
+
+--- State for the Jobs app: a section per job type (in the order they registered; job types this
+--- client doesn't know last) with your level in it and its jobs in groups by level (levelGroups).
+--- Your own job is not in the list, it has its own card.
+function M.appState()
+	local me = myPosition()
+	local byType, order = {}, {}
+	local function section(id)
+		if not byType[id] then
+			local t = types[id]
+			byType[id] = {type = id, name = t and t.name or id, icon = t and t.icon or "?", level = levelForApp(id), jobs = {}}
+			table.insert(order, id)
+		end
+		return byType[id]
+	end
+	for _, id in ipairs(typeOrder) do
+		if levels[id] then section(id) end
+	end
+	for _, job in ipairs(list) do
+		if job.state ~= "mine" and type(job.type) == "string" then table.insert(section(job.type).jobs, jobForApp(job, me)) end
+	end
+	local rank = {}
+	for i, id in ipairs(typeOrder) do rank[id] = i end
+	table.sort(order, function(a, b)
+		if (rank[a] ~= nil) ~= (rank[b] ~= nil) then return rank[a] ~= nil end
+		if rank[a] then return rank[a] < rank[b] end
+		return a < b
+	end)
+	local sections, open = {}, 0
+	for _, id in ipairs(order) do
+		local sec = byType[id]
+		sec.groups, sec.open = levelGroups(sec.jobs), 0
+		sec.jobs = nil
+		for _, g in ipairs(sec.groups) do
+			if not g.locked then sec.open = sec.open + g.open end
+		end
+		open = open + sec.open
+		table.insert(sections, sec)
+	end
+	local state = {enabled = enabled and serverAllows(), sections = sections, open = open}
 	if active then
 		local job, s = active.job, statusOf(active)
 		local steps = active.type.steps or {}

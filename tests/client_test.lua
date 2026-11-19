@@ -2909,7 +2909,7 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	for _, app in ipairs(sharedCareer_phone.state().apps) do if app.id == "jobs" then jobsApp = app end end
 	check(jobsApp and jobsApp.beta == true and jobsApp.title == "Jobs", "the Jobs app is on the phone, marked as beta")
 	local st = jobs.appState()
-	local first = st.groups[1] and st.groups[1].jobs[1]
+	local first = st.sections[1] and st.sections[1].groups[1].jobs[1]
 	check(st.enabled and st.open == 1 and first.state == "open" and math.abs(first.distance - 2000) < 20,
 		"the app lists the job with its distance from you")
 	check(first.icon == "tow" and first.title == "Gavril Grand Marshal" and #first.tags == 2
@@ -2923,11 +2923,15 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	handlers.sc_jobs(json.encode({enabled = true, jobs = {listed(1, false, 1), listed(8, true, 2), listed(3, false, 3),
 		listed(5, true, 4), listed(3, false, 5)}, levels = {tow = {level = 4, xp = 600, from = 520, to = 800}}}))
 	st = jobs.appState()
+	local sec = st.sections[1]
 	local order = {}
-	for _, g in ipairs(st.groups) do table.insert(order, g.minLevel .. (g.locked and "L" or "") .. ":" .. #g.jobs) end
-	check(table.concat(order, " ") == "3:2 1:1 5L:1 8L:1" and st.open == 3, "groups: level 3, level 1, then locked 5 and 8")
-	check(#st.levels == 1 and st.levels[1].level == 4 and math.abs(st.levels[1].share - 80 / 280) < 1e-9 and st.levels[1].toGo == 200,
-		"your level: 4, the ring part way, 200 XP to go")
+	for _, g in ipairs(sec.groups) do table.insert(order, g.minLevel .. (g.locked and "L" or "") .. ":" .. #g.jobs) end
+	check(#st.sections == 1 and sec.type == "tow" and sec.name == "Towing" and sec.icon == "tow",
+		"a section for the towing jobs")
+	check(table.concat(order, " ") == "3:2 1:1 5L:1 8L:1" and st.open == 3 and sec.open == 3,
+		"in it the groups by level: level 3, level 1, then locked 5 and 8")
+	check(sec.level.level == 4 and math.abs(sec.level.share - 80 / 280) < 1e-9 and sec.level.toGo == 200,
+		"your towing level: 4, the ring part way, 200 XP to go")
 	-- the levels go with the career save, and come back from it before the server's list
 	_G.career_saveSystem.getCurrentSaveSlot = function() return "slot1", "/saves/slot1" end
 	local saved = {}
@@ -2938,7 +2942,7 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	local readFile = _G.jsonReadFile
 	_G.jsonReadFile = function(path) return saved[path] or readFile(path) end
 	extensions.hook("onCareerActive", true)
-	check(jobs.appState().levels[1].level == 4, "next career start: the saved levels show until the server's list comes")
+	check(jobs.appState().sections[1].level.level == 4, "next career start: the saved levels show until the server's list comes")
 	_G.jsonReadFile, _G.jsonWriteFile, _G.career_saveSystem.getCurrentSaveSlot = readFile, nil, nil
 	sendList("open")
 	jobs.uiTake(7)
@@ -3063,7 +3067,7 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	check(jobs.getActive() == nil and third.deleted, "taken away by the server: ended, vehicle removed")
 	-- another job type: the core works without anything of the towing jobs
 	local calls = {}
-	local test = {id = "test", name = "Test job", icon = "T", steps = {"Go", "Paid"},
+	local test = {id = "test", name = "Test", icon = "T", steps = {"Go", "Paid"},
 		generate = function() return {title = "Box", pos = {x = 10, y = 0, z = 0}, dest = {name = "Depot", pos = {x = 20, y = 0, z = 0}},
 			length = 10, pay = 100, data = {weight = 3}} end,
 		tags = function(j) return {{text = j.data.weight .. " t", kind = "load"}} end,
@@ -3091,8 +3095,13 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	for _ = 1, 70 do update(0.1) end
 	check(calls[2] == "stop" and jobs.getActive() == nil, "a few seconds later the job ends: the type cleans up")
 	handlers.sc_jobs(json.encode({enabled = true, jobs = {{id = 21, type = "unknown", title = "?", pos = tj.pos, dest = tj.dest,
-		pay = 1, state = "open"}, {id = 22, type = "unknown", title = "?", pos = tj.pos, dest = tj.dest, pay = 1, state = "mine"}}}))
-	check(jobs.getActive() == nil and jobs.appState().groups[1].jobs[1].icon == "?", "a job of a type this client doesn't know: listed, not started")
+		pay = 1, state = "open"}, {id = 22, type = "unknown", title = "?", pos = tj.pos, dest = tj.dest, pay = 1, state = "mine"},
+		{id = 23, type = "test", title = "Box", pos = tj.pos, dest = tj.dest, pay = 1, state = "open"}},
+		levels = {tow = {level = 4, xp = 600, from = 520, to = 800}, test = {level = 2, xp = 150, from = 100, to = 283}}}))
+	st = jobs.appState()
+	check(jobs.getActive() == nil and #st.sections == 3 and st.sections[1].type == "tow" and st.sections[2].type == "test"
+		and st.sections[2].level.level == 2 and st.sections[3].type == "unknown" and st.sections[3].groups[1].jobs[1].icon == "?",
+		"a section per job type, each with its own level; a type this client doesn't know: last, listed, not started")
 	-- switched off on the server: the app goes away
 	cfgJ.ui.jobs = false
 	handlers.sc_configUpdate(json.encode(cfgJ))
