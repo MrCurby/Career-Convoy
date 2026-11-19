@@ -128,6 +128,7 @@ After an update:
 - **Settings** in `config/config.json` are kept. Values you never changed move to the new default automatically. Values you changed stay as they are. The server console lists what was changed.
 - **Save game mapping** in `config/profiles.json` is kept.
 - **Unpaid jobs** in `config/payouts.json` are kept. A player gets the pay on their next join.
+- **Job levels** in `config/progress.json` are kept.
 - A **broken `config.json`**, for example one with a typo, is saved as `config.json.broken` instead of being overwritten.
 
 ## Manual installation and updates

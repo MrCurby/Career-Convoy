@@ -170,13 +170,19 @@ local function installCareer(opts)
 		end,
 	}
 	local money = opts.money or 1000
+	local xp = {beamXP = 0, labourer = 0} -- the career's own XP attributes
 	_G.career_modules_playerAttributes = {
-		getAttribute = function(k) return k == "money" and {value = money} or nil end,
+		getAttribute = function(k)
+			if k == "money" then return {value = money} end
+			return xp[k] and {value = xp[k]} or nil
+		end,
 		addAttributes = function(change, reason)
 			money = money + (change.money or 0)
+			for k, v in pairs(change) do if xp[k] then xp[k] = xp[k] + v end end
 			world.moneyLabel = type(reason) == "table" and reason.label or nil
 		end,
 		money = function() return money end,
+		xp = function(k) return xp[k] end,
 	}
 end
 
@@ -2859,16 +2865,24 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	local offer = lastSent("sc_jobOffer")
 	check(offer and offer.type == "tow" and offer.title == "Gavril Grand Marshal" and offer.data.vehicle.model == "fullsize"
 		and offer.data.vehicle.config == "base", "made up a towing job with an old car from the career's delivery filter")
-	local okAll = true
-	for _ = 1, 60 do
-		local job = tow.generate()
+	check(offer.tier == 1, "the server asked for nothing special: tier 1")
+	local okAll, heavyOk = true, true
+	for i = 1, 80 do
+		local tier = (i - 1) % 4 + 1
+		local job = tow.generate(tier)
 		local destDist = math.sqrt((job.dest.pos.x - job.pos.x) ^ 2 + (job.dest.pos.y - job.pos.y) ^ 2)
-		if math.abs(math.abs(job.pos.y) - 5.8) > 1e-6 or job.pos.x < 350 or destDist < 800 or destDist > 6000
-			or job.pay ~= tow.payFor(job.length, job.data.flatTire) then
+		if math.abs(math.abs(job.pos.y) - 5.8) > 1e-6 or job.pos.x < 350 or destDist < 400
+			or job.pay ~= tow.payFor(job.length, job.data.flatTire, tier) then
 			okAll = false
 		end
+		if (tier >= 3) ~= (job.data.heavy == true) or (tier == 4 and not job.data.flatTire) then heavyOk = false end
 	end
-	check(okAll, "places: always beside the road (5.8 m from its middle), never near a vehicle or on a dirt track; shop 0.8-6 km away")
+	check(okAll, "places: always beside the road (5.8 m from its middle), never near a vehicle or on a dirt track; a shop away from it")
+	check(heavyOk, "tiers 3 and 4: a heavy vehicle; tier 4 always with a flat tire")
+	check(tow.payFor(1000, false, 2) == 350 and tow.payFor(1000, false, 4) == 590, "a higher tier pays more (x1.3, x2.2)")
+	handlers.sc_jobGenerate(json.encode({type = "tow", tier = 3}))
+	offer = lastSent("sc_jobOffer")
+	check(offer.type == "tow" and offer.tier == 3 and offer.data.heavy == true, "the server asks for tier 3: a heavy tow")
 	cfgJ.jobPay = 2
 	handlers.sc_configUpdate(json.encode(cfgJ))
 	check(tow.payFor(1000, false) == 540, "client.jobPay doubles the pay")
@@ -2895,10 +2909,38 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	for _, app in ipairs(sharedCareer_phone.state().apps) do if app.id == "jobs" then jobsApp = app end end
 	check(jobsApp and jobsApp.beta == true and jobsApp.title == "Jobs", "the Jobs app is on the phone, marked as beta")
 	local st = jobs.appState()
-	check(st.enabled and #st.jobs == 1 and st.jobs[1].state == "open" and math.abs(st.jobs[1].distance - 2000) < 20,
+	local first = st.groups[1] and st.groups[1].jobs[1]
+	check(st.enabled and st.open == 1 and first.state == "open" and math.abs(first.distance - 2000) < 20,
 		"the app lists the job with its distance from you")
-	check(st.jobs[1].icon == "tow" and st.jobs[1].title == "Gavril Grand Marshal" and #st.jobs[1].tags == 2
-		and st.jobs[1].tags[2].text == "Flat tire", "its icon, title and tags come from the towing job type")
+	check(first.icon == "tow" and first.title == "Gavril Grand Marshal" and #first.tags == 2
+		and first.tags[2].text == "Flat tire", "its icon, title and tags come from the towing job type")
+	-- the jobs by level: yours first (the hardest at the top), then the locked ones (the nearest first)
+	local function listed(minLevel, locked, id)
+		local j = json.decode(json.encode(job))
+		j.id, j.state, j.minLevel, j.locked = id, "open", minLevel, locked
+		return j
+	end
+	handlers.sc_jobs(json.encode({enabled = true, jobs = {listed(1, false, 1), listed(8, true, 2), listed(3, false, 3),
+		listed(5, true, 4), listed(3, false, 5)}, levels = {tow = {level = 4, xp = 600, from = 520, to = 800}}}))
+	st = jobs.appState()
+	local order = {}
+	for _, g in ipairs(st.groups) do table.insert(order, g.minLevel .. (g.locked and "L" or "") .. ":" .. #g.jobs) end
+	check(table.concat(order, " ") == "3:2 1:1 5L:1 8L:1" and st.open == 3, "groups: level 3, level 1, then locked 5 and 8")
+	check(#st.levels == 1 and st.levels[1].level == 4 and math.abs(st.levels[1].share - 80 / 280) < 1e-9 and st.levels[1].toGo == 200,
+		"your level: 4, the ring part way, 200 XP to go")
+	-- the levels go with the career save, and come back from it before the server's list
+	_G.career_saveSystem.getCurrentSaveSlot = function() return "slot1", "/saves/slot1" end
+	local saved = {}
+	_G.jsonWriteFile = function(path, data) saved[path] = json.decode(json.encode(data)); return true end
+	extensions.hook("onSaveCurrentSaveSlot", "/saves/slot1")
+	check(saved["/saves/slot1/career/sharedCareerJobLevels.json"].levels.tow.level == 4, "saving the career: a copy of the levels goes with it")
+	jobs.onBeamMPServerLeave()
+	local readFile = _G.jsonReadFile
+	_G.jsonReadFile = function(path) return saved[path] or readFile(path) end
+	extensions.hook("onCareerActive", true)
+	check(jobs.appState().levels[1].level == 4, "next career start: the saved levels show until the server's list comes")
+	_G.jsonReadFile, _G.jsonWriteFile, _G.career_saveSystem.getCurrentSaveSlot = readFile, nil, nil
+	sendList("open")
 	jobs.uiTake(7)
 	check(lastSent("sc_jobTake").id == 7, "take: asks the server")
 	sendList("mine")
@@ -2941,9 +2983,10 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	tow.onJobDamage(80, 100 + 20000)
 	update(0.3)
 	local done = lastSent("sc_jobDone")
-	check(done and done.id == 7 and done.pay == 450, "new damage costs part of the pay (half the max: 25 %, $600 -> $450)")
+	check(done and done.id == 7 and done.share == 0.75, "new damage costs part of the pay (half the max: 25 %)")
 	-- paid by the server: money in the career, the vehicle goes away a few seconds later
-	local payout = json.encode({payout = "p-7", job = 7, type = "tow", title = "Gavril Grand Marshal", pay = 450})
+	local payout = json.encode({payout = "p-7", job = 7, type = "tow", title = "Gavril Grand Marshal", pay = 450,
+		deduction = 150, xp = 30})
 	local realIsActive = career_career.isActive
 	career_career.isActive = function() return false end
 	handlers.sc_jobPaid(payout)
@@ -2956,6 +2999,8 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 		"paid: +$450 in the career, the deduction is shown")
 	check(world.moneyLabel == "Towing job: Gavril Grand Marshal" and jobs.appState().active.step == 2,
 		"in the money history as a towing job; the last step (paid)")
+	check(lastToastMsg():find("%+30 XP") and career_modules_playerAttributes.xp("beamXP") == 30
+		and career_modules_playerAttributes.xp("labourer") == 30, "the XP are shown and go to the career's BeamXP and labourer branch")
 	check((world.saved or 0) == savesBefore + 1 and lastSent("sc_jobPaidAck").payout == "p-7",
 		"the career is saved, then the server gets the confirmation")
 	local function acks()
@@ -3023,7 +3068,7 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 			length = 10, pay = 100, data = {weight = 3}} end,
 		tags = function(j) return {{text = j.data.weight .. " t", kind = "load"}} end,
 		start = function(a) table.insert(calls, "start"); a.left = 2 end,
-		step = function(a) a.left = a.left - 1; if a.left <= 0 then jobs.handOver(a, 90, 10) end end,
+		step = function(a) a.left = a.left - 1; if a.left <= 0 then jobs.handOver(a, 0.9) end end,
 		status = function() return {step = 0, text = "to the depot", short = "Bring the box", target = {x = 20, y = 0, z = 0}} end,
 		stop = function() table.insert(calls, "stop") end}
 	jobs.registerType(test)
@@ -3040,14 +3085,14 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	check(calls[1] == "start" and paths[#paths].x == 20 and st.active.icon == "T" and st.active.tags[1].text == "3 t"
 		and st.active.short == "Bring the box", "a test job: started, route to its target, its texts in the app")
 	for _ = 1, 10 do update(0.1) end
-	check(lastSent("sc_jobDone").id == 20 and lastSent("sc_jobDone").pay == 90, "the job type hands it over")
-	handlers.sc_jobPaid(json.encode({payout = "p-20", job = 20, type = "test", title = "Box", pay = 90}))
+	check(lastSent("sc_jobDone").id == 20 and lastSent("sc_jobDone").share == 0.9, "the job type hands it over")
+	handlers.sc_jobPaid(json.encode({payout = "p-20", job = 20, type = "test", title = "Box", pay = 90, deduction = 10}))
 	check(world.moneyLabel == "Test job: Box" and lastToastMsg():find("%$10 damage"), "paid, named after its job type")
 	for _ = 1, 70 do update(0.1) end
 	check(calls[2] == "stop" and jobs.getActive() == nil, "a few seconds later the job ends: the type cleans up")
 	handlers.sc_jobs(json.encode({enabled = true, jobs = {{id = 21, type = "unknown", title = "?", pos = tj.pos, dest = tj.dest,
-		pay = 1, state = "mine"}}}))
-	check(jobs.getActive() == nil and jobs.appState().jobs[1].icon == "?", "a job of a type this client doesn't know: listed, not started")
+		pay = 1, state = "open"}, {id = 22, type = "unknown", title = "?", pos = tj.pos, dest = tj.dest, pay = 1, state = "mine"}}}))
+	check(jobs.getActive() == nil and jobs.appState().groups[1].jobs[1].icon == "?", "a job of a type this client doesn't know: listed, not started")
 	-- switched off on the server: the app goes away
 	cfgJ.ui.jobs = false
 	handlers.sc_configUpdate(json.encode(cfgJ))

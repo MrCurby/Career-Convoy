@@ -2,16 +2,16 @@
 --
 -- A job type of the Jobs app (jobs.lua: the shared list, taking, giving up, the pay). This file
 -- brings what a towing job is about:
---   making one up (generate)
+--   making one up (generate), by tier (TIERS: the higher, the harder and the better paid)
 --     a place     a random road node far from every vehicle, moved off the road onto the
 --                 roadside (ROADSIDE m beyond the road's edge), standing along the road
---     a vehicle   an old car from the career's own delivery filter (gameplay/delivery/
---                 vehicles.deliveryVehicles.json, JUNKER_FILTER) via util_configListGenerator;
---                 a few common models if that is missing
---     a shop      a garage of the map (freeroam_facilities, the middle of its doors) DEST_MIN to
---                 DEST_MAX m away
---     the pay     PAY_BASE + PAY_PER_KM per km of the tow (straight line x ROAD_FACTOR), x PAY_FLAT
---                 with a flat tire, x client.jobPay
+--     a vehicle   tiers 1-2: an old car from the career's own delivery filter (gameplay/delivery/
+--                 vehicles.deliveryVehicles.json, JUNKER_FILTER) via util_configListGenerator, a
+--                 few common models if that is missing; tiers 3-4: a heavy vehicle (HEAVY_MODELS)
+--     a shop      a garage of the map (freeroam_facilities, the middle of its doors), as far away
+--                 as the tier says (the nearest fit if none is)
+--     the pay     (PAY_BASE + PAY_PER_KM per km of the tow (straight line x ROAD_FACTOR)) x the
+--                 tier's pay, x PAY_FLAT with a flat tire, x client.jobPay
 --     job.data = {vehicle = {model, config}, flatTire, dir}; job.title = the vehicle's name
 --   doing it
 --     1. the route leads to the place; within SPAWN_RANGE m the broken-down vehicle appears there
@@ -35,7 +35,7 @@ local U, J
 
 local SPAWN_RANGE = 400       -- m: the broken-down vehicle appears when you are this close
 local FAR_FROM_VEHICLES = 350 -- m: a new job is never made up closer to any vehicle
-local DEST_MIN, DEST_MAX = 800, 6000 -- m from the place to the repair shop
+local DEST_NEAREST = 400      -- m: a shop at least this far away when none fits the tier
 local MIN_ROAD_RADIUS = 2.5   -- m: half the width of a road the place may be on
 local MIN_DRIVABILITY = 0.6   -- the road must be a normal road (not a dirt track)
 local ROADSIDE = 1.8          -- m beyond the road's edge
@@ -48,7 +48,13 @@ local DAMAGE_WAIT = 3         -- s for the vehicle's damage report; then no dedu
 local PAY_BASE, PAY_PER_KM = 150, 120
 local PAY_FLAT = 1.25
 local ROAD_FACTOR = 1.3       -- roads are about this much longer than the straight line
-local FLAT_TIRE_CHANCE = 0.4
+-- the tiers: how far to the shop (m), how often a flat tire, a heavy vehicle, the pay
+local TIERS = {
+	{destMin = 800, destMax = 2500, flatTire = 0.2, heavy = false, pay = 1},
+	{destMin = 1500, destMax = 4000, flatTire = 0.4, heavy = false, pay = 1.3},
+	{destMin = 2500, destMax = 6000, flatTire = 0.6, heavy = true, pay = 1.7},
+	{destMin = 3500, destMax = 8000, flatTire = 1, heavy = true, pay = 2.2},
+}
 local PENALTY_MAX = 0.5       -- share of the pay new damage can cost at most
 local DAMAGE_FOR_MAX = 40000  -- damage points (beamstate.damage) that cost PENALTY_MAX
 local BREAKDOWN_RETRY = 3     -- s without the vehicle's answer: break it down again
@@ -58,10 +64,12 @@ local MARKER_RANGE = 250      -- m: the markers show within this distance
 local JUNKER_FILTER = "junkerVehFilter"
 local FILTER_FILE = "gameplay/delivery/vehicles.deliveryVehicles.json"
 local FALLBACK_MODELS = {"fullsize", "midsize", "pickup", "covet", "pessima", "van"}
+local HEAVY_MODELS = {"pickup", "van", "roamer"}
 
 M.id = "tow"
 M.name = "Towing job"
 M.icon = "tow"
+M.branch = "labourer"
 M.steps = {"Pick up", "Tow", "Paid"}
 
 local clock = 0
@@ -154,8 +162,22 @@ local function repairShops()
 	return shops
 end
 
--- An old car from the career's delivery filter: {model, config, name}.
-local function pickVehicle()
+local function modelName(model)
+	local name = model:gsub("^%l", string.upper)
+	if core_vehicles and type(core_vehicles.getModel) == "function" then
+		local ok, data = pcall(core_vehicles.getModel, model)
+		local m = ok and type(data) == "table" and data.model
+		if type(m) == "table" and m.Name then name = (m.Brand and (m.Brand .. " ") or "") .. m.Name end
+	end
+	return name
+end
+
+-- An old car from the career's delivery filter, or a heavy vehicle: {model, config, name}.
+local function pickVehicle(heavy)
+	if heavy then
+		local model = HEAVY_MODELS[math.random(#HEAVY_MODELS)]
+		return {model = model, name = modelName(model)}
+	end
 	local gen = rawget(_G, "util_configListGenerator")
 	if gen and type(gen.getRandomVehicleInfos) == "function" and type(jsonReadFile) == "function" then
 		local ok, info = pcall(function()
@@ -172,25 +194,22 @@ local function pickVehicle()
 		end
 	end
 	local model = FALLBACK_MODELS[math.random(#FALLBACK_MODELS)]
-	local name = model:gsub("^%l", string.upper)
-	if core_vehicles and type(core_vehicles.getModel) == "function" then
-		local ok, data = pcall(core_vehicles.getModel, model)
-		local m = ok and type(data) == "table" and data.model
-		if type(m) == "table" and m.Name then name = (m.Brand and (m.Brand .. " ") or "") .. m.Name end
-	end
-	return {model = model, name = name}
+	return {model = model, name = modelName(model)}
 end
 
 local function roundTo(x, step) return math.floor(x / step + 0.5) * step end
 
---- The pay for a tow of `length` m (with a flat tire: more).
-function M.payFor(length, flatTire)
-	local pay = (PAY_BASE + PAY_PER_KM * length / 1000) * (flatTire and PAY_FLAT or 1) * J.payFactor()
+local function tierOf(tier) return TIERS[math.max(1, math.min(#TIERS, tonumber(tier) or 1))] end
+
+--- The pay for a tow of `length` m at level 1 (a flat tire and a higher tier pay more).
+function M.payFor(length, flatTire, tier)
+	local pay = (PAY_BASE + PAY_PER_KM * length / 1000) * tierOf(tier).pay * (flatTire and PAY_FLAT or 1) * J.payFactor()
 	return roundTo(pay, 10)
 end
 
---- Makes up a towing job on this map, or returns nil and why not.
-function M.generate()
+--- Makes up a towing job of a tier on this map, or returns nil and why not.
+function M.generate(tier)
+	local t = tierOf(tier)
 	local nodes = map and type(map.getMap) == "function" and map.getMap().nodes
 	if type(nodes) ~= "table" then return nil, "no road network" end
 	local shops = repairShops()
@@ -205,19 +224,22 @@ function M.generate()
 			if J.dist2D(p, spot.pos) < FAR_FROM_VEHICLES then free = false break end
 		end
 		if free then
-			local fitting = {}
+			-- a shop as far away as the tier says; on a small map the one nearest to that
+			local fitting, nearest, miss = {}, nil, math.huge
 			for _, shop in ipairs(shops) do
 				local d = J.dist2D(shop.pos, spot.pos)
-				if d >= DEST_MIN and d <= DEST_MAX then table.insert(fitting, {shop = shop, d = d}) end
+				if d >= t.destMin and d <= t.destMax then table.insert(fitting, {shop = shop, d = d}) end
+				local off = d < t.destMin and t.destMin - d or math.max(0, d - t.destMax)
+				if d >= DEST_NEAREST and off < miss then nearest, miss = {shop = shop, d = d}, off end
 			end
-			if #fitting > 0 then
-				local pick = fitting[math.random(#fitting)]
+			local pick = #fitting > 0 and fitting[math.random(#fitting)] or nearest
+			if pick then
 				local length = roundTo(pick.d * ROAD_FACTOR, 10)
-				local flatTire = math.random() < FLAT_TIRE_CHANCE
-				local vehicle = pickVehicle()
+				local flatTire = math.random() < t.flatTire
+				local vehicle = pickVehicle(t.heavy)
 				return {title = vehicle.name, pos = spot.pos, dest = {name = pick.shop.name, pos = pick.shop.pos},
-					length = length, pay = M.payFor(length, flatTire),
-					data = {vehicle = {model = vehicle.model, config = vehicle.config}, flatTire = flatTire, dir = spot.dir}}
+					length = length, pay = M.payFor(length, flatTire, tier),
+					data = {vehicle = {model = vehicle.model, config = vehicle.config}, flatTire = flatTire, heavy = t.heavy, dir = spot.dir}}
 			end
 		end
 	end
@@ -226,8 +248,10 @@ end
 
 --- The labels of a towing job in the Jobs app.
 function M.tags(job)
+	local d = type(job.data) == "table" and job.data or {}
 	local tags = {{text = "Engine failure", kind = "engine"}}
-	if type(job.data) == "table" and job.data.flatTire == true then table.insert(tags, {text = "Flat tire", kind = "tire"}) end
+	if d.flatTire == true then table.insert(tags, {text = "Flat tire", kind = "tire"}) end
+	if d.heavy == true then table.insert(tags, {text = "Heavy", kind = "heavy"}) end
 	return tags
 end
 
@@ -265,15 +289,13 @@ end
 
 -- Handed over: new damage since the breakdown costs part of the pay.
 local function finish(a)
-	local job = a.job
 	local penalty = 0
 	if a.damageNow and a.damageStart then
 		penalty = math.min(PENALTY_MAX, math.max(0, a.damageNow - a.damageStart) / DAMAGE_FOR_MAX * PENALTY_MAX)
 	end
-	local pay = math.floor(job.pay * (1 - penalty) + 0.5)
-	U.log("I", "jobs", string.format("job %s done: damage %s -> %s, pay %d of %d", tostring(job.id),
-		tostring(a.damageStart), tostring(a.damageNow), pay, job.pay))
-	J.handOver(a, pay, job.pay - pay)
+	U.log("I", "jobs", string.format("job %s done: damage %s -> %s, %d %% of the pay", tostring(a.job.id),
+		tostring(a.damageStart), tostring(a.damageNow), math.floor((1 - penalty) * 100 + 0.5)))
+	J.handOver(a, 1 - penalty)
 end
 
 function M.start(a)

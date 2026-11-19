@@ -6,15 +6,19 @@
 --   id               short name, sent with every job ("tow")
 --   name             shown with the pay in the career's money history ("Towing job: <title>")
 --   icon             the icon of its jobs in the Jobs app (a name the app knows, e.g. "tow")
+--   branch           optional: the career branch whose XP a job also gives ("labourer"), next to
+--                    the game's BeamXP – only if the career has that attribute
 --   steps            the steps of a job in the Jobs app, e.g. {"Pick up", "Tow", "Paid"}; the last
 --                    one is reached when the pay arrives
---   generate()       makes up a job on this map: {title, pos, dest = {name, pos}, length, pay, data}
---                    (pos: where it starts; data: the type's own fields, the server passes them on),
---                    or nil and why not
+--   generate(tier)   makes up a job of this tier (1 easy .. 4 hard, see main.lua "Job levels") on
+--                    this map: {title, pos, dest = {name, pos}, length, pay, data} (pos: where it
+--                    starts; pay: at level 1; data: the type's own fields, the server passes them
+--                    on), or nil and why not
 --   tags(job)        short labels for the job in the app: {{text, kind}} (kind picks the color)
 --   start(a)         the job is yours: a = {id, job}; the type keeps its own state in a
---   step(a, dt)      every CHECK_EVERY s until it is handed over; calls M.handOver(a, pay,
---                    deduction) when the job is done
+--   step(a, dt)      every CHECK_EVERY s until it is handed over; calls M.handOver(a, share) when
+--                    the job is done (share: how much of the pay was earned, 0..1 – less after
+--                    damage, for example; the server turns it into money and XP)
 --   status(a)        {step (0-based index into steps), text (Jobs app), short (the job strip),
 --                    target (pos: the route and the distance in the app), from (pos the distance
 --                    is measured from; default: you), hint (optional), inZone (optional)}
@@ -25,17 +29,24 @@
 -- every extension.)
 --
 -- Common to all jobs:
---   making one up  when jobs are missing, the server asks one player (sc_jobGenerate); this
---                  client asks its job types in turn and sends the first job (sc_jobOffer)
+--   making one up  when jobs are missing, the server asks one player for a job of a tier
+--                  (sc_jobGenerate {type, tier}); this client asks that job type (without one: its
+--                  job types in turn) and sends the job (sc_jobOffer)
+--   levels         every player has a level per job type; the server keeps it and decides (main.lua
+--                  "Job levels"): which tiers you can take, your pay, the XP. The Jobs app shows
+--                  your level and the jobs by level, the ones you can't take yet at the bottom.
+--                  The last levels the server sent are kept in the career save (LEVELS_FILE), to
+--                  show them before the server's list has arrived
 --   taking         sc_jobTake, the server gives it to the first one; then the type's start() and
 --                  the route to its status target (updated whenever the target changes)
 --   giving up      sc_jobGiveUp; a job the server takes away (out of time, switched off) ends too
---   handing over   handOver -> sc_jobDone with the pay; without the server's answer within
+--   handing over   handOver -> sc_jobDone with the share; without the server's answer within
 --                  PAID_WAIT s the job ends here (a pay the server did book still arrives later)
 --   the pay        sc_jobPaid: credited to the career (playerAttributes), the career is saved and
 --                  the server gets sc_jobPaidAck; until then it sends the pay again (also after a
---                  crash or reconnect, see main.lua "Payouts"). Each payout is credited once. The
---                  type's stop() follows REMOVE_AFTER s later
+--                  crash or reconnect, see main.lua "Payouts"). Each payout is credited once, with
+--                  the job's XP also as the game's BeamXP (and branch XP). The type's stop()
+--                  follows REMOVE_AFTER s later
 --
 -- Settings: server.jobs (on/off, also the Jobs app), server.jobsOpen, server.jobTimeoutMinutes,
 -- server.jobPayMax (server); client.jobPay (factor on the pay, payFactor).
@@ -48,13 +59,15 @@ local PAID_WAIT = 15          -- s for the server's answer to sc_jobDone; then t
 local REMOVE_AFTER = 6        -- s after paying, the job ends (the type's stop())
 local CHECK_EVERY = 0.25      -- s between two checks of the job
 local PUSH_EVERY = 1          -- s between two app updates while the phone is out
+local LEVELS_FILE = "/career/sharedCareerJobLevels.json" -- in the career save: a copy of your levels
 
 local types = {}              -- id -> job type
 local typeOrder = {}          -- ids, in the order they registered
 local nextType = 1            -- the job type asked first when making up the next job
 local list = {}               -- jobs from the server (sc_jobs)
+local levels = {}             -- your levels from the server: type -> {level, xp, from, to}
 local enabled = false
-local active = nil            -- your job: {id, job, type, doneSent, doneAt, deduction, paidAt, route}
+local active = nil            -- your job: {id, job, type, doneSent, doneAt, paidAt, route}
                               -- and the type's own fields
 -- payout ids already credited: a payout the server sends again is only confirmed. Kept when leaving
 -- the server, so a payout sent again after a reconnect isn't credited twice.
@@ -137,16 +150,19 @@ end
 
 --== Making up a job ===============================================================
 
---- Makes up a new job: the job types are asked in turn, the first job wins. Returns the job (with
---- its type) or nil and why not.
-function M.generate()
-	local why = "no job types"
-	for i = 0, #typeOrder - 1 do
-		local id = typeOrder[(nextType - 1 + i) % #typeOrder + 1]
-		local ok, job, err = pcall(types[id].generate)
+--- Makes up a new job of a tier (default 1): by that job type, or without one by the job types in
+--- turn (the first job wins). Returns the job (with its type and tier) or nil and why not.
+function M.generate(tier, kind)
+	tier = math.max(1, math.floor(tonumber(tier) or 1))
+	local order = typeOrder
+	if kind ~= nil then order = types[kind] and {kind} or {} end
+	local why = kind and ("unknown job type " .. tostring(kind)) or "no job types"
+	for i = 0, #order - 1 do
+		local id = kind or order[(nextType - 1 + i) % #order + 1]
+		local ok, job, err = pcall(types[id].generate, tier)
 		if ok and type(job) == "table" then
-			nextType = nextType % #typeOrder + 1
-			job.type = id
+			if not kind then nextType = nextType % #typeOrder + 1 end
+			job.type, job.tier = id, tier
 			return job
 		end
 		why = id .. ": " .. tostring(ok and err or job)
@@ -178,12 +194,12 @@ local function startActive(job)
 	navigate(active.route)
 end
 
---- The job type: the job is done, with this pay (and the deduction from the job's pay, shown with
---- the pay). Sends it to the server once.
-function M.handOver(a, pay, deduction)
+--- The job type: the job is done, and this share of the pay was earned (0..1). Sends it to the
+--- server once; the server works out your pay (with your level bonus) and the XP.
+function M.handOver(a, share)
 	if a ~= active or a.doneSent then return end
-	a.doneSent, a.doneAt, a.deduction = true, clock, tonumber(deduction) or 0
-	U.send("sc_jobDone", {id = a.id, pay = pay})
+	a.doneSent, a.doneAt = true, clock
+	U.send("sc_jobDone", {id = a.id, share = math.max(0, math.min(1, tonumber(share) or 1))})
 end
 
 -- One check of your job (every CHECK_EVERY s).
@@ -225,6 +241,7 @@ local function rxJobs(data)
 	if not msg then return end
 	enabled = msg.enabled == true
 	list = type(msg.jobs) == "table" and msg.jobs or {}
+	if type(msg.levels) == "table" then levels = msg.levels end
 	local mine = mineIn(list)
 	if active and not active.doneSent and (not mine or mine.id ~= active.id) then
 		-- taken away (out of time, switched off, given up elsewhere)
@@ -235,9 +252,10 @@ local function rxJobs(data)
 	pushApp()
 end
 
-local function rxGenerate()
+local function rxGenerate(data)
 	if not enabled or not U.careerActive() then return end
-	local job, why = M.generate()
+	local msg = U.decode(data) or {}
+	local job, why = M.generate(msg.tier, type(msg.type) == "string" and msg.type or nil)
 	if job then
 		U.send("sc_jobOffer", job)
 	else
@@ -245,8 +263,9 @@ local function rxGenerate()
 	end
 end
 
--- A payout for a finished job: {payout, job, type, title, pay}. Credited and saved, then confirmed
--- (sc_jobPaidAck); without the confirmation the server sends it again (also after a reconnect).
+-- A payout for a finished job: {payout, job, type, title, pay, deduction, xp}. Credited and saved,
+-- then confirmed (sc_jobPaidAck); without the confirmation the server sends it again (also after a
+-- reconnect). The XP also go to the career: BeamXP and the job type's branch, if the career has them.
 local function rxPaid(data)
 	local msg = U.decode(data)
 	local pay = msg and tonumber(msg.pay)
@@ -260,8 +279,18 @@ local function rxPaid(data)
 	local mine = active ~= nil and active.id == msg.job
 	local t = types[msg.type]
 	local label = (t and t.name or "Job") .. ": " .. (type(msg.title) == "string" and msg.title or "?")
-	if pay > 0 then
-		local ok, err = pcall(attributes.addAttributes, {money = pay}, {tags = {"gameplay"}, label = label})
+	local xp = math.max(0, math.floor(tonumber(msg.xp) or 0))
+	local change = {money = pay}
+	local function has(key)
+		local ok, value = pcall(function() return type(attributes.getAttribute) == "function" and attributes.getAttribute(key) end)
+		return ok and value ~= nil and value ~= false
+	end
+	if xp > 0 then
+		if has("beamXP") then change.beamXP = xp end
+		if t and type(t.branch) == "string" and has(t.branch) then change[t.branch] = xp end
+	end
+	if pay > 0 or xp > 0 then
+		local ok, err = pcall(attributes.addAttributes, change, {tags = {"gameplay"}, label = label})
 		if not ok then
 			U.log("E", "jobs", "could not credit the pay of job " .. tostring(msg.job) .. ": " .. tostring(err))
 			return
@@ -270,9 +299,10 @@ local function rxPaid(data)
 	end
 	creditedPayouts[msg.payout] = true
 	U.send("sc_jobPaidAck", {payout = msg.payout})
-	local deduction = mine and active.deduction or 0
+	local deduction = math.max(0, math.floor(tonumber(msg.deduction) or 0))
 	U.toast("success", string.format("Job done: +$%d", pay)
-		.. (deduction > 0 and string.format(" (−$%d damage)", deduction) or ""), 8)
+		.. (deduction > 0 and string.format(" (−$%d damage)", deduction) or "")
+		.. (xp > 0 and string.format(" · +%d XP", xp) or ""), 8)
 	if mine then
 		active.paidAt = clock
 		active.route = nil
@@ -291,21 +321,58 @@ local function tagsOf(job)
 	return ok and type(tags) == "table" and tags or {}
 end
 
---- State for the Jobs app.
+-- Your levels for the app: {{type, name, icon, level, share (0..1 to the next level), toGo (XP to
+-- the next level; nil at the top)}}, one per job type this client knows.
+local function levelsForApp()
+	local out = {}
+	for _, id in ipairs(typeOrder) do
+		local t, lv = types[id], levels[id]
+		if type(lv) == "table" and tonumber(lv.level) then
+			local xp, from, to = tonumber(lv.xp) or 0, tonumber(lv.from) or 0, tonumber(lv.to)
+			table.insert(out, {type = id, name = t.name, icon = t.icon, level = math.floor(lv.level),
+				share = to and to > from and math.max(0, math.min(1, (xp - from) / (to - from))) or 1,
+				toGo = to and math.max(0, math.ceil(to - xp)) or nil})
+		end
+	end
+	return out
+end
+
+--- State for the Jobs app. The jobs come in groups by the level they need: the ones you can take
+--- first, the hardest at the top; the ones you can't take yet at the bottom, the nearest level first.
 function M.appState()
 	local me = myPosition()
-	local jobs = {}
+	local byLevel = {}
 	for _, job in ipairs(list) do
 		local t = types[job.type]
-		table.insert(jobs, {id = job.id, icon = t and t.icon or "?", title = job.title or "?", tags = tagsOf(job),
+		local minLevel = math.max(1, math.floor(tonumber(job.minLevel) or 1))
+		local entry = {id = job.id, icon = t and t.icon or "?", title = job.title or "?", tags = tagsOf(job),
 			dest = job.dest and job.dest.name or "?", length = job.length, pay = job.pay, state = job.state,
-			takenBy = job.takenBy, distance = me and job.pos and dist2D(me, job.pos) or nil})
+			takenBy = job.takenBy, locked = job.locked == true, minLevel = minLevel,
+			distance = me and job.pos and dist2D(me, job.pos) or nil}
+		if job.state ~= "mine" then
+			local key = minLevel .. (entry.locked and "L" or "")
+			byLevel[key] = byLevel[key] or {minLevel = minLevel, locked = entry.locked, jobs = {}}
+			table.insert(byLevel[key].jobs, entry)
+		end
 	end
-	table.sort(jobs, function(a, b)
-		if (a.state == "open") ~= (b.state == "open") then return a.state == "open" end
-		return (a.distance or 1e12) < (b.distance or 1e12)
+	local groups = {}
+	for _, g in pairs(byLevel) do
+		table.sort(g.jobs, function(a, b)
+			if (a.state == "open") ~= (b.state == "open") then return a.state == "open" end
+			return (a.distance or 1e12) < (b.distance or 1e12)
+		end)
+		g.open = 0
+		for _, j in ipairs(g.jobs) do if j.state == "open" then g.open = g.open + 1 end end
+		table.insert(groups, g)
+	end
+	table.sort(groups, function(a, b)
+		if a.locked ~= b.locked then return not a.locked end
+		if a.locked then return a.minLevel < b.minLevel end
+		return a.minLevel > b.minLevel
 	end)
-	local state = {enabled = enabled and serverAllows(), jobs = jobs}
+	local open = 0
+	for _, g in ipairs(groups) do if not g.locked then open = open + g.open end end
+	local state = {enabled = enabled and serverAllows(), groups = groups, open = open, levels = levelsForApp()}
 	if active then
 		local job, s = active.job, statusOf(active)
 		local steps = active.type.steps or {}
@@ -396,8 +463,29 @@ function M.onVehicleResetted(id)
 	end
 end
 
+-- The career save's folder, or nil.
+local function savePath()
+	local saveSystem = rawget(_G, "career_saveSystem")
+	if not saveSystem or type(saveSystem.getCurrentSaveSlot) ~= "function" then return nil end
+	local ok, _, path = pcall(saveSystem.getCurrentSaveSlot)
+	return ok and type(path) == "string" and path or nil
+end
+
+-- The game saves the career: a copy of your levels goes with it.
+function M.onSaveCurrentSaveSlot(currentSavePath)
+	if type(currentSavePath) ~= "string" or not next(levels) or type(jsonWriteFile) ~= "function" then return end
+	local ok, err = pcall(jsonWriteFile, currentSavePath .. LEVELS_FILE, {version = 1, levels = levels}, true)
+	if not ok then U.log("W", "jobs", "could not save the job levels: " .. tostring(err)) end
+end
+
 function M.onCareerActive(on)
 	if on and U.isMP() then
+		-- the copy in the save, until the server's list arrives
+		local path = savePath()
+		if path and not next(levels) and type(jsonReadFile) == "function" then
+			local ok, saved = pcall(jsonReadFile, path .. LEVELS_FILE)
+			if ok and type(saved) == "table" and type(saved.levels) == "table" then levels = saved.levels end
+		end
 		M.registerApp()
 		U.send("sc_jobsRequest", "")
 	end
@@ -410,7 +498,7 @@ end
 
 function M.onBeamMPServerLeave()
 	navigate(nil)
-	active, list, enabled = nil, {}, false
+	active, list, levels, enabled = nil, {}, {}, false
 	appOpen = false
 end
 

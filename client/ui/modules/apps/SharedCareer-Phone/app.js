@@ -209,13 +209,15 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 	//== Jobs app (lua/ge/extensions/sharedCareer/jobs.lua) ==
 	// What a job shows (icon, tags, steps, the texts of what to do now) comes from its job type
 	// (towJobs.lua: towing jobs); this window only lays it out.
-	$scope.jobs = {enabled: false, jobs: [], active: null};
+	$scope.jobs = {enabled: false, groups: [], open: 0, levels: [], active: null};
 	$scope.jobsCall = function (cmd) {
 		bngApi.engineLua('if sharedCareer_jobs then sharedCareer_jobs.' + cmd + ' end');
 	};
 	$scope.money = function (v) { return '$' + Math.round(Number(v) || 0).toLocaleString('en-US'); };
-	$scope.openJobCount = function () {
-		return $scope.jobs.jobs.filter(function (j) { return j.state === 'open'; }).length;
+	// your level as a ring: the part that is filled shows the way to the next level
+	$scope.levelRing = function (l) {
+		var deg = Math.round(360 * Math.max(0, Math.min(1, Number(l && l.share) || 0)));
+		return 'conic-gradient(#4f8cff ' + deg + 'deg, rgba(255, 255, 255, 0.12) ' + deg + 'deg)';
 	};
 	// a job's tags in one line, for the list ("Engine failure · Flat tire")
 	$scope.tagLine = function (j) {
@@ -248,7 +250,10 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 				if (!Array.isArray(active.steps)) active.steps = [];
 				if (!Array.isArray(active.tags)) active.tags = [];
 			}
-			$scope.jobs = {enabled: data.enabled === true, jobs: Array.isArray(data.jobs) ? data.jobs : [], active: active};
+			var groups = Array.isArray(data.groups) ? data.groups : [];
+			groups.forEach(function (g) { if (!Array.isArray(g.jobs)) g.jobs = []; });
+			$scope.jobs = {enabled: data.enabled === true, groups: groups, open: Number(data.open) || 0,
+				levels: Array.isArray(data.levels) ? data.levels : [], active: active};
 		});
 	});
 

@@ -143,14 +143,20 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 	// Jobs app (beta): list, your job, the steps; the strip in the Tow app opens it. What a job shows
 	// comes from its job type (jobs.lua appState); the window only lays it out.
 	phone.emit('SharedCareerPhone', {enabled: true, apps: [{id: 'jobs', title: 'Jobs', beta: true}, {id: 'tow'}, {id: 'fuel'}]});
-	phone.emit('SharedCareerJobs', {enabled: true, jobs: [
-		{id: 1, icon: 'tow', title: 'Gavril Grand Marshal', tags: [{text: 'Engine failure', kind: 'engine'}, {text: 'Flat tire', kind: 'tire'}],
-			dest: 'Belasco Auto', pay: 600, state: 'open', length: 2600, distance: 1200},
-		{id: 2, icon: 'tow', title: 'Ibishu Covet', dest: 'Firwood', pay: 400, state: 'taken', takenBy: 'Ben'}]});
-	check(phone.jobs.enabled && phone.openJobCount() === 1 && phone.money(1234.4) === '$1,234' && phone.jobStep() === 0,
-		'jobs list: one open, money formatted, no job of your own');
-	check(phone.tagLine(phone.jobs.jobs[0]) === 'Engine failure · Flat tire' && phone.tagLine(phone.jobs.jobs[1]) === '',
+	phone.emit('SharedCareerJobs', {enabled: true, open: 1, levels: [{type: 'tow', level: 4, share: 0.25, toGo: 200}], groups: [
+		{minLevel: 3, locked: false, open: 1, jobs: [{id: 1, icon: 'tow', title: 'Gavril Grand Marshal',
+			tags: [{text: 'Engine failure', kind: 'engine'}, {text: 'Flat tire', kind: 'tire'}],
+			dest: 'Belasco Auto', pay: 600, state: 'open', length: 2600, distance: 1200}]},
+		{minLevel: 5, locked: true, open: 1, jobs: [{id: 2, icon: 'tow', title: 'Ibishu Covet', dest: 'Firwood', pay: 400,
+			state: 'open', locked: true}]}]});
+	check(phone.jobs.enabled && phone.jobs.open === 1 && phone.jobs.groups.length === 2 && phone.money(1234.4) === '$1,234'
+		&& phone.jobStep() === 0, 'jobs by level: one group you can take, one locked; money formatted, no job of your own');
+	check(phone.tagLine(phone.jobs.groups[0].jobs[0]) === 'Engine failure · Flat tire' && phone.tagLine(phone.jobs.groups[1].jobs[0]) === '',
 		'a job\'s tags in one line');
+	check(phone.levelRing(phone.jobs.levels[0]).indexOf('90deg') > 0 && phone.levelRing({share: 2}).indexOf('360deg') > 0,
+		'your level: the ring is a quarter full (and never more than full)');
+	phone.emit('SharedCareerJobs', {enabled: true});
+	check(phone.jobs.groups.length === 0 && phone.jobs.levels.length === 0 && phone.jobs.open === 0, 'nothing sent: empty lists');
 	const active = function (more) {
 		return Object.assign({id: 3, icon: 'tow', title: 'Gavril D-Series', dest: 'Belasco Auto', pay: 820,
 			steps: ['Pick up', 'Tow', 'Paid']}, more);

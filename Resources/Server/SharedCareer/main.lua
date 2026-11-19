@@ -10,7 +10,8 @@
 --   * splits the traffic amount fairly across all players
 --   * runs the clock (time of day, day and night at different speeds) and the traffic light cycle
 --   * handles money transfers between players in two steps (debit first, then credit)
---   * keeps the shared list of jobs (beta): every job goes to one player, is paid once
+--   * keeps the shared list of jobs (beta): every job goes to one player, is paid once; and
+--     every player's job levels (XP per job type), which unlock harder and better-paid jobs
 --
 -- Only the BeamMP server API (MP.*, Util.*, FS.*), no game code.
 --
@@ -20,6 +21,7 @@
 --   profiles.json  BeamMP account ID -> profile name
 --   fuelprices.json station discounts from fuel deliveries (station -> fuel -> %)
 --   payouts.json   pay of finished jobs the player's client hasn't confirmed yet
+--   progress.json  job levels: XP per profile and job type (see "Job levels")
 --
 -- SERVER CONSOLE COMMANDS
 --   sc help                           short help
@@ -33,6 +35,8 @@
 --   sc players                        players and whether their career is running
 --   sc fuel | sc fuel reset           show station discounts / reset all of them
 --   sc jobs | sc jobs reset           show the jobs / drop all of them (new ones follow)
+--   sc levels                         show every player's job levels
+--   sc levels reset <name>            back to level 1 (a player on the server or a profile name)
 --   sc reload                         read config.json again
 --
 -- CHAT COMMANDS (for players; they are not shown in the chat)
@@ -64,11 +68,11 @@
 --   Server -> Client: sc_fuelPrices {enabled, factors = {[station] = {gasoline = 0.9, ...}}}
 --   Jobs (beta, see "Jobs" below):
 --   sc_jobsRequest                    sc_jobs        {enabled, jobs = [job, with state "open" |
---   sc_jobOffer   {a new job}                         "taken" | "mine", takenBy (name)]}
---   sc_jobTake    {id}                sc_jobGenerate {}  please make up a new job (sc_jobOffer)
---   sc_jobDone    {id, pay}           sc_jobPaid     {payout, job, type, title, pay}  credit this
---   sc_jobGiveUp  {id}                               (again until sc_jobPaidAck)
---   sc_jobPaidAck {payout}
+--   sc_jobOffer   {a new job}                         "taken" | "mine", takenBy (name), minLevel,
+--   sc_jobTake    {id}                                locked, pay (yours)], levels = {type: level}}
+--   sc_jobDone    {id, share}         sc_jobGenerate {type, tier}  please make up a new job
+--   sc_jobGiveUp  {id}                sc_jobPaid     {payout, job, type, title, pay, deduction, xp}
+--   sc_jobPaidAck {payout}                           credit this (again until sc_jobPaidAck)
 --                       (from the SharedCareer menu window)
 
 local VERSION = "0.22.0"
@@ -126,7 +130,7 @@ local DEFAULTS = {
 		-- Jobs (beta) in the Jobs app on the phone, for now towing jobs: broken-down cars at the
 		-- roadside, towed to a repair shop. One list for everyone, every job goes to one player.
 		jobs = true,
-		jobsOpen = 3,              -- this many open jobs at most (new ones are made up as needed)
+		jobsOpen = 3,              -- open jobs per level group that players on the server have reached
 		jobTimeoutMinutes = 30,    -- a taken job is open again after this many minutes
 		jobPayMax = 5000,          -- the highest pay of one job, in $
 	},
@@ -235,6 +239,8 @@ local sharesSent = {}
 -- jobs: id -> job (see "Jobs")
 local jobs = {}
 local jobSeq = 0
+-- job levels: profile -> job type -> progress (see "Job levels")
+local progress = {}
 
 local clock = MP.CreateTimer()
 
@@ -862,10 +868,13 @@ end
 -- again if that player leaves, gives up or runs out of time.
 -- What a job is about is up to its job type on the client (jobs.lua, towJobs.lua); the server only
 -- knows what every job has:
--- job = {id, type ("tow"), title (e.g. the vehicle), pos = {x, y, z} (where it starts),
---        dest = {name, pos = {x, y, z}}, length (m), pay, data (the type's own fields, passed on
---        as they are, at most JOB_DATA_MAX bytes as JSON), takenBy (player id), takenAt}
-local JOB_ASK_EVERY = 15       -- s between two requests for a new job
+-- job = {id, type ("tow"), tier (1..#TIER_LEVEL, see "Job levels"), title (e.g. the vehicle),
+--        pos = {x, y, z} (where it starts), dest = {name, pos = {x, y, z}}, length (m), pay (at
+--        level 1), data (the type's own fields, passed on as they are, at most JOB_DATA_MAX bytes
+--        as JSON), takenBy (player id), takenAt}
+-- Enough jobs for everyone: per job type, the open jobs are kept at server.jobsOpen for tier 1 and
+-- for the highest tier each player on the server can take (wantedTiers).
+local JOB_ASK_EVERY = 5        -- s between two requests for a new job
 local JOB_TEXT_MAX = 128
 local JOB_DATA_MAX = 2048
 local jobAskedAt = -math.huge
@@ -873,6 +882,154 @@ local jobAskedAt = -math.huge
 local function jobsEnabled()
 	return Config.server.jobs == true
 end
+
+local function jobsOpen()
+	return math.max(0, tonumber(Config.server.jobsOpen) or 3)
+end
+
+--== Job levels ==================================================================
+-- Every player has a level per job type. The server keeps it (config/progress.json, per profile
+-- like payouts.json) and is the referee: the shared job list decides who gets which job, so a
+-- level must not come from a client. A client's save only keeps a copy to show (jobs.lua).
+--   tiers   every job has a tier; tier t can be taken from level TIER_LEVEL[t]
+--   pay     the job's pay + LEVEL_BONUS per level above 1: everyone sees their own pay
+--   XP      TIER_XP[tier] x the share of the pay that was earned (new damage costs XP too);
+--           LOW_TIER_XP of it for a job two or more tiers below the highest one you can take
+--   level   follows from the XP (levelXp: 100 x (level - 1)^1.5), at most MAX_LEVEL
+-- progress[profile][type] = {xp, level, stats = {done, givenUp, earned, deducted, bestTier},
+--                            history = {{at, job, tier, pay, deduction, xp, levelAfter}, ...}}
+--                            (the last HISTORY_MAX jobs, newest first)
+local PROGRESS_FILE = CONFIG_DIR .. "/progress.json"
+local TIER_LEVEL = {1, 3, 5, 8}
+local TIER_XP = {40, 70, 110, 160}
+local MAX_LEVEL = 10
+local LEVEL_BONUS = 0.05
+local LOW_TIER_XP = 0.5
+local HISTORY_MAX = 20
+-- job types seen (in progress.json or in an offer): their tiers are kept stocked
+local knownTypes = {}
+
+local function levelXp(level)
+	return math.floor(100 * (level - 1) ^ 1.5 + 0.5)
+end
+
+local function levelOf(xp)
+	local level = 1
+	while level < MAX_LEVEL and xp >= levelXp(level + 1) do level = level + 1 end
+	return level
+end
+
+-- The highest tier this level can take.
+local function topTier(level)
+	local tier = 1
+	for t, needed in ipairs(TIER_LEVEL) do
+		if level >= needed then tier = t end
+	end
+	return tier
+end
+
+local function profileOf(player_id)
+	local entry = players[player_id]
+	return entry and (entry.profile or sanitizeProfile(playerName(player_id))) or nil
+end
+
+-- A player's progress in a job type; with create, it is added to progress (a new player: level 1).
+local function progressOf(profile, kind, create)
+	local mine = profile and progress[profile]
+	local p = mine and mine[kind]
+	if p then return p end
+	p = {xp = 0, level = 1, stats = {done = 0, givenUp = 0, earned = 0, deducted = 0, bestTier = 0}, history = {}}
+	if create and profile then
+		progress[profile] = mine or {}
+		progress[profile][kind] = p
+	end
+	return p
+end
+
+local function levelFor(player_id, kind)
+	return progressOf(profileOf(player_id), kind).level
+end
+
+-- The pay of a job for a player of this level.
+local function payAt(job, level)
+	local pay = job.pay * (1 + LEVEL_BONUS * (level - 1))
+	return math.floor(math.min(tonumber(Config.server.jobPayMax) or 5000, pay) + 0.5)
+end
+
+local function saveProgress()
+	writeJson(PROGRESS_FILE, {version = 1, profiles = progress})
+end
+
+local function loadProgress()
+	local raw = readFile(PROGRESS_FILE)
+	if not raw then return end
+	local ok, value = pcall(Util.JsonDecode, raw)
+	if not ok or type(value) ~= "table" or type(value.profiles) ~= "table" then
+		local f = io.open(PROGRESS_FILE .. ".broken", "w")
+		if f then f:write(raw); f:close() end
+		log("progress.json is not valid JSON – saved as progress.json.broken, job levels start over")
+		return
+	end
+	progress = {}
+	for profile, kinds in pairs(value.profiles) do
+		if type(profile) == "string" and type(kinds) == "table" then
+			for kind, p in pairs(kinds) do
+				local xp = type(p) == "table" and tonumber(p.xp)
+				if type(kind) == "string" and xp and xp >= 0 then
+					local entry = progressOf(profile, kind, true)
+					entry.xp, entry.level = xp, levelOf(xp)
+					local stats = type(p.stats) == "table" and p.stats or {}
+					for k in pairs(entry.stats) do entry.stats[k] = tonumber(stats[k]) or 0 end
+					entry.history = type(p.history) == "table" and p.history or {}
+					knownTypes[kind] = true
+				end
+			end
+		end
+	end
+end
+
+-- A player's levels for the Jobs app: type -> {level, xp, from, to} (from/to: the XP of this level
+-- and the next one; to = nil at MAX_LEVEL). Every known job type, level 1 without progress.
+local function levelsFor(player_id)
+	local out = {}
+	for kind in pairs(knownTypes) do
+		local p = progressOf(profileOf(player_id), kind)
+		out[kind] = {level = p.level, xp = p.xp, from = levelXp(p.level),
+			to = p.level < MAX_LEVEL and levelXp(p.level + 1) or nil}
+	end
+	return out
+end
+
+-- A finished job (share: of the pay earned, 0..1): XP and stats for the taker. Returns the XP, the level, whether it rose and
+-- whether a new tier opened.
+local function addJobXp(player_id, job, share, pay, deduction)
+	local kind = job.type
+	local p = progressOf(profileOf(player_id), kind, true)
+	local before, levelBefore = topTier(p.level), p.level
+	local xp = (TIER_XP[job.tier] or TIER_XP[1]) * share
+	if before - job.tier >= 2 then xp = xp * LOW_TIER_XP end
+	xp = math.floor(xp + 0.5)
+	p.xp = p.xp + xp
+	p.level = levelOf(p.xp)
+	p.stats.done = p.stats.done + 1
+	p.stats.earned = p.stats.earned + pay
+	p.stats.deducted = p.stats.deducted + deduction
+	p.stats.bestTier = math.max(p.stats.bestTier, job.tier)
+	table.insert(p.history, 1, {at = os.time(), job = job.id, tier = job.tier, pay = pay, deduction = deduction,
+		xp = xp, levelAfter = p.level})
+	while #p.history > HISTORY_MAX do table.remove(p.history) end
+	saveProgress()
+	return xp, p.level, p.level > levelBefore, topTier(p.level) > before
+end
+
+local function addGivenUp(player_id, kind)
+	if not player_id or not kind then return end
+	local p = progressOf(profileOf(player_id), kind, true)
+	p.stats.givenUp = p.stats.givenUp + 1
+	saveProgress()
+end
+
+--== Jobs (continued) ==============================================================
 
 local function vecOf(v, withZ)
 	if type(v) ~= "table" then return nil end
@@ -902,15 +1059,45 @@ local function jobData(v)
 	return v
 end
 
-local function openJobCount()
+-- open jobs of a job type and tier
+local function openJobCount(kind, tier)
 	local n = 0
-	for _, job in pairs(jobs) do if not job.takenBy then n = n + 1 end end
+	for _, job in pairs(jobs) do
+		if not job.takenBy and job.type == kind and job.tier == tier then n = n + 1 end
+	end
 	return n
 end
 
+-- The tiers to keep stocked: per job type, tier 1 and the highest tier of every player on the
+-- server. {{type, tier, open}}, the emptiest first. Before any job type is known: {{tier = 1}}.
+local function wantedTiers()
+	local wanted, seen = {}, {}
+	local function want(kind, tier)
+		local key = kind .. "|" .. tier
+		if seen[key] then return end
+		seen[key] = true
+		table.insert(wanted, {type = kind, tier = tier, open = openJobCount(kind, tier)})
+	end
+	for kind in pairs(knownTypes) do
+		want(kind, 1)
+		for id, entry in pairs(players) do
+			if entry.careerActive and MP.IsPlayerConnected(id) then want(kind, topTier(levelFor(id, kind))) end
+		end
+	end
+	if #wanted == 0 then return {{tier = 1, open = 0}} end
+	table.sort(wanted, function(a, b)
+		if a.open ~= b.open then return a.open < b.open end
+		if a.type ~= b.type then return a.type < b.type end
+		return a.tier < b.tier
+	end)
+	return wanted
+end
+
 local function jobFor(job, player_id)
-	return {id = job.id, type = job.type, title = job.title, pos = job.pos, dest = job.dest, length = job.length,
-		pay = job.pay, data = job.data,
+	local level = levelFor(player_id, job.type)
+	local minLevel = TIER_LEVEL[job.tier] or 1
+	return {id = job.id, type = job.type, tier = job.tier, minLevel = minLevel, locked = level < minLevel,
+		title = job.title, pos = job.pos, dest = job.dest, length = job.length, pay = payAt(job, level), data = job.data,
 		state = job.takenBy == nil and "open" or (job.takenBy == player_id and "mine" or "taken"),
 		takenBy = job.takenBy and playerName(job.takenBy) or nil}
 end
@@ -921,7 +1108,7 @@ local function jobsPayload(player_id)
 		for _, job in pairs(jobs) do table.insert(list, jobFor(job, player_id)) end
 		table.sort(list, function(a, b) return a.id < b.id end)
 	end
-	return {enabled = jobsEnabled(), jobs = list}
+	return {enabled = jobsEnabled(), jobs = list, levels = levelsFor(player_id)}
 end
 
 local function sendJobs(player_id)
@@ -936,6 +1123,7 @@ end
 
 local function reopenJob(job, why)
 	local taker = job.takenBy
+	addGivenUp(taker, job.type)
 	job.takenBy, job.takenAt = nil, nil
 	log(string.format("job %d is open again (%s)", job.id, why))
 	if taker and MP.IsPlayerConnected(taker) then notify(taker, "Job cancelled: " .. why, "warning") end
@@ -951,24 +1139,27 @@ function sc_jobOffer(player_id, data)
 	local entry = players[player_id]
 	local msg = decodeTable(data)
 	if not entry or not entry.careerActive or not msg or not jobsEnabled() then return end
-	if openJobCount() >= math.max(0, tonumber(Config.server.jobsOpen) or 3) then return end
 	local dest = msg.dest
 	local kind, title, data = jobType(msg.type), text(msg.title), jobData(msg.data)
+	local tier = tonumber(msg.tier)
 	local pos = vecOf(msg.pos, true)
 	local destPos = type(dest) == "table" and vecOf(dest.pos, true)
 	local length, pay = tonumber(msg.length), tonumber(msg.pay)
-	if not (kind and title and data and pos and destPos and length and pay) or length ~= length or pay ~= pay then return end
+	if not (kind and title and data and tier and TIER_LEVEL[tier] and pos and destPos and length and pay)
+		or length ~= length or pay ~= pay then return end
+	if openJobCount(kind, tier) >= jobsOpen() then return end
+	knownTypes[kind] = true
 	jobSeq = jobSeq + 1
 	local job = {
 		id = jobSeq,
-		type = kind, title = title, data = data,
+		type = kind, tier = tier, title = title, data = data,
 		pos = pos,
 		dest = {name = text(dest.name) or "Destination", pos = destPos},
 		length = math.max(0, math.min(1e5, length)),
 		pay = math.floor(math.max(0, math.min(tonumber(Config.server.jobPayMax) or 5000, pay)) + 0.5),
 	}
 	jobs[job.id] = job
-	log(string.format("new job %d (%s): %s to %s, $%d", job.id, job.type, job.title, job.dest.name, job.pay))
+	log(string.format("new job %d (%s, tier %d): %s to %s, $%d", job.id, job.type, job.tier, job.title, job.dest.name, job.pay))
 	sendJobsToAll()
 end
 
@@ -989,6 +1180,12 @@ function sc_jobTake(player_id, data)
 			return
 		end
 	end
+	local minLevel = TIER_LEVEL[job.tier] or 1
+	if levelFor(player_id, job.type) < minLevel then
+		notify(player_id, "Needs level " .. minLevel, "warning")
+		sendJobs(player_id)
+		return
+	end
 	job.takenBy, job.takenAt = player_id, now()
 	log(string.format("%s took job %d", playerName(player_id), job.id))
 	sendJobsToAll()
@@ -998,6 +1195,7 @@ function sc_jobGiveUp(player_id, data)
 	local msg = decodeTable(data)
 	local job = msg and jobs[tonumber(msg.id)]
 	if not job or job.takenBy ~= player_id then return end
+	addGivenUp(player_id, job.type)
 	job.takenBy, job.takenAt = nil, nil
 	log(string.format("%s gave up job %d", playerName(player_id), job.id))
 	sendJobsToAll()
@@ -1009,7 +1207,8 @@ end
 -- and saved it (sc_jobPaidAck): every PAYOUT_RESEND s while they play, and at once on their next
 -- career start. So a crash, a lost connection or a loading screen never costs the pay; the
 -- client credits each payout id only once.
--- payout = {id (string, unique across server restarts), job (job id), type, title, pay, profile, sentAt}
+-- payout = {id (string, unique across server restarts), job (job id), type, title, pay, deduction, xp,
+--           profile, sentAt}
 local PAYOUTS_FILE = CONFIG_DIR .. "/payouts.json"
 local PAYOUT_RESEND = 10
 local payouts = {}
@@ -1018,7 +1217,8 @@ local payoutSeq = 0
 local function savePayouts()
 	local stored = {}
 	for id, p in pairs(payouts) do
-		stored[id] = {job = p.job, type = p.type, title = p.title, pay = p.pay, profile = p.profile}
+		stored[id] = {job = p.job, type = p.type, title = p.title, pay = p.pay, deduction = p.deduction, xp = p.xp,
+			profile = p.profile}
 	end
 	writeJson(PAYOUTS_FILE, stored)
 end
@@ -1039,14 +1239,15 @@ local function loadPayouts()
 		if type(id) == "string" and pay and pay >= 0 and type(p.profile) == "string" then
 			-- older versions only had towing jobs and called the title "vehicle"
 			payouts[id] = {id = id, job = tonumber(p.job), type = jobType(p.type) or "tow", title = text(p.title) or text(p.vehicle),
-				pay = pay, profile = p.profile}
+				pay = pay, deduction = tonumber(p.deduction) or 0, xp = tonumber(p.xp) or 0, profile = p.profile}
 		end
 	end
 end
 
 local function sendPayout(player_id, p)
 	p.sentAt = now()
-	send(player_id, "sc_jobPaid", {payout = p.id, job = p.job, type = p.type, title = p.title, pay = p.pay})
+	send(player_id, "sc_jobPaid", {payout = p.id, job = p.job, type = p.type, title = p.title, pay = p.pay,
+		deduction = p.deduction, xp = p.xp})
 end
 
 -- Sends this player every payout of their save that is still open.
@@ -1082,32 +1283,42 @@ function sc_jobPaidAck(player_id, data)
 	log(string.format("%s received $%d for job %s", playerName(player_id), p.pay, tostring(p.job)))
 end
 
--- The vehicle is at the repair shop: {id, pay} (pay after the deduction for new damage). Paid once,
--- at most the job's pay.
+-- The job is done: {id, share} (how much of the pay was earned, 0..1 – less after new damage).
+-- Paid once: that share of the taker's pay (with the level bonus); the taker gets the XP.
 function sc_jobDone(player_id, data)
 	local entry = players[player_id]
 	local msg = decodeTable(data)
 	local job = msg and jobs[tonumber(msg.id)]
 	if not entry or not job or job.takenBy ~= player_id then return end
-	local pay = math.floor(math.max(0, math.min(job.pay, tonumber(msg.pay) or job.pay)) + 0.5)
+	local share = tonumber(msg.share)
+	share = share and share == share and math.max(0, math.min(1, share)) or 1
+	local full = payAt(job, levelFor(player_id, job.type))
+	local pay = math.floor(full * share + 0.5)
+	local deduction = full - pay
 	jobs[job.id] = nil
+	local xp, level, levelUp, newTier = addJobXp(player_id, job, share, pay, deduction)
 	payoutSeq = payoutSeq + 1
 	local p = {id = string.format("%d-%d-%d", os.time(), job.id, payoutSeq), job = job.id, type = job.type,
-		title = job.title, pay = pay, profile = entry.profile or sanitizeProfile(playerName(player_id))}
+		title = job.title, pay = pay, deduction = deduction, xp = xp, profile = profileOf(player_id)}
 	payouts[p.id] = p
 	savePayouts()
+	log(string.format("%s finished job %d: $%d, %d XP (level %d)", playerName(player_id), job.id, pay, xp, level))
+	sendJobsToAll() -- the new level first, so the client's save copy has it when the pay is saved
 	sendPayout(player_id, p)
-	log(string.format("%s finished job %d: $%d", playerName(player_id), job.id, pay))
+	if newTier then
+		notify(player_id, string.format("Level %d – new jobs!", level), "star")
+	elseif levelUp then
+		notify(player_id, string.format("Level %d – more pay!", level), "star")
+	end
 	for id, e in pairs(players) do
 		if e.careerActive and MP.IsPlayerConnected(id) and id ~= player_id then
 			notify(id, string.format("%s brought the %s to %s", playerName(player_id), job.title, job.dest.name), "local_shipping")
 		end
 	end
-	sendJobsToAll()
 end
 
--- Every second: taken jobs that ran out of time are open again; if jobs are missing, one
--- player (in turn) is asked to make one up.
+-- Every second: taken jobs that ran out of time are open again; if a wanted tier is missing jobs
+-- (wantedTiers), one player (in turn) is asked to make one up for it.
 local function jobsTick()
 	if not jobsEnabled() then return end
 	local timeout = math.max(1, tonumber(Config.server.jobTimeoutMinutes) or 30) * 60
@@ -1119,7 +1330,8 @@ local function jobsTick()
 		end
 	end
 	if changed then sendJobsToAll() end
-	if openJobCount() >= math.max(0, tonumber(Config.server.jobsOpen) or 3) then return end
+	local need = wantedTiers()[1]
+	if need.open >= jobsOpen() then return end
 	if now() - jobAskedAt < JOB_ASK_EVERY then return end
 	local ids = {}
 	for id, entry in pairs(players) do
@@ -1128,7 +1340,7 @@ local function jobsTick()
 	if #ids == 0 then return end
 	table.sort(ids)
 	jobAskedAt = now()
-	send(ids[(jobSeq + math.floor(now())) % #ids + 1], "sc_jobGenerate", {})
+	send(ids[(jobSeq + math.floor(now())) % #ids + 1], "sc_jobGenerate", {type = need.type, tier = need.tier})
 end
 
 local function jobsLeave(player_id)
@@ -1550,6 +1762,7 @@ local CONSOLE_HELP = table.concat({
 	"  sc players                          players and career status",
 	"  sc fuel | sc fuel reset             show fuel discounts / reset all to normal",
 	"  sc jobs | sc jobs reset             show jobs / drop all of them",
+	"  sc levels | sc levels reset <name>  show job levels / back to level 1",
 	"  sc reload                           reload config.json",
 	"  examples: sc set client.trafficAggression 0.15 | sc set server.nightMinutes 5",
 	"            sc set client.saveSuffix   (no value = empty)",
@@ -1727,7 +1940,7 @@ function onConsoleInput(input)
 		end
 		local lines = {}
 		for _, job in pairs(jobs) do
-			table.insert(lines, string.format("  #%d %s: %s to %s, %.1f km, $%d%s", job.id, job.type, job.title, job.dest.name,
+			table.insert(lines, string.format("  #%d %s tier %d: %s to %s, %.1f km, $%d%s", job.id, job.type, job.tier, job.title, job.dest.name,
 				job.length / 1000, job.pay, job.takenBy and (" – taken by " .. playerName(job.takenBy)) or " – open"))
 		end
 		for _, p in pairs(payouts) do
@@ -1737,6 +1950,31 @@ function onConsoleInput(input)
 		table.sort(lines)
 		if #lines == 0 then return "Jobs: none" .. (jobsEnabled() and "" or " (switched off)") end
 		return "Jobs:\n" .. table.concat(lines, "\n")
+	elseif sub == "levels" then
+		if words[3] and words[3]:lower() == "reset" then
+			local name = table.concat(words, " ", 4)
+			if name == "" then return "Usage: sc levels reset <player or profile>" end
+			local profile = progress[name] and name or nil
+			if not profile then
+				for id in pairs(players) do
+					if playerName(id):lower():find(name:lower(), 1, true) then profile = profileOf(id) break end
+				end
+			end
+			if not profile or not progress[profile] then return "No job levels for " .. name end
+			progress[profile] = nil
+			saveProgress()
+			sendJobsToAll()
+			return "Job levels of " .. profile .. " reset to level 1"
+		end
+		local lines = {}
+		for profile, kinds in pairs(progress) do
+			for kind, p in pairs(kinds) do
+				table.insert(lines, string.format("  %s %s: level %d, %d XP, %d done", profile, kind, p.level, p.xp, p.stats.done))
+			end
+		end
+		table.sort(lines)
+		if #lines == 0 then return "Job levels: nobody has any yet" end
+		return "Job levels:\n" .. table.concat(lines, "\n")
 	elseif sub == "reload" then
 		loadConfig()
 		return "Configuration reloaded"
@@ -1847,6 +2085,7 @@ function onInit()
 	loadProfiles()
 	loadFuel()
 	loadPayouts()
+	loadProgress()
 
 	MP.RegisterEvent("onPlayerJoin", "onPlayerJoin")
 	MP.RegisterEvent("onPlayerDisconnect", "onPlayerDisconnect")
