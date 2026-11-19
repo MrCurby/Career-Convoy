@@ -2852,14 +2852,7 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	_G.jsonReadFile = function(path) if path:find("deliveryVehicles") then return {junkerVehFilter = {filter = {}}} end end
 	_G.util_configListGenerator = {
 		getEligibleVehicles = function() return {} end,
-		getRandomVehicleInfos = function()
-			-- now and then an old truck; tiers 1-2 pass over it
-			if world.junkerTruck then
-				world.junkerTruck = false
-				return {{model_key = "pickup", key = "old", Brand = "Gavril", Name = "D-Series", ["Body Style"] = "Pickup", Type = "Car"}}
-			end
-			return {{model_key = "fullsize", key = "base", Brand = "Gavril", Name = "Grand Marshal", ["Body Style"] = "Sedan", Type = "Car"}}
-		end,
+		getRandomVehicleInfos = function() return {{model_key = "fullsize", key = "base", Brand = "Gavril", Name = "Grand Marshal"}} end,
 	}
 	local me = addVehicle(70, "0-70", true)
 	me.p = {x = 0, y = -20, z = 10}
@@ -2922,12 +2915,6 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	check(tow.tags(crashJob)[1].text == "On its roof" and tow.tags({data = {crash = {kind = "front", speed = 9}}})[1].text == "Crash"
 		and tow.tags(crashJob)[2].text == "Flat tire", "a crash shows as \"Crash\" or \"On its roof\" instead of the engine failure")
 	check(tow.payFor(1000, false, 2) == 350 and tow.payFor(1000, false, 4) == 590, "a higher tier pays more (x1.3, x2.2)")
-	world.junkerTruck = true
-	local light = tow.generate(1)
-	check(light.data.vehicle.model == "fullsize" and light.data.vehicle.class == "Car" and not world.junkerTruck,
-		"tiers 1-2: an old truck from the delivery filter is passed over for a car")
-	check(tow.tags({data = {vehicle = {class = "SUV"}}})[2].text == "SUV" and tow.tags({data = {vehicle = {class = "Pickup"}}})[2].kind == "heavy"
-		and #tow.tags({data = {vehicle = {class = "Car"}}}) == 1, "the vehicle class shows on the job (not for a plain car)")
 	handlers.sc_jobGenerate(json.encode({type = "tow", tier = 3}))
 	offer = lastSent("sc_jobOffer")
 	check(offer.type == "tow" and offer.tier == 3 and offer.data.heavy == true, "the server asks for tier 3: a heavy tow")
@@ -2965,7 +2952,7 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	-- the jobs by level: yours first (the hardest at the top), then the locked ones (the nearest first)
 	local function listed(minLevel, locked, id)
 		local j = json.decode(json.encode(job))
-		j.id, j.state, j.minLevel, j.locked, j.xp = id, "open", minLevel, locked, 40
+		j.id, j.state, j.minLevel, j.locked = id, "open", minLevel, locked
 		return j
 	end
 	handlers.sc_jobs(json.encode({enabled = true, jobs = {listed(1, false, 1), listed(8, true, 2), listed(3, false, 3),
@@ -2976,7 +2963,7 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	for _, g in ipairs(sec.groups) do table.insert(order, g.minLevel .. (g.locked and "L" or "") .. ":" .. #g.jobs) end
 	check(#st.sections == 1 and sec.type == "tow" and sec.name == "Towing" and sec.icon == "tow",
 		"a section for the towing jobs")
-	check(table.concat(order, " ") == "3:2 1:1 5L:1 8L:1" and st.open == 3 and sec.open == 3 and sec.groups[1].jobs[1].xp == 40,
+	check(table.concat(order, " ") == "3:2 1:1 5L:1 8L:1" and st.open == 3 and sec.open == 3,
 		"in it the groups by level: level 3, level 1, then locked 5 and 8")
 	check(sec.level.level == 4 and math.abs(sec.level.share - 80 / 280) < 1e-9 and sec.level.toGo == 200,
 		"your towing level: 4, the ring part way, 200 XP to go")

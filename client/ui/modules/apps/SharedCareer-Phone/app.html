@@ -79,7 +79,7 @@
 					<div class="scp-myjob" ng-if="jobs.active">
 						<div class="scp-myjob-top">
 							<span class="scp-myjob-label">Your job</span>
-							<span class="scp-reward"><span class="scp-myjob-pay" ng-bind="money(jobs.active.pay)"></span><span class="scp-xp" ng-if="jobs.active.xp" ng-bind="'+' + jobs.active.xp + ' XP'"></span></span>
+							<span class="scp-myjob-pay" ng-bind="money(jobs.active.pay)"></span>
 						</div>
 						<div class="scp-myjob-title" ng-bind="jobs.active.title"></div>
 						<div class="scp-chips">
@@ -124,7 +124,7 @@
 										<span class="scp-job-name" ng-bind="j.title"></span>
 										<span class="scp-job-tags" ng-bind="tagLine(j)"></span>
 									</span>
-									<span class="scp-reward"><span class="scp-job-pay" ng-bind="money(j.pay)"></span><span class="scp-xp" ng-if="j.xp" ng-bind="'+' + j.xp + ' XP'"></span></span>
+									<span class="scp-job-pay" ng-bind="money(j.pay)"></span>
 								</div>
 								<div class="scp-job-route">
 									<div class="scp-route-row"><span class="scp-route-dot scp-route-from"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z" fill="currentColor"/><circle cx="12" cy="10" r="2.4" fill="rgba(0,0,0,0.45)"/></svg></span><span ng-bind="j.distance !== undefined ? formatDistance(j.distance) + ' away' : '–'"></span></div>
