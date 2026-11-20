@@ -105,26 +105,19 @@ local function dist3D(a, b)
 	return math.sqrt(dx * dx + dy * dy + dz * dz)
 end
 
---- The distance from a to b by road (m): to the nearest road, along the game's road network
---- (map.getPath), off the road to b. nil without a road map or a way.
+--- The distance from a to b by road (m): the game's way between the two points
+--- (map.getPointToPointPath, which also finds where to join and leave the roads), its length
+--- (map.getPathLen) and the bits off the road at both ends. nil without a road map or a way.
 function M.driveDistance(a, b)
-	if not (map and type(map.findClosestRoad) == "function" and type(map.getPath) == "function"
+	if not (map and type(map.getPointToPointPath) == "function" and type(map.getPathLen) == "function"
 		and type(map.getMap) == "function" and type(vec3) == "function") then return nil end
 	local ok, d = pcall(function()
-		local nodes = map.getMap().nodes
-		local start = map.findClosestRoad(vec3(a.x, a.y, a.z or 0))
-		local target = map.findClosestRoad(vec3(b.x, b.y, b.z or 0))
-		if not (start and target and nodes[start] and nodes[target]) then return nil end
-		local path = map.getPath(start, target)
+		local path = map.getPointToPointPath(vec3(a.x, a.y, a.z or 0), vec3(b.x, b.y, b.z or 0))
 		if type(path) ~= "table" or #path == 0 then return nil end
-		local d, prev = 0, a
-		for _, name in ipairs(path) do
-			local p = nodes[name] and vecOf(nodes[name].pos)
-			if not p then return nil end
-			d = d + dist3D(prev, p)
-			prev = p
-		end
-		return d + dist3D(prev, b)
+		local nodes = map.getMap().nodes
+		local first, last = nodes[path[1]] and vecOf(nodes[path[1]].pos), nodes[path[#path]] and vecOf(nodes[path[#path]].pos)
+		if not (first and last) then return nil end
+		return dist3D(a, first) + map.getPathLen(path) + dist3D(last, b)
 	end)
 	return ok and tonumber(d) or nil
 end

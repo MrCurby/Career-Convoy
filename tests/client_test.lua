@@ -2843,19 +2843,22 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	end
 	nodes.dirt = {pos = vec3(0, 3000, 10), radius = 4, links = {dirt2 = {drivability = 0.2}}}
 	nodes.dirt2 = {pos = vec3(100, 3000, 10), radius = 4, links = {dirt = {drivability = 0.2}}}
-	-- the way by road: from the nearest node of the straight road to the other one, along it
+	-- the way by road: from the node of the straight road nearest to the start to the one nearest
+	-- to the target, along it
 	local pathSearches = 0
+	local function nearestNode(p) return math.max(0, math.min(50, math.floor(p.x / 100 + 0.5))) end
 	_G.map = {getMap = function() return {nodes = nodes} end,
-		findClosestRoad = function(p)
-			local i = math.max(0, math.min(50, math.floor(p.x / 100 + 0.5)))
-			return "n" .. i, "n" .. math.min(50, i + 1), math.abs(p.y)
-		end,
-		getPath = function(a, b)
+		getPointToPointPath = function(a, b)
 			pathSearches = pathSearches + 1
-			local ia, ib = tonumber(a:sub(2)), tonumber(b:sub(2))
+			local ia, ib = nearestNode(a), nearestNode(b)
 			local path = {}
 			for i = ia, ib, ia <= ib and 1 or -1 do table.insert(path, "n" .. i) end
 			return path
+		end,
+		getPathLen = function(path)
+			local len = 0
+			for i = 2, #path do len = len + math.abs(nodes[path[i]].pos.x - nodes[path[i - 1]].pos.x) end
+			return len
 		end}
 	local doors = {belasco = {x = 4000, y = 50, z = 10}, home = {x = 0, y = 40, z = 10}}
 	_G.freeroam_facilities = {
@@ -2936,10 +2939,10 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	end
 	check(okAll, "places: always beside the road (5.8 m from its middle), never near a vehicle or on a dirt track; a shop away from it")
 	check(lengthOk, "the length of the tow: the way by road to the shop")
-	local getPath = map.getPath
-	map.getPath = function() return {} end
+	local getPath = map.getPointToPointPath
+	map.getPointToPointPath = function() return {} end
 	local noWay = tow.generate(1)
-	map.getPath = getPath
+	map.getPointToPointPath = getPath
 	local straight = math.sqrt((noWay.dest.pos.x - noWay.pos.x) ^ 2 + (noWay.dest.pos.y - noWay.pos.y) ^ 2)
 	check(noWay.length == math.floor(straight * 1.3 / 10 + 0.5) * 10, "no way by road: the straight line x 1.3")
 	local crashes, flats, heavies = {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}
