@@ -19,7 +19,9 @@
 --                least one; a crash always has a broken engine
 --     a crash    from tier 2 on, some jobs are crashes (the tier's crash chance) instead of a
 --                breakdown: the car is wrecked (see "Crashes" below)
---     job.data = {vehicle = {model, config}, flatTire, heavy, crash = {kind, speed}, faults, dir};
+--     its kind    car, suv, pickup, van, bus or truck (KINDS, from the game's "Body Style", else its
+--                 "Type"): the icon of the job in the Jobs app (iconOf)
+--     job.data = {vehicle = {model, config}, kind, flatTire, heavy, crash = {kind, speed}, faults, dir};
 --     job.title = the vehicle's body style (model, else config), else its name
 --   doing it
 --     1. the route leads to the place; within SPAWN_RANGE m the broken-down vehicle appears there
@@ -102,10 +104,18 @@ local MARKER_RANGE = 250      -- m: the markers show within this distance
 local JUNKER_FILTER = "junkerVehFilter"
 local FILTER_FILE = "gameplay/delivery/vehicles.deliveryVehicles.json"
 local FALLBACK_MODELS = {"fullsize", "midsize", "covet", "pessima"}
-local HEAVY_MODELS = {"pickup", "van", "roamer"}
+local HEAVY_MODELS = {{model = "pickup", kind = "pickup"}, {model = "van", kind = "van"}, {model = "roamer", kind = "suv"}}
 local CAR_TRIES = 8           -- draws from the delivery filter for a vehicle that isn't a truck
--- words in the game's "Body Style" and "Type" of a vehicle that make it a truck
-local TRUCK_WORDS = {"pickup", "van", "bus", "truck"}
+-- the kinds of vehicle (each an icon in the Jobs app), by the words in the game's "Body Style" (else
+-- its "Type") that make it one, the first that fits; none fits: a car. truck: counts as a truck
+-- for the tier's truck share
+local KINDS = {
+	{kind = "bus", words = {"bus"}, truck = true},
+	{kind = "van", words = {"van"}, truck = true},
+	{kind = "pickup", words = {"pickup"}, truck = true},
+	{kind = "suv", words = {"suv", "crossover"}},
+	{kind = "truck", words = {"truck"}, truck = true},
+}
 
 M.id = "tow"
 M.name = "Towing"
@@ -226,24 +236,34 @@ local function bodyStyle(vehicle)
 		or (type(c) == "table" and type(c["Body Style"]) == "string" and c["Body Style"]) or nil
 end
 
--- Whether a vehicle is a pickup, van, bus or truck: from its config's info, else its model's.
-local function isTruck(model, info)
-	local function words(t)
-		if type(t) ~= "table" then return "" end
-		return (tostring(t["Body Style"] or "") .. " " .. tostring(t.Type or "")):lower()
-	end
-	local text = words(info)
-	if text == " " then
-		local m = modelInfo(model)
-		text = words(m and m.model)
-	end
-	for _, w in ipairs(TRUCK_WORDS) do
-		if text:find(w, 1, true) then return true end
-	end
-	return false
+local function kindOf(kind)
+	for _, k in ipairs(KINDS) do if k.kind == kind then return k end end
+	return nil
 end
 
--- One old vehicle from the career's delivery filter: {model, config, name, truck}, or nil.
+--- The kind of a vehicle ("car", "pickup", ... see KINDS): from its config's info, else its model's;
+--- its body style first, else its type.
+function M.vehicleKind(model, info)
+	local function has(t)
+		return type(t) == "table" and (type(t["Body Style"]) == "string" or type(t.Type) == "string")
+	end
+	if not has(info) then
+		local m = modelInfo(model)
+		info = m and m.model
+	end
+	if not has(info) then return "car" end
+	for _, field in ipairs({"Body Style", "Type"}) do
+		local text = tostring(info[field] or ""):lower()
+		for _, k in ipairs(KINDS) do
+			for _, w in ipairs(k.words) do
+				if text:find(w, 1, true) then return k.kind end
+			end
+		end
+	end
+	return "car"
+end
+
+-- One old vehicle from the career's delivery filter: {model, config, name, kind}, or nil.
 local function fromFilter()
 	local gen = rawget(_G, "util_configListGenerator")
 	if not (gen and type(gen.getRandomVehicleInfos) == "function" and type(jsonReadFile) == "function") then return nil end
@@ -257,24 +277,25 @@ local function fromFilter()
 	end)
 	if not ok or type(info) ~= "table" or not info.model_key then return nil end
 	local name = info.Name and ((info.Brand and (info.Brand .. " ") or "") .. info.Name) or info.model_key
-	return {model = info.model_key, config = info.key, name = name, truck = isTruck(info.model_key, info)}
+	return {model = info.model_key, config = info.key, name = name, kind = M.vehicleKind(info.model_key, info)}
 end
 
 -- The vehicle of a tier: a heavy one by its heavy share, else an old one from the delivery filter,
--- a truck only as often as its truck share allows: {model, config, name, heavy}.
+-- a truck only as often as its truck share allows: {model, config, name, kind, heavy}.
 local function pickVehicle(t)
 	if math.random() < (t.heavy or 0) then
-		local model = HEAVY_MODELS[math.random(#HEAVY_MODELS)]
-		return {model = model, name = modelName(model), heavy = true}
+		local h = HEAVY_MODELS[math.random(#HEAVY_MODELS)]
+		return {model = h.model, name = modelName(h.model), kind = h.kind, heavy = true}
 	end
 	local truckOk = math.random() < (t.trucks or 0)
 	for _ = 1, CAR_TRIES do
 		local v = fromFilter()
 		if not v then break end
-		if truckOk or not v.truck then return {model = v.model, config = v.config, name = v.name} end
+		local kind = kindOf(v.kind)
+		if truckOk or not (kind and kind.truck) then return v end
 	end
 	local model = FALLBACK_MODELS[math.random(#FALLBACK_MODELS)]
-	return {model = model, name = modelName(model)}
+	return {model = model, name = modelName(model), kind = M.vehicleKind(model)}
 end
 
 local function roundTo(x, step) return math.floor(x / step + 0.5) * step end
@@ -349,12 +370,19 @@ function M.generate(tier)
 				local faults = crash and {"engine"} or pickFaults()
 				return {title = bodyStyle(vehicle) or vehicle.name, pos = spot.pos, dest = {name = pick.shop.name, pos = pick.shop.pos},
 					length = length, pay = M.payFor(length, flatTire, tier),
-					data = {vehicle = {model = vehicle.model, config = vehicle.config}, flatTire = flatTire, heavy = vehicle.heavy == true,
-						crash = crash, faults = faults, dir = spot.dir}}
+					data = {vehicle = {model = vehicle.model, config = vehicle.config}, kind = vehicle.kind, flatTire = flatTire,
+						heavy = vehicle.heavy == true, crash = crash, faults = faults, dir = spot.dir}}
 			end
 		end
 	end
 	return nil, "no free place found"
+end
+
+--- The icon of a towing job in the Jobs app: the kind of its vehicle ("car", "pickup", ...); nil for
+--- a job without one (then the job type's icon).
+function M.iconOf(job)
+	local kind = type(job.data) == "table" and job.data.kind
+	return (kind == "car" or kindOf(kind)) and kind or nil
 end
 
 --- The labels of a towing job in the Jobs app.

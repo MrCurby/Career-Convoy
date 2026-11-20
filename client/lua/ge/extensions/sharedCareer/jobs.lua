@@ -16,6 +16,8 @@
 --                    this map: {title, pos, dest = {name, pos}, length, pay, data} (pos: where it
 --                    starts; pay: at level 1; data: the type's own fields, the server passes them
 --                    on), or nil and why not
+--   iconOf(job)      optional: the icon of this job in the Jobs app (a name the app knows, e.g. "pickup");
+--                    nil: the type's icon
 --   tags(job)        short labels for the job in the app: {{text, kind}} (kind picks the color)
 --   start(a)         the job is yours: a = {id, job}; the type keeps its own state in a
 --   step(a, dt)      every CHECK_EVERY s until it is handed over; calls M.handOver(a, share) when
@@ -381,6 +383,12 @@ local function routeFor(key, from, to)
 	return d
 end
 
+local function iconOf(job)
+	local t = types[job.type]
+	local ok, icon = pcall(function() return t and t.iconOf and t.iconOf(job) end)
+	return ok and type(icon) == "string" and icon or (t and t.icon) or "?"
+end
+
 local function tagsOf(job)
 	local t = types[job.type]
 	local ok, tags = pcall(function() return t and t.tags and t.tags(job) end)
@@ -399,8 +407,7 @@ end
 
 -- One job of the list, for the app.
 local function jobForApp(job, me)
-	local t = types[job.type]
-	return {id = job.id, icon = t and t.icon or "?", title = job.title or "?", tags = tagsOf(job),
+	return {id = job.id, icon = iconOf(job), title = job.title or "?", tags = tagsOf(job),
 		dest = job.dest and job.dest.name or "?", length = job.length, pay = job.pay, xp = tonumber(job.xp), state = job.state,
 		takenBy = job.takenBy, locked = job.locked == true, minLevel = math.max(1, math.floor(tonumber(job.minLevel) or 1)),
 		distance = me and job.pos and routeFor(job.id, me, job.pos) or nil}
@@ -486,7 +493,7 @@ function M.appState()
 	if active then
 		local job, s = active.job, activeStatus
 		local steps = active.type.steps or {}
-		state.active = {id = job.id, icon = active.type.icon, title = job.title, tags = tagsOf(job), dest = job.dest.name,
+		state.active = {id = job.id, icon = iconOf(job), title = job.title, tags = tagsOf(job), dest = job.dest.name,
 			pay = job.pay, xp = tonumber(job.xp), steps = steps, step = active.paidAt and math.max(0, #steps - 1) or (s.step or 0),
 			phase = active.paidAt and "paid" or (active.doneSent and "checking" or "running"),
 			text = s.text, short = s.short, hint = s.hint, inZone = s.inZone == true,
