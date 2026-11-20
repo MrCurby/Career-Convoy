@@ -60,7 +60,7 @@
 					<button class="scm-btn" ng-class="{'scm-on': clockMode() === 'pause'}" ng-click="setClockMode('pause')"
 						title="Stop the clock">Pause</button>
 					<button class="scm-btn" ng-class="{'scm-on': clockMode() === 'real'}" ng-click="setClockMode('real')"
-						title="Use the server's clock">Real time</button>
+						title="Follow the real clock">Real time</button>
 				</span>
 			</div>
 			<div class="scm-note" ng-if="!state.canControl && state.synced">The time of day is set by the server</div>

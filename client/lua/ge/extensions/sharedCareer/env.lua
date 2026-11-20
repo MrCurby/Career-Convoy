@@ -12,7 +12,7 @@
 -- 0.5 = 0:00, 0.75 = 6:00. Conversion happens only in toGame/fromGame.
 --
 -- In the SharedCareer menu every player can change the time and the day/night length for
--- everyone, or switch on real time (the server's clock): see "Time controls" below.
+-- everyone, or switch on real time (the real clock, time zone from the server): see "Time controls" below.
 -- Real time needs nothing extra here: the server sends its clock with a day of 24 real hours.
 --
 -- Pause menu: the environment pages (time, weather, simulation/slow motion, traffic) are
@@ -231,7 +231,7 @@ function M.uiSetPaused(paused)
 	control({action = "pause", paused = paused == true})
 end
 
--- Real time (true): the time follows the server's clock – for everyone.
+-- Real time (true): the time follows the real clock (server.realtimeZone) – for everyone.
 function M.uiSetRealtime(on)
 	control({action = "realtime", on = on == true})
 end

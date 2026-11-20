@@ -7,7 +7,7 @@
 // round values for day and night (LENGTHS: 1, 5, 10, ... 600 min), in bigger steps the longer it
 // gets; a length between two of them (set in the config) goes to the next one.
 // "Clock" is one group of three: Run, Pause (stops the clock for everyone at the current time) and
-// Real time (the time follows the server's clock; the other time buttons are hidden then, they
+// Real time (the time follows the real clock in the server's time zone; the other time buttons are hidden then, they
 // would work against it).
 // Traffic tab: a small table – driving/parked cars per player and the server's limit – and the AI
 // driving style; below it what this player gets.

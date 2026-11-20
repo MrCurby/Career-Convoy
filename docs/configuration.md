@@ -24,7 +24,7 @@ Type these into the server console, or send them with `./server.sh cmd "..."`.
 | `sc time` | Show the current time |
 | `sc time 18:30` | Set the time for everyone |
 | `sc time stop` / `sc time start` | Pause / resume the clock |
-| `sc time real` | Real time: the time follows the server's clock. `sc time 18:30`, `stop` or `start` end it. |
+| `sc time real` | Real time: the time follows the real clock (time zone: `server.realtimeZone`). `sc time 18:30`, `stop` or `start` end it. |
 | `sc fuel` | Show the current fuel discounts per station |
 | `sc fuel reset` | Reset all stations to the normal price |
 | `sc jobs` | Show the jobs and who took them |
@@ -73,6 +73,7 @@ The file is `Resources/Server/SharedCareer/config/config.json`. It is created on
 | `server.dayStartHour` / `server.nightStartHour` | `6` / `20` | When day and night begin |
 | `server.timePaused` | `false` | Clock paused. Set by Pause/Run in the menu or `sc time stop/start`. |
 | `server.realtimeSync` | `false` | Real time: the time of day is the server's local time, at real speed. Start time, day/night length and pause don't apply then. Set by "Real time" in the menu or `sc time real`. |
+| `server.realtimeZone` | `""` | Time zone for real time, with summer/winter time: e.g. `Europe/Berlin`, `Europe/London`, `America/New_York`, `Australia/Sydney`, or `UTC+2` (no summer time). Empty = the server's own local time – right only if the server's system has the right time zone (many servers run on UTC). An unknown name falls back to the server's local time (see the server log). |
 | `client.syncTimeOfDay` | `true` | Same time of day for everyone (re-synced every 30 s) |
 | `client.lockEnvironment` | `true` | Time, weather, slow motion and traffic in the pause menu are display-only |
 

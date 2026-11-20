@@ -418,6 +418,56 @@ check(onConsoleInput("sc time 10:00"):find("10:00") ~= nil and lastTo(0, "sc_tim
 	and math.abs(lastTo(0, "sc_time").hour - 10) < 0.001, "sc time <HH:MM> ends real time")
 os.date = realDate
 
+--== Real time in a time zone (summer/winter time computed by the mod) ==
+local realTime = os.time
+local utcNow = 0
+os.time = function(...) if select("#", ...) == 0 then return utcNow end return realTime(...) end
+onConsoleInput("sc time real")
+local function zoneHour(zone, utc)
+	onConsoleInput("sc set server.realtimeZone " .. zone)
+	utcNow = utc
+	sc_timeTick()
+	return lastTo(0, "sc_time").hour
+end
+local function near(a, h, m) return math.abs(a - (h + m / 60)) < 0.001 end
+local zoneCases = {
+	-- zone, UTC second, expected local hour, minute, what
+	{"Europe/Berlin", 1768478400, 13, 0, "Berlin in winter: UTC+1"},
+	{"Europe/Berlin", 1782907200, 14, 0, "Berlin in summer: UTC+2"},
+	{"Europe/Berlin", 1774745940, 1, 59, "Berlin: one minute before summer time"},
+	{"Europe/Berlin", 1774746000, 3, 0, "Berlin: summer time starts (last Sunday of March)"},
+	{"Europe/Berlin", 1792889940, 2, 59, "Berlin: one minute before winter time"},
+	{"Europe/Berlin", 1792890000, 2, 0, "Berlin: winter time starts (last Sunday of October)"},
+	{"Europe/London", 1782907200, 13, 0, "London in summer: UTC+1"},
+	{"America/New_York", 1772953140, 1, 59, "New York: one minute before summer time"},
+	{"America/New_York", 1772953200, 3, 0, "New York: summer time starts (second Sunday of March)"},
+	{"America/New_York", 1793512740, 1, 59, "New York: one minute before winter time"},
+	{"America/New_York", 1793512800, 1, 0, "New York: winter time starts (first Sunday of November)"},
+	{"America/Phoenix", 1782907200, 5, 0, "Phoenix: no summer time"},
+	{"Australia/Sydney", 1768478400, 23, 0, "Sydney in January: summer time, UTC+11"},
+	{"Australia/Sydney", 1775318340, 2, 59, "Sydney: one minute before winter time"},
+	{"Australia/Sydney", 1775318400, 2, 0, "Sydney: winter time starts (first Sunday of April)"},
+	{"UTC+5:30", 1782907200, 17, 30, "UTC+5:30"},
+	{"UTC-3", 1768478400, 9, 0, "UTC-3"},
+	{"Europe/Berlin", 1835479800, 0, 30, "Berlin: leap day into March 1"},
+}
+for _, c in ipairs(zoneCases) do
+	local h = zoneHour(c[1], c[2])
+	check(near(h, c[3], c[4]), string.format("%s (%.3f)", c[5], h))
+end
+check(onConsoleInput("sc time"):find("Europe/Berlin") ~= nil, "sc time names the time zone")
+os.date = function(fmt, ...)
+	if fmt == "*t" then return {hour = 7, min = 0, sec = 0} end
+	return realDate(fmt, ...)
+end
+check(near(zoneHour("Mars/Base", 1782907200), 7, 0), "unknown time zone: the server's local time")
+onConsoleInput("sc set server.realtimeZone") -- no value = empty
+sc_timeTick()
+check(near(lastTo(0, "sc_time").hour, 7, 0) and onConsoleInput("sc time"):find("server clock") ~= nil,
+	"no time zone: the server's local time")
+os.date, os.time = realDate, realTime
+onConsoleInput("sc time 10:00")
+
 --== Settings from the SharedCareer menu ==
 fakeTime = fakeTime + 5
 local updatesBefore = countTo(0, "sc_configUpdate")
