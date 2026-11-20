@@ -22,6 +22,8 @@
 --   strap down  once the vehicle is pulled up onto the one the anchor is hooked on (anchor on a
 --             vehicle, winch stopped, rope at most STRAP_ROPE m): straps it onto that vehicle
 --             (straps.lua), the same as "Strap down" in the Straps app, without aiming
+--   flip      while that vehicle lies on its roof or side: the game's own "Flip upright" puts it
+--             back on its wheels where it is, damage included (see "Flip upright" below)
 --   to road   the game's own recovery "Tow to road" for the vehicle on the rope, or without a rope
 --             for the vehicle you look at; free of charge (see "Tow to the road" below)
 --   remove
@@ -197,6 +199,45 @@ local function towTarget()
 	local ok, err = R.canRope(found and found.veh, found and found.id)
 	if not ok then return nil, err end
 	return found.veh, found.id
+end
+
+--== Flip upright ==================================================================
+-- A vehicle on its roof or side (a crashed car of a towing job, a rollover): the game's own
+-- recovery "Flip upright" (core/recoveryPrompt.lua, flipUpright) turns it onto its wheels where it
+-- is and keeps the damage – spawn.safeTeleport(veh, its position, upright, ..., false). The career
+-- charges $50 for it; here it is free, with the Tow app (client.allowRopes). The button shows only
+-- while the vehicle is tilted more than FLIP_TILT.
+
+local FLIP_TILT = 0.5 -- the vehicle's up direction points up less than this (about 60 degrees tilted)
+
+-- true if the vehicle lies on its roof or side
+local function tilted(veh)
+	if not veh or type(veh.getDirectionVectorUp) ~= "function" then return false end
+	local ok, up = pcall(veh.getDirectionVectorUp, veh)
+	up = ok and R.vecOf(up)
+	return up ~= nil and up.z < FLIP_TILT
+end
+
+--- Turns the vehicle on the rope (or the one you look at) onto its wheels where it is.
+--- Returns true, or false and a message.
+function M.flipUpright()
+	if not R.allowed() then return false, "Off on this server" end
+	local veh, id = towTarget()
+	if not veh then return false, id end
+	if not tilted(veh) then return false, "It stands on its wheels" end
+	if not (spawn and type(spawn.safeTeleport) == "function") then return false, "Not available in this game version" end
+	if inPursuit(id) then return false, "Not during a police chase" end
+	if speedOf(veh) > TOW_MAX_SPEED then return false, "Stop the vehicle first" end
+	if rope then M.release() end
+	local ok, err = pcall(function()
+		spawn.safeTeleport(veh, veh:getPosition(), quatFromDir(veh:getDirectionVector()), nil, nil, nil, nil, false)
+	end)
+	if not ok then
+		U.log("E", "tow", "flipping upright failed: " .. tostring(err))
+		return false, "Flipping failed"
+	end
+	U.log("I", "tow", "vehicle " .. tostring(id) .. " flipped upright")
+	return true
 end
 
 --- Puts the vehicle on the rope (or the one you look at) on the last road it drove on.
@@ -394,7 +435,8 @@ function M.appState()
 		if v <= max then table.insert(choices, v) end
 	end
 	if #choices == 0 or choices[#choices] < max then table.insert(choices, math.floor(max + 0.5)) end
-	local state = {allowed = R.allowed(), attached = rope ~= nil, fine = fine, towToRoad = towToRoadAllowed(),
+	local target = R.allowed() and towTarget() or nil
+	local state = {allowed = R.allowed(), attached = rope ~= nil, fine = fine, towToRoad = towToRoadAllowed(), flip = tilted(target),
 		strength = winchStrength(), maxStrength = max, strengths = choices}
 	if rope then
 		local veh = be:getObjectByID(rope.veh)
@@ -475,6 +517,12 @@ function M.uiHookOn()
 end
 --- The anchor comes off its vehicle and stays where it is.
 function M.uiUnhook() R.unhook(rope); pushApp() end
+function M.uiFlipUpright()
+	local ok, err = M.flipUpright()
+	R.message(ok and "On its wheels" or err)
+	pushApp()
+	return ok
+end
 function M.uiTowToRoad()
 	local ok, err = M.towToRoad()
 	R.message(ok and "Back on the road" or err)

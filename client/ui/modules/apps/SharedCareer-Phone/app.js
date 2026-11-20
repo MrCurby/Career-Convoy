@@ -1,7 +1,7 @@
 // SharedCareer Phone: a tab at the right screen edge (key F4) that takes the phone out.
 // The phone shows the server time, the number of players, the connection and the apps that
 // SharedCareer extensions registered (lua/ge/extensions/sharedCareer/phone.lua). Built-in app
-// screens: Jobs (towing jobs, beta, jobs.lua), Tow (rope and winch, tow.lua), Straps (ratchet straps,
+// screens: Jobs (beta, jobs.lua with its job types, for now towJobs.lua), Tow (rope and winch, tow.lua), Straps (ratchet straps,
 // straps.lua) and Fuel (gas station prices, fuel.lua). Apps marked beta get a "BETA" badge on the icon and in the title bar.
 // The home screen has, below the clock, how long until day or night (with a bar for the part
 // of it that is over), and the app icons.
@@ -208,47 +208,68 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 	$scope.stopNavigate = function () { fuelLua('uiStopNavigate()'); };
 
 	//== Jobs app (lua/ge/extensions/sharedCareer/jobs.lua) ==
-	$scope.jobs = {enabled: false, jobs: [], active: null};
-	$scope.jobSteps = ['Pick up', 'Tow', 'Paid'];
+	// What a job shows (icon, tags, steps, the texts of what to do now) comes from its job type
+	// (towJobs.lua: towing jobs); this window only lays it out.
+	$scope.jobs = {enabled: false, sections: [], open: 0, active: null};
 	$scope.jobsCall = function (cmd) {
 		bngApi.engineLua('if sharedCareer_jobs then sharedCareer_jobs.' + cmd + ' end');
 	};
 	$scope.money = function (v) { return '$' + Math.round(Number(v) || 0).toLocaleString('en-US'); };
-	$scope.openJobCount = function () {
-		return $scope.jobs.jobs.filter(function (j) { return j.state === 'open'; }).length;
+	// the XP a job gives, under its pay ('' without any)
+	$scope.xpText = function (v) { var xp = Math.round(Number(v) || 0); return xp > 0 ? '+' + xp + ' XP' : ''; };
+	// your level in a job type, in words ("Level 4 · 200 XP to level 5")
+	$scope.levelText = function (l) {
+		if (!l) return '';
+		if (l.toGo === undefined || l.toGo === null) return 'Level ' + l.level + ' · top level';
+		return 'Level ' + l.level + ' · ' + l.toGo + ' XP to level ' + (l.level + 1);
 	};
-	// 0 = drive to the vehicle, 1 = tow it (and the check at the shop), 2 = paid
+	// your level as a ring: the part that is filled shows the way to the next level
+	$scope.levelRing = function (l) {
+		var deg = Math.round(360 * Math.max(0, Math.min(1, Number(l && l.share) || 0)));
+		return 'conic-gradient(#4f8cff ' + deg + 'deg, rgba(255, 255, 255, 0.12) ' + deg + 'deg)';
+	};
+	// a job's tags in one line, for the list ("Engine failure · Flat tire")
+	$scope.tagLine = function (j) {
+		return (j.tags || []).map(function (t) { return t.text; }).join(' · ');
+	};
+	// the step of your job (0-based, into its steps); the last one is "paid"
 	$scope.jobStep = function () {
 		var a = $scope.jobs.active;
-		if (!a) return 0;
-		if (a.phase === 'paid') return 2;
-		return a.phase === 'toVehicle' ? 0 : 1;
+		return a ? (a.step || 0) : 0;
 	};
+	$scope.jobPaid = function () { return !!$scope.jobs.active && $scope.jobs.active.phase === 'paid'; };
 	$scope.jobText = function () {
 		var a = $scope.jobs.active;
 		if (!a) return '';
 		if (a.phase === 'paid') return 'Done – paid';
 		if (a.phase === 'checking') return 'Handing over…';
-		if (a.phase === 'toVehicle') return 'to the ' + a.vehicle;
-		return a.inZone ? 'In the ring – wait' : 'to ' + a.dest;
+		return a.text || '';
 	};
-	// short, for the strip in the Tow app
+	// short, for the job strip above the Tow and Straps apps
 	$scope.jobStepText = function () {
 		var a = $scope.jobs.active;
-		if (!a) return '';
-		if (a.phase === 'toVehicle') return 'Drive to the breakdown';
-		return a.inZone ? 'In the ring – wait' : 'Tow to ' + a.dest;
+		return a ? (a.short || '') : '';
 	};
 	// the job strip above the Tow and Straps apps, while you are on the way to the shop
 	$scope.jobStripShown = function () {
 		var id = $scope.currentApp && $scope.currentApp.id;
-		return (id === 'tow' || id === 'straps') && !!$scope.jobs.active && $scope.jobStep() < 2;
+		return (id === 'tow' || id === 'straps') && !!$scope.jobs.active && !$scope.jobPaid();
 	};
 	$scope.openJobs = function () { var app = appById('jobs'); if (app) $scope.openApp(app); };
 	$scope.$on('SharedCareerJobs', function (event, data) {
 		$scope.$evalAsync(function () {
 			if (!data) return;
-			$scope.jobs = {enabled: data.enabled === true, jobs: Array.isArray(data.jobs) ? data.jobs : [], active: data.active || null};
+			var active = data.active || null;
+			if (active) {
+				if (!Array.isArray(active.steps)) active.steps = [];
+				if (!Array.isArray(active.tags)) active.tags = [];
+			}
+			var sections = Array.isArray(data.sections) ? data.sections : [];
+			sections.forEach(function (sec) {
+				if (!Array.isArray(sec.groups)) sec.groups = [];
+				sec.groups.forEach(function (g) { if (!Array.isArray(g.jobs)) g.jobs = []; });
+			});
+			$scope.jobs = {enabled: data.enabled === true, sections: sections, open: Number(data.open) || 0, active: active};
 		});
 	});
 

@@ -185,6 +185,8 @@ The ring picks a tow hitch within 0.7 m first, otherwise the nearest sturdy poin
 
 **Pull strength:** pick 30, 60, 100 or 150 % of the vehicle's weight in the app (60 % at first). If the vehicle doesn't follow, it's stuck or the parking brake is on: pick more.
 
+**Flip upright:** shows only while the vehicle lies on its roof or side. It turns it onto its wheels where it is, free of charge, damage included.
+
 **To the road:** for a vehicle the rope can't free, for example one wrapped around a lamp post. It puts the vehicle back on the last road it drove on, free of charge, damage included. The vehicle must stand still, and it doesn't work during a police chase.
 
 <img src="images/rope-towing.jpg" width="320" alt="A truck tows a car on the rope"> <img src="images/rope-hitch.jpg" width="320" alt="The anchor hooked onto a truck's tow hitch, the winch locked"> <img src="images/rope-winch-gauge.jpg" width="240" alt="The winch gauge above the anchor while the winch lifts a car">
@@ -229,16 +231,34 @@ Good to know:
 
 Cars break down at the roadside, and somebody has to tow them to a repair shop. There is **one list for everyone** on the server: whoever takes a job first gets it.
 
-1. **Find a job:** phone (**F4**) → **Jobs**. Every job shows the vehicle, what's wrong (engine failure, sometimes a flat tire too), how far it is from you, the repair shop, the length of the tow and the pay.
+1. **Find a job:** phone (**F4**) → **Jobs**. Every job shows the vehicle, what's wrong (engine failure, broken windshield or taillights, sometimes a flat tire), how far you have to drive to it, the repair shop, the length of the tow (both by road), your pay and the XP you get under it. The jobs are sorted by the level they need, see [Levels](#levels).
 2. **Take it:** the route leads you to the breakdown. A marker floats above the car when you are close. It's yours now: the others see the job as taken.
-3. **Pick it up:** the car stands beside the road with the hazard lights on. Its engine won't start (resetting it doesn't help), it's in neutral with the parking brake off, so you can tow it: on a flatbed, on a trailer, or with the rope and winch from the Tow app. Close to it, the route switches to the repair shop.
+3. **Pick it up:** the car stands beside the road with the hazard lights on. From level 3 on, some jobs are **crashes**: the car is wrecked, sometimes on its roof (**Flip upright** in the Tow app puts it back on its wheels). A crashed car or one with an engine failure won't start (resetting it doesn't help). It's in neutral with the parking brake off, so you can tow it: on a flatbed, on a trailer, or with the rope and winch from the Tow app. Close to it, the route switches to the repair shop.
 4. **Deliver it:** at the shop a ring on the ground shows the drop-off zone. Leave the car standing in it for 3 seconds, with nobody inside. The pay goes to your account and the car is taken away. If you crash or lose the connection right then, the pay arrives on your next join.
 
-- **Pay:** $150 plus $120 per km of the tow, 25 % more with a flat tire. The server can change it (`client.jobPay`).
+- **Pay:** $150 plus $120 per km of the tow, 25 % more with a flat tire, more for harder jobs and for your level (see below). The server can change it (`client.jobPay`).
 - **Damage costs:** new damage on the way costs part of the pay, up to half of it. Dragging the car along on the rope is allowed, but it usually costs more than loading it.
 - **Your job on the phone:** the Jobs app shows your job with its steps (*Pick up → Tow → Paid*), the distance and **Route** to set the route again. The Tow and Straps apps show it in a small strip at the top.
 - **Give up** in the Jobs app removes the car; the job is open again for everyone. If you leave the server or don't finish within 30 minutes, it is open again too.
-- New jobs come in by themselves, at most 3 open at a time. They appear only on normal roads and never right next to a player.
+- New jobs come in by themselves. There are always some for everyone on the server: 3 open jobs for beginners and 3 at the highest level each player has reached. They appear only on normal roads and never right next to a player.
+
+### Levels
+
+Every job you finish gives you **XP**, and with enough XP you reach the next **level** (up to level 10). Every kind of job has its own level. In the Jobs app, a ring above the jobs shows your level and fills up on the way to the next one.
+
+- **Harder jobs:** jobs come in four kinds, each from a level on. The Jobs app groups them by that level, yours at the top. The ones you can't take yet are at the bottom, grey with a lock.
+
+  | From level | Jobs |
+  |---|---|
+  | 1 | cars only, short tows, rarely a flat tire |
+  | 3 | sometimes a pickup or van, longer tows, more flat tires, sometimes a crash (pays 30 % more) |
+  | 5 | often heavy vehicles, long tows, often a crash (pays 70 % more) |
+  | 8 | mostly heavy vehicles, the longest tows, often a flat tire, mostly bad crashes (pays 120 % more) |
+
+- **More pay:** every level above 1 adds 5 % to your pay. Everyone sees their own pay on a job.
+- **XP:** a harder job gives more XP (40, 70, 110, 160). Damage costs XP as it costs pay. A job two or more kinds below your best gives only half the XP, so the easy ones are left for beginners.
+- The game's own career XP grows too (BeamXP and the Commercial branch).
+- Your level is kept by the server, per server. A new save keeps it; the server owner can reset it (`sc levels reset <name>`).
 
 ## Phone
 
