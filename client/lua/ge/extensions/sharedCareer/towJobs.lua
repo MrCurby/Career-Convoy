@@ -80,7 +80,7 @@ local CRASHES = {
 
 -- what can be broken on a broken-down car (not a crash): how often, and its tag; at least one always is
 local FAULTS = {
-	{kind = "engine", chance = 0.4, tag = "Engine failure"},
+	{kind = "engine", chance = 0.1, tag = "Engine failure"},
 	{kind = "windshield", chance = 0.7, tag = "Broken windshield"},
 	{kind = "taillights", chance = 0.3, tag = "Broken taillights"},
 }

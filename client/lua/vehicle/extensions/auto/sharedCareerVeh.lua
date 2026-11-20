@@ -785,7 +785,7 @@ end
 -- optional: a vehicle without one of them breaks down without it.
 
 -- the deform group a fault breaks, by a part of its name
-local FAULT_PARTS = {windshield = "windshield", taillights = "tailgatelight"}
+local FAULT_PARTS = {windshield = {"windshield"}, taillights = {"tailgatelight", "taillight"}}
 
 local function damageNow()
 	return tonumber(beamstate and beamstate.damage) or 0
@@ -823,8 +823,10 @@ function M.jobBreakDown(flatTire, faults)
 	pcall(function() input.event("parkingbrake", 0, FILTER_DIRECT) end)
 	pcall(function() electrics.set_warn_signal(true) end)
 	if flatTire then pcall(function() beamstate.deflateRandomTire() end) end
-	for kind, part in pairs(FAULT_PARTS) do
-		if faults[kind] then breakPart(part) end
+	for kind, parts in pairs(FAULT_PARTS) do
+		if faults[kind] then 
+			for _, part in ipairs(parts) do breakPart(part) end
+		end
 	end
 	reportToJobs("onJobBrokenDown", damageNow())
 end
