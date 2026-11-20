@@ -250,8 +250,8 @@ Every job you finish gives you **XP**, and with enough XP you reach the next **l
 
   | From level | Jobs |
   |---|---|
-  | 1 | short tows, rarely a flat tire |
-  | 3 | longer tows, more flat tires, sometimes a crash (pays 30 % more) |
+  | 1 | cars only, short tows, rarely a flat tire |
+  | 3 | sometimes a pickup or van, longer tows, more flat tires, sometimes a crash (pays 30 % more) |
   | 5 | heavy vehicles, long tows, often a crash (pays 70 % more) |
   | 8 | heavy vehicles, the longest tows, often a flat tire, mostly bad crashes (pays 120 % more) |
 

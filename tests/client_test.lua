@@ -2852,7 +2852,14 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	_G.jsonReadFile = function(path) if path:find("deliveryVehicles") then return {junkerVehFilter = {filter = {}}} end end
 	_G.util_configListGenerator = {
 		getEligibleVehicles = function() return {} end,
-		getRandomVehicleInfos = function() return {{model_key = "fullsize", key = "base", Brand = "Gavril", Name = "Grand Marshal"}} end,
+		getRandomVehicleInfos = function()
+			-- every second draw an old pickup while world.junkerTrucks is on
+			world.draws = (world.draws or 0) + 1
+			if world.junkerTrucks and world.draws % 2 == 0 then
+				return {{model_key = "pickup", key = "old", Brand = "Gavril", Name = "D-Series", ["Body Style"] = "Pickup", Type = "Truck"}}
+			end
+			return {{model_key = "fullsize", key = "base", Brand = "Gavril", Name = "Grand Marshal"}}
+		end,
 	}
 	local me = addVehicle(70, "0-70", true)
 	me.p = {x = 0, y = -20, z = 10}
@@ -2884,6 +2891,16 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	local offer = lastSent("sc_jobOffer")
 	check(offer and offer.type == "tow" and offer.title == "Gavril Grand Marshal" and offer.data.vehicle.model == "fullsize"
 		and offer.data.vehicle.config == "base", "made up a towing job with an old car from the career's delivery filter")
+	world.junkerTrucks = true
+	local trucks = {0, 0}
+	for tier = 1, 2 do
+		for _ = 1, 200 do
+			if tow.generate(tier).data.vehicle.model == "pickup" then trucks[tier] = trucks[tier] + 1 end
+		end
+	end
+	world.junkerTrucks = false
+	check(trucks[1] == 0 and trucks[2] > 3 and trucks[2] < 60,
+		"trucks from the delivery filter: never in tier 1, now and then in tier 2 (" .. table.concat(trucks, "/") .. ")")
 	check(offer.tier == 1, "the server asked for nothing special: tier 1")
 	local okAll, heavyOk = true, true
 	for i = 1, 80 do
