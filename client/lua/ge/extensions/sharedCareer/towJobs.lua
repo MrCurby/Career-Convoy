@@ -15,7 +15,7 @@
 --     a crash    from tier 2 on, some jobs are crashes (the tier's crash chance) instead of a
 --                 breakdown: the car is wrecked (see "Crashes" below)
 --     job.data = {vehicle = {model, config}, flatTire, heavy, crash = {kind, speed}, dir};
---     job.title = the vehicle's name
+--     job.title = the vehicle's body style (model or config) or name
 --   doing it
 --     1. the route leads to the place; within SPAWN_RANGE m the broken-down vehicle appears there
 --        (spawned by this player, so it is theirs: the rope works on it, BeamMP shows it to
@@ -289,12 +289,20 @@ function M.generate(tier)
 			local style
 			if (core_vehicles and type(core_vehicles.getModel) == "function") then
 				local ok, info = pcall(core_vehicles.getModel, vehicle.model)
-				local m = ok and type(info) == "table" and info.model
-				style = type(m) == "table" and type(m["Body Style"]) == "string" and m["Body Style"] or nil
+				if ok and type(info) == "table" and info.model
+				
+				local m = info.model
+				local c = vehicle.config and type(info.configs) == "table" and info.configs[vehicle.config]
+
+				style = type(m) == "table" and type(m["Body Style"]) == "string" and m["Body Style"]
+				or (type(c) == "table" and type(c["Body Style"]) == "string" and c["Body Style"]) or nil
+				end
 			end
+			
+
 				
 				
-				return {title = style or vehicle.name, pos = spot.pos, dest = {name = pick.shop.name, pos = pick.shop.pos},
+	return {title = style or vehicle.name, pos = spot.pos, dest = {name = pick.shop.name, pos = pick.shop.pos},
 					length = length, pay = M.payFor(length, flatTire, tier),
 					data = {vehicle = {model = vehicle.model, config = vehicle.config}, flatTire = flatTire, heavy = t.heavy,
 						crash = crash, dir = spot.dir}}
