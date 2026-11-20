@@ -63,10 +63,10 @@ local ROAD_FACTOR = 1.3       -- roads are about this much longer than the strai
 -- the tiers: how far to the shop (m), how often a flat tire, a heavy vehicle, the pay; how often a
 -- crash, and its speed (m/s when it hits the ground)
 local TIERS = {
-	{destMin = 800, destMax = 2500, flatTire = 0.2, heavy = false, pay = 1, crash = 0},
-	{destMin = 1500, destMax = 4000, flatTire = 0.4, heavy = false, pay = 1.3, crash = 0.3, crashSpeed = {6, 9}},
-	{destMin = 2500, destMax = 6000, flatTire = 0.6, heavy = true, pay = 1.7, crash = 0.5, crashSpeed = {8, 12}},
-	{destMin = 3500, destMax = 8000, flatTire = 1, heavy = true, pay = 2.2, crash = 0.7, crashSpeed = {10, 14}},
+	{destMin = 800, destMax = 2500, flatTire = 0.1, heavy = false, pay = 1, crash = 0},
+	{destMin = 1500, destMax = 4000, flatTire = 0.2, heavy = false, pay = 1.3, crash = 0.3, crashSpeed = {6, 9}},
+	{destMin = 2500, destMax = 6000, flatTire = 0.3, heavy = true, pay = 1.7, crash = 0.5, crashSpeed = {8, 12}},
+	{destMin = 3500, destMax = 8000, flatTire = 0.5, heavy = true, pay = 2.2, crash = 0.7, crashSpeed = {10, 14}},
 }
 -- the kinds of crash: how the car is tilted when it falls (pitch: nose down, roll: to the right, in
 -- degrees), how much of the tier's speed (a car on its roof crushes at less), and its tag

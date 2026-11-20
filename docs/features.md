@@ -250,10 +250,10 @@ Every job you finish gives you **XP**, and with enough XP you reach the next **l
 
   | From level | Jobs |
   |---|---|
-  | 1 | short tows, now and then a flat tire |
+  | 1 | short tows, rarely a flat tire |
   | 3 | longer tows, more flat tires, sometimes a crash (pays 30 % more) |
   | 5 | heavy vehicles, long tows, often a crash (pays 70 % more) |
-  | 8 | heavy vehicles, the longest tows, always a flat tire, mostly bad crashes (pays 120 % more) |
+  | 8 | heavy vehicles, the longest tows, often a flat tire, mostly bad crashes (pays 120 % more) |
 
 - **More pay:** every level above 1 adds 5 % to your pay. Everyone sees their own pay on a job.
 - **XP:** a harder job gives more XP (40, 70, 110, 160). Damage costs XP as it costs pay. A job two or more kinds below your best gives only half the XP, so the easy ones are left for beginners.

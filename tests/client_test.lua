@@ -2894,15 +2894,17 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 			or job.pay ~= tow.payFor(job.length, job.data.flatTire, tier) then
 			okAll = false
 		end
-		if (tier >= 3) ~= (job.data.heavy == true) or (tier == 4 and not job.data.flatTire) then heavyOk = false end
+		if (tier >= 3) ~= (job.data.heavy == true) then heavyOk = false end
 	end
 	check(okAll, "places: always beside the road (5.8 m from its middle), never near a vehicle or on a dirt track; a shop away from it")
-	check(heavyOk, "tiers 3 and 4: a heavy vehicle; tier 4 always with a flat tire")
-	local crashes = {0, 0, 0, 0}
+	check(heavyOk, "tiers 3 and 4: a heavy vehicle")
+	local crashes, flats = {0, 0, 0, 0}, {0, 0, 0, 0}
 	local speedsOk = true
 	for tier = 1, 4 do
 		for _ = 1, 100 do
-			local c = tow.generate(tier).data.crash
+			local d = tow.generate(tier).data
+			local c = d.crash
+			if d.flatTire then flats[tier] = flats[tier] + 1 end
 			if c then
 				crashes[tier] = crashes[tier] + 1
 				if c.speed < 2.5 or c.speed > 14 then speedsOk = false end
@@ -2911,6 +2913,8 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	end
 	check(crashes[1] == 0 and crashes[2] > 10 and crashes[2] < 50 and crashes[4] > 50 and speedsOk,
 		"crashes: never in tier 1, sometimes in tier 2, mostly in tier 4 (" .. table.concat(crashes, "/") .. ")")
+	check(flats[1] < 25 and flats[4] > 30 and flats[4] < 70 and flats[1] < flats[4],
+		"flat tires: rare in tier 1, often in tier 4, not always (" .. table.concat(flats, "/") .. ")")
 	local crashJob = {data = {crash = {kind = "roof", speed = 5}, flatTire = true}}
 	check(tow.tags(crashJob)[1].text == "On its roof" and tow.tags({data = {crash = {kind = "front", speed = 9}}})[1].text == "Crash"
 		and tow.tags(crashJob)[2].text == "Flat tire", "a crash shows as \"Crash\" or \"On its roof\" instead of the engine failure")
