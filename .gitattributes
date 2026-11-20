@@ -1,0 +1,2 @@
+# Keep line endings as LF on every PC, also on Windows, so the shell scripts in tools/ run there.
+* text=auto eol=lf
