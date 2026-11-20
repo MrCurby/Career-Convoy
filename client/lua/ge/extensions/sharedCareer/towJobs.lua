@@ -289,7 +289,7 @@ function M.generate(tier)
 			local style
 			if (core_vehicles and type(core_vehicles.getModel) == "function") then
 				local ok, info = pcall(core_vehicles.getModel, vehicle.model)
-				if ok and type(info) == "table" and info.model
+				if ok and type(info) == "table" and info.model then
 				
 				local m = info.model
 				local c = vehicle.config and type(info.configs) == "table" and info.configs[vehicle.config]
