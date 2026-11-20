@@ -775,11 +775,17 @@ function M.hookBelow(req, corners)
 end
 
 --== Towing jobs: the broken-down vehicle ========================================
--- jobBreakDown(flatTire): engines off and disabled (they don't start again), neutral, parking brake
--- off (so it can be towed or rolled), hazard lights on, optionally a flat tire. Reports
--- sharedCareer_towJobs.onJobBrokenDown(id, damage) with the damage so far (beamstate.damage), so the
--- job can tell new damage at the drop-off (jobReportDamage -> onJobDamage). Every step is
+-- jobBreakDown(flatTire, faults): neutral, parking brake off (so it can be towed or rolled), hazard
+-- lights on, optionally a flat tire, and what `faults` says is broken ({engine = true, ...}):
+--   engine      engines off and disabled (they don't start again)
+--   windshield  the windshield breaks
+--   taillights  the tail lights break
+-- Reports sharedCareer_towJobs.onJobBrokenDown(id, damage) with the damage so far (beamstate.damage),
+-- so the job can tell new damage at the drop-off (jobReportDamage -> onJobDamage). Every step is
 -- optional: a vehicle without one of them breaks down without it.
+
+-- the deform group a fault breaks, by a part of its name
+local FAULT_PARTS = {windshield = "windshield", taillights = "tailgatelight"}
 
 local function damageNow()
 	return tonumber(beamstate and beamstate.damage) or 0
@@ -790,18 +796,36 @@ local function reportToJobs(fn, value)
 	obj:queueGameEngineLua(string.format("if sharedCareer_towJobs then sharedCareer_towJobs.%s(%d, %.1f) end", fn, obj:getId(), value))
 end
 
-function M.jobBreakDown(flatTire)
-	pcall(function()
-		for _, device in pairs(powertrain.getDevices()) do
-			if (device.type == "combustionEngine" or device.type == "electricMotor") and type(device.disable) == "function" then
-				device:disable()
-			end
+-- Breaks every part whose deform group contains `name`; a vehicle without one keeps it whole.
+local function breakPart(name)
+	local replay = beamstate and type(beamstate.onBeamDeformed) == "function" and beamstate.onBeamDeformed
+	local beams = type(v) == "table" and type(v.data) == "table" and type(v.data.beams) == "table" and v.data.beams
+	if not (replay and beams) then return end
+	for _, beam in pairs(beams) do
+		if type(beam.deformGroup) == "string" and beam.deformGroup:find(name, 1, true) then
+			pcall(replay, beam.cid, 1)
 		end
-	end)
+	end
+end
+
+function M.jobBreakDown(flatTire, faults)
+	faults = type(faults) == "table" and faults or {}
+	if faults.engine then
+		pcall(function()
+			for _, device in pairs(powertrain.getDevices()) do
+				if (device.type == "combustionEngine" or device.type == "electricMotor") and type(device.disable) == "function" then
+					device:disable()
+				end
+			end
+		end)
+	end
 	pcall(function() controller.mainController.shiftToGearIndex(0) end)
 	pcall(function() input.event("parkingbrake", 0, FILTER_DIRECT) end)
 	pcall(function() electrics.set_warn_signal(true) end)
 	if flatTire then pcall(function() beamstate.deflateRandomTire() end) end
+	for kind, part in pairs(FAULT_PARTS) do
+		if faults[kind] then breakPart(part) end
+	end
 	reportToJobs("onJobBrokenDown", damageNow())
 end
 

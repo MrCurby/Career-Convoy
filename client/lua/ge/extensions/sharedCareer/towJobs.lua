@@ -12,10 +12,12 @@
 --                 as the tier says (the nearest fit if none is)
 --     the pay     (PAY_BASE + PAY_PER_KM per km of the tow (straight line x ROAD_FACTOR)) x the
 --                 tier's pay, x PAY_FLAT with a flat tire, x client.jobPay
+--     faults     what is broken (FAULTS: engine, windshield, tail lights), each by its chance, at
+--                least one; a crash always has a broken engine
 --     a crash    from tier 2 on, some jobs are crashes (the tier's crash chance) instead of a
---                 breakdown: the car is wrecked (see "Crashes" below)
---     job.data = {vehicle = {model, config}, flatTire, heavy, crash = {kind, speed}, dir};
---     job.title = the vehicle's body style (model or config) or name
+--                breakdown: the car is wrecked (see "Crashes" below)
+--     job.data = {vehicle = {model, config}, flatTire, heavy, crash = {kind, speed}, faults, dir};
+--     job.title = the vehicle's body style (model, else config), else its name
 --   doing it
 --     1. the route leads to the place; within SPAWN_RANGE m the broken-down vehicle appears there
 --        (spawned by this player, so it is theirs: the rope works on it, BeamMP shows it to
@@ -75,6 +77,14 @@ local CRASHES = {
 	{kind = "corner", pitch = 45, roll = 45, speed = 1, tag = "Crash"},
 	{kind = "roof", pitch = 0, roll = 180, speed = 0.5, tag = "On its roof"},
 }
+
+-- what can be broken on a broken-down car (not a crash): how often, and its tag; at least one always is
+local FAULTS = {
+	{kind = "engine", chance = 0.4, tag = "Engine failure"},
+	{kind = "windshield", chance = 0.7, tag = "Broken windshield"},
+	{kind = "taillights", chance = 0.3, tag = "Broken taillights"},
+}
+
 local CRASH_CLEAR = 3         -- m above the ground the car's middle is at least (a tilted car is tall)
 local CRASH_STILL = 2         -- s lying still: the crash is over
 local CRASH_WAIT = 15         -- s at most for that; then it counts as over
@@ -238,6 +248,21 @@ local function pickCrash(t)
 	return {kind = c.kind, speed = math.floor((lo + math.random() * (hi - lo)) * c.speed * 10 + 0.5) / 10}
 end
 
+local function faultOf(kind)
+	for _, f in ipairs(FAULTS) do if f.kind == kind then return f end end
+	return nil
+end
+
+-- What is broken on a broken-down car: each fault by its chance, at least one ({"engine", ...}).
+local function pickFaults()
+	local faults = {}
+	for _, f in ipairs(FAULTS) do
+		if math.random() < f.chance then table.insert(faults, f.kind) end
+	end
+	if #faults == 0 then table.insert(faults, FAULTS[math.random(#FAULTS)].kind) end
+	return faults
+end
+
 --- The pay for a tow of `length` m at level 1 (a flat tire and a higher tier pay more).
 function M.payFor(length, flatTire, tier)
 	local pay = (PAY_BASE + PAY_PER_KM * length / 1000) * tierOf(tier).pay * (flatTire and PAY_FLAT or 1) * J.payFactor()
@@ -275,7 +300,7 @@ function M.generate(tier)
 				local flatTire = math.random() < t.flatTire
 				local vehicle = pickVehicle(t.heavy)
 				local crash = pickCrash(t)
-				
+				local faults = crash and {"engine"} or pickFaults()
 				--[[if (core_vehicles and type (core_vehicles.getModel) == "function") then
 				
 				local modelData = core_vehicles.getModel(vehicle.model)
@@ -305,7 +330,7 @@ function M.generate(tier)
 	return {title = style or vehicle.name, pos = spot.pos, dest = {name = pick.shop.name, pos = pick.shop.pos},
 					length = length, pay = M.payFor(length, flatTire, tier),
 					data = {vehicle = {model = vehicle.model, config = vehicle.config}, flatTire = flatTire, heavy = t.heavy,
-						crash = crash, dir = spot.dir}}
+						crash = crash, faults = faults, dir = spot.dir}}
 			end
 		end
 	end
@@ -316,7 +341,17 @@ end
 function M.tags(job)
 	local d = type(job.data) == "table" and job.data or {}
 	local crash = type(d.crash) == "table" and crashOf(d.crash.kind)
-	local tags = {crash and {text = crash.tag, kind = "crash"} or {text = "Engine failure", kind = "engine"}}
+	local tags = {}
+
+	if crash then
+		table.insert(tags, {text = crash.tag, kind = "crash"})
+	else
+		for _, f in ipairs(type(d.faults) == "table" and d.faults or {}) do
+			local fault = faultOf(f)
+			if fault then table.insert(tags, {text = fault.tag, kind = fault.kind}) end
+		end
+	end
+
 	if d.flatTire == true then table.insert(tags, {text = "Flat tire", kind = "tire"}) end
 	if d.heavy == true then table.insert(tags, {text = "Heavy", kind = "heavy"}) end
 	return tags
@@ -333,7 +368,14 @@ end
 
 local function breakDown(a)
 	a.brokenDown, a.sentAt = false, clock
-	J.sendToVehicle(a.vehId, "sharedCareerVeh.jobBreakDown(" .. tostring(data(a).flatTire == true) .. ")")
+
+	local faults = {}
+	for _, kind in ipairs(type(data(a).faults) == "table" and data(a).faults or {}) do
+		if faultOf(kind) then table.insert(faults, kind .. " = true") end
+	end
+
+	J.sendToVehicle(a.vehId, string.format("sharedCareerVeh.jobBreakDown(%s, {%s})",
+	tostring(data(a).flatTire == true), table.concat(faults, ", ")))
 end
 
 -- The way the car faces: forward along the road, tilted for a crash (pitch: nose down, roll: to
