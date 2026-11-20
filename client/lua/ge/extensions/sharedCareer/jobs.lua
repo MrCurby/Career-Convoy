@@ -5,7 +5,7 @@
 -- registers itself here (registerType) – towJobs.lua (towing jobs) is the first one. A job type:
 --   id               short name, sent with every job ("tow")
 --   name             its name in the Jobs app ("Towing") and in the money history ("Towing job: <title>")
---   icon             the icon of its jobs in the Jobs app (a name the app knows, e.g. "tow")
+--   icon             the icon of its jobs in the Jobs app (an icon of ui/sharedCareer/icons.svg, e.g. "tow")
 --   branch           optional: the career branch whose XP a job also gives, next to the game's
 --                    BeamXP ("commercial"): the branch whose attribute key, id or path id is or
 --                    ends with it (career_branches; the names change between game versions).
@@ -16,7 +16,7 @@
 --                    this map: {title, pos, dest = {name, pos}, length, pay, data} (pos: where it
 --                    starts; pay: at level 1; data: the type's own fields, the server passes them
 --                    on), or nil and why not
---   iconOf(job)      optional: the icon of this job in the Jobs app (a name the app knows, e.g. "pickup");
+--   iconOf(job)      optional: the icon of this job in the Jobs app (an icon of icons.svg, e.g. "pickup");
 --                    nil: the type's icon
 --   tags(job)        short labels for the job in the app: {{text, kind}} (kind picks the color)
 --   start(a)         the job is yours: a = {id, job}; the type keeps its own state in a

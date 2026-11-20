@@ -214,6 +214,11 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 	$scope.jobsCall = function (cmd) {
 		bngApi.engineLua('if sharedCareer_jobs then sharedCareer_jobs.' + cmd + ' end');
 	};
+	// whether icons.svg (ui/sharedCareer/, loaded into the page by app.html) has this icon; else the
+	// name is shown as text (an app that registered a letter, e.g. "T")
+	$scope.hasIcon = function (name) {
+		return typeof name === 'string' && name !== '' && !!document.getElementById('sc-icon-' + name);
+	};
 	$scope.money = function (v) { return '$' + Math.round(Number(v) || 0).toLocaleString('en-US'); };
 	// the XP a job gives, under its pay ('' without any)
 	$scope.xpText = function (v) { var xp = Math.round(Number(v) || 0); return xp > 0 ? '+' + xp + ' XP' : ''; };
