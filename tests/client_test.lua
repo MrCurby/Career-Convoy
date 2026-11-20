@@ -2902,7 +2902,7 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	check(trucks[1] == 0 and trucks[2] > 3 and trucks[2] < 60,
 		"trucks from the delivery filter: never in tier 1, now and then in tier 2 (" .. table.concat(trucks, "/") .. ")")
 	check(offer.tier == 1, "the server asked for nothing special: tier 1")
-	local okAll, heavyOk = true, true
+	local okAll = true
 	for i = 1, 80 do
 		local tier = (i - 1) % 4 + 1
 		local job = tow.generate(tier)
@@ -2911,17 +2911,16 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 			or job.pay ~= tow.payFor(job.length, job.data.flatTire, tier) then
 			okAll = false
 		end
-		if (tier >= 3) ~= (job.data.heavy == true) then heavyOk = false end
 	end
 	check(okAll, "places: always beside the road (5.8 m from its middle), never near a vehicle or on a dirt track; a shop away from it")
-	check(heavyOk, "tiers 3 and 4: a heavy vehicle")
-	local crashes, flats = {0, 0, 0, 0}, {0, 0, 0, 0}
+	local crashes, flats, heavies = {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}
 	local speedsOk = true
 	for tier = 1, 4 do
 		for _ = 1, 100 do
 			local d = tow.generate(tier).data
 			local c = d.crash
 			if d.flatTire then flats[tier] = flats[tier] + 1 end
+			if d.heavy then heavies[tier] = heavies[tier] + 1 end
 			if c then
 				crashes[tier] = crashes[tier] + 1
 				if c.speed < 2.5 or c.speed > 14 then speedsOk = false end
@@ -2930,6 +2929,8 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	end
 	check(crashes[1] == 0 and crashes[2] > 10 and crashes[2] < 50 and crashes[4] > 50 and speedsOk,
 		"crashes: never in tier 1, sometimes in tier 2, mostly in tier 4 (" .. table.concat(crashes, "/") .. ")")
+	check(heavies[1] == 0 and heavies[2] == 0 and heavies[3] > 30 and heavies[3] < 70 and heavies[4] > 50 and heavies[4] < 90,
+		"heavy vehicles: none in tiers 1-2, often in tier 3, mostly but not always in tier 4 (" .. table.concat(heavies, "/") .. ")")
 	check(flats[1] < 25 and flats[4] > 30 and flats[4] < 70 and flats[1] < flats[4],
 		"flat tires: rare in tier 1, often in tier 4, not always (" .. table.concat(flats, "/") .. ")")
 	local crashJob = {data = {crash = {kind = "roof", speed = 5}, flatTire = true}}

@@ -5,11 +5,11 @@
 --   making one up (generate), by tier (TIERS: the higher, the harder and the better paid)
 --     a place     a random road node far from every vehicle, moved off the road onto the
 --                 roadside (ROADSIDE m beyond the road's edge), standing along the road
---     a vehicle   tiers 1-2: an old car from the career's own delivery filter (gameplay/delivery/
---                 vehicles.deliveryVehicles.json, JUNKER_FILTER) via util_configListGenerator; a
---                 pickup, van, bus or truck from it is drawn again (up to CAR_TRIES times) unless
---                 the tier's truck share lets it stay; a few common cars if that is missing;
---                 tiers 3-4: a heavy vehicle (HEAVY_MODELS)
+--     a vehicle   by the tier's heavy share a heavy vehicle (HEAVY_MODELS), else an old one from
+--                 the career's own delivery filter (gameplay/delivery/vehicles.deliveryVehicles.json,
+--                 JUNKER_FILTER) via util_configListGenerator; a pickup, van, bus or truck from it is
+--                 drawn again (up to CAR_TRIES times) unless the tier's truck share lets it stay; a
+--                 few common cars if that is missing. The higher the tier, the more trucks
 --     a shop      a garage of the map (freeroam_facilities, the middle of its doors), as far away
 --                 as the tier says (the nearest fit if none is)
 --     the pay     (PAY_BASE + PAY_PER_KM per km of the tow (straight line x ROAD_FACTOR)) x the
@@ -62,14 +62,14 @@ local DAMAGE_WAIT = 3         -- s for the vehicle's damage report; then no dedu
 local PAY_BASE, PAY_PER_KM = 150, 120
 local PAY_FLAT = 1.25
 local ROAD_FACTOR = 1.3       -- roads are about this much longer than the straight line
--- the tiers: how far to the shop (m), how often a flat tire, a heavy vehicle, how often a truck may
--- come from the delivery filter (not heavy tiers), the pay; how often a crash, and its speed (m/s when
--- it hits the ground)
+-- the tiers: how far to the shop (m), how often a flat tire, how often a heavy vehicle, how often a
+-- truck may come from the delivery filter otherwise, the pay; how often a crash, and its speed (m/s
+-- when it hits the ground)
 local TIERS = {
-	{destMin = 800, destMax = 2500, flatTire = 0.1, heavy = false, trucks = 0, pay = 1, crash = 0},
-	{destMin = 1500, destMax = 4000, flatTire = 0.2, heavy = false, trucks = 0.2, pay = 1.3, crash = 0.3, crashSpeed = {6, 9}},
-	{destMin = 2500, destMax = 6000, flatTire = 0.3, heavy = true, pay = 1.7, crash = 0.5, crashSpeed = {8, 12}},
-	{destMin = 3500, destMax = 8000, flatTire = 0.5, heavy = true, pay = 2.2, crash = 0.7, crashSpeed = {10, 14}},
+	{destMin = 800, destMax = 2500, flatTire = 0.1, heavy = 0, trucks = 0, pay = 1, crash = 0},
+	{destMin = 1500, destMax = 4000, flatTire = 0.2, heavy = 0, trucks = 0.2, pay = 1.3, crash = 0.3, crashSpeed = {6, 9}},
+	{destMin = 2500, destMax = 6000, flatTire = 0.3, heavy = 0.5, trucks = 0.4, pay = 1.7, crash = 0.5, crashSpeed = {8, 12}},
+	{destMin = 3500, destMax = 8000, flatTire = 0.5, heavy = 0.7, trucks = 0.6, pay = 2.2, crash = 0.7, crashSpeed = {10, 14}},
 }
 -- the kinds of crash: how the car is tilted when it falls (pitch: nose down, roll: to the right, in
 -- degrees), how much of the tier's speed (a car on its roof crushes at less), and its tag
@@ -246,12 +246,12 @@ local function fromFilter()
 	return {model = info.model_key, config = info.key, name = name, truck = isTruck(info.model_key, info)}
 end
 
--- The vehicle of a tier: a heavy one, or an old one from the delivery filter, a truck only as often
--- as the tier's truck share allows: {model, config, name}.
+-- The vehicle of a tier: a heavy one by its heavy share, else an old one from the delivery filter,
+-- a truck only as often as its truck share allows: {model, config, name, heavy}.
 local function pickVehicle(t)
-	if t.heavy then
+	if math.random() < (t.heavy or 0) then
 		local model = HEAVY_MODELS[math.random(#HEAVY_MODELS)]
-		return {model = model, name = modelName(model)}
+		return {model = model, name = modelName(model), heavy = true}
 	end
 	local truckOk = math.random() < (t.trucks or 0)
 	for _ = 1, CAR_TRIES do
@@ -339,7 +339,7 @@ function M.generate(tier)
 				local bodyStyle = modelData and modelData.BodyStyle or vehicle.name
 				return {title = bodyStyle, pos = spot.pos, dest = {name = pick.shop.name, pos = pick.shop.pos},
 					length = length, pay = M.payFor(length, flatTire, tier),
-					data = {vehicle = {model = vehicle.model, config = vehicle.config}, flatTire = flatTire, heavy = t.heavy,
+					data = {vehicle = {model = vehicle.model, config = vehicle.config}, flatTire = flatTire, heavy = vehicle.heavy == true,
 						crash = crash, dir = spot.dir}}
 				end]]
 				
@@ -361,7 +361,7 @@ function M.generate(tier)
 				
 	return {title = style or vehicle.name, pos = spot.pos, dest = {name = pick.shop.name, pos = pick.shop.pos},
 					length = length, pay = M.payFor(length, flatTire, tier),
-					data = {vehicle = {model = vehicle.model, config = vehicle.config}, flatTire = flatTire, heavy = t.heavy,
+					data = {vehicle = {model = vehicle.model, config = vehicle.config}, flatTire = flatTire, heavy = vehicle.heavy == true,
 						crash = crash, faults = faults, dir = spot.dir}}
 			end
 		end
