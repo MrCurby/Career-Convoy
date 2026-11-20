@@ -80,13 +80,14 @@
 .scp-appbar-title { font-weight: 600; font-size: 15px; }
 .scp-appbody { flex: 1; display: flex; align-items: center; justify-content: center; }
 .scp-app-icon-big { width: 72px; height: 72px; border-radius: 18px; font-size: 30px; }
+.scp-app-icon-big svg { width: 44px; height: 44px; }
 
 /* home bar */
 .scp-homebar { height: 26px; display: flex; align-items: center; justify-content: center; cursor: pointer; flex: none; }
 .scp-homebar i { display: block; width: 110px; height: 5px; border-radius: 3px; background: rgba(255, 255, 255, 0.75); }
 .scp-homebar:hover i { background: #fff; }
 
-/* built-in svg icons on the home screen */
+/* app icons (icons.svg) on the home screen */
 .scp-svg { display: flex; }
 .scp-svg svg { width: 30px; height: 30px; }
 

@@ -19,7 +19,7 @@
 -- onClose. Apps are only listed while client.phone is on. Tow, Straps and Fuel have their own screens
 -- in the phone window (app.html).
 --
--- icon: a short text (letter), or the name of a built-in icon the window knows ("jobs", "tow", "straps", "fuel").
+-- icon: the name of an icon in ui/sharedCareer/icons.svg ("jobs", "tow", ...), else a short text (letter).
 --
 -- guihooks: SharedCareerPhone {enabled, apps = [{id, title, icon, color, beta}]} (state),
 --           SharedCareerPhoneToggle (key), SharedCareerPhoneAway (a game menu is open).
@@ -63,7 +63,7 @@ local function push()
 	trigger("SharedCareerPhone", M.state())
 end
 
---- Registers an app on the phone. def = {id, title, icon (short text), color, order, beta, onOpen, onClose}.
+--- Registers an app on the phone. def = {id, title, icon (icon name or short text), color, order, beta, onOpen, onClose}.
 function M.registerApp(def)
 	if type(def) ~= "table" or type(def.id) ~= "string" or def.id == "" then return false end
 	apps[def.id] = {

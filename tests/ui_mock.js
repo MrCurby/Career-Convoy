@@ -31,7 +31,9 @@ function makeEnv(storage) {
 		dispatchEvent: (ev) => { (env.listeners[ev.type] || []).slice().forEach(f => f(ev)); return true; },
 	};
 	env.CustomEvent = function (type, init) { this.type = type; this.detail = init && init.detail; };
-	env.document = {body: {appendChild: () => {}}};
+	env.icons = ['tow', 'jobs', 'car'];
+	env.document = {body: {appendChild: () => {}},
+		getElementById: (id) => (env.icons.some(n => id === 'sc-icon-' + n) ? {id} : null)};
 	return env;
 }
 

@@ -20,6 +20,7 @@ client/                          client mod (packed into Resources/Client/Shared
   ui/modules/apps/                 the two UI apps: SharedCareer-Menu (the menu with the steering
                                    wheel) and SharedCareer-Phone (phone with the Jobs, Tow, Straps
                                    and Fuel apps)
+  ui/sharedCareer/icons.svg        every icon of the UI apps, in one file (see "Icons" below)
   levels/west_coast_usa/…          enlarged garage-computer zones (generated, see tools/zones)
 Resources/Server/SharedCareer/   server plugin (main.lua)
 tests/                           mock-based tests for client and server
@@ -134,7 +135,7 @@ The Jobs app knows nothing about towing: `jobs.lua` is the core, and each kind o
 3. **Its own fields** go into `job.data` (at most 2 KB as JSON). The server checks only what every job has (`type`, `title`, `pos`, `dest`, `length`, `pay`) and passes `data` on.
 4. **When the job is done**, `step` calls `jobs.handOver(a, share)`: how much of the pay was earned (0..1, less after damage, for example). The server turns it into the player's pay and XP and pays it once.
 5. **Tiers:** `generate(tier)` makes a job of tier 1 (easy) to 4 (hard). A harder tier should be harder to do and pay more (`pay` is the pay at level 1). Levels, unlocking, the level bonus and the XP come from the core and the server. Every job type levels on its own, by the same rules unless it needs others (see [Job levels](#job-levels)).
-6. **An icon** in the Jobs app: the job card shows the SVG for `icon` in `app.html` (`scp-job-icon`); without one it shows `icon` as text. Optionally `iconOf(job)` gives a job an icon of its own (towing jobs: the kind of vehicle – `car`, `suv`, `pickup`, `van`, `bus`, `truck`, kept in `job.data.kind`); `nil` falls back to `icon`.
+6. **An icon** in the Jobs app: `icon` names an icon of `icons.svg` (see [Icons](#icons)); a new one goes there. A name that isn't there is shown as text. Optionally `iconOf(job)` gives a job an icon of its own (towing jobs: the kind of vehicle – `car`, `suv`, `pickup`, `van`, `bus`, `truck`, kept in `job.data.kind`); `nil` falls back to `icon`.
 
 The server needs no change for a new job type: it keeps levels per job type as soon as it sees the first job of it. A client that doesn't know a job's type (an older mod version) lists it but doesn't start it. Making up jobs, the job types take turns; `server.jobsOpen` counts all of them.
 
@@ -178,6 +179,17 @@ The menu and the phone are AngularJS apps (`ui/modules/apps/…`). Lua pushes st
 - **App frames catch clicks over their whole area**, even where they look transparent. The apps therefore must never overlap. The phone's frame is only its tab, directly below the menu.
 - Dialogs and the phone are attached to the page body, not to the app frame, so the frame can't clip them. Only the dialog card / the phone take clicks.
 - **State only while someone looks.** `menu.lua` builds and sends `SharedCareerState` only while the menu is expanded, the phone is out or the Fuel app is open (the fuel prices only for the Fuel app). The windows report this with `sharedCareer_menu.uiVisible(view, on)` on every change and every 2 s; a view counts as visible for 5 s after its last report, so a lost report fixes itself. A view that appears gets the state at once. The prices at the pumps and on the signs don't depend on it (`fuel.lua` sets them itself).
+
+### Icons
+
+Every icon of the UI apps is in **one file**, `client/ui/sharedCareer/icons.svg`: a `<symbol id="sc-icon-<name>">` per icon, in a 24×24 box, drawn in `currentColor` (so it takes the color of the text around it). Both apps load it into their page (`ng-include` at the top of their `app.html`; each brings its own copy, so either works alone).
+
+- **Use one:** `<svg><use href="#sc-icon-car"/></svg>`, by a name from Lua: `<use ng-attr-href="{{ '#sc-icon-' + j.icon }}"/>`. The size comes from the CSS of the place it is in (e.g. `.scp-ic svg`).
+- **Icon or text:** the phone's `hasIcon(name)` tells whether `icons.svg` has an icon of that name; an app that registered a letter (`icon = "T"`) shows the letter.
+- **Add one:** a new `<symbol>` in `icons.svg`, in its group. Never draw an icon inline in `app.html`.
+- `tests/ui_test.js` checks it: every name the apps and Lua use is in `icons.svg`, and no icon is drawn inline.
+
+The icons in `docs/icons/` are only for the README and docs on GitHub.
 
 ### Regenerating the garage zones
 

@@ -334,4 +334,35 @@ if (process.argv[2]) {
 	require('fs').writeFileSync(process.argv[2], JSON.stringify(out));
 }
 
+//== Icons: all in ui/sharedCareer/icons.svg, used by name ==
+{
+	const fs = require('fs');
+	const read = (f) => fs.readFileSync(require('path').join(__dirname, '..', f), 'utf8');
+	const sprite = read('client/ui/sharedCareer/icons.svg');
+	const icons = [...sprite.matchAll(/<symbol id="sc-icon-([a-z-]+)" viewBox="0 0 24 24">/g)].map(m => m[1]);
+	check(icons.length === (sprite.match(/<symbol/g) || []).length && new Set(icons).size === icons.length,
+		'icons.svg: every symbol named sc-icon-<name> in a 24x24 box, each name once');
+	const pages = ['Menu', 'Phone'].map(a => read('client/ui/modules/apps/SharedCareer-' + a + '/app.html'));
+	check(pages.every(h => h.includes('ng-include="\'/ui/sharedCareer/icons.svg\'"')), 'both apps load icons.svg');
+	const used = pages.flatMap(h => [...h.matchAll(/href="#sc-icon-([a-z-]+)"/g)].map(m => m[1]));
+	const missing = used.filter(n => !icons.includes(n));
+	check(used.length > 30 && missing.length === 0, 'every icon the apps use is in icons.svg ' + missing.join(','));
+	// no icon drawn inline in an app: an <svg> there only holds a <use> (the rope is a drawing, not an icon)
+	const inline = pages.flatMap(h => [...h.matchAll(/<svg[^>]*>([\s\S]*?)<\/svg>/g)].map(m => m[1]))
+		.filter(b => !/^<use [^>]*\/>$/.test(b.trim()) && !b.includes('scp-rope-path'));
+	check(inline.length === 0, 'no icon drawn inline in app.html (' + inline.length + ')');
+	// the icon names Lua sends: the apps on the phone, the job types, the kinds of vehicle of a towing job
+	const lua = ['jobs', 'tow', 'straps', 'fuel', 'towJobs'].map(f => read('client/lua/ge/extensions/sharedCareer/' + f + '.lua'));
+	const kinds = lua[4].match(/local KINDS = \{([\s\S]*?)\n\}/)[1];
+	const names = lua.flatMap(l => [...l.matchAll(/icon = "([a-z-]+)"/g)].map(m => m[1]))
+		.concat([...kinds.matchAll(/kind = "([a-z-]+)"/g)].map(m => m[1]), ['car']);
+	const unknown = names.filter(n => !icons.includes(n));
+	check(names.length >= 11 && unknown.length === 0, 'every icon name from Lua is in icons.svg ' + unknown.join(','));
+	// in the window: an icon by name, text for a name without one ("T" of an app)
+	const env = makeEnv({});
+	const phone = load(...PHONE, env);
+	check(phone.hasIcon('tow') && phone.hasIcon('car') && !phone.hasIcon('T') && !phone.hasIcon('') && !phone.hasIcon(undefined),
+		'hasIcon: true for an icon in icons.svg, false for anything else');
+}
+
 process.exit(H.done() ? 1 : 0);
