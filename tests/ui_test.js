@@ -187,17 +187,32 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 	phone.emit('SharedCareerTow', {allowed: true, attached: true, slack: true, winch: -1});
 	check(phone.ropeRunning(), 'paying out: marks run');
 	// Tow app: the buttons go to tow.lua
+	phone.openApp({id: 'tow'});
 	let calls = env.calls.length;
 	phone.towCall('uiHookOn()');
 	phone.nudge(1, 0, 0);
 	phone.nudgeStop();
-	check(env.calls.slice(calls).join(' ').includes('sharedCareer_tow.uiHookOn()')
-		&& env.calls.slice(calls).join(' ').includes('sharedCareer_tow.uiNudgeStop()'), 'Tow app: calls go to tow.lua');
-	// Straps app: steps by hand, the straps' load as dots, calls to straps.lua
-	phone.emit('SharedCareerStraps', {allowed: true, step: 1});
-	check(Array.isArray(phone.straps.straps) && phone.strapStepText() === '1. Aim at the car', 'Straps app: step 1, aim at the car');
-	phone.emit('SharedCareerStraps', {allowed: true, step: 2, aimed: true, tooFar: true, straps: []});
-	check(phone.strapStepText() === '2. Aim at the truck or trailer' && phone.straps.tooFar, 'step 2: aim at the truck; too far');
+	phone.remoteToView();
+	let sent = env.calls.slice(calls).join(' ');
+	check(sent.includes('sharedCareer_tow.uiHookOn()') && sent.includes('sharedCareer_tow.uiNudge(1,0,0)')
+		&& sent.includes('sharedCareer_tow.uiNudgeStop()') && sent.includes('sharedCareer_tow.uiToView()'), 'Tow app: calls go to tow.lua');
+	// the same remote in the Straps app: its buttons go to straps.lua; a held button is let go where it was pressed
+	phone.openApp({id: 'straps'});
+	calls = env.calls.length;
+	phone.nudge(0, 0, -1);
+	phone.remoteToView();
+	sent = env.calls.slice(calls).join(' ');
+	check(sent.includes('sharedCareer_straps.uiNudge(0,0,-1)') && sent.includes('sharedCareer_straps.uiToView()')
+		&& !sent.includes('sharedCareer_tow'), 'the remote in the Straps app: calls go to straps.lua');
+	phone.openApp({id: 'fuel'});
+	calls = env.calls.length;
+	phone.nudgeStop();
+	phone.nudgeStop();
+	sent = env.calls.slice(calls).filter(c => c.includes('uiNudgeStop'));
+	check(sent.length === 1 && sent[0].includes('sharedCareer_straps'), 'let go: told once, to the app it was pressed in');
+	// Straps app: the straps' load as dots, calls to straps.lua
+	phone.emit('SharedCareerStraps', {allowed: true, step: 2, hookOn: {vehicle: 'Truck', hitch: false}});
+	check(Array.isArray(phone.straps.straps) && phone.straps.hookOn.vehicle === 'Truck', 'Straps app: step 2, where it would hook on');
 	check(phone.strapDot({slack: true, load: 0.9}) === 'scp-dot-slack' && phone.strapDot({slack: false, load: 0.1}) === 'scp-dot-ok'
 		&& phone.strapDot({slack: false, load: 0.5}) === 'scp-dot-high' && phone.strapDot({slack: false, load: 0.8}) === 'scp-dot-critical',
 		'a strap\'s load as a dot: grey slack, green, yellow, red');
@@ -344,6 +359,11 @@ if (process.argv[2]) {
 		'icons.svg: every symbol named sc-icon-<name> in a 24x24 box, each name once');
 	const pages = ['Menu', 'Phone'].map(a => read('client/ui/modules/apps/SharedCareer-' + a + '/app.html'));
 	check(pages.every(h => h.includes('ng-include="\'/ui/sharedCareer/icons.svg\'"')), 'both apps load icons.svg');
+	// the phone's remote (remote.html), in the Tow and Straps apps
+	const remote = read('client/ui/modules/apps/SharedCareer-Phone/remote.html');
+	check((pages[1].match(/ng-include="'\/ui\/modules\/apps\/SharedCareer-Phone\/remote.html'"/g) || []).length === 2
+		&& !pages[1].includes('scp-pad-key'), 'the Tow and Straps apps share one remote (remote.html)');
+	pages.push(remote);
 	const used = pages.flatMap(h => [...h.matchAll(/href="#sc-icon-([a-z-]+)"/g)].map(m => m[1]));
 	const missing = used.filter(n => !icons.includes(n));
 	check(used.length > 30 && missing.length === 0, 'every icon the apps use is in icons.svg ' + missing.join(','));

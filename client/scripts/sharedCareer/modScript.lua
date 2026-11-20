@@ -18,6 +18,7 @@
 --   welcome   welcome dialog on join (with "Don't show again")
 --   nodegrab  node grabber in the career also in a vehicle / free camera (client.allowNodeGrabber)
 --   rope      ropes between your vehicles: the core of the Tow and Straps apps (client.allowRopes)
+--   ropeRemote  the remote for a rope's loose end (move it, where it would hook on): Tow, Straps
 --   tow       the Tow app: rope and winch, move your own vehicles slowly by hand
 --   straps    the Straps app: ratchet straps that hold a car on a trailer or truck
 --   phone     the phone with its apps: Jobs (jobs.lua), Tow (tow.lua), Straps (straps.lua),
@@ -61,6 +62,7 @@ loadPersistent('sharedCareer/fuel')
 loadPersistent('sharedCareer/welcome')
 loadPersistent('sharedCareer/nodegrab')
 loadPersistent('sharedCareer/rope')
+loadPersistent('sharedCareer/ropeRemote')
 loadPersistent('sharedCareer/tow')
 loadPersistent('sharedCareer/straps')
 loadPersistent('sharedCareer/phone')

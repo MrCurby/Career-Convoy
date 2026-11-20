@@ -1559,7 +1559,7 @@ frames(0.1)
 check(select(2, lastHand(truck))[4] == 0, "winch: stop")
 -- anchor to the middle of the view at its distance
 fwd = {x = 0, y = 1, z = 0}
-sharedCareer_tow.uiAnchorToView()
+sharedCareer_tow.uiToView()
 frames(1 / 60)
 name, a = lastHand(truck)
 check(math.abs(a[1]) < 0.1 and a[2] > 3 and a[5] == 1, "anchor to my view: placed in the middle of the view, rope pays out once")
@@ -3518,11 +3518,11 @@ end)()
 	-- hooked on 1 m below its corner (the truck's deck), the truck standing
 	local corner = rel[0]
 	local anchor = vec(corner.x, corner.y, corner.z - 1)
-	veh.ropeUpdate(3, anchor.x, anchor.y, anchor.z, 1, 1, 1, 60, 0, 0, 0, 1)
+	veh.ropeUpdate(3, anchor.x, anchor.y, anchor.z, -1, 1, 1, 60, 0, 0, 0, 1)
 	body.f = vec(0, 0, 0)
 	veh.onPhysicsStep(PHYS)
 	check(veh.ropeInfo(3).winch == 0 and math.abs(veh.ropeInfo(3).length - 0.988) < 1e-6,
-		string.format("hooked on: pulled tight by 1.2 cm, no winch (%.3f m)", veh.ropeInfo(3).length))
+		string.format("hooked on: pulled tight by 1.2 cm, never pays out (%.3f m)", veh.ropeInfo(3).length))
 	check(body.f.z < -0.25 * WEIGHT and body.f.z > -0.35 * WEIGHT,
 		string.format("a tight strap pulls the car down with about a third of its weight (%.0f N)", body.f.z))
 	-- both drive at 20 m/s; the GE side sends the anchor every frame, it moves on between messages
@@ -3542,6 +3542,24 @@ end)()
 	end
 	check(not lost and lo > 0.2 * WEIGHT and hi < 0.4 * WEIGHT,
 		string.format("driving: the strap holds steady, no jolts (%.0f-%.0f N)", lo, hi))
+	-- Tighten: a slack strap (its anchor 10 cm closer) hauls in like a very weak winch until it holds
+	-- the pull it was given (25 % of the weight), then it stands
+	body.v = vec(0, 0, 0)
+	local y = body.p.y + corner.y
+	veh.ropeUpdate(3, anchor.x, y, anchor.z + 0.1, 1, 0, 0.1, 25, 0, 0, 0, 1)
+	for i = 1, 2000 * 3 do
+		body.f = vec(0, 0, 0)
+		veh.onPhysicsStep(PHYS)
+	end
+	local tight = veh.ropeInfo(3)
+	check(tight.length < 0.89 and -body.f.z > 0.2 * WEIGHT and -body.f.z < 0.3 * WEIGHT,
+		string.format("Tighten: hauled in until it holds a quarter of the weight (%.3f m, %.0f N)", tight.length, -body.f.z))
+	local held = tight.length
+	for i = 1, 2000 do veh.onPhysicsStep(PHYS) end
+	check(math.abs(veh.ropeInfo(3).length - held) < 0.002, "... then the weak winch stalls and the strap stays that tight")
+	veh.ropeUpdate(3, anchor.x, y, anchor.z + 0.1, 0, 0, 0.1, 25, 0, 0, 0, 1)
+	for i = 1, 200 do veh.onPhysicsStep(PHYS) end
+	check(math.abs(veh.ropeInfo(3).length - held) < 0.002, "Tighten over: the strap keeps its length")
 	-- a vehicle reset drops every rope
 	body.ge = {}
 	veh.onReset()
@@ -3615,10 +3633,6 @@ end)()
 	fy = 0
 	for _, f in ipairs(forces) do fy = fy + f.y end
 	check(veh.anchorInfo(1) == nil and veh.anchorInfo(2) and math.abs(fy + 500) < 1e-6, "rope 1 released: only rope 2 pulls")
-	-- the Straps app aims at it: the sturdy point on the view ray (not the mirror in front of it)
-	ge = {}
-	veh.hookProbe(0, 10, 0.5, 0, -1, 0, 120)
-	check(said("onHookProbe%(5, 3, 0%)"), "aiming at it: the sturdy point behind the mirror")
 end)()
 -- vehicle side: Strap down – the load's corners, and the points below them on the truck
 ;(function()
@@ -3932,22 +3946,46 @@ end)()
 	check(tie and tie.nums[2] == 1, "tied where you look, as a strap")
 	local strapId = tie.nums[1]
 	sharedCareer_rope.onRopeTied(70, strapId, 5, 0.9, 2, 1, 4)
-	-- 2. aim at the truck: it shows where the strap would hook on
-	frames(20)
-	check(#calls(truck, "hookProbe") >= 1 and #calls(car, "hookProbe") == 0, "step 2: the truck is asked where it would hook on, not the car")
-	sharedCareer_rope.onHookProbe(71, 20, 0)
-	frames(1)
-	st = straps.appState()
-	check(st.aimed and st.tooFar, "a point 10 m away: too far")
+	-- 2. the remote moves the strap's end; the car doesn't feel it until it is hooked on
+	local updatesBefore = #calls(car, "ropeUpdate")
+	local strapRope = sharedCareer_rope.get(strapId)
+	check(strapRope.target and strapRope.target.z == 1, "the strap's end starts where it is tied")
+	straps.uiNudge(0, 0, -1)
+	frames(30)
+	straps.uiNudgeStop()
+	check(math.abs(strapRope.target.z - 0.5) < 0.02, string.format("hold Down: the end goes down (%.2f)", strapRope.target.z))
+	check(#calls(car, "ropeUpdate") == updatesBefore, "a loose strap end isn't sent to the car: it doesn't pull")
+	check(#calls(truck, "anchorNear") >= 1 and #calls(car, "anchorNear") == 0, "the truck is asked where it would hook on, not the car")
+	straps.uiNudge(1, 0, 0)
+	frames(400)
+	straps.uiNudgeStop()
+	local grip = sharedCareer_rope.gripNow(strapRope)
+	check(sharedCareer_rope.distance(grip, strapRope.target) <= 3.01, "the end stays within 3 m of the car")
 	messages = {}
-	check(not straps.uiHere() and messages[1]:find("Too far"), "Here refuses it")
-	sharedCareer_rope.onHookProbe(71, 12, 0)
-	frames(1)
-	check(not straps.appState().tooFar, "a point next to it: fine")
-	check(straps.uiHere() and straps.appState().step == 0, "Here: hooked on, done")
+	check(not straps.uiHookOn() and messages[1] == "Move it to your truck or trailer", "nowhere to hook on: Hook on says so")
+	-- next to the truck's deck: it shows where it would hook on
+	strapRope.target = {x = 0.9, y = 2, z = 1.1}
+	sharedCareer_rope.onAnchorNear(71, strapId, "", 12, 0)
+	st = straps.appState()
+	check(st.step == 2 and st.hookOn and st.hookOn.hitch == false, "near the deck: Hook on is offered")
+	check(straps.uiHookOn(), "Hook on")
 	check(last(truck, "anchorHook").nums[1] == strapId and last(truck, "anchorHook").nums[2] == 12, "the strap hooks onto that point")
 	sharedCareer_rope.onAnchorNode(71, strapId, 12, 0)
-	check(#straps.appState().straps == 1, "the strap is in the list")
+	check(straps.appState().step == 0 and #straps.appState().straps == 1, "hooked on: done, the strap is in the list")
+	frames(1)
+	check(#calls(car, "ropeUpdate") > updatesBefore and last(car, "ropeUpdate").nums[5] == 0, "hooked on: the car feels it, no winch")
+	-- Tighten: the straps haul in like a very weak winch until they are tight
+	check(straps.uiTighten() and straps.appState().tightening, "Tighten")
+	extensions.hook("onUpdate", 1 / 60, 1 / 60)
+	local up = last(car, "ropeUpdate").nums
+	check(up[5] == 1 and up[7] == 0.1 and up[8] == 25, "Tighten: winch on, slow and weak (0.1 m/s, 25 %)")
+	sharedCareer_rope.onRopeState(70, strapId, 0, 0, 1, 1, 0, 1, 0.1)
+	extensions.hook("onUpdate", 1 / 60, 1 / 60)
+	extensions.hook("onUpdate", 1 / 60, 1 / 60)
+	check(last(car, "ropeUpdate").nums[5] == 0 and not straps.appState().tightening, "tight: the strap is locked again")
+	straps.uiTighten()
+	frames(60 * 7)
+	check(last(car, "ropeUpdate").nums[5] == 0 and not straps.appState().tightening, "never tight: Tighten stops after a few seconds")
 	-- Cancel in step 2 takes the half-done strap off again
 	straps.uiAddStrap()
 	frames(2)

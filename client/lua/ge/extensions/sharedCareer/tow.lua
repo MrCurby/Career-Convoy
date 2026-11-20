@@ -7,8 +7,9 @@
 --   attach    where you look (middle of the view), or to one of your vehicles nearby (the point
 --             of that vehicle closest to you). While the app is open, a blue ball shows where it
 --             would attach
---   anchor    buttons forward/back/left/right (as seen from the camera) and up/down, hold to move;
---             "to my view" puts it in the middle of the view; fine mode = quarter speed
+--   anchor    the remote (ropeRemote.lua, shared with the Straps app): buttons forward/back/
+--             left/right (as seen from the camera) and up/down, hold to move; "to my view" puts it
+--             in the middle of the view; fine mode = quarter speed
 --   winch     haul in (pulls the vehicle slowly to the anchor) / stop (the vehicle hangs on the
 --             rope) / pay out
 --   hook on   the anchor can go onto another of your vehicles (also the one you sit in) – at any
@@ -46,11 +47,8 @@
 
 local M = {}
 
-local U, R
+local U, R, Remote
 
-local MIN_DISTANCE = 3     -- m, closest "to my view" puts the anchor
-local NUDGE_SPEED = 1      -- m/s the anchor moves while a remote button is held
-local FINE = 0.25          -- fine mode: speed factor for the winch and the anchor
 local NEARBY_RANGE = 60    -- m: vehicles listed in the Tow app
 local APP_PUSH_EVERY = 0.2 -- s: how often the Tow app gets the state while it's open
 local STRENGTHS = {30, 60, 100, 150} -- strength choices in the Tow app (% of the vehicle's weight)
@@ -80,29 +78,13 @@ local function winchSpeed() return numberSetting("winchSpeed", 1, 0.2, 5) end
 local function maxStrength() return numberSetting("winchStrength", 150, 10, 150) end
 local function winchStrength() return math.min(strengthPick, maxStrength()) end
 
--- The remote's direction (f = forward, r = right, u = up) in the world, as seen from the camera.
-local function nudgeVector(n)
-	local f = R.viewDir() or {x = 0, y = 1, z = 0}
-	local len = math.sqrt(f.x * f.x + f.y * f.y)
-	local fx, fy = 0, 1
-	if len > 0.01 then fx, fy = f.x / len, f.y / len end
-	local rx, ry = fy, -fx
-	return {x = fx * n.f + rx * n.r, y = fy * n.f + ry * n.r, z = n.u}
-end
-
 --== The rope ======================================================================
 
 -- every frame, before the rope goes to the vehicle: the remote moves the anchor, the settings
 local function update(r, dt)
-	if r.nudge and r.target and not r.anchorVeh then
-		-- remote control: forward/back and left/right as seen from the camera, up/down
-		local v, s = nudgeVector(r.nudge), NUDGE_SPEED * (fine and FINE or 1) * dt
-		r.target = {x = r.target.x + v.x * s, y = r.target.y + v.y * s, z = r.target.z + v.z * s}
-	end
-	r.moving = r.nudge ~= nil
-	r.speed = winchSpeed() * (fine and FINE or 1)
+	Remote.move(r, dt, fine and Remote.FINE or 1)
+	r.speed = winchSpeed() * (fine and Remote.FINE or 1)
 	r.strength = winchStrength()
-	r.wantHookPoints = not r.anchorVeh
 end
 
 local drawEnd -- defined with the drawing below
@@ -267,72 +249,6 @@ end
 local ANCHOR_MOVING = {0.3, 0.9, 1, 0.9}
 local ANCHOR_HAULING = {1, 0.55, 0.1, 0.9}
 local ANCHOR_PAYING = {0.75, 0.55, 1, 0.9}
-local HITCH_NEAR = 3       -- m: closer than this, a hitch ring lights up
-
--- The ground below a point (z), or nil: castRayStatic (static geometry and terrain) straight down.
--- The last answer is kept while the point stays where it is.
-local GROUND_RANGE = 60    -- m
-local groundCache = nil    -- {x, y, z, ground}
-local function groundBelow(p)
-	local c = groundCache
-	if c and math.abs(c.x - p.x) < 0.01 and math.abs(c.y - p.y) < 0.01 and math.abs(c.z - p.z) < 0.01 then
-		return c.ground
-	end
-	local ground = nil
-	local ok, cast = pcall(function() return castRayStatic end)
-	if ok and type(cast) == "function" then
-		local from = p.z + 0.05
-		local hitOk, hit = pcall(cast, vec3(p.x, p.y, from), vec3(0, 0, -1), GROUND_RANGE)
-		hit = hitOk and tonumber(hit)
-		if hit and hit >= 0 and hit < GROUND_RANGE then ground = from - hit end
-	end
-	groundCache = {x = p.x, y = p.y, z = p.z, ground = ground}
-	return ground
-end
-
--- A floating anchor: a dashed drop line to the ground and a disc there, so you can tell where in
--- the world it is.
-local GROUND_MIN = 0.3     -- m above the ground before the marker shows
-local DASH = 0.15          -- m: dash and gap of the drop line
-local function groundMarker(p, rgb)
-	local S = R.shapes
-	local color = ColorF(rgb[1], rgb[2], rgb[3], 0.7)
-	local g = groundBelow(p)
-	if not g or p.z - g < GROUND_MIN then return end
-	local z = p.z
-	while z > g do
-		local zEnd = math.max(g, z - DASH)
-		S.line({x = p.x, y = p.y, z = z}, {x = p.x, y = p.y, z = zEnd}, color)
-		z = zEnd - DASH
-	end
-	local disc = ColorF(rgb[1], rgb[2], rgb[3], 0.3)
-	if not S.cylinder({x = p.x, y = p.y, z = g + 0.005}, {x = p.x, y = p.y, z = g + 0.02}, 0.3, disc) then
-		S.line({x = p.x - 0.3, y = p.y, z = g + 0.02}, {x = p.x + 0.3, y = p.y, z = g + 0.02}, color)
-		S.line({x = p.x, y = p.y - 0.3, z = g + 0.02}, {x = p.x, y = p.y + 0.3, z = g + 0.02}, color)
-	end
-end
-
--- The tow hitches near the anchor (rings, brighter as the anchor gets close) and the point where
--- it would hook on (a ring and a dashed line from the anchor).
-local function drawHookPoints(r, b)
-	local S = R.shapes
-	for vid, a in pairs(R.hookAnswers(r)) do
-		local veh = be:getObjectByID(vid)
-		for _, cid in ipairs(a.targets or {}) do
-			local p = R.nodePos(veh, cid)
-			if p then
-				local near = math.max(0, math.min(1, 1 - (R.distance(p, b) - 0.7) / HITCH_NEAR))
-				local color = ColorF(0.3 + 0.1 * near, 0.75 + 0.2 * near, 0.45, 0.25 + 0.4 * near)
-				S.circle(p, 0.22, color)
-			end
-		end
-	end
-	local hp = R.hookPoint(r)
-	if hp then
-		S.hookPoint(hp.pos, hp.hitch)
-		S.dashed(b, hp.pos, hp.hitch and ColorF(0.4, 0.95, 0.55, 0.8) or ColorF(1, 1, 1, 0.7))
-	end
-end
 
 -- The winch gauge: a ring facing the camera that fills with the winch's load, a small drum inside.
 local GAUGE_RADIUS = 0.2   -- m
@@ -382,8 +298,8 @@ function drawEnd(r, a, b, dt)
 		S.ball(b, 0.08 * pulse, ColorF(rgb[1], rgb[2], rgb[3], rgb[4]))
 	else
 		S.pin(b, ColorF(rgb[1], rgb[2], rgb[3], rgb[4]), pulse)
-		groundMarker(b, rgb)
-		drawHookPoints(r, b)
+		Remote.groundMarker(b, rgb)
+		Remote.drawHookPoints(r, b)
 	end
 	-- the winch gauge above the anchor, while the winch hauls in
 	local gaugeAt = {x = b.x, y = b.y, z = b.z + (r.anchorVeh and 0.45 or R.PIN_HEIGHT + 0.4)}
@@ -454,10 +370,7 @@ function M.appState()
 			state.strapDown = canStrapDown()
 			state.strapBusy = state.strapDown and straps().busy()
 		else
-			local hp = R.hookPoint(rope)
-			if hp then
-				state.hookOn = {vehicle = hp.name, hitch = hp.hitch}
-			end
+			state.hookOn = Remote.hookOnState(rope)
 		end
 		local grip = R.gripNow(rope)
 		if grip and rope.target then state.distance = R.distance(grip, rope.target) end
@@ -509,12 +422,7 @@ function M.uiAttachVehicle(id)
 end
 function M.uiRelease() M.release(); pushApp() end
 --- Hook the anchor onto the point the ring shows.
-function M.uiHookOn()
-	local hp = R.hookPoint(rope)
-	if not hp then return false end
-	R.hook(rope, hp.vid, hp.cid)
-	return true
-end
+function M.uiHookOn() return Remote.hookOn(rope) end
 --- The anchor comes off its vehicle and stays where it is.
 function M.uiUnhook() R.unhook(rope); pushApp() end
 function M.uiFlipUpright()
@@ -539,31 +447,12 @@ function M.uiStrength(v)
 	if rope then rope.since = 1 end
 	pushApp()
 end
---- Remote control: move the anchor while a button is held (f = forward, r = right, u = up; -1..1).
---- Not while it is hooked onto a vehicle.
-function M.uiNudge(f, r, u)
-	if not rope or rope.anchorVeh then return end
-	rope.nudge = {f = tonumber(f) or 0, r = tonumber(r) or 0, u = tonumber(u) or 0}
-	rope.since = 1
-	pushApp()
-end
-function M.uiNudgeStop()
-	if not rope then return end
-	rope.nudge = nil
-	rope.since = 1
-	pushApp()
-end
---- Put the anchor in the middle of the view, at its current distance from you.
-function M.uiAnchorToView()
-	if not rope or not rope.target or rope.anchorVeh then return end
-	local cam, dir = R.cameraPos(), R.viewDir()
-	if not cam or not dir then return end
-	local dist = math.max(MIN_DISTANCE, math.min(R.MAX_DISTANCE, R.distance(rope.target, cam)))
-	rope.target = {x = cam.x + dir.x * dist, y = cam.y + dir.y * dist, z = cam.z + dir.z * dist}
-	rope.payOutOnce = true
-	rope.since = 1
-	pushApp()
-end
+--- The remote (ropeRemote.lua, remote.html): move the anchor while a button is held (f = forward,
+--- r = right, u = up; -1..1), not while it is hooked onto a vehicle; "to my view" puts it in the
+--- middle of the view, at its current distance from you.
+function M.uiNudge(f, r, u) Remote.nudge(rope, f, r, u); pushApp() end
+function M.uiNudgeStop() Remote.nudgeStop(rope); pushApp() end
+function M.uiToView() Remote.toView(rope); pushApp() end
 
 -- the Tow app on the phone
 local function registerPhoneApp()
@@ -593,7 +482,7 @@ function M.rope() return rope end
 
 function M.onUpdate(dtReal)
 	-- the preview of where a rope would attach, while the app is open and no rope is on
-	if appOpen and not rope and R.allowed() then R.probe("tie") end
+	if appOpen and not rope and R.allowed() then R.probe() end
 	if appOpen then
 		sinceAppPush = sinceAppPush + (tonumber(dtReal) or 0)
 		if sinceAppPush >= APP_PUSH_EVERY then
@@ -610,6 +499,7 @@ end
 function M.onExtensionLoaded()
 	U = extensions.sharedCareer_util
 	R = extensions.sharedCareer_rope
+	Remote = extensions.sharedCareer_ropeRemote
 end
 
 M.onInit = function() setExtensionUnloadMode(M, 'manual') end
