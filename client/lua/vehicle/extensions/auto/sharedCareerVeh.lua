@@ -785,7 +785,7 @@ end
 -- optional: a vehicle without one of them breaks down without it.
 
 -- the deform group a fault breaks, by a part of its name
-local FAULT_PARTS = {windshield = "windshield", taillights = "tailgatelight"}
+local FAULT_PARTS = {windshield = "windshield", taillights = {"tailgatelight", "taillight"}}
 
 local function damageNow()
 	return tonumber(beamstate and beamstate.damage) or 0
