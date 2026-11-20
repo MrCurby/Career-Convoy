@@ -116,7 +116,7 @@ local MOVES = {
 	{stateKey = "fuelAppRetired", appName = "sharedCareerFuel", remove = true},
 	-- ... and the phone tab takes its place directly below the menu
 	{stateKey = "phoneTabUp", appName = "sharedCareerPhone", from = {right = "0px", top = "920px"}, to = {top = "760px"}},
-	-- 0.26.0: the menu is taller (the Time tab has the "Real time" row) ...
+	-- 0.26.0: the menu is taller (the Time tab has the "Clock" row) ...
 	{stateKey = "menuTaller", appName = "sharedCareerMenu", from = {right = "0px", top = "600px", height = "160px"},
 		to = {height = "190px"}},
 	-- ... and the phone tab moves down with it, so the two never overlap

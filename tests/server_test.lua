@@ -408,6 +408,12 @@ sc_timeControl(1, json.encode({action = "realtime", on = false}))
 local off = lastTo(0, "sc_time")
 check(off.realtime == false and off.play == true and math.abs(off.hour - 21) < 0.001, "real time off: runs on from the real time")
 check(onConsoleInput("sc time real"):find("21:00") ~= nil and lastTo(0, "sc_time").realtime == true, "sc time real")
+fakeTime = fakeTime + 2
+sc_timeControl(1, json.encode({action = "pause", paused = true}))
+local rp = lastTo(0, "sc_time")
+check(rp.realtime == false and rp.paused == true and math.abs(rp.hour - 21) < 0.001, "Pause ends real time, stops at the real time")
+fakeTime = fakeTime + 2
+sc_timeControl(1, json.encode({action = "realtime", on = true}))
 check(onConsoleInput("sc time 10:00"):find("10:00") ~= nil and lastTo(0, "sc_time").realtime == false
 	and math.abs(lastTo(0, "sc_time").hour - 10) < 0.001, "sc time <HH:MM> ends real time")
 os.date = realDate

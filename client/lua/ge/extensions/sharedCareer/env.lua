@@ -226,7 +226,7 @@ function M.uiShiftHour(delta)
 	M.uiSetHour((state.hour + delta) % 24)
 end
 
--- Pause the clock (true) or let it run (false) – for everyone.
+-- Pause the clock (true) or let it run (false) – for everyone. Pausing also ends real time.
 function M.uiSetPaused(paused)
 	control({action = "pause", paused = paused == true})
 end

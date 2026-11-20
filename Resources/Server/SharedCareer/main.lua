@@ -121,12 +121,13 @@ local DEFAULTS = {
 		fuelMaxDiscount = 30,         -- at most this many % cheaper
 		fuelRecoveryPercent = 1,      -- the discount drops by this many percentage points ...
 		fuelRecoveryMinutes = 5,      -- ... every this many minutes (the price slowly returns)
-		-- Clock paused: the time stands still until someone presses "Resume" (window) or types
+		-- Clock paused: the time stands still until someone presses "Run" (window) or types
 		-- sc time start. Pause: window or sc time stop.
 		timePaused = false,
 		-- Real time: the time of day follows the server's clock (its local time) at real speed;
 		-- the start time, day/night length and pause don't apply then. Switch in the menu
-		-- ("Real time") or sc time real; setting a time or sc time stop | start switches it off.
+		-- ("Real time") or sc time real; "Run" / "Pause" in the menu, setting a time or
+		-- sc time stop | start switch it off.
 		realtimeSync = false,
 		-- Traffic for the whole server (0 = no limit). Every player gets
 		-- client.roadTraffic / client.parkedTraffic until the sum exceeds the limit;
@@ -1629,7 +1630,8 @@ end
 --   {action = "lengths", dayMinutes = 1..600, nightMinutes = 1..600}  day/night length
 --   {action = "pause", paused = true|false}                       pause / resume the clock
 --   {action = "realtime", on = true|false}                        follow the server's clock
--- While real time is on, only "realtime" is taken (the window hides the other buttons).
+-- While real time is on, "set" and "lengths" are ignored (the window hides them); "pause"
+-- ends real time and stops the clock at the real time.
 -- At most one change per second and player; everyone gets a notification.
 local TIME_CONTROL_COOLDOWN = 1
 local LENGTH_MIN, LENGTH_MAX = 1, 600
@@ -1659,6 +1661,14 @@ function sc_timeControl(player_id, data)
 		log(playerName(player_id) .. (on and " turns real time on" or (" turns real time off at " .. formatHour(currentHour()))))
 		sendTimeToAll()
 		notifyAll(playerName(player_id) .. (on and " turned on real time" or " turned off real time"), "schedule")
+	elseif msg.action == "pause" then
+		local paused = msg.paused == true
+		local wasReal = paused and setRealtime(false)
+		if not setPaused(paused) and not wasReal then sendTime(player_id) return end
+		log(playerName(player_id) .. (paused and " pauses the clock at " or " resumes the clock at ") .. formatHour(currentHour()))
+		sendTimeToAll()
+		notifyAll(playerName(player_id) .. (paused and " paused the clock (" or " resumed the clock (") ..
+			formatHour(currentHour()) .. ")", "schedule")
 	elseif realtimeOn() then
 		sendTime(player_id)
 	elseif msg.action == "set" then
@@ -1668,13 +1678,6 @@ function sc_timeControl(player_id, data)
 		log(playerName(player_id) .. " sets the time to " .. formatHour(hour % 24))
 		sendTimeToAll()
 		notifyAll(playerName(player_id) .. " set the time to " .. formatHour(hour % 24), "schedule")
-	elseif msg.action == "pause" then
-		local paused = msg.paused == true
-		if not setPaused(paused) then sendTime(player_id) return end
-		log(playerName(player_id) .. (paused and " pauses the clock at " or " resumes the clock at ") .. formatHour(currentHour()))
-		sendTimeToAll()
-		notifyAll(playerName(player_id) .. (paused and " paused the clock (" or " resumed the clock (") ..
-			formatHour(currentHour()) .. ")", "schedule")
 	elseif msg.action == "lengths" then
 		local day, night = tonumber(msg.dayMinutes), tonumber(msg.nightMinutes)
 		if not day or not night or day ~= day or night ~= night then return end

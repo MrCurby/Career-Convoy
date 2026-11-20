@@ -39,16 +39,18 @@ One window for everything you can change in the game. **Every change applies to 
 ### Time tab
 
 - The current time, day or night, and how long until the switch
-- **❚❚ Pause** stops the clock for everyone at the current time. **▶ Resume** lets it run on from there.
 - **−1 h / +1 h**, or jump to **Morning** (7:00), **Noon** (12:00), **Evening** (19:00) or **Night** (23:00)
 - Length of the day and the night: − and + go through round values (1, 5, 10, 15 … 60 min, then bigger steps up to 10 h); changes are sent once you stop clicking
-- **Real time** On: the time follows the server's clock (its local time), for everyone. While it is on, the other time buttons are hidden. Off: the clock runs on from the real time.
+- **Clock**: one choice of three, for everyone
+  - **Run**: the clock runs at the day and night length above
+  - **Pause**: the clock stops at the current time; *Run* lets it go on from there
+  - **Real time**: the time follows the server's clock (its local time). The other time buttons are hidden then. *Run* or *Pause* go on from the real time.
 
 ### Traffic tab
 
-- **Driving and parked cars per player**, changed live
+- A small table: **driving** and **parked** cars **per player** and the **server max** (∞ = no limit), changed live
 - **AI style**: *Careful*, *Normal* or *Fast*
-- How many cars you get right now (the server limit is shared between all players) and how far the amount can be raised live
+- Below: how many cars you get right now (the server max is shared between all players). "Rejoin for more" shows when you would get more than the cars loaded at your join.
 
 ### Options tab
 
@@ -56,7 +58,6 @@ One window for everything you can change in the game. **Every change applies to 
 - **Collision with players on foot**. Off by default, so nobody runs over a friend by accident.
 - **Synced traffic lights**, on or off
 - **Player status on name tags**, on or off
-- **Server limit driving traffic**
 
 ### Players tab
 
