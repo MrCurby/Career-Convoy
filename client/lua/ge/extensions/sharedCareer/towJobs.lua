@@ -21,8 +21,8 @@
 --   doing it
 --     1. the route leads to the place; within SPAWN_RANGE m the broken-down vehicle appears there
 --        (spawned by this player, so it is theirs: the rope works on it, BeamMP shows it to
---        everyone). The vehicle breaks down: engines off and disabled, neutral, parking brake off,
---        hazard lights on, a flat tire if the job says so (sharedCareerVeh.jobBreakDown). A reset
+--        everyone). The vehicle breaks down: neutral, parking brake off, hazard lights on, a flat
+--        tire and its faults if the job says so (sharedCareerVeh.jobBreakDown). A reset
 --        (R) repairs it, so the job breaks it down again
 --     2. near the vehicle the route switches to the repair shop
 --     3. standing still in the drop-off zone (DROP_RADIUS m around the shop's doors) for
