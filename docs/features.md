@@ -246,6 +246,8 @@ Cars break down at the roadside, and somebody has to tow them to a repair shop. 
 
 Press **F4** or click the phone tab at the right screen edge (directly below the SharedCareer menu's tab) to take out your phone. It shows the server's time, how many players are on the server and whether you're connected. Below the clock it says how long until night (or day), with a bar for how much of the day or night is over.
 
+The phone goes away when you open a game menu (pause menu, map, garage, ...); there, **F4** only puts it away.
+
 Apps:
 
 - **Jobs** *(beta)*: towing jobs, see [Towing jobs](#towing-jobs-beta). Apps that are still experimental carry a **BETA** badge.

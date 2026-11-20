@@ -7,6 +7,8 @@
 -- The UI is the app ui/modules/apps/SharedCareer-Phone/: a small tab with a phone icon at the
 -- right screen edge (below the menu); the phone itself opens above it. Key: F4 by default
 -- (BeamMP key bindings, rebindable under Options → Controls → BeamMP).
+-- Game menus (pause menu, map, garage, ...): the phone is put away when one opens, and the key
+-- only puts it away while one is open (the game reports every screen with onUiChangedState).
 --
 -- Apps: SharedCareer extensions register themselves here:
 --   sharedCareer_phone.registerApp({id = "taxi", title = "Taxi", icon = "T", color = "#f5b800",
@@ -20,8 +22,8 @@
 -- icon: a short text (letter), or the name of a built-in icon the window knows ("jobs", "tow", "straps", "fuel").
 --
 -- guihooks: SharedCareerPhone {enabled, apps = [{id, title, icon, color, beta}]} (state),
---           SharedCareerPhoneToggle (key). Time and players come with "SharedCareerState"
---           (menu.lua).
+--           SharedCareerPhoneToggle (key), SharedCareerPhoneAway (a game menu is open).
+--           Time and players come with "SharedCareerState" (menu.lua).
 
 local M = {}
 
@@ -32,6 +34,7 @@ local KEY = "f4"
 
 local apps = {}            -- id -> {id, title, icon, color, order, beta, onOpen, onClose}
 local keyRegistered = false
+local screen = "play"      -- the game's current screen (UI route), from onUiChangedState
 
 local function enabled()
 	local config = U.config()
@@ -110,7 +113,14 @@ function M.uiCloseApp(id)
 	if not ok then U.log("E", "phone", "app '" .. tostring(id) .. "' failed to close: " .. tostring(err)) end
 end
 
---== Key =========================================================================
+--== Key and game menus ==========================================================
+
+-- Driving (no game menu open): "play", or the screen the game drives on right now (e.g. a mission's).
+local function driving()
+	if screen == "play" then return true end
+	local menus = U.ext("ui_menuManager")
+	return menus ~= nil and type(menus.getGameplayRoute) == "function" and screen == menus.getGameplayRoute()
+end
 
 local function registerKey()
 	if keyRegistered then return end
@@ -120,7 +130,8 @@ local function registerKey()
 		desc = "Takes the phone out or puts it away",
 		default = KEY,
 		onDown = function()
-			if enabled() then trigger("SharedCareerPhoneToggle") end
+			if not enabled() then return end
+			trigger(driving() and "SharedCareerPhoneToggle" or "SharedCareerPhoneAway")
 		end,
 	})
 end
@@ -132,6 +143,12 @@ function M.onCareerActive(active)
 		registerKey()
 		push()
 	end
+end
+
+-- the game switched screens: put the phone away when a game menu opens
+function M.onUiChangedState(toState)
+	screen = type(toState) == "string" and toState or "play"
+	if not driving() then trigger("SharedCareerPhoneAway") end
 end
 
 -- settings from the server changed (called by core.lua): phone on/off
