@@ -1,10 +1,12 @@
 <div ng-controller="SharedCareerMenu" class="scMenu" ng-class="{'scm-collapsed': collapsed}">
 	<link rel="stylesheet" type="text/css" href="/ui/modules/apps/SharedCareer-Menu/app.css">
+	<!-- every icon, from ui/sharedCareer/icons.svg: an icon by its name is <svg><use href="#sc-icon-car"/></svg> -->
+	<div ng-include="'/ui/sharedCareer/icons.svg'"></div>
 
 	<!-- Expanded: SharedCareer menu with tabs (styled like the BeamMP player list) -->
 	<div class="scm-panel" ng-if="!collapsed">
 		<div class="scm-header">
-			<span class="scm-brand scm-brand-click" title="SharedCareer – click for the welcome overview" ng-click="showWelcome()"><svg class="scm-logo" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.3" fill="none" stroke="currentColor" stroke-width="2.6"/><circle cx="12" cy="12.6" r="2.7" fill="currentColor"/><path d="M3.2 11.2 Q12 8.2 20.8 11.2 M12 15.3 V21.2" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg></span>
+			<span class="scm-brand scm-brand-click" title="SharedCareer – click for the welcome overview" ng-click="showWelcome()"><svg class="scm-logo" aria-hidden="true"><use href="#sc-icon-logo"/></svg></span>
 			<button class="scm-tabbtn" ng-class="{'scm-active': tab === 'time'}" ng-click="setTab('time')">Time</button>
 			<button class="scm-tabbtn" ng-class="{'scm-active': tab === 'traffic'}" ng-click="setTab('traffic')">Traffic</button>
 			<button class="scm-tabbtn" ng-class="{'scm-active': tab === 'options'}" ng-click="setTab('options')">Options</button>
@@ -155,7 +157,7 @@
 	<!-- Tab at the right edge: collapses/expands. When collapsed, only the tab is visible. -->
 	<div class="scm-tab" ng-click="toggleCollapsed()" title="{{ collapsed ? 'Expand SharedCareer menu' : 'Collapse SharedCareer menu' }}">
 		<!-- SharedCareer logo (steering wheel) -->
-		<span class="scm-tab-icon" ng-if="collapsed"><svg class="scm-logo" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.3" fill="none" stroke="currentColor" stroke-width="2.6"/><circle cx="12" cy="12.6" r="2.7" fill="currentColor"/><path d="M3.2 11.2 Q12 8.2 20.8 11.2 M12 15.3 V21.2" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg></span>
+		<span class="scm-tab-icon" ng-if="collapsed"><svg class="scm-logo" aria-hidden="true"><use href="#sc-icon-logo"/></svg></span>
 		<span class="scm-tab-arrow" ng-bind="collapsed ? '<' : '>'"></span>
 	</div>
 </div>
