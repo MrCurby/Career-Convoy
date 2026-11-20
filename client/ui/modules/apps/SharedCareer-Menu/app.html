@@ -36,13 +36,13 @@
 			</div>
 			<div class="scm-row" ng-if="state.canControl">
 				<span class="scm-label">Day</span>
-				<button class="scm-btn scm-step" ng-click="changeLength('day', -5)">−</button>
-				<span class="scm-value" ng-bind="lengths().day + ' min'"></span>
-				<button class="scm-btn scm-step" ng-click="changeLength('day', 5)">+</button>
+				<button class="scm-btn scm-step" ng-click="changeLength('day', -1)">−</button>
+				<span class="scm-value" ng-bind="lengthText(lengths().day)"></span>
+				<button class="scm-btn scm-step" ng-click="changeLength('day', 1)">+</button>
 				<span class="scm-gap"></span>
 				<span class="scm-label">Night</span>
 				<button class="scm-btn scm-step" ng-click="changeLength('night', -1)">−</button>
-				<span class="scm-value" ng-bind="lengths().night + ' min'"></span>
+				<span class="scm-value" ng-bind="lengthText(lengths().night)"></span>
 				<button class="scm-btn scm-step" ng-click="changeLength('night', 1)">+</button>
 			</div>
 			<div class="scm-note" ng-if="!state.canControl && state.synced">The time of day is set by the server</div>

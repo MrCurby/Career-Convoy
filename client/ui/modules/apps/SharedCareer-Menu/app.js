@@ -3,7 +3,9 @@
 //
 // Time tab: the server's time and whether it is day or night.
 // Every player can change the time (±1 h, morning/noon/evening/night) and the length of
-// day and night; the server applies that for everyone immediately.
+// day and night; the server applies that for everyone immediately. − and + walk through the same
+// round values for day and night (LENGTHS: 1, 5, 10, ... 600 min), in bigger steps the longer it
+// gets; a length between two of them (set in the config) goes to the next one.
 // "Pause" stops the clock for everyone at the current time, "Resume" lets it run on from there.
 // Traffic tab: driving/parked cars per player, AI driving style.
 // Options tab: collision with cars/players on foot, synced traffic lights, status on name tags,
@@ -12,8 +14,9 @@
 // server allows it). Player names are passed to Lua as JSON strings.
 // Fuel prices are an app on the phone (SharedCareer-Phone, same data and styles).
 // Key F7 (can be changed under Options → Controls → BeamMP) collapses/expands the menu.
-// Numbers are only sent once you stop clicking for a moment (SEND_DELAY), so that not every
-// click triggers a notification for everyone.
+// Numbers (settings and lengths) are only sent once you stop clicking for a moment (SEND_DELAY),
+// so that not every click triggers a notification for everyone (and the server, which takes one
+// time change per second and player, doesn't drop the clicks in between).
 // The tab at the right edge collapses and expands the window (like the BeamMP player
 // list); the state is remembered in the game's browser storage.
 //
@@ -39,8 +42,9 @@ sharedCareerMenuApp.directive('sharedCareerMenu', [function () {
 }]);
 
 sharedCareerMenuApp.controller('SharedCareerMenu', ['$scope', '$element', function ($scope, $element) {
-	var LENGTH_STEP = 5;       // minutes per click for the day/night length
-	var LENGTH_MIN = 1, LENGTH_MAX = 600;
+	// the day/night lengths − and + step through (minutes; the server allows 1..600)
+	var LENGTHS = [1, 5, 10, 15, 20, 25, 30, 40, 50, 60, 75, 90, 105, 120, 150, 180, 210, 240,
+		300, 360, 420, 480, 540, 600];
 
 	var STORAGE_KEY = "sharedCareerMenuCollapsed";
 
@@ -198,8 +202,26 @@ sharedCareerMenuApp.controller('SharedCareerMenu', ['$scope', '$element', functi
 		if (typeof pool === "number") parts.push("live up to " + pool);
 		return parts.join(" · ");
 	};
-	// lengths that were just set but not confirmed by the server yet
+	// lengths that were just set but not confirmed by the server yet: {day, night, age, timer}
 	$scope.pending = null;
+
+	// the next value of LENGTHS above (direction 1) or below (-1) `minutes`; at the ends it stays
+	function nextLength(minutes, direction) {
+		var i;
+		if (direction > 0) {
+			for (i = 0; i < LENGTHS.length; i++) if (LENGTHS[i] > minutes) return LENGTHS[i];
+			return LENGTHS[LENGTHS.length - 1];
+		}
+		for (i = LENGTHS.length - 1; i >= 0; i--) if (LENGTHS[i] < minutes) return LENGTHS[i];
+		return LENGTHS[0];
+	}
+
+	// 50 -> "50 min", 90 -> "1 h 30", 120 -> "2 h"
+	$scope.lengthText = function (minutes) {
+		if (minutes < 60) return minutes + " min";
+		var h = Math.floor(minutes / 60), m = minutes % 60;
+		return h + " h" + (m ? " " + pad(m) : "");
+	};
 
 	function pad(n) { return (n < 10 ? "0" : "") + n; }
 
@@ -250,13 +272,19 @@ sharedCareerMenuApp.controller('SharedCareerMenu', ['$scope', '$element', functi
 		timeControl('uiSetPaused(' + ($scope.state.paused ? 'false' : 'true') + ')');
 	};
 
-	$scope.changeLength = function (which, delta) {
+	// direction 1 (+) or -1 (−); sent once the clicks stop (SEND_DELAY)
+	$scope.changeLength = function (which, direction) {
 		if (!$scope.state || !$scope.state.canControl) return;
 		var l = $scope.lengths();
-		var next = {day: l.day, night: l.night};
-		next[which] = Math.max(LENGTH_MIN, Math.min(LENGTH_MAX, (Number(next[which]) || 0) + delta));
-		$scope.pending = next;
-		timeControl('uiSetLengths(' + next.day + ',' + next.night + ')');
+		var p = $scope.pending || {day: l.day, night: l.night};
+		if (p.timer) clearTimeout(p.timer);
+		p[which] = nextLength(Number(p[which]) || 0, direction);
+		p.age = 0;
+		p.timer = setTimeout(function () {
+			p.timer = null;
+			timeControl('uiSetLengths(' + p.day + ',' + p.night + ')');
+		}, SEND_DELAY);
+		$scope.pending = p;
 	};
 
 	$scope.$on('SharedCareerState', function (event, data) {
@@ -269,7 +297,7 @@ sharedCareerMenuApp.controller('SharedCareerMenu', ['$scope', '$element', functi
 				if (!p.timer && s[field(key)] === p.value) delete pending[key];
 			});
 			// the server confirmed (or rejected) the new lengths: show the server's values again
-			if ($scope.pending && data && data.dayMinutes === $scope.pending.day && data.nightMinutes === $scope.pending.night) {
+			if ($scope.pending && !$scope.pending.timer && data && data.dayMinutes === $scope.pending.day && data.nightMinutes === $scope.pending.night) {
 				$scope.pending = null;
 			}
 		});
@@ -281,7 +309,7 @@ sharedCareerMenuApp.controller('SharedCareerMenu', ['$scope', '$element', functi
 	var pendingTimer = setInterval(function () {
 		ticks++;
 		if (ticks % 2 === 0 && !$scope.collapsed) reportVisible(true);
-		if ($scope.pending) {
+		if ($scope.pending && !$scope.pending.timer) {
 			$scope.pending.age = ($scope.pending.age || 0) + 1;
 			if ($scope.pending.age > 3) $scope.$evalAsync(function () { $scope.pending = null; });
 		}
