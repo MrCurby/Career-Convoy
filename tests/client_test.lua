@@ -3318,8 +3318,8 @@ end)()
 	local veh = chunk()
 	veh.jobBreakDown(true, {engine = true})
 	local all = table.concat(calls, ", ")
-	check(all == "engine off, gear 0, parkingbrake 0, hazard true, flat",
-		"breakdown: engine off, neutral, parking brake off, hazard lights, flat tire (" .. all .. ")")
+	check(all == "engine off, gear 0, parkingbrake 1, hazard true, flat",
+		"breakdown: engine off, neutral, parking brake on, hazard lights, flat tire (" .. all .. ")")
 	check(ge[#ge]:find("sharedCareer_towJobs.onJobBrokenDown%(80, 1234%.5%)"), "reports the damage so far")
 	veh.jobReportDamage()
 	check(ge[#ge]:find("onJobDamage%(80, 1234%.5%)"), "reports the damage at the drop-off")
@@ -3333,7 +3333,7 @@ end)()
 	calls = {}
 	veh.jobBreakDown(false, {windshield = true})
 	all = table.concat(calls, ", ")
-	check(all == "gear 0, parkingbrake 0, hazard true" and #broken == 1 and broken[1] == 1,
+	check(all == "gear 0, parkingbrake 1, hazard true" and #broken == 1 and broken[1] == 1,
 		"broken windshield: the engine keeps running, only the windshield breaks (" .. all .. ")")
 	broken = {}
 	veh.jobBreakDown(false, {taillights = true})
@@ -3342,7 +3342,7 @@ end)()
 	env.powertrain, env.controller, env.electrics = nil, nil, nil
 	calls = {}
 	local ok = pcall(veh.jobBreakDown, false)
-	check(ok and table.concat(calls, ", ") == "parkingbrake 0", "missing parts of a vehicle: breaks down without them")
+	check(ok and table.concat(calls, ", ") == "parkingbrake 1", "missing parts of a vehicle: breaks down without them")
 end)()
 
 --== 11. Ropes on two vehicles: the anchor on a vehicle, straps =====================

@@ -775,8 +775,8 @@ function M.hookBelow(req, corners)
 end
 
 --== Towing jobs: the broken-down vehicle ========================================
--- jobBreakDown(flatTire, faults): neutral, parking brake off (so it can be towed or rolled), hazard
--- lights on, optionally a flat tire, and what `faults` says is broken ({engine = true, ...}):
+-- jobBreakDown(flatTire, faults): neutral, parking brake on (so it doesn't roll away; the player
+-- can release it to tow or roll it), hazard lights on, optionally a flat tire, and what `faults` says is broken ({engine = true, ...}):
 --   engine      engines off and disabled (they don't start again)
 --   windshield  the windshield breaks
 --   taillights  the tail lights break
@@ -820,7 +820,7 @@ function M.jobBreakDown(flatTire, faults)
 		end)
 	end
 	pcall(function() controller.mainController.shiftToGearIndex(0) end)
-	pcall(function() input.event("parkingbrake", 0, FILTER_DIRECT) end)
+	pcall(function() input.event("parkingbrake", 1, FILTER_DIRECT) end)
 	pcall(function() electrics.set_warn_signal(true) end)
 	if flatTire then pcall(function() beamstate.deflateRandomTire() end) end
 	for kind, parts in pairs(FAULT_PARTS) do
