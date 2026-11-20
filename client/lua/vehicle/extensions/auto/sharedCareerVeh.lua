@@ -821,10 +821,13 @@ function M.jobBreakDown(flatTire, faults)
 	end
 	pcall(function() controller.mainController.shiftToGearIndex(0) end)
 	pcall(function() input.event("parkingbrake", 0, FILTER_DIRECT) end)
+	pcall(function() electrics.setIngnitionLevel(1) end) --toggle ignition for hazard lights to work
 	pcall(function() electrics.set_warn_signal(true) end)
 	if flatTire then pcall(function() beamstate.deflateRandomTire() end) end
-	for kind, part in pairs(FAULT_PARTS) do
-		if faults[kind] then breakPart(part) end
+	for kind, parts in pairs(FAULT_PARTS) do
+		if faults[kind] then 
+			for _, part in ipairs(parts) do breakPart(part) end
+		end
 	end
 	reportToJobs("onJobBrokenDown", damageNow())
 end
