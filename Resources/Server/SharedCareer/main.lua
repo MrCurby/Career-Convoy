@@ -69,7 +69,7 @@
 --   Jobs (beta, see "Jobs" below):
 --   sc_jobsRequest                    sc_jobs        {enabled, jobs = [job, with state "open" |
 --   sc_jobOffer   {a new job}                         "taken" | "mine", takenBy (name), minLevel,
---   sc_jobTake    {id}                                locked, pay (yours)], levels = {type: level}}
+--   sc_jobTake    {id}                                locked, pay and xp (yours)], levels = {type: level}}
 --   sc_jobDone    {id, share}         sc_jobGenerate {type, tier}  please make up a new job
 --   sc_jobGiveUp  {id}                sc_jobPaid     {payout, job, type, title, pay, deduction, xp}
 --   sc_jobPaidAck {payout}                           credit this (again until sc_jobPaidAck)
@@ -978,6 +978,14 @@ local function payAt(job, level)
 	return math.floor(math.min(tonumber(Config.server.jobPayMax) or 5000, pay) + 0.5)
 end
 
+-- The XP a job gives a player of this level when all of its pay is earned (not rounded).
+local function xpAt(job, level)
+	local rules = rulesOf(job.type)
+	local xp = rules.tierXp[job.tier] or rules.tierXp[1]
+	if topTier(rules, level) - job.tier >= 2 then xp = xp * rules.lowTierXp end
+	return xp
+end
+
 local function saveProgress()
 	writeJson(PROGRESS_FILE, {version = 1, profiles = progress})
 end
@@ -1029,9 +1037,7 @@ local function addJobXp(player_id, job, share, pay, deduction)
 	local p = progressOf(profileOf(player_id), kind, true)
 	local rules = rulesOf(kind)
 	local before, levelBefore = topTier(rules, p.level), p.level
-	local xp = (rules.tierXp[job.tier] or rules.tierXp[1]) * share
-	if before - job.tier >= 2 then xp = xp * rules.lowTierXp end
-	xp = math.floor(xp + 0.5)
+	local xp = math.floor(xpAt(job, p.level) * share + 0.5)
 	p.xp = p.xp + xp
 	p.level = levelOf(rules, p.xp)
 	p.stats.done = p.stats.done + 1
@@ -1120,7 +1126,8 @@ local function jobFor(job, player_id)
 	local level = levelFor(player_id, job.type)
 	local minLevel = tierLevel(job.type, job.tier) or 1
 	return {id = job.id, type = job.type, tier = job.tier, minLevel = minLevel, locked = level < minLevel,
-		title = job.title, pos = job.pos, dest = job.dest, length = job.length, pay = payAt(job, level), data = job.data,
+		title = job.title, pos = job.pos, dest = job.dest, length = job.length, pay = payAt(job, level),
+		xp = math.floor(xpAt(job, level) + 0.5), data = job.data,
 		state = job.takenBy == nil and "open" or (job.takenBy == player_id and "mine" or "taken"),
 		takenBy = job.takenBy and playerName(job.takenBy) or nil}
 end

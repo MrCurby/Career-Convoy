@@ -358,7 +358,7 @@ end
 local function jobForApp(job, me)
 	local t = types[job.type]
 	return {id = job.id, icon = t and t.icon or "?", title = job.title or "?", tags = tagsOf(job),
-		dest = job.dest and job.dest.name or "?", length = job.length, pay = job.pay, state = job.state,
+		dest = job.dest and job.dest.name or "?", length = job.length, pay = job.pay, xp = tonumber(job.xp), state = job.state,
 		takenBy = job.takenBy, locked = job.locked == true, minLevel = math.max(1, math.floor(tonumber(job.minLevel) or 1)),
 		distance = me and job.pos and dist2D(me, job.pos) or nil}
 end
@@ -434,7 +434,7 @@ function M.appState()
 		local steps = active.type.steps or {}
 		local from = s.from or me
 		state.active = {id = job.id, icon = active.type.icon, title = job.title, tags = tagsOf(job), dest = job.dest.name,
-			pay = job.pay, steps = steps, step = active.paidAt and math.max(0, #steps - 1) or (s.step or 0),
+			pay = job.pay, xp = tonumber(job.xp), steps = steps, step = active.paidAt and math.max(0, #steps - 1) or (s.step or 0),
 			phase = active.paidAt and "paid" or (active.doneSent and "checking" or "running"),
 			text = s.text, short = s.short, hint = s.hint, inZone = s.inZone == true,
 			distance = from and s.target and dist2D(from, s.target) or nil}

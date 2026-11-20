@@ -2977,7 +2977,7 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 
 	-- the list arrives: the Jobs app (beta) is on the phone
 	local job = {id = 7, type = "tow", title = "Gavril Grand Marshal", pos = {x = 2000, y = -5.8, z = 10},
-		dest = {name = "Belasco Auto", pos = doors.belasco}, length = 2600, pay = 600,
+		dest = {name = "Belasco Auto", pos = doors.belasco}, length = 2600, pay = 600, xp = 70,
 		data = {vehicle = {model = "fullsize", config = "base"}, flatTire = true, faults = {"engine"}, dir = {x = 1, y = 0}}}
 	local function sendList(state)
 		local j = json.decode(json.encode(job))
@@ -2990,8 +2990,8 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	check(jobsApp and jobsApp.beta == true and jobsApp.title == "Jobs", "the Jobs app is on the phone, marked as beta")
 	local st = jobs.appState()
 	local first = st.sections[1] and st.sections[1].groups[1].jobs[1]
-	check(st.enabled and st.open == 1 and first.state == "open" and math.abs(first.distance - 2000) < 20,
-		"the app lists the job with its distance from you")
+	check(st.enabled and st.open == 1 and first.state == "open" and math.abs(first.distance - 2000) < 20
+		and first.pay == 600 and first.xp == 70, "the app lists the job with its distance from you, its pay and XP")
 	check(first.icon == "tow" and first.title == "Gavril Grand Marshal" and #first.tags == 2
 		and first.tags[2].text == "Flat tire", "its icon, title and tags come from the towing job type")
 	-- the jobs by level: yours first (the hardest at the top), then the locked ones (the nearest first)
@@ -3028,7 +3028,8 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	jobs.uiTake(7)
 	check(lastSent("sc_jobTake").id == 7, "take: asks the server")
 	sendList("mine")
-	check(jobs.getActive() and paths[#paths].x == 2000, "the job is yours: route to the breakdown")
+	check(jobs.getActive() and paths[#paths].x == 2000 and jobs.appState().active.xp == 70,
+		"the job is yours: route to the breakdown; its XP show on it")
 	-- far away: nothing spawned yet; within 400 m it appears there, broken down
 	for _ = 1, 10 do update(0.1) end
 	check(world.spawned == nil, "far away: the vehicle isn't there yet")

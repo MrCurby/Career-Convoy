@@ -231,7 +231,7 @@ Good to know:
 
 Cars break down at the roadside, and somebody has to tow them to a repair shop. There is **one list for everyone** on the server: whoever takes a job first gets it.
 
-1. **Find a job:** phone (**F4**) → **Jobs**. Every job shows the vehicle, what's wrong (engine failure, broken windshield or taillights, sometimes a flat tire), how far it is from you, the repair shop, the length of the tow and your pay. The jobs are sorted by the level they need, see [Levels](#levels).
+1. **Find a job:** phone (**F4**) → **Jobs**. Every job shows the vehicle, what's wrong (engine failure, broken windshield or taillights, sometimes a flat tire), how far it is from you, the repair shop, the length of the tow, your pay and the XP you get under it. The jobs are sorted by the level they need, see [Levels](#levels).
 2. **Take it:** the route leads you to the breakdown. A marker floats above the car when you are close. It's yours now: the others see the job as taken.
 3. **Pick it up:** the car stands beside the road with the hazard lights on. From level 3 on, some jobs are **crashes**: the car is wrecked, sometimes on its roof (**Flip upright** in the Tow app puts it back on its wheels). A crashed car or one with an engine failure won't start (resetting it doesn't help). It's in neutral with the parking brake off, so you can tow it: on a flatbed, on a trailer, or with the rope and winch from the Tow app. Close to it, the route switches to the repair shop.
 4. **Deliver it:** at the shop a ring on the ground shows the drop-off zone. Leave the car standing in it for 3 seconds, with nobody inside. The pay goes to your account and the car is taken away. If you crash or lose the connection right then, the pay arrives on your next join.

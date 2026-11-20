@@ -214,6 +214,8 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 		bngApi.engineLua('if sharedCareer_jobs then sharedCareer_jobs.' + cmd + ' end');
 	};
 	$scope.money = function (v) { return '$' + Math.round(Number(v) || 0).toLocaleString('en-US'); };
+	// the XP a job gives, under its pay ('' without any)
+	$scope.xpText = function (v) { var xp = Math.round(Number(v) || 0); return xp > 0 ? '+' + xp + ' XP' : ''; };
 	// your level in a job type, in words ("Level 4 · 200 XP to level 5")
 	$scope.levelText = function (l) {
 		if (!l) return '';

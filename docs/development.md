@@ -147,7 +147,7 @@ Every job type levels on its own: towing level 8 doesn't help in a new job type,
 - **progress.json:** per profile and job type `{xp, level, stats = {done, givenUp, earned, deducted, bestTier}, history}` (the last 20 jobs). The level follows from the XP: `xpBase × (level − 1)^1.5` XP for a level (xpBase 100), at most `maxLevel` (10).
 - **Tiers:** tier t from level `tierLevel[t]` = 1, 3, 5, 8. A job of a higher tier is listed with `locked = true` and `sc_jobTake` refuses it; a tier a job type doesn't have is refused in `sc_jobOffer`.
 - **Pay:** the job's pay (at level 1) + `bonus` (5 %) per level above 1, worked out per player in `sc_jobs` and at the payout.
-- **XP:** `tierXp[tier]` (40, 70, 110, 160) × the share earned; `lowTierXp` (half) for a job two or more tiers below the player's highest. The payout carries the XP; the client adds it to the career's BeamXP and the job type's branch, if the career has them.
+- **XP:** `tierXp[tier]` (40, 70, 110, 160) × the share earned; `lowTierXp` (half) for a job two or more tiers below the player's highest. Every job in the list carries the XP it gives that player (`xp`, like `pay`), so the Jobs app shows them under the pay. The payout carries the XP; the client adds it to the career's BeamXP and the job type's branch, if the career has them.
 - **The Jobs app** has a section per job type with your level in it (a ring), and its jobs in groups by the level they need: yours first, the locked ones at the bottom.
 - **Enough jobs for everyone:** `wantedTiers` lists, per job type, tier 1 and the highest tier of every player online; the emptiest one is asked for next (`sc_jobGenerate {type, tier}`, every 5 s while one is missing), up to `server.jobsOpen` each.
 
