@@ -2030,11 +2030,12 @@ end
 -- 1) player without an own career layout: original + window
 joinWith({[ORIGINAL] = {apps = {{appName = "tacho2"}}, title = "career"}})
 check(hasMenuApp(files[CUSTOM]) and files[CUSTOM].apps[1].appName == "tacho2", "window added to the career layout (from the original)")
-check(files[CUSTOM].apps[2].placement.top == "600px", "placed right, below the player list")
+check(files[CUSTOM].apps[2].placement.top == "600px" and files[CUSTOM].apps[2].placement.height == "190px",
+	"placed right, below the player list")
 check(files["settings/sharedCareer/state.json"].menuAppAdded == true, "remembered: already added")
 local phoneApp
 for _, a in ipairs(files[CUSTOM].apps) do if a.appName == "sharedCareerPhone" then phoneApp = a end end
-check(phoneApp and phoneApp.placement.top == "760px" and phoneApp.placement.width == "30px"
+check(phoneApp and phoneApp.placement.top == "790px" and phoneApp.placement.width == "30px"
 	and files["settings/sharedCareer/state.json"].phoneAppAdded == true,
 	"phone tab added once, directly below the menu, only as big as the tab")
 -- 2) player removes it again -> NOT added again on the next join
@@ -2055,13 +2056,14 @@ end
 check(menuCount == 1 and phoneCount == 1, "menu not duplicated, phone tab is added")
 -- phone: own flag – players who remove the phone tab don't get it back
 joinWith({[CUSTOM] = {apps = {{appName = "sharedCareerMenu"}}},
-	["settings/sharedCareer/state.json"] = {menuAppAdded = true, phoneAppAdded = true, fuelAppRetired = true, phoneTabUp = true}})
+	["settings/sharedCareer/state.json"] = {menuAppAdded = true, phoneAppAdded = true, fuelAppRetired = true, phoneTabUp = true,
+		menuTaller = true, phoneTabBelowTallerMenu = true}})
 local phoneBack = 0
 for _, a in ipairs(files[CUSTOM].apps) do if a.appName == "sharedCareerPhone" then phoneBack = phoneBack + 1 end end
 check(phoneBack == 0, "removed phone tab is not forced back")
 -- update from 0.12: the separate fuel window is gone (it's on the phone now) -> taken out once,
 -- and the phone tab moves up to its place, directly below the menu
-joinWith({[CUSTOM] = {apps = {{appName = "sharedCareerMenu", placement = {right = "0px", top = "600px"}},
+joinWith({[CUSTOM] = {apps = {{appName = "sharedCareerMenu", placement = {right = "0px", top = "600px", height = "300px"}},
 	{appName = "sharedCareerFuel", placement = {right = "0px", top = "760px"}},
 	{appName = "sharedCareerPhone", placement = {right = "0px", top = "920px"}}}},
 	["settings/sharedCareer/state.json"] = {menuAppAdded = true, fuelAppAdded = true, phoneAppAdded = true}})
@@ -2072,9 +2074,19 @@ for _, a in ipairs(files[CUSTOM].apps) do
 end
 check(table.concat(names, ",") == "sharedCareerMenu,sharedCareerPhone",
 	"old fuel window removed from the layout (no red 'Unknown app' box): " .. table.concat(names, ","))
-check(phoneTop == "760px" and files[CUSTOM].apps[1].placement.top == "600px", "phone tab moved up below the menu; menu stays")
+check(phoneTop == "790px" and files[CUSTOM].apps[1].placement.top == "600px"
+	and files[CUSTOM].apps[1].placement.height == "300px",
+	"phone tab moved up below the menu; a menu the player resized keeps its size")
 local st = files["settings/sharedCareer/state.json"]
-check(st.fuelAppRetired == true and st.phoneTabUp == true, "both changes remembered (only once)")
+check(st.fuelAppRetired == true and st.phoneTabUp == true and st.menuTaller == true and st.phoneTabBelowTallerMenu == true,
+	"all changes remembered (only once)")
+-- update from 0.25: the menu gets taller, the phone tab moves down with it
+joinWith({[CUSTOM] = {apps = {
+		{appName = "sharedCareerMenu", placement = {right = "0px", top = "600px", width = "345px", height = "160px"}},
+		{appName = "sharedCareerPhone", placement = {right = "0px", top = "760px", width = "30px", height = "80px"}}}},
+	["settings/sharedCareer/state.json"] = {menuAppAdded = true, phoneAppAdded = true, fuelAppRetired = true, phoneTabUp = true}})
+check(files[CUSTOM].apps[1].placement.height == "190px" and files[CUSTOM].apps[2].placement.top == "790px",
+	"menu taller, phone tab right below it")
 -- the player moved the phone tab somewhere else -> it stays there
 joinWith({[CUSTOM] = {apps = {{appName = "sharedCareerPhone", placement = {right = "120px", top = "300px"}}}},
 	["settings/sharedCareer/state.json"] = {menuAppAdded = true, phoneAppAdded = true}})

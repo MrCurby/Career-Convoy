@@ -30,7 +30,7 @@
 .scMenu .scm-btn.scm-paused { background: rgba(255, 102, 0, 0.75); border-color: #ff6600; }
 
 /* content fits the window height; longer lists scroll */
-.scMenu .scm-body { padding: 6px 10px 8px; display: flex; flex-direction: column; gap: 6px; max-height: 118px; overflow-y: auto; }
+.scMenu .scm-body { padding: 6px 10px 8px; display: flex; flex-direction: column; gap: 6px; max-height: 148px; overflow-y: auto; }
 .scMenu .scm-scroll { gap: 4px; }
 .scMenu .scm-player { font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .scMenu .scm-status { font-size: 10px; padding: 1px 5px; border-radius: 8px; background: rgba(61, 90, 254, 0.8); white-space: nowrap; }
