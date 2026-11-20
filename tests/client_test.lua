@@ -2964,6 +2964,30 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	local fromModel = tow.generate(1).title
 	core_vehicles.getModel = nil
 	check(styled == "Sedan" and fromModel == "Full-size", "the job's title: the body style of the model, else of its config")
+	-- the kind of vehicle (the job's icon): from the body style, else the type; a car if nothing fits
+	world.junkerTrucks = true
+	local kinds = {}
+	for _ = 1, 400 do
+		local d = tow.generate(3).data
+		kinds[d.vehicle.model .. ":" .. tostring(d.kind)] = true
+	end
+	world.junkerTrucks = false
+	check(kinds["fullsize:car"] and kinds["pickup:pickup"] and kinds["van:van"] and kinds["roamer:suv"]
+		and not kinds["fullsize:nil"], "each job knows its kind of vehicle: car, pickup, van, suv")
+	core_vehicles.getModel = function(model)
+		local types = {bus = {["Body Style"] = "Bus", Type = "Truck"}, semi = {["Body Style"] = "Semi Truck", Type = "Truck"},
+			mini = {["Body Style"] = "Minivan", Type = "Car"}, cross = {["Body Style"] = "Crossover"},
+			pick = {["Body Style"] = "Pickup", Type = "Truck"}, boxy = {Type = "Truck"}, coupe = {["Body Style"] = "Coupe", Type = "Car"}}
+		return types[model] and {model = types[model]}
+	end
+	local iconOk = true
+	for model, want in pairs({bus = "bus", semi = "truck", mini = "van", cross = "suv", pick = "pickup", boxy = "truck", coupe = "car"}) do
+		local icon = tow.iconOf({data = {kind = tow.vehicleKind(model)}})
+		if icon ~= want then iconOk = false print("  " .. model .. ": " .. tostring(icon)) end
+	end
+	core_vehicles.getModel = nil
+	check(iconOk and tow.iconOf({data = {}}) == nil and tow.iconOf({data = {kind = "boat"}}) == nil,
+		"the icons by kind: bus, truck, van, suv, pickup, car; none for an unknown kind")
 	check(offer.tier == 1, "the server asked for nothing special: tier 1")
 	local okAll, lengthOk = true, true
 	for i = 1, 80 do
@@ -3043,7 +3067,7 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	-- the list arrives: the Jobs app (beta) is on the phone
 	local job = {id = 7, type = "tow", title = "Gavril Grand Marshal", pos = {x = 2000, y = -5.8, z = 10},
 		dest = {name = "Belasco Auto", pos = doors.belasco}, length = 2600, pay = 600, xp = 70,
-		data = {vehicle = {model = "fullsize", config = "base"}, flatTire = true, faults = {"engine"}, dir = {x = 1, y = 0}}}
+		data = {vehicle = {model = "fullsize", config = "base"}, kind = "car", flatTire = true, faults = {"engine"}, dir = {x = 1, y = 0}}}
 	local function sendList(state)
 		local j = json.decode(json.encode(job))
 		j.state = state
@@ -3066,8 +3090,13 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	jobs.appState()
 	check(near == first.distance and pathSearches == searches + 2 and math.abs(farther - 1725.8) < 0.01,
 		"moved a little: the same distance, no new search; moved 300 m: searched again")
-	check(first.icon == "tow" and first.title == "Gavril Grand Marshal" and #first.tags == 2
-		and first.tags[2].text == "Flat tire", "its icon, title and tags come from the towing job type")
+	check(first.icon == "car" and first.title == "Gavril Grand Marshal" and #first.tags == 2
+		and first.tags[2].text == "Flat tire", "its icon (the kind of vehicle), title and tags come from the towing job type")
+	job.data.kind = nil
+	sendList("open")
+	check(jobs.appState().sections[1].groups[1].jobs[1].icon == "tow", "a job without a kind of vehicle: the tow icon")
+	job.data.kind = "car"
+	sendList("open")
 	-- the jobs by level: yours first (the hardest at the top), then the locked ones (the nearest first)
 	local function listed(minLevel, locked, id)
 		local j = json.decode(json.encode(job))
