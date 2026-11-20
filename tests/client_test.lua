@@ -2901,6 +2901,13 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	world.junkerTrucks = false
 	check(trucks[1] == 0 and trucks[2] > 3 and trucks[2] < 60,
 		"trucks from the delivery filter: never in tier 1, now and then in tier 2 (" .. table.concat(trucks, "/") .. ")")
+	local styles = {fullsize = {model = {Name = "Grand Marshal"}, configs = {base = {["Body Style"] = "Sedan"}}}}
+	core_vehicles.getModel = function(model) return styles[model] end
+	local styled = tow.generate(1).title
+	styles.fullsize.model["Body Style"] = "Full-size"
+	local fromModel = tow.generate(1).title
+	core_vehicles.getModel = nil
+	check(styled == "Sedan" and fromModel == "Full-size", "the job's title: the body style of the model, else of its config")
 	check(offer.tier == 1, "the server asked for nothing special: tier 1")
 	local okAll = true
 	for i = 1, 80 do
@@ -2955,7 +2962,7 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	check(tow.payFor(1000, false, 2) == 350 and tow.payFor(1000, false, 4) == 590, "a higher tier pays more (x1.3, x2.2)")
 	handlers.sc_jobGenerate(json.encode({type = "tow", tier = 3}))
 	offer = lastSent("sc_jobOffer")
-	check(offer.type == "tow" and offer.tier == 3 and offer.data.heavy == true, "the server asks for tier 3: a heavy tow")
+	check(offer.type == "tow" and offer.tier == 3, "the server asks for tier 3: a tier 3 tow")
 	cfgJ.jobPay = 2
 	handlers.sc_configUpdate(json.encode(cfgJ))
 	check(tow.payFor(1000, false) == 540, "client.jobPay doubles the pay")

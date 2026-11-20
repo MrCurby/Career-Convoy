@@ -202,14 +202,27 @@ local function repairShops()
 	return shops
 end
 
+-- The game's info of a model: {model = {Name, Brand, Type, ["Body Style"], ...}, configs = {...}},
+-- or nil.
+local function modelInfo(model)
+	if not (core_vehicles and type(core_vehicles.getModel) == "function") then return nil end
+	local ok, data = pcall(core_vehicles.getModel, model)
+	return ok and type(data) == "table" and type(data.model) == "table" and data or nil
+end
+
 local function modelName(model)
-	local name = model:gsub("^%l", string.upper)
-	if core_vehicles and type(core_vehicles.getModel) == "function" then
-		local ok, data = pcall(core_vehicles.getModel, model)
-		local m = ok and type(data) == "table" and data.model
-		if type(m) == "table" and m.Name then name = (m.Brand and (m.Brand .. " ") or "") .. m.Name end
-	end
-	return name
+	local m = modelInfo(model)
+	if m and m.model.Name then return (m.model.Brand and (m.model.Brand .. " ") or "") .. m.model.Name end
+	return (model:gsub("^%l", string.upper))
+end
+
+-- The body style of a vehicle ("Sedan", "Pickup", ...): its model's, else its config's; or nil.
+local function bodyStyle(vehicle)
+	local m = modelInfo(vehicle.model)
+	if not m then return nil end
+	local c = vehicle.config and type(m.configs) == "table" and m.configs[vehicle.config]
+	return type(m.model["Body Style"]) == "string" and m.model["Body Style"]
+		or (type(c) == "table" and type(c["Body Style"]) == "string" and c["Body Style"]) or nil
 end
 
 -- Whether a vehicle is a pickup, van, bus or truck: from its config's info, else its model's.
@@ -219,9 +232,9 @@ local function isTruck(model, info)
 		return (tostring(t["Body Style"] or "") .. " " .. tostring(t.Type or "")):lower()
 	end
 	local text = words(info)
-	if text == " " and core_vehicles and type(core_vehicles.getModel) == "function" then
-		local ok, data = pcall(core_vehicles.getModel, model)
-		text = words(ok and type(data) == "table" and data.model)
+	if text == " " then
+		local m = modelInfo(model)
+		text = words(m and m.model)
 	end
 	for _, w in ipairs(TRUCK_WORDS) do
 		if text:find(w, 1, true) then return true end
@@ -333,33 +346,7 @@ function M.generate(tier)
 				local vehicle = pickVehicle(t)
 				local crash = pickCrash(t)
 				local faults = crash and {"engine"} or pickFaults()
-				--[[if (core_vehicles and type (core_vehicles.getModel) == "function") then
-				
-				local modelData = core_vehicles.getModel(vehicle.model)
-				local bodyStyle = modelData and modelData.BodyStyle or vehicle.name
-				return {title = bodyStyle, pos = spot.pos, dest = {name = pick.shop.name, pos = pick.shop.pos},
-					length = length, pay = M.payFor(length, flatTire, tier),
-					data = {vehicle = {model = vehicle.model, config = vehicle.config}, flatTire = flatTire, heavy = vehicle.heavy == true,
-						crash = crash, dir = spot.dir}}
-				end]]
-				
-			local style
-			if (core_vehicles and type(core_vehicles.getModel) == "function") then
-				local ok, info = pcall(core_vehicles.getModel, vehicle.model)
-				if ok and type(info) == "table" and info.model then
-				
-				local m = info.model
-				local c = vehicle.config and type(info.configs) == "table" and info.configs[vehicle.config]
-
-				style = type(m) == "table" and type(m["Body Style"]) == "string" and m["Body Style"]
-				or (type(c) == "table" and type(c["Body Style"]) == "string" and c["Body Style"]) or nil
-				end
-			end
-			
-
-				
-				
-	return {title = style or vehicle.name, pos = spot.pos, dest = {name = pick.shop.name, pos = pick.shop.pos},
+				return {title = bodyStyle(vehicle) or vehicle.name, pos = spot.pos, dest = {name = pick.shop.name, pos = pick.shop.pos},
 					length = length, pay = M.payFor(length, flatTire, tier),
 					data = {vehicle = {model = vehicle.model, config = vehicle.config}, flatTire = flatTire, heavy = vehicle.heavy == true,
 						crash = crash, faults = faults, dir = spot.dir}}

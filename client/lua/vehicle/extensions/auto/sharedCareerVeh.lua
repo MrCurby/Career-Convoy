@@ -784,7 +784,7 @@ end
 -- so the job can tell new damage at the drop-off (jobReportDamage -> onJobDamage). Every step is
 -- optional: a vehicle without one of them breaks down without it.
 
--- the deform group a fault breaks, by a part of its name
+-- the deform groups a fault breaks, by parts of their names
 local FAULT_PARTS = {windshield = {"windshield"}, taillights = {"tailgatelight", "taillight"}}
 
 local function damageNow()
@@ -824,7 +824,7 @@ function M.jobBreakDown(flatTire, faults)
 	pcall(function() electrics.set_warn_signal(true) end)
 	if flatTire then pcall(function() beamstate.deflateRandomTire() end) end
 	for kind, parts in pairs(FAULT_PARTS) do
-		if faults[kind] then 
+		if faults[kind] then
 			for _, part in ipairs(parts) do breakPart(part) end
 		end
 	end
