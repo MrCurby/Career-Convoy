@@ -26,7 +26,7 @@ Important messages appear as a notification or a dialog in the game, not only in
 
 ## The SharedCareer menu
 
-![SharedCareer menu: Time, Options and Players tabs](images/menu.png)
+![SharedCareer menu: Time, Traffic, Options and Players tabs](images/menu.png)
 
 One window for everything you can change in the game. **Every change applies to all players at once**, and everybody sees a short notification about who changed what. If several players have the menu open, all of them see the new values immediately.
 
