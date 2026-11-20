@@ -1708,6 +1708,22 @@ check(st and st.enabled == true and #st.apps == 3 and st.apps[1].id == "tow" and
 phoneHooks = {}
 phoneKey.onDown()
 check(lastPhone("SharedCareerPhoneToggle") ~= nil, "F4 takes the phone out / puts it away")
+-- game menus: opening one puts the phone away; F4 there only puts it away, never takes it out
+phoneHooks = {}
+sharedCareer_phone.onUiChangedState("pause", "play")
+check(lastPhone("SharedCareerPhoneAway") ~= nil, "a game menu opens: the phone goes away")
+phoneHooks = {}
+phoneKey.onDown()
+check(lastPhone("SharedCareerPhoneAway") ~= nil and lastPhone("SharedCareerPhoneToggle") == nil,
+	"F4 in a game menu: puts the phone away, doesn't take it out")
+_G.ui_menuManager = {getGameplayRoute = function() return "mission.play" end}
+phoneHooks = {}
+sharedCareer_phone.onUiChangedState("mission.play", "pause")
+check(lastPhone("SharedCareerPhoneAway") == nil, "back to driving (a mission's screen): the phone stays")
+phoneKey.onDown()
+check(lastPhone("SharedCareerPhoneToggle") ~= nil, "F4 while driving a mission: takes the phone out")
+_G.ui_menuManager = nil
+sharedCareer_phone.onUiChangedState("play", "mission.play")
 -- apps register themselves (for later): sorted by order, then title; no functions in the window state
 local opened = 0
 check(sharedCareer_phone.registerApp({id = "taxi", title = "Taxi", icon = "T", color = "#e0a800", order = 20,

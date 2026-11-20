@@ -9,7 +9,8 @@
 // Data: guihook "SharedCareerPhone" {enabled, apps} from phone.lua, "SharedCareerState" (time,
 // players, connection, fuel prices) from menu.lua every second, "SharedCareerTow" from tow.lua and
 // "SharedCareerStraps" from straps.lua while their app is open, "SharedCareerJobs" (jobs and your
-// job) from jobs.lua, "SharedCareerPhoneToggle" from the key.
+// job) from jobs.lua, "SharedCareerPhoneToggle" from the key, "SharedCareerPhoneAway" (a game menu
+// is open: the phone goes away, the key does not take it out there).
 // menu.lua only sends "SharedCareerState" while someone looks: the phone reports "phone" (out)
 // and "fuel" (Fuel app open) with sharedCareer_menu.uiVisible on every change and every 2 s.
 // Opening the phone collapses the menu and the other way round (window event
@@ -326,6 +327,9 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 	});
 	$scope.$on('SharedCareerPhoneToggle', function () {
 		$scope.$evalAsync(function () { if ($scope.enabled) setOpen(!$scope.open); });
+	});
+	$scope.$on('SharedCareerPhoneAway', function () {
+		$scope.$evalAsync(function () { if ($scope.open) setOpen(false); });
 	});
 	$scope.$on('SharedCareerState', function (event, data) {
 		$scope.$evalAsync(function () {

@@ -77,6 +77,12 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 	phone.emit('SharedCareerPhoneToggle');
 	check(phone.open && last(env, 'phone') === true, 'phone key (F4): out, reported');
 	phone.openApp({id: 'fuel'});
+	phone.emit('SharedCareerPhoneAway');
+	check(!phone.open && last(env, 'phone') === false && last(env, 'fuel') === false, 'game menu: phone away, not visible');
+	phone.emit('SharedCareerPhoneAway');
+	check(!phone.open, 'game menu, phone already away: stays away');
+	phone.emit('SharedCareerPhoneToggle');
+	phone.openApp({id: 'fuel'});
 	phone.emit('SharedCareerPhone', {enabled: false, apps: []});
 	check(!phone.open && last(env, 'phone') === false && last(env, 'fuel') === false, 'phone switched off by the server: not visible');
 
