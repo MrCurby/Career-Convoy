@@ -6,10 +6,13 @@
 // day and night; the server applies that for everyone immediately. − and + walk through the same
 // round values for day and night (LENGTHS: 1, 5, 10, ... 600 min), in bigger steps the longer it
 // gets; a length between two of them (set in the config) goes to the next one.
-// "Pause" stops the clock for everyone at the current time, "Resume" lets it run on from there.
-// Traffic tab: driving/parked cars per player, AI driving style.
-// Options tab: collision with cars/players on foot, synced traffic lights, status on name tags,
-// server limit.
+// "Clock" is one group of three: Run, Pause (stops the clock for everyone at the current time) and
+// Real time (the time follows the real clock in the server's time zone; the other time buttons are hidden then, they
+// would work against it).
+// Traffic tab: a small table – driving/parked cars per player and the server's limit – and the AI
+// driving style; below it what this player gets.
+// Options tab: switches for collision with cars/players on foot, synced traffic lights, status on
+// name tags.
 // Players tab: Navigate (route to the player), Watch (camera), Go (teleport, only if the
 // server allows it). Player names are passed to Lua as JSON strings.
 // Fuel prices are an app on the phone (SharedCareer-Phone, same data and styles).
@@ -24,7 +27,7 @@
 // lua/ge/extensions/sharedCareer/menu.lua (state) – only while someone looks: the window reports
 // "menu" visible with sharedCareer_menu.uiVisible on every expand/collapse and every 2 s while
 // expanded (see menu.lua). Clicks go via bngApi.engineLua to
-// sharedCareer_env (time: uiSetHour / uiShiftHour / uiSetPaused / uiSetLengths),
+// sharedCareer_env (time: uiSetHour / uiShiftHour / uiSetPaused / uiSetRealtime / uiSetLengths),
 // sharedCareer_menu (settings) and sharedCareer_players (Players tab).
 //
 // Note: only var/function at the top level – the game evaluates app.js again in the same
@@ -174,6 +177,16 @@ sharedCareerMenuApp.controller('SharedCareerMenu', ['$scope', '$element', functi
 		setPending(key, Math.max(min, Math.min(max, v + delta)), SEND_DELAY);
 	};
 
+	// Options tab: one switch each. `invert`: the setting says the opposite of the label
+	// (ghost = no collision).
+	$scope.OPTIONS = [
+		{key: 'client.remoteVehicleGhost', label: "Collision with other players' cars", invert: true},
+		{key: 'client.remoteUnicycleGhost', label: 'Collision with players on foot', invert: true},
+		{key: 'server.trafficSignalSync', label: 'Synced traffic lights'},
+		{key: 'client.showPlayerStatus', label: 'Player status on name tags'},
+	];
+	$scope.optionOn = function (o) { return o.invert ? !$scope.val(o.key) : !!$scope.val(o.key); };
+
 	$scope.toggle = function (key) {
 		if (!$scope.canEdit()) return;
 		setPending(key, !$scope.val(key), 0);
@@ -192,15 +205,24 @@ sharedCareerMenuApp.controller('SharedCareerMenu', ['$scope', '$element', functi
 		return "fast";
 	};
 
-	// "you: 5 · live up to 10" – what this player gets and how far it goes without re-joining
-	$scope.trafficHint = function (kind) {
+	// Traffic table: the setting per player and the server's limit for a row ('road' / 'parked')
+	$scope.trafficKey = function (kind) { return kind === 'road' ? 'client.roadTraffic' : 'client.parkedTraffic'; };
+	$scope.totalKey = function (kind) { return kind === 'road' ? 'server.roadTrafficTotal' : 'server.parkedTrafficTotal'; };
+
+	// "You: 5 driving, 8 parked · 3 online" – what this player gets now (the server limit shared,
+	// at most the cars loaded at the join); "· rejoin for more" only when the share is bigger
+	$scope.trafficNote = function () {
 		var s = ($scope.state && $scope.state.settings) || {};
-		var share = kind === 'road' ? s.shareRoad : s.shareParked;
-		var pool = kind === 'road' ? s.poolRoad : s.poolParked;
-		var parts = [];
-		if (typeof share === "number") parts.push("you: " + Math.min(share, typeof pool === "number" ? pool : share));
-		if (typeof pool === "number") parts.push("live up to " + pool);
-		return parts.join(" · ");
+		var more = false;
+		function gets(share, pool) {
+			if (typeof share !== "number") return "?";
+			if (typeof pool !== "number") return share;
+			if (share > pool) more = true;
+			return Math.min(share, pool);
+		}
+		var text = "You: " + gets(s.shareRoad, s.poolRoad) + " driving, " + gets(s.shareParked, s.poolParked) +
+			" parked · " + (s.players || 1) + " online";
+		return more ? text + " · rejoin for more" : text;
 	};
 	// lengths that were just set but not confirmed by the server yet: {day, night, age, timer}
 	$scope.pending = null;
@@ -237,6 +259,7 @@ sharedCareerMenuApp.controller('SharedCareerMenu', ['$scope', '$element', functi
 		if (!s || typeof s.hour !== "number") return "";
 		var phase = s.isDay ? "Day" : "Night";
 		if (s.paused) return phase + " · paused";
+		if (s.realtime) return phase + " · real time";
 		if (!s.running) return phase + " · stopped";
 		if (typeof s.secondsToSwitch !== "number") return phase;
 		var min = Math.max(0, Math.round(s.secondsToSwitch / 60));
@@ -267,9 +290,22 @@ sharedCareerMenuApp.controller('SharedCareerMenu', ['$scope', '$element', functi
 		timeControl('uiSetHour(' + Number(hour) + ')');
 	};
 
-	$scope.togglePause = function () {
+	// "run", "pause" or "real" (real time)
+	$scope.clockMode = function () {
+		var s = $scope.state || {};
+		if (s.realtime) return "real";
+		return s.paused ? "pause" : "run";
+	};
+
+	// Pause also ends real time (the server stops the clock at the real time).
+	$scope.setClockMode = function (mode) {
 		if (!$scope.state || !$scope.state.canControl) return;
-		timeControl('uiSetPaused(' + ($scope.state.paused ? 'false' : 'true') + ')');
+		var current = $scope.clockMode();
+		if (mode === current) return;
+		if (mode === "real") timeControl('uiSetRealtime(true)');
+		else if (mode === "pause") timeControl('uiSetPaused(true)');
+		else if (current === "real") timeControl('uiSetRealtime(false)');
+		else timeControl('uiSetPaused(false)');
 	};
 
 	// direction 1 (+) or -1 (−); sent once the clicks stop (SEND_DELAY)

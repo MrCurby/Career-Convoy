@@ -377,6 +377,97 @@ check(lastTo(0, "sc_time").hour > tpz.hour + 0.1, "afterwards the clock runs aga
 check(onConsoleInput("sc time stop"):find("paused") ~= nil and lastTo(0, "sc_time").paused == true, "sc time stop")
 check(onConsoleInput("sc time start"):find("running again") ~= nil and lastTo(0, "sc_time").paused == false, "sc time start")
 
+--== Real time (the server's clock) ==
+local realDate = os.date
+local clockNow = {hour = 14, min = 15, sec = 36}
+os.date = function(fmt, ...)
+	if fmt == "*t" then return {hour = clockNow.hour, min = clockNow.min, sec = clockNow.sec} end
+	return realDate(fmt, ...)
+end
+fakeTime = fakeTime + 5
+sc_timeControl(1, json.encode({action = "pause", paused = true}))
+fakeTime = fakeTime + 2
+sc_timeControl(1, json.encode({action = "realtime", on = true}))
+local rt = lastTo(0, "sc_time")
+check(rt.realtime == true and math.abs(rt.hour - 14.26) < 0.001, "real time: the server's clock for everyone")
+check(rt.play == true and rt.paused == false and rt.dayLength == 86400 and rt.dayLengthDay == 86400
+	and rt.dayLengthNight == 86400, "real time: real speed, a pause no longer applies")
+check(lastChat(0):find("Ben turned on real time") ~= nil, "everyone sees who turned on real time")
+check(onConsoleInput("sc get"):find("server.realtimeSync = true") ~= nil, "real time is saved")
+clockNow = {hour = 21, min = 0, sec = 0}
+sc_timeTick()
+check(math.abs(lastTo(0, "sc_time").hour - 21) < 0.001, "real time: follows the clock on every sync")
+fakeTime = fakeTime + 2
+sentBefore = countTo(0, "sc_time")
+sc_timeControl(1, json.encode({action = "set", hour = 8}))
+check(math.abs(lastTo(0, "sc_time").hour - 21) < 0.001 and lastTo(1, "sc_time").realtime == true,
+	"real time: setting a time from the window is ignored")
+check(onConsoleInput("sc time"):find("real time") ~= nil, "sc time shows real time")
+fakeTime = fakeTime + 2
+sc_timeControl(1, json.encode({action = "realtime", on = false}))
+local off = lastTo(0, "sc_time")
+check(off.realtime == false and off.play == true and math.abs(off.hour - 21) < 0.001, "real time off: runs on from the real time")
+check(onConsoleInput("sc time real"):find("21:00") ~= nil and lastTo(0, "sc_time").realtime == true, "sc time real")
+fakeTime = fakeTime + 2
+sc_timeControl(1, json.encode({action = "pause", paused = true}))
+local rp = lastTo(0, "sc_time")
+check(rp.realtime == false and rp.paused == true and math.abs(rp.hour - 21) < 0.001, "Pause ends real time, stops at the real time")
+fakeTime = fakeTime + 2
+sc_timeControl(1, json.encode({action = "realtime", on = true}))
+check(onConsoleInput("sc time 10:00"):find("10:00") ~= nil and lastTo(0, "sc_time").realtime == false
+	and math.abs(lastTo(0, "sc_time").hour - 10) < 0.001, "sc time <HH:MM> ends real time")
+os.date = realDate
+
+--== Real time in a time zone (summer/winter time computed by the mod) ==
+local realTime = os.time
+local utcNow = 0
+os.time = function(...) if select("#", ...) == 0 then return utcNow end return realTime(...) end
+onConsoleInput("sc time real")
+local function zoneHour(zone, utc)
+	onConsoleInput("sc set server.realtimeZone " .. zone)
+	utcNow = utc
+	sc_timeTick()
+	return lastTo(0, "sc_time").hour
+end
+local function near(a, h, m) return math.abs(a - (h + m / 60)) < 0.001 end
+local zoneCases = {
+	-- zone, UTC second, expected local hour, minute, what
+	{"Europe/Berlin", 1768478400, 13, 0, "Berlin in winter: UTC+1"},
+	{"Europe/Berlin", 1782907200, 14, 0, "Berlin in summer: UTC+2"},
+	{"Europe/Berlin", 1774745940, 1, 59, "Berlin: one minute before summer time"},
+	{"Europe/Berlin", 1774746000, 3, 0, "Berlin: summer time starts (last Sunday of March)"},
+	{"Europe/Berlin", 1792889940, 2, 59, "Berlin: one minute before winter time"},
+	{"Europe/Berlin", 1792890000, 2, 0, "Berlin: winter time starts (last Sunday of October)"},
+	{"Europe/London", 1782907200, 13, 0, "London in summer: UTC+1"},
+	{"America/New_York", 1772953140, 1, 59, "New York: one minute before summer time"},
+	{"America/New_York", 1772953200, 3, 0, "New York: summer time starts (second Sunday of March)"},
+	{"America/New_York", 1793512740, 1, 59, "New York: one minute before winter time"},
+	{"America/New_York", 1793512800, 1, 0, "New York: winter time starts (first Sunday of November)"},
+	{"America/Phoenix", 1782907200, 5, 0, "Phoenix: no summer time"},
+	{"Australia/Sydney", 1768478400, 23, 0, "Sydney in January: summer time, UTC+11"},
+	{"Australia/Sydney", 1775318340, 2, 59, "Sydney: one minute before winter time"},
+	{"Australia/Sydney", 1775318400, 2, 0, "Sydney: winter time starts (first Sunday of April)"},
+	{"UTC+5:30", 1782907200, 17, 30, "UTC+5:30"},
+	{"UTC-3", 1768478400, 9, 0, "UTC-3"},
+	{"Europe/Berlin", 1835479800, 0, 30, "Berlin: leap day into March 1"},
+}
+for _, c in ipairs(zoneCases) do
+	local h = zoneHour(c[1], c[2])
+	check(near(h, c[3], c[4]), string.format("%s (%.3f)", c[5], h))
+end
+check(onConsoleInput("sc time"):find("Europe/Berlin") ~= nil, "sc time names the time zone")
+os.date = function(fmt, ...)
+	if fmt == "*t" then return {hour = 7, min = 0, sec = 0} end
+	return realDate(fmt, ...)
+end
+check(near(zoneHour("Mars/Base", 1782907200), 7, 0), "unknown time zone: the server's local time")
+onConsoleInput("sc set server.realtimeZone") -- no value = empty
+sc_timeTick()
+check(near(lastTo(0, "sc_time").hour, 7, 0) and onConsoleInput("sc time"):find("server clock") ~= nil,
+	"no time zone: the server's local time")
+os.date, os.time = realDate, realTime
+onConsoleInput("sc time 10:00")
+
 --== Settings from the SharedCareer menu ==
 fakeTime = fakeTime + 5
 local updatesBefore = countTo(0, "sc_configUpdate")

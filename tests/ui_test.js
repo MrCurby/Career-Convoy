@@ -68,6 +68,52 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 	check(menu.pending === null && menu.lengths().day === 600, 'confirmed by the server: its values are shown');
 }
 
+// clock: one choice of three (Run / Pause / Real time)
+{
+	const env = makeEnv({sharedCareerMenuCollapsed: '0'});
+	const menu = load(...MENU, env);
+	const lastTime = () => env.calls.filter(c => c.includes('sharedCareer_env.')).pop();
+	menu.emit('SharedCareerState', {canControl: true});
+	check(menu.clockMode() === 'run', 'clock running: Run is chosen');
+	const before = env.calls.length;
+	menu.setClockMode('run');
+	check(env.calls.length === before, 'the chosen one again: nothing sent');
+	menu.setClockMode('pause');
+	check(lastTime().includes('uiSetPaused(true)'), 'Pause pauses the clock');
+	menu.emit('SharedCareerState', {canControl: true, paused: true});
+	menu.setClockMode('run');
+	check(menu.clockMode() === 'pause' && lastTime().includes('uiSetPaused(false)'), 'paused -> Run resumes');
+	menu.setClockMode('real');
+	check(lastTime().includes('uiSetRealtime(true)'), 'Real time turns it on');
+	menu.emit('SharedCareerState', {canControl: true, realtime: true, paused: false});
+	menu.setClockMode('run');
+	check(menu.clockMode() === 'real' && lastTime().includes('uiSetRealtime(false)'), 'real time -> Run turns it off');
+	menu.setClockMode('pause');
+	check(lastTime().includes('uiSetPaused(true)'), 'real time -> Pause (the server ends real time)');
+	const n = env.calls.length;
+	menu.emit('SharedCareerState', {canControl: false});
+	menu.setClockMode('pause');
+	check(env.calls.length === n, 'no control: nothing sent');
+}
+
+// traffic note and option switches
+{
+	const env = makeEnv({sharedCareerMenuCollapsed: '0'});
+	const menu = load(...MENU, env);
+	const settings = {canEdit: true, players: 3, shareRoad: 5, shareParked: 8, poolRoad: 10, poolParked: 12,
+		remoteVehicleGhost: true, trafficSignalSync: true};
+	menu.emit('SharedCareerState', {settings});
+	check(menu.trafficNote() === 'You: 5 driving, 8 parked · 3 online', 'traffic note: ' + menu.trafficNote());
+	menu.emit('SharedCareerState', {settings: Object.assign({}, settings, {shareRoad: 14})});
+	check(menu.trafficNote() === 'You: 10 driving, 8 parked · 3 online · rejoin for more',
+		'more than loaded at the join: ' + menu.trafficNote());
+	const opt = (key) => menu.OPTIONS.filter(o => o.key === key)[0];
+	check(menu.optionOn(opt('client.remoteVehicleGhost')) === false && menu.optionOn(opt('server.trafficSignalSync')) === true,
+		'switches: ghost cars = collision off, synced lights on');
+	check(menu.trafficKey('parked') === 'client.parkedTraffic' && menu.totalKey('road') === 'server.roadTrafficTotal',
+		'traffic table: setting per row and column');
+}
+
 //== Phone alone ==
 {
 	const env = makeEnv({});

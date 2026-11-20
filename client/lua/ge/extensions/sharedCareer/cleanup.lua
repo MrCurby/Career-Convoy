@@ -41,7 +41,7 @@ local APPS = {
 	{
 		appName = "sharedCareerMenu", stateKey = "menuAppAdded", label = "SharedCareer menu",
 		-- right, below the BeamMP player list (which reaches down to about 590 px)
-		placement = {position = "absolute", right = "0px", top = "600px", width = "345px", height = "160px",
+		placement = {position = "absolute", right = "0px", top = "600px", width = "345px", height = "190px",
 			left = "", bottom = ""},
 	},
 	{
@@ -50,7 +50,7 @@ local APPS = {
 		-- app frame never blocks clicks elsewhere. BeamNG's frame around an app catches clicks over
 		-- its whole area – apps must never overlap (0.8.0–0.8.3: the steering-wheel tab couldn't be
 		-- clicked).
-		placement = {position = "absolute", right = "0px", top = "760px", width = "30px", height = "80px",
+		placement = {position = "absolute", right = "0px", top = "790px", width = "30px", height = "80px",
 			left = "", bottom = ""},
 	},
 }
@@ -116,6 +116,12 @@ local MOVES = {
 	{stateKey = "fuelAppRetired", appName = "sharedCareerFuel", remove = true},
 	-- ... and the phone tab takes its place directly below the menu
 	{stateKey = "phoneTabUp", appName = "sharedCareerPhone", from = {right = "0px", top = "920px"}, to = {top = "760px"}},
+	-- 0.26.0: the menu is taller (the Time tab has the "Clock" row) ...
+	{stateKey = "menuTaller", appName = "sharedCareerMenu", from = {right = "0px", top = "600px", height = "160px"},
+		to = {height = "190px"}},
+	-- ... and the phone tab moves down with it, so the two never overlap
+	{stateKey = "phoneTabBelowTallerMenu", appName = "sharedCareerPhone", from = {right = "0px", top = "760px"},
+		to = {top = "790px"}},
 }
 
 function M.moveAppsOnce()

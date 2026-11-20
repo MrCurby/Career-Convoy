@@ -32,6 +32,7 @@
 --   sc time                           show the current time and the day/night length
 --   sc time <HH:MM | hour>            set the time for everyone, e.g. sc time 18:30
 --   sc time stop | start              pause the clock (time stands still) / let it run again
+--   sc time real                      the time follows the real clock (server.realtimeZone)
 --   sc players                        players and whether their career is running
 --   sc fuel | sc fuel reset           show station discounts / reset all of them
 --   sc jobs | sc jobs reset           show the jobs / drop all of them (new ones follow)
@@ -51,7 +52,8 @@
 --                        profile}     sc_traffic     {road, parked}  new traffic share
 --   sc_vehReport        {id: {active, sc_time        {hour, play, dayLength, dayLengthDay,
 --                        traffic}}                    dayLengthNight, dayStart, nightStart,
---                                                     dayMinutes, nightMinutes, canControl}
+--                                                     dayMinutes, nightMinutes, canControl,
+--                                                     paused, realtime}
 --   sc_vehStatesRequest               sc_signals     traffic light cycle (seconds)
 --   sc_damage           {id, damage}  sc_damage      {id, damage} a vehicle's damage | {id, cleared = true}
 --   sc_damageRequest    {id}          sc_damageRequest {id}  (to the owner) send it again
@@ -59,7 +61,7 @@
 --   sc_payDebitResult   {id, ok}      sc_payDebit / sc_payCredit   money transfer
 --   sc_payCreditAck     {id}
 --   sc_timeControl      {action = "set", hour} | {action = "lengths", dayMinutes, nightMinutes}
---                       | {action = "pause", paused = true|false}
+--                       | {action = "pause", paused = true|false} | {action = "realtime", on = true|false}
 --   sc_setSetting       {key = "client.roadTraffic", value}  (menu, allowed settings only)
 --   sc_status           {status = driving|walking|mission|loading}
 --   Server -> Client: sc_dialog {title, body, warning}  message as a dialog in the menu window
@@ -75,7 +77,7 @@
 --   sc_jobPaidAck {payout}                           credit this (again until sc_jobPaidAck)
 --                       (from the SharedCareer menu window)
 
-local VERSION = "0.25.0"
+local VERSION = "0.26.0"
 local TAG = "[SharedCareer] "
 
 local CONFIG_DIR = "Resources/Server/SharedCareer/config"
@@ -119,9 +121,18 @@ local DEFAULTS = {
 		fuelMaxDiscount = 30,         -- at most this many % cheaper
 		fuelRecoveryPercent = 1,      -- the discount drops by this many percentage points ...
 		fuelRecoveryMinutes = 5,      -- ... every this many minutes (the price slowly returns)
-		-- Clock paused: the time stands still until someone presses "Resume" (window) or types
+		-- Clock paused: the time stands still until someone presses "Run" (window) or types
 		-- sc time start. Pause: window or sc time stop.
 		timePaused = false,
+		-- Real time: the time of day follows the real clock at real speed; the start time,
+		-- day/night length and pause don't apply then. Switch in the menu ("Real time") or
+		-- sc time real; "Run" / "Pause" in the menu, setting a time or sc time stop | start
+		-- switch it off.
+		realtimeSync = false,
+		-- Time zone for real time, with summer/winter time, e.g. "Europe/Berlin",
+		-- "America/New_York" or "UTC+2" (no summer time). Empty = the server's own local time
+		-- (right only if the server's system has the right time zone; many servers run on UTC).
+		realtimeZone = "",
 		-- Traffic for the whole server (0 = no limit). Every player gets
 		-- client.roadTraffic / client.parkedTraffic until the sum exceeds the limit;
 		-- then the limit is split evenly.
@@ -602,8 +613,110 @@ end
 -- run at their own speed (game hours per real second); the clock is computed ahead piece by
 -- piece up to the next boundary (day start / night start). Players sync every 30 s and
 -- switch to the other speed themselves when day/night changes.
+-- Real time (server.realtimeSync): the clock is the server's local time instead.
 
 local timeState = nil
+local REAL_DAY_SECONDS = 24 * 60 * 60
+
+-- Time zones for server.realtimeZone: hours from UTC in winter, and the summer time rule.
+-- Lua has no time zone database, so the rules are computed here (in UTC):
+--   eu  last Sunday of March 01:00 UTC to last Sunday of October 01:00 UTC
+--   us  second Sunday of March 2:00 to first Sunday of November 2:00 (local time)
+--   au  first Sunday of October 2:00 to first Sunday of April 3:00 (local time, southern half)
+local TIME_ZONES = {
+	["UTC"] = {0}, ["Europe/London"] = {0, "eu"}, ["Europe/Dublin"] = {0, "eu"}, ["Europe/Lisbon"] = {0, "eu"},
+	["Europe/Berlin"] = {1, "eu"}, ["Europe/Vienna"] = {1, "eu"}, ["Europe/Zurich"] = {1, "eu"},
+	["Europe/Paris"] = {1, "eu"}, ["Europe/Brussels"] = {1, "eu"}, ["Europe/Amsterdam"] = {1, "eu"},
+	["Europe/Luxembourg"] = {1, "eu"}, ["Europe/Madrid"] = {1, "eu"}, ["Europe/Rome"] = {1, "eu"},
+	["Europe/Copenhagen"] = {1, "eu"}, ["Europe/Oslo"] = {1, "eu"}, ["Europe/Stockholm"] = {1, "eu"},
+	["Europe/Warsaw"] = {1, "eu"}, ["Europe/Prague"] = {1, "eu"}, ["Europe/Budapest"] = {1, "eu"},
+	["Europe/Helsinki"] = {2, "eu"}, ["Europe/Athens"] = {2, "eu"}, ["Europe/Bucharest"] = {2, "eu"},
+	["Europe/Kyiv"] = {2, "eu"}, ["Europe/Istanbul"] = {3}, ["Europe/Moscow"] = {3},
+	["America/New_York"] = {-5, "us"}, ["America/Toronto"] = {-5, "us"}, ["America/Chicago"] = {-6, "us"},
+	["America/Denver"] = {-7, "us"}, ["America/Phoenix"] = {-7}, ["America/Los_Angeles"] = {-8, "us"},
+	["America/Vancouver"] = {-8, "us"}, ["America/Anchorage"] = {-9, "us"}, ["Pacific/Honolulu"] = {-10},
+	["America/Sao_Paulo"] = {-3}, ["Asia/Dubai"] = {4}, ["Asia/Kolkata"] = {5.5}, ["Asia/Shanghai"] = {8},
+	["Asia/Singapore"] = {8}, ["Asia/Tokyo"] = {9}, ["Australia/Brisbane"] = {10},
+	["Australia/Sydney"] = {10, "au"}, ["Australia/Melbourne"] = {10, "au"}, ["Pacific/Auckland"] = {12},
+}
+
+-- Days since 1970-01-01 for a date (any year, no time zone involved).
+local function daysFromCivil(y, m, d)
+	if m <= 2 then y = y - 1 end
+	local era = (y >= 0 and y or y - 399) // 400
+	local yoe = y - era * 400
+	local doy = (153 * (m > 2 and m - 3 or m + 9) + 2) // 5 + d - 1
+	local doe = yoe * 365 + yoe // 4 - yoe // 100 + doy
+	return era * 146097 + doe - 719468
+end
+
+-- Day of the month of the n-th Sunday (n = -1: the last one).
+local function sunday(y, m, n)
+	if n > 0 then
+		local weekday = (daysFromCivil(y, m, 1) + 4) % 7 -- 0 = Sunday
+		return 1 + (7 - weekday) % 7 + 7 * (n - 1)
+	end
+	local last = daysFromCivil(m == 12 and y + 1 or y, m == 12 and 1 or m + 1, 1) - daysFromCivil(y, m, 1)
+	return last - (daysFromCivil(y, m, last) + 4) % 7
+end
+
+-- UTC seconds of a day at `hour` UTC.
+local function utcAt(y, m, d, hour)
+	return daysFromCivil(y, m, d) * 86400 + hour * 3600
+end
+
+-- Is summer time on at UTC second `t` for a zone with `offset` hours and `rule`?
+local function summerTime(t, offset, rule)
+	local y = os.date("!*t", t).year
+	if rule == "eu" then
+		return t >= utcAt(y, 3, sunday(y, 3, -1), 1) and t < utcAt(y, 10, sunday(y, 10, -1), 1)
+	elseif rule == "us" then
+		return t >= utcAt(y, 3, sunday(y, 3, 2), 2 - offset) and t < utcAt(y, 11, sunday(y, 11, 1), 2 - offset - 1)
+	elseif rule == "au" then
+		return t >= utcAt(y, 10, sunday(y, 10, 1), 2 - offset) or t < utcAt(y, 4, sunday(y, 4, 1), 3 - offset - 1)
+	end
+	return false
+end
+
+-- {offset, rule} for server.realtimeZone; nil = the server's own local time.
+-- Besides the names above: "UTC+2", "UTC-5", "UTC+5:30" (no summer time).
+local warnedZone = nil
+local function timeZone()
+	local name = tostring(Config.server.realtimeZone or "")
+	if name == "" then return nil end
+	if TIME_ZONES[name] then return TIME_ZONES[name] end
+	local sign, h, m = name:match("^UTC([+-])(%d+):?(%d*)$")
+	if sign then return {(tonumber(h) + (tonumber(m) or 0) / 60) * (sign == "-" and -1 or 1)} end
+	if warnedZone ~= name then
+		warnedZone = name
+		log("unknown time zone \"" .. name .. "\" in server.realtimeZone – using the server's local time")
+	end
+	return nil
+end
+
+-- For messages: the zone that real time uses.
+local function zoneLabel()
+	return timeZone() and tostring(Config.server.realtimeZone) or "server clock"
+end
+
+-- The real time as hour 0–24: in server.realtimeZone, otherwise the server's local time
+-- (summer/winter time included in both).
+local function realHour()
+	local zone = timeZone()
+	local t
+	if zone then
+		local utc = os.time()
+		local offset = zone[1] + (summerTime(utc, zone[1], zone[2]) and 1 or 0)
+		t = os.date("!*t", utc + math.floor(offset * 3600 + 0.5))
+	else
+		t = os.date("*t")
+	end
+	return t.hour + t.min / 60 + t.sec / 3600
+end
+
+local function realtimeOn()
+	return Config.server.realtimeSync == true
+end
 
 -- {dayStart, nightStart, daySpeed, nightSpeed} or nil when time stands still.
 local function timePhases()
@@ -645,6 +758,7 @@ local function advance(hour, seconds, ph)
 end
 
 local function currentHour()
+	if realtimeOn() then return realHour() end
 	if not timeState then timeState = {hour = (tonumber(Config.server.startHour) or 10) % 24, at = now()} end
 	local ph = timePhases()
 	if not ph or Config.server.timePaused == true then return timeState.hour end
@@ -672,9 +786,20 @@ local function timePayload()
 		nightMinutes = tonumber(Config.server.nightMinutes) or 0,
 		canControl = Config.server.allowPlayerTimeControl == true,
 		paused = paused,
+		realtime = false,
 	}
 	local payload
-	if not ph or paused then
+	if realtimeOn() then
+		local dayStart = tonumber(Config.server.dayStartHour) or 6
+		local nightStart = tonumber(Config.server.nightStartHour) or 20
+		if ph then dayStart, nightStart = ph.dayStart, ph.nightStart end
+		payload = {
+			hour = hour, play = true,
+			dayLength = REAL_DAY_SECONDS, dayLengthDay = REAL_DAY_SECONDS, dayLengthNight = REAL_DAY_SECONDS,
+			dayStart = dayStart, nightStart = nightStart,
+		}
+		extra.paused, extra.realtime = false, true
+	elseif not ph or paused then
 		payload = {hour = hour, play = false, dayLength = 0,
 			dayStart = tonumber(Config.server.dayStartHour) or 6, nightStart = tonumber(Config.server.nightStartHour) or 20}
 	else
@@ -702,7 +827,19 @@ local function formatHour(hour)
 	return string.format("%02d:%02d", h, m)
 end
 
-local TIME_KEYS = {dayMinutes = true, nightMinutes = true, dayStartHour = true, nightStartHour = true, timePaused = true}
+local TIME_KEYS = {dayMinutes = true, nightMinutes = true, dayStartHour = true, nightStartHour = true, timePaused = true,
+	realtimeSync = true}
+
+-- Real time on/off. Off: pin the real time first, so the clock runs on from there without
+-- a jump. On: a pause no longer applies, so it is lifted.
+local function setRealtime(on)
+	if realtimeOn() == on then return false end
+	rebaseTime()
+	Config.server.realtimeSync = on
+	if on then Config.server.timePaused = false end
+	saveConfig()
+	return true
+end
 
 -- Pause/resume the clock. Pin the current time first, so it stops exactly there
 -- or runs on from there.
@@ -1586,6 +1723,9 @@ end
 --   {action = "set", hour = 0..24}                               set the time for everyone
 --   {action = "lengths", dayMinutes = 1..600, nightMinutes = 1..600}  day/night length
 --   {action = "pause", paused = true|false}                       pause / resume the clock
+--   {action = "realtime", on = true|false}                        follow the real clock
+-- While real time is on, "set" and "lengths" are ignored (the window hides them); "pause"
+-- ends real time and stops the clock at the real time.
 -- At most one change per second and player; everyone gets a notification.
 local TIME_CONTROL_COOLDOWN = 1
 local LENGTH_MIN, LENGTH_MAX = 1, 600
@@ -1609,20 +1749,29 @@ function sc_timeControl(player_id, data)
 	if entry.lastTimeControl and t - entry.lastTimeControl < TIME_CONTROL_COOLDOWN then return end
 	entry.lastTimeControl = t
 
-	if msg.action == "set" then
+	if msg.action == "realtime" then
+		local on = msg.on == true
+		if not setRealtime(on) then sendTime(player_id) return end
+		log(playerName(player_id) .. (on and " turns real time on" or (" turns real time off at " .. formatHour(currentHour()))))
+		sendTimeToAll()
+		notifyAll(playerName(player_id) .. (on and " turned on real time" or " turned off real time"), "schedule")
+	elseif msg.action == "pause" then
+		local paused = msg.paused == true
+		local wasReal = paused and setRealtime(false)
+		if not setPaused(paused) and not wasReal then sendTime(player_id) return end
+		log(playerName(player_id) .. (paused and " pauses the clock at " or " resumes the clock at ") .. formatHour(currentHour()))
+		sendTimeToAll()
+		notifyAll(playerName(player_id) .. (paused and " paused the clock (" or " resumed the clock (") ..
+			formatHour(currentHour()) .. ")", "schedule")
+	elseif realtimeOn() then
+		sendTime(player_id)
+	elseif msg.action == "set" then
 		local hour = tonumber(msg.hour)
 		if not hour or hour ~= hour or hour < 0 or hour > 24 then return end
 		setHour(hour % 24)
 		log(playerName(player_id) .. " sets the time to " .. formatHour(hour % 24))
 		sendTimeToAll()
 		notifyAll(playerName(player_id) .. " set the time to " .. formatHour(hour % 24), "schedule")
-	elseif msg.action == "pause" then
-		local paused = msg.paused == true
-		if not setPaused(paused) then sendTime(player_id) return end
-		log(playerName(player_id) .. (paused and " pauses the clock at " or " resumes the clock at ") .. formatHour(currentHour()))
-		sendTimeToAll()
-		notifyAll(playerName(player_id) .. (paused and " paused the clock (" or " resumed the clock (") ..
-			formatHour(currentHour()) .. ")", "schedule")
 	elseif msg.action == "lengths" then
 		local day, night = tonumber(msg.dayMinutes), tonumber(msg.nightMinutes)
 		if not day or not night or day ~= day or night ~= night then return end
@@ -1789,6 +1938,7 @@ local CONSOLE_HELP = table.concat({
 	"  sc time                             show time and day/night length",
 	"  sc time <HH:MM>                     set the time for everyone, e.g. sc time 18:30",
 	"  sc time stop | start                pause / resume the clock",
+	"  sc time real                        real time (zone: server.realtimeZone; sc time <HH:MM> ends it)",
 	"  sc players                          players and career status",
 	"  sc fuel | sc fuel reset             show fuel discounts / reset all to normal",
 	"  sc jobs | sc jobs reset             show jobs / drop all of them",
@@ -1927,7 +2077,13 @@ function onConsoleInput(input)
 		return table.concat(lines, "\n")
 	elseif sub == "time" then
 		local arg = words[3] and words[3]:lower()
+		if arg == "real" then
+			setRealtime(true)
+			sendTimeToAll()
+			return "Real time: " .. formatHour(currentHour()) .. " (" .. zoneLabel() .. ")"
+		end
 		if arg == "stop" or arg == "start" then
+			setRealtime(false)
 			setPaused(arg == "stop")
 			sendTimeToAll()
 			return arg == "stop" and ("Clock paused at " .. formatHour(currentHour()))
@@ -1938,11 +2094,15 @@ function onConsoleInput(input)
 			local hh, mm = words[3]:match("^(%d+):(%d+)$")
 			if hh then hour = tonumber(hh) + tonumber(mm) / 60 end
 			if not hour or hour < 0 or hour >= 24 then return "Time must be 0 to 23.99 or HH:MM, e.g. sc time 18:30" end
+			setRealtime(false)
 			setHour(hour)
 			sendTimeToAll()
 			return "Time for everyone: " .. formatHour(hour)
 		end
 		local ph = timePhases()
+		if realtimeOn() then
+			return "Time: " .. formatHour(currentHour()) .. " (real time, " .. zoneLabel() .. " – sc time <HH:MM> ends it)"
+		end
 		if Config.server.timePaused == true then return "Time: " .. formatHour(currentHour()) .. " (paused – sc time start)" end
 		if not ph then return "Time: " .. formatHour(currentHour()) .. " (stopped)" end
 		return string.format("Time: %s (day %s–%s: %s min, night: %s min)", formatHour(currentHour()),
