@@ -42,6 +42,7 @@ One window for everything you can change in the game. **Every change applies to 
 - **❚❚ Pause** stops the clock for everyone at the current time. **▶ Resume** lets it run on from there.
 - **−1 h / +1 h**, or jump to **Morning** (7:00), **Noon** (12:00), **Evening** (19:00) or **Night** (23:00)
 - Length of the day and the night: − and + go through round values (1, 5, 10, 15 … 60 min, then bigger steps up to 10 h); changes are sent once you stop clicking
+- **Real time** On: the time follows the server's clock (its local time), for everyone. While it is on, the other time buttons are hidden. Off: the clock runs on from the real time.
 
 ### Traffic tab
 
@@ -146,7 +147,7 @@ In BeamMP every car belongs to one player: only that player's PC really drives i
 
 ## Time of day
 
-The server runs one clock for everybody. By default a day lasts **50 real minutes** (6:00–20:00) and a night **5 minutes** (20:00–6:00). Every client re-syncs every 30 seconds. Time, weather, slow motion and traffic in the pause menu are display-only, so nobody changes the world for themselves by accident.
+The server runs one clock for everybody. By default a day lasts **50 real minutes** (6:00–20:00) and a night **5 minutes** (20:00–6:00). Every client re-syncs every 30 seconds. With **Real time** on, the game shows the server's local time instead. Time, weather, slow motion and traffic in the pause menu are display-only, so nobody changes the world for themselves by accident.
 
 ## Garage
 

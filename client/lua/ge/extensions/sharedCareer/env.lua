@@ -12,7 +12,8 @@
 -- 0.5 = 0:00, 0.75 = 6:00. Conversion happens only in toGame/fromGame.
 --
 -- In the SharedCareer menu every player can change the time and the day/night length for
--- everyone: see "Time controls" below.
+-- everyone, or switch on real time (the server's clock): see "Time controls" below.
+-- Real time needs nothing extra here: the server sends its clock with a day of 24 real hours.
 --
 -- Pause menu: the environment pages (time, weather, simulation/slow motion, traffic) are
 -- shown read-only by letting them read "restrictScenarios" = true during their call.
@@ -191,6 +192,7 @@ function M.timeState()
 		state.nightMinutes = tonumber(lastMsg.nightMinutes)
 		state.running = lastMsg.play == true
 		state.paused = lastMsg.paused == true
+		state.realtime = lastMsg.realtime == true
 		local dayStart, nightStart = tonumber(lastMsg.dayStart) or 6, tonumber(lastMsg.nightStart) or 20
 		state.dayStart, state.nightStart = dayStart, nightStart
 		if hour then
@@ -227,6 +229,11 @@ end
 -- Pause the clock (true) or let it run (false) – for everyone.
 function M.uiSetPaused(paused)
 	control({action = "pause", paused = paused == true})
+end
+
+-- Real time (true): the time follows the server's clock – for everyone.
+function M.uiSetRealtime(on)
+	control({action = "realtime", on = on == true})
 end
 
 function M.uiSetLengths(dayMinutes, nightMinutes)

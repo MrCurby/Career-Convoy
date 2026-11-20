@@ -21,11 +21,11 @@
 				<span class="scm-icon" ng-bind="state.isDay ? '☀' : '☾'"></span>
 				<span class="scm-clock" ng-bind="clock()"></span>
 				<span class="scm-phase" ng-bind="phaseText()"></span>
-				<button class="scm-btn scm-pause" ng-if="state.canControl" ng-class="{'scm-paused': state.paused}" ng-click="togglePause()"
+				<button class="scm-btn scm-pause" ng-if="state.canControl && !state.realtime" ng-class="{'scm-paused': state.paused}" ng-click="togglePause()"
 					title="{{ state.paused ? 'Resume the clock for everyone' : 'Pause the clock for everyone at the current time' }}"
 					ng-bind="state.paused ? '▶' : '❚❚'"></button>
 			</div>
-			<div class="scm-row" ng-if="state.canControl">
+			<div class="scm-row" ng-if="state.canControl && !state.realtime">
 				<button class="scm-btn" ng-click="shift(-1)" title="One hour back">−1 h</button>
 				<button class="scm-btn" ng-click="shift(1)" title="One hour forward">+1 h</button>
 				<span class="scm-gap"></span>
@@ -34,7 +34,7 @@
 				<button class="scm-btn scm-small" ng-click="setHour(19)" title="19:00">Evening</button>
 				<button class="scm-btn scm-small" ng-click="setHour(23)" title="23:00">Night</button>
 			</div>
-			<div class="scm-row" ng-if="state.canControl">
+			<div class="scm-row" ng-if="state.canControl && !state.realtime">
 				<span class="scm-label">Day</span>
 				<button class="scm-btn scm-step" ng-click="changeLength('day', -1)">−</button>
 				<span class="scm-value" ng-bind="lengthText(lengths().day)"></span>
@@ -44,6 +44,11 @@
 				<button class="scm-btn scm-step" ng-click="changeLength('night', -1)">−</button>
 				<span class="scm-value" ng-bind="lengthText(lengths().night)"></span>
 				<button class="scm-btn scm-step" ng-click="changeLength('night', 1)">+</button>
+			</div>
+			<div class="scm-row" ng-if="state.canControl">
+				<span class="scm-label scm-grow">Real time</span>
+				<button class="scm-btn scm-toggle" ng-class="{'scm-on': state.realtime}" ng-click="toggleRealtime()"
+					title="Use the server's clock" ng-bind="state.realtime ? 'On' : 'Off'"></button>
 			</div>
 			<div class="scm-note" ng-if="!state.canControl && state.synced">The time of day is set by the server</div>
 			<div class="scm-note" ng-if="!state.synced">Time sync is off on this server</div>

@@ -7,6 +7,8 @@
 // round values for day and night (LENGTHS: 1, 5, 10, ... 600 min), in bigger steps the longer it
 // gets; a length between two of them (set in the config) goes to the next one.
 // "Pause" stops the clock for everyone at the current time, "Resume" lets it run on from there.
+// "Real time" makes the time follow the server's clock; while it is on, the other time buttons
+// are hidden (they would work against it).
 // Traffic tab: driving/parked cars per player, AI driving style.
 // Options tab: collision with cars/players on foot, synced traffic lights, status on name tags,
 // server limit.
@@ -24,7 +26,7 @@
 // lua/ge/extensions/sharedCareer/menu.lua (state) – only while someone looks: the window reports
 // "menu" visible with sharedCareer_menu.uiVisible on every expand/collapse and every 2 s while
 // expanded (see menu.lua). Clicks go via bngApi.engineLua to
-// sharedCareer_env (time: uiSetHour / uiShiftHour / uiSetPaused / uiSetLengths),
+// sharedCareer_env (time: uiSetHour / uiShiftHour / uiSetPaused / uiSetRealtime / uiSetLengths),
 // sharedCareer_menu (settings) and sharedCareer_players (Players tab).
 //
 // Note: only var/function at the top level – the game evaluates app.js again in the same
@@ -237,6 +239,7 @@ sharedCareerMenuApp.controller('SharedCareerMenu', ['$scope', '$element', functi
 		if (!s || typeof s.hour !== "number") return "";
 		var phase = s.isDay ? "Day" : "Night";
 		if (s.paused) return phase + " · paused";
+		if (s.realtime) return phase + " · real time";
 		if (!s.running) return phase + " · stopped";
 		if (typeof s.secondsToSwitch !== "number") return phase;
 		var min = Math.max(0, Math.round(s.secondsToSwitch / 60));
@@ -270,6 +273,11 @@ sharedCareerMenuApp.controller('SharedCareerMenu', ['$scope', '$element', functi
 	$scope.togglePause = function () {
 		if (!$scope.state || !$scope.state.canControl) return;
 		timeControl('uiSetPaused(' + ($scope.state.paused ? 'false' : 'true') + ')');
+	};
+
+	$scope.toggleRealtime = function () {
+		if (!$scope.state || !$scope.state.canControl) return;
+		timeControl('uiSetRealtime(' + ($scope.state.realtime ? 'false' : 'true') + ')');
 	};
 
 	// direction 1 (+) or -1 (−); sent once the clicks stop (SEND_DELAY)

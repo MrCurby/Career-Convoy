@@ -1836,6 +1836,18 @@ local setsPaused = setCalls
 update(1.1); update(1.1)
 check(setCalls == setsPaused, "paused: no speed switching")
 
+-- real time (the server's clock)
+env.uiSetRealtime(true)
+check(lastSent("sc_timeControl").action == "realtime" and lastSent("sc_timeControl").on == true, "real time goes to the server")
+handlers.sc_time(json.encode({hour = 21.5, play = true, paused = false, realtime = true, dayLength = 86400,
+	dayLengthDay = 86400, dayLengthNight = 86400, dayStart = 6, nightStart = 20, dayMinutes = 50, nightMinutes = 5,
+	canControl = true}))
+check(tod.play == true and tod.dayLength == 86400 and math.abs(env.fromGame(tod.time) - 21.5) < 1e-6,
+	"real time: game clock at the server's time, real speed")
+check(uiEvents[#uiEvents].realtime == true, "window knows real time is on")
+handlers.sc_time(json.encode({hour = 15, play = false, paused = true, dayLength = 0, dayStart = 6, nightStart = 20,
+	dayMinutes = 50, nightMinutes = 5, canControl = true}))
+
 do
 local menu = sharedCareer_menu
 -- who looks: reports with a lease (windows report every 2 s while visible)

@@ -377,6 +377,41 @@ check(lastTo(0, "sc_time").hour > tpz.hour + 0.1, "afterwards the clock runs aga
 check(onConsoleInput("sc time stop"):find("paused") ~= nil and lastTo(0, "sc_time").paused == true, "sc time stop")
 check(onConsoleInput("sc time start"):find("running again") ~= nil and lastTo(0, "sc_time").paused == false, "sc time start")
 
+--== Real time (the server's clock) ==
+local realDate = os.date
+local clockNow = {hour = 14, min = 15, sec = 36}
+os.date = function(fmt, ...)
+	if fmt == "*t" then return {hour = clockNow.hour, min = clockNow.min, sec = clockNow.sec} end
+	return realDate(fmt, ...)
+end
+fakeTime = fakeTime + 5
+sc_timeControl(1, json.encode({action = "pause", paused = true}))
+fakeTime = fakeTime + 2
+sc_timeControl(1, json.encode({action = "realtime", on = true}))
+local rt = lastTo(0, "sc_time")
+check(rt.realtime == true and math.abs(rt.hour - 14.26) < 0.001, "real time: the server's clock for everyone")
+check(rt.play == true and rt.paused == false and rt.dayLength == 86400 and rt.dayLengthDay == 86400
+	and rt.dayLengthNight == 86400, "real time: real speed, a pause no longer applies")
+check(lastChat(0):find("Ben turned on real time") ~= nil, "everyone sees who turned on real time")
+check(onConsoleInput("sc get"):find("server.realtimeSync = true") ~= nil, "real time is saved")
+clockNow = {hour = 21, min = 0, sec = 0}
+sc_timeTick()
+check(math.abs(lastTo(0, "sc_time").hour - 21) < 0.001, "real time: follows the clock on every sync")
+fakeTime = fakeTime + 2
+sentBefore = countTo(0, "sc_time")
+sc_timeControl(1, json.encode({action = "set", hour = 8}))
+check(math.abs(lastTo(0, "sc_time").hour - 21) < 0.001 and lastTo(1, "sc_time").realtime == true,
+	"real time: setting a time from the window is ignored")
+check(onConsoleInput("sc time"):find("real time") ~= nil, "sc time shows real time")
+fakeTime = fakeTime + 2
+sc_timeControl(1, json.encode({action = "realtime", on = false}))
+local off = lastTo(0, "sc_time")
+check(off.realtime == false and off.play == true and math.abs(off.hour - 21) < 0.001, "real time off: runs on from the real time")
+check(onConsoleInput("sc time real"):find("21:00") ~= nil and lastTo(0, "sc_time").realtime == true, "sc time real")
+check(onConsoleInput("sc time 10:00"):find("10:00") ~= nil and lastTo(0, "sc_time").realtime == false
+	and math.abs(lastTo(0, "sc_time").hour - 10) < 0.001, "sc time <HH:MM> ends real time")
+os.date = realDate
+
 --== Settings from the SharedCareer menu ==
 fakeTime = fakeTime + 5
 local updatesBefore = countTo(0, "sc_configUpdate")
