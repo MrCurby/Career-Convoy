@@ -62,6 +62,9 @@ local PAID_WAIT = 15          -- s for the server's answer to sc_jobDone; then t
 local REMOVE_AFTER = 6        -- s after paying, the job ends (the type's stop())
 local CHECK_EVERY = 0.25      -- s between two checks of the job
 local PUSH_EVERY = 1          -- s between two app updates while the phone is out
+local ROUTE_MOVE = 0.05       -- share of a drive distance you move before the app works it out again
+local ROUTE_MOVE_MIN = 50     -- m: at least this far
+local ROUTES_PER_PUSH = 4     -- drive distances worked out at most per app update (each searches the roads)
 local LEVELS_FILE = "/career/sharedCareerJobLevels.json" -- in the career save: a copy of your levels
 
 local types = {}              -- id -> job type
@@ -77,6 +80,7 @@ local active = nil            -- your job: {id, job, type, doneSent, doneAt, pai
 local creditedPayouts = {}
 local clock = 0
 local sinceCheck, sincePush = 0, 0
+local routes = {}             -- drive distances for the app: key -> {from, to, d}
 local pushApp                 -- defined with the app below
 
 --== Helpers for the job types ====================================================
@@ -95,6 +99,35 @@ function M.dist2D(a, b)
 	return math.sqrt(dx * dx + dy * dy)
 end
 local dist2D = M.dist2D
+
+local function dist3D(a, b)
+	local dx, dy, dz = a.x - b.x, a.y - b.y, (a.z or 0) - (b.z or 0)
+	return math.sqrt(dx * dx + dy * dy + dz * dz)
+end
+
+--- The distance from a to b by road (m): to the nearest road, along the game's road network
+--- (map.getPath), off the road to b. nil without a road map or a way.
+function M.driveDistance(a, b)
+	if not (map and type(map.findClosestRoad) == "function" and type(map.getPath) == "function"
+		and type(map.getMap) == "function" and type(vec3) == "function") then return nil end
+	local ok, d = pcall(function()
+		local nodes = map.getMap().nodes
+		local start = map.findClosestRoad(vec3(a.x, a.y, a.z or 0))
+		local target = map.findClosestRoad(vec3(b.x, b.y, b.z or 0))
+		if not (start and target and nodes[start] and nodes[target]) then return nil end
+		local path = map.getPath(start, target)
+		if type(path) ~= "table" or #path == 0 then return nil end
+		local d, prev = 0, a
+		for _, name in ipairs(path) do
+			local p = nodes[name] and vecOf(nodes[name].pos)
+			if not p then return nil end
+			d = d + dist3D(prev, p)
+			prev = p
+		end
+		return d + dist3D(prev, b)
+	end)
+	return ok and tonumber(d) or nil
+end
 
 --- Where you are: your vehicle, or the camera.
 function M.myPosition()
@@ -337,6 +370,23 @@ end
 --== Jobs app (phone) ============================================================
 
 local appOpen = false
+local routesLeft = 0          -- drive distances still allowed in this app update
+local routesUsed = {}         -- keys asked for in this app update; the others are dropped after it
+
+-- The drive distance for the app under a key (a job, your job): worked out again only once the
+-- start moved ROUTE_MOVE of it (at least ROUTE_MOVE_MIN m) or the target changed, and at most
+-- ROUTES_PER_PUSH per update – until then the last one (nil before the first).
+local function routeFor(key, from, to)
+	routesUsed[key] = true
+	local r = routes[key]
+	local fresh = r and r.to.x == to.x and r.to.y == to.y
+	if fresh and dist2D(r.from, from) < math.max(ROUTE_MOVE_MIN, r.d * ROUTE_MOVE) then return r.d end
+	if routesLeft <= 0 then return fresh and r.d or nil end
+	routesLeft = routesLeft - 1
+	local d = M.driveDistance(from, to)
+	routes[key] = d and {from = from, to = to, d = d} or nil
+	return d
+end
 
 local function tagsOf(job)
 	local t = types[job.type]
@@ -360,7 +410,7 @@ local function jobForApp(job, me)
 	return {id = job.id, icon = t and t.icon or "?", title = job.title or "?", tags = tagsOf(job),
 		dest = job.dest and job.dest.name or "?", length = job.length, pay = job.pay, xp = tonumber(job.xp), state = job.state,
 		takenBy = job.takenBy, locked = job.locked == true, minLevel = math.max(1, math.floor(tonumber(job.minLevel) or 1)),
-		distance = me and job.pos and dist2D(me, job.pos) or nil}
+		distance = me and job.pos and routeFor(job.id, me, job.pos) or nil}
 end
 
 -- A job type's jobs in groups by the level they need: the ones you can take first, the hardest at
@@ -395,6 +445,14 @@ end
 --- Your own job is not in the list, it has its own card.
 function M.appState()
 	local me = myPosition()
+	routesLeft, routesUsed = ROUTES_PER_PUSH, {}
+	-- your job's distance first: it matters most
+	local activeStatus, activeDistance
+	if active then
+		activeStatus = statusOf(active)
+		local from = activeStatus.from or me
+		activeDistance = from and activeStatus.target and routeFor("active", from, activeStatus.target) or nil
+	end
 	local byType, order = {}, {}
 	local function section(id)
 		if not byType[id] then
@@ -428,16 +486,18 @@ function M.appState()
 		open = open + sec.open
 		table.insert(sections, sec)
 	end
+	for key in pairs(routes) do
+		if not routesUsed[key] then routes[key] = nil end
+	end
 	local state = {enabled = enabled and serverAllows(), sections = sections, open = open}
 	if active then
-		local job, s = active.job, statusOf(active)
+		local job, s = active.job, activeStatus
 		local steps = active.type.steps or {}
-		local from = s.from or me
 		state.active = {id = job.id, icon = active.type.icon, title = job.title, tags = tagsOf(job), dest = job.dest.name,
 			pay = job.pay, xp = tonumber(job.xp), steps = steps, step = active.paidAt and math.max(0, #steps - 1) or (s.step or 0),
 			phase = active.paidAt and "paid" or (active.doneSent and "checking" or "running"),
 			text = s.text, short = s.short, hint = s.hint, inZone = s.inZone == true,
-			distance = from and s.target and dist2D(from, s.target) or nil}
+			distance = activeDistance}
 	end
 	return state
 end
@@ -558,7 +618,7 @@ end
 function M.onBeamMPServerLeave()
 	navigate(nil)
 	active, list, levels, enabled = nil, {}, {}, false
-	appOpen = false
+	appOpen, routes = false, {}
 end
 
 function M.onExtensionLoaded()

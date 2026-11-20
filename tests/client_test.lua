@@ -2843,7 +2843,20 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	end
 	nodes.dirt = {pos = vec3(0, 3000, 10), radius = 4, links = {dirt2 = {drivability = 0.2}}}
 	nodes.dirt2 = {pos = vec3(100, 3000, 10), radius = 4, links = {dirt = {drivability = 0.2}}}
-	_G.map = {getMap = function() return {nodes = nodes} end}
+	-- the way by road: from the nearest node of the straight road to the other one, along it
+	local pathSearches = 0
+	_G.map = {getMap = function() return {nodes = nodes} end,
+		findClosestRoad = function(p)
+			local i = math.max(0, math.min(50, math.floor(p.x / 100 + 0.5)))
+			return "n" .. i, "n" .. math.min(50, i + 1), math.abs(p.y)
+		end,
+		getPath = function(a, b)
+			pathSearches = pathSearches + 1
+			local ia, ib = tonumber(a:sub(2)), tonumber(b:sub(2))
+			local path = {}
+			for i = ia, ib, ia <= ib and 1 or -1 do table.insert(path, "n" .. i) end
+			return path
+		end}
 	local doors = {belasco = {x = 4000, y = 50, z = 10}, home = {x = 0, y = 40, z = 10}}
 	_G.freeroam_facilities = {
 		getFacilities = function() return {garages = {{id = "belasco", name = "Belasco Auto"}, {id = "home", name = "Home Garage"}}, gasStations = {}} end,
@@ -2909,7 +2922,7 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	core_vehicles.getModel = nil
 	check(styled == "Sedan" and fromModel == "Full-size", "the job's title: the body style of the model, else of its config")
 	check(offer.tier == 1, "the server asked for nothing special: tier 1")
-	local okAll = true
+	local okAll, lengthOk = true, true
 	for i = 1, 80 do
 		local tier = (i - 1) % 4 + 1
 		local job = tow.generate(tier)
@@ -2918,8 +2931,17 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 			or job.pay ~= tow.payFor(job.length, job.data.flatTire, tier) then
 			okAll = false
 		end
+		local road = jobs.driveDistance(job.pos, job.dest.pos)
+		if not road or job.length ~= math.floor(road / 10 + 0.5) * 10 then lengthOk = false end
 	end
 	check(okAll, "places: always beside the road (5.8 m from its middle), never near a vehicle or on a dirt track; a shop away from it")
+	check(lengthOk, "the length of the tow: the way by road to the shop")
+	local getPath = map.getPath
+	map.getPath = function() return {} end
+	local noWay = tow.generate(1)
+	map.getPath = getPath
+	local straight = math.sqrt((noWay.dest.pos.x - noWay.pos.x) ^ 2 + (noWay.dest.pos.y - noWay.pos.y) ^ 2)
+	check(noWay.length == math.floor(straight * 1.3 / 10 + 0.5) * 10, "no way by road: the straight line x 1.3")
 	local crashes, flats, heavies = {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}
 	local speedsOk = true
 	for tier = 1, 4 do
@@ -2990,8 +3012,17 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	check(jobsApp and jobsApp.beta == true and jobsApp.title == "Jobs", "the Jobs app is on the phone, marked as beta")
 	local st = jobs.appState()
 	local first = st.sections[1] and st.sections[1].groups[1].jobs[1]
-	check(st.enabled and st.open == 1 and first.state == "open" and math.abs(first.distance - 2000) < 20
-		and first.pay == 600 and first.xp == 70, "the app lists the job with its distance from you, its pay and XP")
+	check(st.enabled and st.open == 1 and first.state == "open" and math.abs(first.distance - 2025.8) < 0.01
+		and first.pay == 600 and first.xp == 70, "the app lists the job with its distance by road from you (20 m to the road, 2 km along it, 5.8 m off it), its pay and XP")
+	local searches = pathSearches
+	me.p = {x = 30, y = -20, z = 10}
+	local near = jobs.appState().sections[1].groups[1].jobs[1].distance
+	me.p = {x = 300, y = -20, z = 10}
+	local farther = jobs.appState().sections[1].groups[1].jobs[1].distance
+	me.p = {x = 0, y = -20, z = 10}
+	jobs.appState()
+	check(near == first.distance and pathSearches == searches + 2 and math.abs(farther - 1725.8) < 0.01,
+		"moved a little: the same distance, no new search; moved 300 m: searched again")
 	check(first.icon == "tow" and first.title == "Gavril Grand Marshal" and #first.tags == 2
 		and first.tags[2].text == "Flat tire", "its icon, title and tags come from the towing job type")
 	-- the jobs by level: yours first (the hardest at the top), then the locked ones (the nearest first)
@@ -3000,8 +3031,17 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 		j.id, j.state, j.minLevel, j.locked = id, "open", minLevel, locked
 		return j
 	end
+	searches = pathSearches
 	handlers.sc_jobs(json.encode({enabled = true, jobs = {listed(1, false, 1), listed(8, true, 2), listed(3, false, 3),
 		listed(5, true, 4), listed(3, false, 5)}, levels = {tow = {level = 4, xp = 600, from = 520, to = 800}}}))
+	local firstUpdate = pathSearches - searches
+	st = jobs.appState()
+	local unknown = 0
+	for _, g in ipairs(st.sections[1].groups) do
+		for _, j in ipairs(g.jobs) do if j.distance == nil then unknown = unknown + 1 end end
+	end
+	check(firstUpdate == 4 and pathSearches - searches == 5 and unknown == 0,
+		"at most 4 searches for the way by road per update; the fifth job comes with the next one")
 	st = jobs.appState()
 	local sec = st.sections[1]
 	local order = {}

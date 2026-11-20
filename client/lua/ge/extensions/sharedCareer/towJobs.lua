@@ -11,8 +11,9 @@
 --                 drawn again (up to CAR_TRIES times) unless the tier's truck share lets it stay; a
 --                 few common cars if that is missing. The higher the tier, the more trucks
 --     a shop      a garage of the map (freeroam_facilities, the middle of its doors), as far away
---                 as the tier says (the nearest fit if none is)
---     the pay     (PAY_BASE + PAY_PER_KM per km of the tow (straight line x ROAD_FACTOR)) x the
+--                 as the tier says in a straight line (the nearest fit if none is)
+--     the pay     (PAY_BASE + PAY_PER_KM per km of the tow (by road: jobs.driveDistance; the
+--                 straight line x ROAD_FACTOR where there is no way by road)) x the
 --                 tier's pay, x PAY_FLAT with a flat tire, x client.jobPay
 --     faults     what is broken (FAULTS: engine, windshield, tail lights), each by its chance, at
 --                least one; a crash always has a broken engine
@@ -61,7 +62,7 @@ local DROP_SPEED = 0.5        -- m/s: slower counts as standing still
 local DAMAGE_WAIT = 3         -- s for the vehicle's damage report; then no deduction
 local PAY_BASE, PAY_PER_KM = 150, 120
 local PAY_FLAT = 1.25
-local ROAD_FACTOR = 1.3       -- roads are about this much longer than the straight line
+local ROAD_FACTOR = 1.3       -- without a way by road: roads are about this much longer than the straight line
 -- the tiers: how far to the shop (m), how often a flat tire, how often a heavy vehicle, how often a
 -- truck may come from the delivery filter otherwise, the pay; how often a crash, and its speed (m/s
 -- when it hits the ground)
@@ -341,7 +342,7 @@ function M.generate(tier)
 			end
 			local pick = #fitting > 0 and fitting[math.random(#fitting)] or nearest
 			if pick then
-				local length = roundTo(pick.d * ROAD_FACTOR, 10)
+				local length = roundTo(J.driveDistance(spot.pos, pick.shop.pos) or pick.d * ROAD_FACTOR, 10)
 				local flatTire = math.random() < t.flatTire
 				local vehicle = pickVehicle(t)
 				local crash = pickCrash(t)
