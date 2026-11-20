@@ -41,7 +41,7 @@ One window for everything you can change in the game. **Every change applies to 
 - The current time, day or night, and how long until the switch
 - **❚❚ Pause** stops the clock for everyone at the current time. **▶ Resume** lets it run on from there.
 - **−1 h / +1 h**, or jump to **Morning** (7:00), **Noon** (12:00), **Evening** (19:00) or **Night** (23:00)
-- Length of the day (in 5-minute steps) and the night (in 1-minute steps)
+- Length of the day and the night: − and + go through round values (1, 5, 10, 15 … 60 min, then bigger steps up to 10 h); changes are sent once you stop clicking
 
 ### Traffic tab
 

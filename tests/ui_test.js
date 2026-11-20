@@ -41,6 +41,32 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 	const menu = load(...MENU, env);
 	check(menu.collapsed && last(env, 'menu') === false, 'menu built collapsed: reports not visible');
 }
+// day/night length: round values, sent once the clicks stop
+{
+	const env = makeEnv({sharedCareerMenuCollapsed: '0'});
+	const menu = load(...MENU, env);
+	const sent = () => env.calls.filter(c => c.includes('uiSetLengths'));
+	menu.emit('SharedCareerState', {canControl: true, dayMinutes: 1, nightMinutes: 7});
+	const days = [];
+	for (let i = 0; i < 3; i++) { menu.changeLength('day', 1); days.push(menu.lengths().day); }
+	check(days.join(',') === '5,10,15', 'day from 1: 5, 10, 15 (' + days.join(',') + ')');
+	check(sent().length === 0, 'nothing sent while clicking');
+	env.advance(1000);
+	check(sent().length === 1 && sent()[0].includes('uiSetLengths(15,7)'), 'sent once after the clicks: ' + sent());
+	menu.changeLength('night', 1);
+	const up = menu.lengths().night;
+	menu.changeLength('night', -1); menu.changeLength('night', -1); menu.changeLength('night', -1);
+	check(up === 10 && menu.lengths().night === 1, 'night 7 (from the config): + goes to 10, − stops at 1');
+	for (let i = 0; i < 40; i++) menu.changeLength('day', 1);
+	check(menu.lengths().day === 600, 'at most 600 min');
+	check(menu.lengthText(50) === '50 min' && menu.lengthText(90) === '1 h 30' && menu.lengthText(600) === '10 h',
+		'lengths as text: 50 min, 1 h 30, 10 h');
+	menu.emit('SharedCareerState', {canControl: true, dayMinutes: 15, nightMinutes: 7});
+	check(menu.lengths().day === 600, 'an older state from the server doesn\'t undo the clicks before they are sent');
+	env.advance(1000);
+	menu.emit('SharedCareerState', {canControl: true, dayMinutes: 600, nightMinutes: 1});
+	check(menu.pending === null && menu.lengths().day === 600, 'confirmed by the server: its values are shown');
+}
 
 //== Phone alone ==
 {
