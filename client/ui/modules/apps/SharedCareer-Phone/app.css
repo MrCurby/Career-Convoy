@@ -208,11 +208,17 @@
 .scp-job-name { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .scp-job-tags { font-size: 11px; opacity: 0.65; }
 .scp-reward { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
-.scp-xp { font-size: 10px; font-weight: 700; opacity: 0.75; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .scp-job-pay {
 	flex: none; font-size: 13px; font-weight: 800; padding: 3px 8px; border-radius: 8px; font-variant-numeric: tabular-nums;
 	color: #7ff0a5; background: rgba(60, 200, 110, 0.16);
 }
+/* the XP of a job: like the pay above it, in blue */
+.scp-xp {
+	font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 6px; font-variant-numeric: tabular-nums; white-space: nowrap;
+	color: #8cc4ff; background: rgba(70, 140, 255, 0.18);
+}
+/* on the blue card of your job: light, so it stands out */
+.scp-myjob .scp-xp { color: #fff; background: rgba(255, 255, 255, 0.2); }
 .scp-job-route { margin: 9px 0 2px 4px; font-size: 11px; }
 .scp-route-row { display: flex; align-items: center; gap: 7px; min-width: 0; }
 .scp-route-dot { display: flex; flex: none; }
