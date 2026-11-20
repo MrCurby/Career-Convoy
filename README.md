@@ -92,9 +92,9 @@ For server owners: settings move to new defaults automatically on updates, and `
 
 ## Screenshots
 
-**The SharedCareer menu**: time of day, options and players. It collapses into a small steering-wheel tab at the right screen edge.
+**The SharedCareer menu**: time of day, traffic, options and players. It collapses into a small steering-wheel tab at the right screen edge.
 
-![SharedCareer menu with the Time, Options and Players tabs](docs/images/menu.png)
+![SharedCareer menu with the Time, Traffic, Options and Players tabs](docs/images/menu.png)
 
 <table>
 <tr>
