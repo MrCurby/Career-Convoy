@@ -1,105 +1,129 @@
--- SharedCareer :: towing jobs (beta): broken-down cars at the roadside, towed to a repair shop
+-- SharedCareer :: jobs (beta): the shared job list and the Jobs app, for every kind of job
 --
--- The server keeps one list of jobs for everyone (server.jobs, see main.lua "Towing jobs"). When
--- jobs are missing it asks one player to make one up (sc_jobGenerate): this client knows the map
--- and picks
---   a place     a random road node far from every vehicle, moved off the road onto the
---               roadside (ROADSIDE m beyond the road's edge), standing along the road
---   a vehicle   an old car from the career's own delivery filter (gameplay/delivery/
---               vehicles.deliveryVehicles.json, JUNKER_FILTER) via util_configListGenerator;
---               a few common models if that is missing
---   a shop      a garage of the map (freeroam_facilities, the middle of its doors) DEST_MIN to
---               DEST_MAX m away
---   the pay     PAY_BASE + PAY_PER_KM per km of the tow (straight line x ROAD_FACTOR), x PAY_FLAT
---               with a flat tire, x client.jobPay
--- and sends it (sc_jobOffer). Every player sees the jobs in the Jobs app on the phone.
+-- The server keeps one list of jobs for everyone (server.jobs, see main.lua "Jobs"). This file is
+-- what all jobs have in common. What a job is about comes from its job type, an extension that
+-- registers itself here (registerType) – towJobs.lua (towing jobs) is the first one. A job type:
+--   id               short name, sent with every job ("tow")
+--   name             its name in the Jobs app ("Towing") and in the money history ("Towing job: <title>")
+--   icon             the icon of its jobs in the Jobs app (a name the app knows, e.g. "tow")
+--   branch           optional: the career branch whose XP a job also gives, next to the game's
+--                    BeamXP ("commercial"): the branch whose attribute key, id or path id is or
+--                    ends with it (career_branches; the names change between game versions).
+--                    No branch XP if the career has no such branch
+--   steps            the steps of a job in the Jobs app, e.g. {"Pick up", "Tow", "Paid"}; the last
+--                    one is reached when the pay arrives
+--   generate(tier)   makes up a job of this tier (1 easy .. 4 hard, see main.lua "Job levels") on
+--                    this map: {title, pos, dest = {name, pos}, length, pay, data} (pos: where it
+--                    starts; pay: at level 1; data: the type's own fields, the server passes them
+--                    on), or nil and why not
+--   tags(job)        short labels for the job in the app: {{text, kind}} (kind picks the color)
+--   start(a)         the job is yours: a = {id, job}; the type keeps its own state in a
+--   step(a, dt)      every CHECK_EVERY s until it is handed over; calls M.handOver(a, share) when
+--                    the job is done (share: how much of the pay was earned, 0..1 – less after
+--                    damage, for example; the server turns it into money and XP)
+--   status(a)        {step (0-based index into steps), text (Jobs app), short (the job strip),
+--                    target (pos: the route and the distance in the app), from (pos the distance
+--                    is measured from; default: you), hint (optional), inZone (optional)}
+--   stop(a)          the job ends here (paid, given up, taken away, no answer): clean up
+--   draw(a)          optional, every frame: markers in the world
+--   vehicleReset(a, id)  optional: a vehicle was reset (R)
+-- (Not named like the game's hooks – onUpdate, onVehicleResetted, ... – the game calls those on
+-- every extension.)
 --
--- Taking a job (sc_jobTake; the server gives it to the first one):
---   1. the navigation leads to the place; within SPAWN_RANGE m the broken-down vehicle appears
---      there (spawned by this player, so it is theirs: the rope works on it, BeamMP shows it to
---      everyone). The vehicle breaks down: engines off and disabled, neutral, parking brake off,
---      hazard lights on, a flat tire if the job says so (sharedCareerVeh.jobBreakDown). A reset
---      (R) repairs it, so the job breaks it down again
---   2. near the vehicle the navigation switches to the repair shop
---   3. standing still in the drop-off zone (DROP_RADIUS m around the shop's doors) for DROP_STILL
---      s, nobody inside: the job is done (sc_jobDone with the pay). New damage since the
---      breakdown costs up to PENALTY_MAX of the pay (DAMAGE_FOR_MAX damage points cost all of it)
---   4. the server answers sc_jobPaid: the pay goes to the career (playerAttributes), the career is
---      saved and the server gets sc_jobPaidAck; until then it sends the pay again (also after a
---      crash or reconnect, see main.lua "Payouts of towing jobs"). The vehicle is removed
---      REMOVE_AFTER s later
--- Giving up removes the vehicle; the job is open again for everyone. A vehicle that vanished
--- (deleted, reloaded, or refused by the server's vehicle limit) appears again at its place when
--- you come near, at most every SPAWN_RETRY s. Without the server's answer to sc_jobDone within
--- PAID_WAIT s the job ends here (a pay the server did book still arrives later).
---
--- What you see: a marker above the broken-down vehicle while you drive there, and the drop-off
--- zone (a flat ring with a sign) near the repair shop while you tow.
+-- Common to all jobs:
+--   making one up  when jobs are missing, the server asks one player for a job of a tier
+--                  (sc_jobGenerate {type, tier}); this client asks that job type (without one: its
+--                  job types in turn) and sends the job (sc_jobOffer)
+--   levels         every player has a level per job type; the server keeps it and decides (main.lua
+--                  "Job levels"): which tiers you can take, your pay, the XP. The Jobs app has a
+--                  section per job type with your level in it and its jobs by level, the ones you
+--                  can't take yet at the bottom.
+--                  The last levels the server sent are kept in the career save (LEVELS_FILE), to
+--                  show them before the server's list has arrived
+--   taking         sc_jobTake, the server gives it to the first one; then the type's start() and
+--                  the route to its status target (updated whenever the target changes)
+--   giving up      sc_jobGiveUp; a job the server takes away (out of time, switched off) ends too
+--   handing over   handOver -> sc_jobDone with the share; without the server's answer within
+--                  PAID_WAIT s the job ends here (a pay the server did book still arrives later)
+--   the pay        sc_jobPaid: credited to the career (playerAttributes), the career is saved and
+--                  the server gets sc_jobPaidAck; until then it sends the pay again (also after a
+--                  crash or reconnect, see main.lua "Payouts"). Each payout is credited once, with
+--                  the job's XP also as the game's BeamXP (and branch XP). The type's stop()
+--                  follows REMOVE_AFTER s later
 --
 -- Settings: server.jobs (on/off, also the Jobs app), server.jobsOpen, server.jobTimeoutMinutes,
--- server.jobPayMax (server); client.jobPay (factor on the pay).
+-- server.jobPayMax (server); client.jobPay (factor on the pay, payFactor).
 
 local M = {}
 
 local U
 
-local SPAWN_RANGE = 400       -- m: the broken-down vehicle appears when you are this close
-local FAR_FROM_VEHICLES = 350 -- m: a new job is never made up closer to any vehicle
-local DEST_MIN, DEST_MAX = 800, 6000 -- m from the place to the repair shop
-local MIN_ROAD_RADIUS = 2.5   -- m: half the width of a road the place may be on
-local MIN_DRIVABILITY = 0.6   -- the road must be a normal road (not a dirt track)
-local ROADSIDE = 1.8          -- m beyond the road's edge
-local PLACE_TRIES = 40
-local NEAR_VEHICLE = 30       -- m: close enough to the vehicle, the navigation goes to the shop
-local DROP_RADIUS = 14        -- m around the middle of the shop's doors
-local DROP_STILL = 3          -- s standing still in the drop-off zone
-local DROP_SPEED = 0.5        -- m/s: slower counts as standing still
-local DAMAGE_WAIT = 3         -- s for the vehicle's damage report; then no deduction
-local PAY_BASE, PAY_PER_KM = 150, 120
-local PAY_FLAT = 1.25
-local ROAD_FACTOR = 1.3       -- roads are about this much longer than the straight line
-local FLAT_TIRE_CHANCE = 0.4
-local PENALTY_MAX = 0.5       -- share of the pay new damage can cost at most
-local DAMAGE_FOR_MAX = 40000  -- damage points (beamstate.damage) that cost PENALTY_MAX
-local BREAKDOWN_RETRY = 3     -- s without the vehicle's answer: break it down again
-local REMOVE_AFTER = 6        -- s after paying, the vehicle is removed
-local SPAWN_RETRY = 10        -- s before a vehicle that vanished right away is spawned again
 local PAID_WAIT = 15          -- s for the server's answer to sc_jobDone; then the job ends here
+local REMOVE_AFTER = 6        -- s after paying, the job ends (the type's stop())
 local CHECK_EVERY = 0.25      -- s between two checks of the job
 local PUSH_EVERY = 1          -- s between two app updates while the phone is out
-local MARKER_RANGE = 250      -- m: the markers show within this distance
+local ROUTE_MOVE = 0.05       -- share of a drive distance you move before the app works it out again
+local ROUTE_MOVE_MIN = 50     -- m: at least this far
+local ROUTES_PER_PUSH = 4     -- drive distances worked out at most per app update (each searches the roads)
+local LEVELS_FILE = "/career/sharedCareerJobLevels.json" -- in the career save: a copy of your levels
 
-local JUNKER_FILTER = "junkerVehFilter"
-local FILTER_FILE = "gameplay/delivery/vehicles.deliveryVehicles.json"
-local FALLBACK_MODELS = {"fullsize", "midsize", "pickup", "covet", "pessima", "van"}
-
+local types = {}              -- id -> job type
+local typeOrder = {}          -- ids, in the order they registered
+local nextType = 1            -- the job type asked first when making up the next job
 local list = {}               -- jobs from the server (sc_jobs)
+local levels = {}             -- your levels from the server: type -> {level, xp, from, to}
 local enabled = false
-local active = nil            -- {id, job, vehId, spawnedAt, brokenDown, sentAt, damageStart, phase,
-                              --  stillFor, checkingSince, damageNow, doneSent, doneAt, paidAt}
+local active = nil            -- your job: {id, job, type, doneSent, doneAt, paidAt, route}
+                              -- and the type's own fields
 -- payout ids already credited: a payout the server sends again is only confirmed. Kept when leaving
 -- the server, so a payout sent again after a reconnect isn't credited twice.
 local creditedPayouts = {}
 local clock = 0
 local sinceCheck, sincePush = 0, 0
-local roadNodes = nil         -- {level, names} road nodes a job may be placed at
+local routes = {}             -- drive distances for the app: key -> {from, to, d}
 local pushApp                 -- defined with the app below
 
---== Helpers ===================================================================
+--== Helpers for the job types ====================================================
 
-local function vecOf(v)
+--- {x, y, z} of a vec3 or table, or nil.
+function M.vecOf(v)
 	if v == nil then return nil end
 	local ok, x, y, z = pcall(function() return v.x, v.y, v.z end)
 	if not ok or not tonumber(x) then return nil end
 	return {x = tonumber(x), y = tonumber(y) or 0, z = tonumber(z) or 0}
 end
+local vecOf = M.vecOf
 
-local function dist2D(a, b)
+function M.dist2D(a, b)
 	local dx, dy = a.x - b.x, a.y - b.y
 	return math.sqrt(dx * dx + dy * dy)
 end
+local dist2D = M.dist2D
 
-local function myPosition()
+local function dist3D(a, b)
+	local dx, dy, dz = a.x - b.x, a.y - b.y, (a.z or 0) - (b.z or 0)
+	return math.sqrt(dx * dx + dy * dy + dz * dz)
+end
+
+--- The distance from a to b by road (m): the game's way between the two points
+--- (map.getPointToPointPath, which also finds where to join and leave the roads), its length
+--- (map.getPathLen) and the bits off the road at both ends. nil without a road map or a way.
+function M.driveDistance(a, b)
+	if not (map and type(map.getPointToPointPath) == "function" and type(map.getPathLen) == "function"
+		and type(map.getMap) == "function" and type(vec3) == "function") then return nil end
+	local ok, d = pcall(function()
+		local path = map.getPointToPointPath(vec3(a.x, a.y, a.z or 0), vec3(b.x, b.y, b.z or 0))
+		if type(path) ~= "table" or #path == 0 then return nil end
+		local nodes = map.getMap().nodes
+		local first, last = nodes[path[1]] and vecOf(nodes[path[1]].pos), nodes[path[#path]] and vecOf(nodes[path[#path]].pos)
+		if not (first and last) then return nil end
+		return dist3D(a, first) + map.getPathLen(path) + dist3D(last, b)
+	end)
+	return ok and tonumber(d) or nil
+end
+
+--- Where you are: your vehicle, or the camera.
+function M.myPosition()
 	local veh = type(getPlayerVehicle) == "function" and getPlayerVehicle(0) or nil
 	if veh then
 		local ok, p = pcall(function() return veh:getPosition() end)
@@ -111,12 +135,21 @@ local function myPosition()
 	end
 	return nil
 end
+local myPosition = M.myPosition
 
-local function payFactor()
+--- client.jobPay: the server's factor on every pay (0..10, default 1).
+function M.payFactor()
 	local c = U.config()
 	local f = c and tonumber(c.jobPay)
 	if not f or f < 0 then return 1 end
 	return math.min(f, 10)
+end
+
+function M.sendToVehicle(id, cmd)
+	local veh = id and be:getObjectByID(id)
+	if veh and type(veh.queueLuaCommand) == "function" then
+		veh:queueLuaCommand("if sharedCareerVeh then " .. cmd .. " end")
+	end
 end
 
 local function serverAllows()
@@ -128,294 +161,100 @@ local function navigate(pos)
 	if pos then U.setRoute("jobs", pos) else U.clearRoute("jobs") end
 end
 
-local function sendToVehicle(id, cmd)
-	local veh = id and be:getObjectByID(id)
-	if veh and type(veh.queueLuaCommand) == "function" then
-		veh:queueLuaCommand("if sharedCareerVeh then " .. cmd .. " end")
-	end
+--== Job types =====================================================================
+
+--- A job type registers itself (see the top of this file for what it brings).
+function M.registerType(t)
+	if type(t) ~= "table" or type(t.id) ~= "string" then return end
+	if not types[t.id] then table.insert(typeOrder, t.id) end
+	types[t.id] = t
 end
 
---== Making up a job =============================================================
+-- The job type's status of your job.
+local function statusOf(a)
+	local ok, s = pcall(a.type.status, a)
+	if ok and type(s) == "table" then return s end
+	return {step = 0, text = "", short = ""}
+end
 
--- road nodes a broken-down car may stand at: wide enough, on a normal road (cached per map)
-local function candidateNodes(nodes)
-	local level = type(getCurrentLevelIdentifier) == "function" and getCurrentLevelIdentifier() or ""
-	if roadNodes and roadNodes.level == level then return roadNodes.names end
-	local names = {}
-	for name, n in pairs(nodes) do
-		if type(n) == "table" and n.pos and (tonumber(n.radius) or 0) >= MIN_ROAD_RADIUS and type(n.links) == "table" then
-			for _, link in pairs(n.links) do
-				if type(link) == "table" and (tonumber(link.drivability) or 0) >= MIN_DRIVABILITY then
-					table.insert(names, name)
-					break
-				end
-			end
+--== Making up a job ===============================================================
+
+--- Makes up a new job of a tier (default 1): by that job type, or without one by the job types in
+--- turn (the first job wins). Returns the job (with its type and tier) or nil and why not.
+function M.generate(tier, kind)
+	tier = math.max(1, math.floor(tonumber(tier) or 1))
+	local order = typeOrder
+	if kind ~= nil then order = types[kind] and {kind} or {} end
+	local why = kind and ("unknown job type " .. tostring(kind)) or "no job types"
+	for i = 0, #order - 1 do
+		local id = kind or order[(nextType - 1 + i) % #order + 1]
+		local ok, job, err = pcall(types[id].generate, tier)
+		if ok and type(job) == "table" then
+			if not kind then nextType = nextType % #typeOrder + 1 end
+			job.type, job.tier = id, tier
+			return job
 		end
+		why = id .. ": " .. tostring(ok and err or job)
 	end
-	table.sort(names, function(a, b) return tostring(a) < tostring(b) end) -- the same order on every PC
-	roadNodes = {level = level, names = names}
-	return names
+	return nil, why
 end
 
--- The ground below a point, or the point's own height.
-local function groundAt(p)
-	local ok, cast = pcall(function() return castRayStatic end)
-	if ok and type(cast) == "function" then
-		local hitOk, hit = pcall(cast, vec3(p.x, p.y, p.z + 4), vec3(0, 0, -1), 20)
-		hit = hitOk and tonumber(hit)
-		if hit and hit >= 0 and hit < 20 then return p.z + 4 - hit end
-	end
-	return p.z
-end
+--== Your job ======================================================================
 
--- Where on the roadside of this node a car can stand: {pos, dir} or nil.
-local function roadside(nodes, name)
-	local n = nodes[name]
-	local p = n and vecOf(n.pos)
-	if not p then return nil end
-	for other, link in pairs(n.links) do
-		local q = type(link) == "table" and (tonumber(link.drivability) or 0) >= MIN_DRIVABILITY and nodes[other]
-			and vecOf(nodes[other].pos)
-		if q then
-			local dx, dy = q.x - p.x, q.y - p.y
-			local len = math.sqrt(dx * dx + dy * dy)
-			if len > 1 then
-				dx, dy = dx / len, dy / len
-				local side = tonumber(n.radius) + ROADSIDE
-				local pos = {x = p.x + dy * side, y = p.y - dx * side, z = p.z}
-				pos.z = groundAt(pos)
-				return {pos = pos, dir = {x = dx, y = dy}}
-			end
-		end
-	end
-	return nil
-end
-
-local function vehiclePositions()
-	local out = {}
-	local count = type(be.getObjectCount) == "function" and be:getObjectCount() or 0
-	for i = 0, count - 1 do
-		local veh = be:getObject(i)
-		local p = veh and type(veh.getPosition) == "function" and vecOf(veh:getPosition())
-		if p then table.insert(out, p) end
-	end
-	return out
-end
-
--- The repair shops the vehicle can go to: the map's garages (dealerships if there are none).
-local function repairShops()
-	local data = U.facilities()
-	if not data then return {} end
-	local shops = {}
-	for _, kind in ipairs({"garages", "dealerships"}) do
-		for _, fac in pairs(type(data[kind]) == "table" and data[kind] or {}) do
-			local p = type(fac) == "table" and U.facilityDoor(fac)
-			if p then
-				table.insert(shops, {name = U.translate(fac.name) or (type(fac.name) == "string" and fac.name) or tostring(fac.id), pos = p})
-			end
-		end
-		if #shops > 0 then break end
-	end
-	return shops
-end
-
--- An old car from the career's delivery filter: {model, config, name}.
-local function pickVehicle()
-	local gen = rawget(_G, "util_configListGenerator")
-	if gen and type(gen.getRandomVehicleInfos) == "function" and type(jsonReadFile) == "function" then
-		local ok, info = pcall(function()
-			local filters = jsonReadFile(FILTER_FILE)
-			local filter = type(filters) == "table" and filters[JUNKER_FILTER]
-			if not filter then return nil end
-			local eligible = type(gen.getEligibleVehicles) == "function" and gen.getEligibleVehicles(false, false) or nil
-			local infos = gen.getRandomVehicleInfos(filter, 1, eligible)
-			return infos and infos[1]
-		end)
-		if ok and type(info) == "table" and info.model_key then
-			local name = info.Name and ((info.Brand and (info.Brand .. " ") or "") .. info.Name) or info.model_key
-			return {model = info.model_key, config = info.key, name = name}
-		end
-	end
-	local model = FALLBACK_MODELS[math.random(#FALLBACK_MODELS)]
-	local name = model:gsub("^%l", string.upper)
-	if core_vehicles and type(core_vehicles.getModel) == "function" then
-		local ok, data = pcall(core_vehicles.getModel, model)
-		local m = ok and type(data) == "table" and data.model
-		if type(m) == "table" and m.Name then name = (m.Brand and (m.Brand .. " ") or "") .. m.Name end
-	end
-	return {model = model, name = name}
-end
-
-local function roundTo(x, step) return math.floor(x / step + 0.5) * step end
-
---- The pay for a tow of `length` m (with a flat tire: more).
-function M.payFor(length, flatTire)
-	local pay = (PAY_BASE + PAY_PER_KM * length / 1000) * (flatTire and PAY_FLAT or 1) * payFactor()
-	return roundTo(pay, 10)
-end
-
---- Makes up a new job, or returns nil and why not.
-function M.generate()
-	local nodes = map and type(map.getMap) == "function" and map.getMap().nodes
-	if type(nodes) ~= "table" then return nil, "no road network" end
-	local shops = repairShops()
-	if #shops == 0 then return nil, "no repair shops on this map" end
-	local names = candidateNodes(nodes)
-	if #names == 0 then return nil, "no roads for a breakdown" end
-	local others = vehiclePositions()
-	for _ = 1, PLACE_TRIES do
-		local spot = roadside(nodes, names[math.random(#names)])
-		local free = spot ~= nil
-		for _, p in ipairs(free and others or {}) do
-			if dist2D(p, spot.pos) < FAR_FROM_VEHICLES then free = false break end
-		end
-		if free then
-			local fitting = {}
-			for _, shop in ipairs(shops) do
-				local d = dist2D(shop.pos, spot.pos)
-				if d >= DEST_MIN and d <= DEST_MAX then table.insert(fitting, {shop = shop, d = d}) end
-			end
-			if #fitting > 0 then
-				local pick = fitting[math.random(#fitting)]
-				local length = roundTo(pick.d * ROAD_FACTOR, 10)
-				local flatTire = math.random() < FLAT_TIRE_CHANCE
-				return {vehicle = pickVehicle(), flatTire = flatTire, pos = spot.pos, dir = spot.dir,
-					dest = {name = pick.shop.name, pos = pick.shop.pos}, length = length, pay = M.payFor(length, flatTire)}
-			end
-		end
-	end
-	return nil, "no free place found"
-end
-
---== The active job ================================================================
-
-local function removeVehicle()
-	local veh = active and active.vehId and be:getObjectByID(active.vehId)
-	if veh then pcall(function() veh:delete() end) end
-end
-
+-- The job ends here: the type cleans up, no route.
 local function endActive()
 	if not active then return end
-	removeVehicle()
-	navigate(nil)
+	local a = active
 	active = nil
-end
-
-local function breakDown()
-	active.brokenDown, active.sentAt = false, clock
-	sendToVehicle(active.vehId, "sharedCareerVeh.jobBreakDown(" .. tostring(active.job.flatTire == true) .. ")")
-end
-
-local function spawnVehicle()
-	local job = active.job
-	if not (core_vehicles and type(core_vehicles.spawnNewVehicle) == "function") then return end
-	local dir = vec3(job.dir.x, job.dir.y, 0)
-	local options = {pos = vec3(job.pos.x, job.pos.y, job.pos.z), autoEnterVehicle = false, cling = true,
-		config = job.vehicle.config}
-	if type(quatFromDir) == "function" then options.rot = quatFromDir(dir, vec3(0, 0, 1)) end
-	local ok, veh = pcall(core_vehicles.spawnNewVehicle, job.vehicle.model, options)
-	if not ok or not veh then
-		U.log("E", "jobs", "could not spawn the broken-down vehicle: " .. tostring(veh))
-		return
-	end
-	active.vehId, active.spawnedAt = veh:getID(), clock
-	U.log("I", "jobs", string.format("job %s: %s spawned (%s)", tostring(job.id), job.vehicle.name, tostring(active.vehId)))
-	breakDown()
+	pcall(a.type.stop, a)
+	navigate(nil)
 end
 
 local function startActive(job)
-	active = {id = job.id, job = job, phase = "toVehicle", stillFor = 0}
-	navigate(job.pos)
-	U.toast("info", "Route set: drive to the " .. job.vehicle.name, 6)
-end
-
-local function finish()
-	local job = active.job
-	local penalty = 0
-	if active.damageNow and active.damageStart then
-		penalty = math.min(PENALTY_MAX, math.max(0, active.damageNow - active.damageStart) / DAMAGE_FOR_MAX * PENALTY_MAX)
+	local t = types[job.type]
+	if not t then
+		U.log("W", "jobs", "job " .. tostring(job.id) .. " has an unknown type: " .. tostring(job.type))
+		return
 	end
-	local pay = math.floor(job.pay * (1 - penalty) + 0.5)
-	active.doneSent, active.doneAt, active.deduction = true, clock, job.pay - pay
-	U.log("I", "jobs", string.format("job %s done: damage %s -> %s, pay %d of %d", tostring(job.id),
-		tostring(active.damageStart), tostring(active.damageNow), pay, job.pay))
-	U.send("sc_jobDone", {id = job.id, pay = pay})
+	active = {id = job.id, job = job, type = t}
+	local ok, err = pcall(t.start, active)
+	if not ok then U.log("E", "jobs", "job start failed: " .. tostring(err)) end
+	active.route = statusOf(active).target
+	navigate(active.route)
 end
 
--- One check of the active job (every CHECK_EVERY s).
+--- The job type: the job is done, and this share of the pay was earned (0..1). Sends it to the
+--- server once; the server works out your pay (with your level bonus) and the XP.
+function M.handOver(a, share)
+	if a ~= active or a.doneSent then return end
+	a.doneSent, a.doneAt = true, clock
+	U.send("sc_jobDone", {id = a.id, share = math.max(0, math.min(1, tonumber(share) or 1))})
+end
+
+-- One check of your job (every CHECK_EVERY s).
 function M.step(dt)
-	if not active or active.paidAt then
-		if active and clock - active.paidAt >= REMOVE_AFTER then
-			removeVehicle()
-			active = nil
+	if not active then return end
+	if active.paidAt then
+		if clock - active.paidAt >= REMOVE_AFTER then
+			endActive()
 			pushApp()
 		end
 		return
 	end
-	local job = active.job
-	local me = myPosition()
-	local veh = active.vehId and be:getObjectByID(active.vehId)
 	if active.doneSent and clock - active.doneAt >= PAID_WAIT then
-		U.log("W", "jobs", "no answer from the server to job " .. tostring(job.id) .. " – ended here")
+		U.log("W", "jobs", "no answer from the server to job " .. tostring(active.id) .. " – ended here")
 		U.toast("warning", "No answer from the server – job ended", 6)
 		endActive()
 		pushApp()
 		return
 	end
-	if active.vehId and not veh then
-		-- deleted, reloaded or refused by the server: it appears again at its place
-		U.log("W", "jobs", "the vehicle of job " .. tostring(job.id) .. " is gone")
-		if clock - (active.spawnedAt or -math.huge) < 2 then
-			U.toast("warning", "Car removed – vehicle limit reached?", 6)
-		end
-		active.vehId, active.brokenDown = nil, false
-		active.phase = "toVehicle"
-		navigate(job.pos)
+	if not active.doneSent then active.type.step(active, dt) end
+	-- the route follows the type's target
+	local target = active and not active.paidAt and statusOf(active).target
+	if active and target ~= active.route then
+		active.route = target
+		navigate(target)
 	end
-	if not veh then
-		local waited = clock - (active.spawnedAt or -math.huge) >= SPAWN_RETRY
-		if waited and me and dist2D(me, job.pos) <= SPAWN_RANGE then spawnVehicle() end
-		return
-	end
-	if not active.brokenDown and clock - active.sentAt >= BREAKDOWN_RETRY then breakDown() end
-	local p = vecOf(veh:getPosition())
-	if active.phase == "toVehicle" and me and p and dist2D(me, p) <= NEAR_VEHICLE then
-		active.phase = "toDestination"
-		navigate(job.dest.pos)
-		U.toast("info", "Route set: tow it to " .. job.dest.name, 6)
-	end
-	if active.doneSent then return end
-	local speed = 0
-	if type(veh.getVelocity) == "function" then
-		local v = vecOf(veh:getVelocity())
-		if v then speed = math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z) end
-	end
-	local inZone = p and dist2D(p, job.dest.pos) <= DROP_RADIUS and speed <= DROP_SPEED
-		and be:getPlayerVehicleID(0) ~= active.vehId
-	if active.checkingSince then
-		if active.damageNow or clock - active.checkingSince >= DAMAGE_WAIT then finish() end
-	elseif inZone then
-		active.stillFor = active.stillFor + dt
-		if active.stillFor >= DROP_STILL then
-			active.checkingSince, active.damageNow = clock, nil
-			sendToVehicle(active.vehId, "sharedCareerVeh.jobReportDamage()")
-		end
-	else
-		active.stillFor = 0
-	end
-end
-
---== Replies from the vehicle ======================================================
-
-function M.onJobBrokenDown(vehId, damage)
-	if not active or active.vehId ~= vehId then return end
-	active.brokenDown = true
-	active.damageStart = tonumber(damage) or 0
-end
-
-function M.onJobDamage(vehId, damage)
-	if not active or active.vehId ~= vehId then return end
-	active.damageNow = tonumber(damage) or 0
 end
 
 --== Messages from the server ======================================================
@@ -431,6 +270,7 @@ local function rxJobs(data)
 	if not msg then return end
 	enabled = msg.enabled == true
 	list = type(msg.jobs) == "table" and msg.jobs or {}
+	if type(msg.levels) == "table" then levels = msg.levels end
 	local mine = mineIn(list)
 	if active and not active.doneSent and (not mine or mine.id ~= active.id) then
 		-- taken away (out of time, switched off, given up elsewhere)
@@ -441,18 +281,39 @@ local function rxJobs(data)
 	pushApp()
 end
 
-local function rxGenerate()
+local function rxGenerate(data)
 	if not enabled or not U.careerActive() then return end
-	local job, why = M.generate()
+	local msg = U.decode(data) or {}
+	local job, why = M.generate(msg.tier, type(msg.type) == "string" and msg.type or nil)
 	if job then
 		U.send("sc_jobOffer", job)
 	else
-		U.log("W", "jobs", "could not make up a towing job: " .. tostring(why))
+		U.log("W", "jobs", "could not make up a job: " .. tostring(why))
 	end
 end
 
--- A payout for a finished job: {payout, job, pay, vehicle}. Credited and saved, then confirmed
--- (sc_jobPaidAck); without the confirmation the server sends it again (also after a reconnect).
+-- A payout for a finished job: {payout, job, type, title, pay, deduction, xp}. Credited and saved,
+-- then confirmed (sc_jobPaidAck); without the confirmation the server sends it again (also after a
+-- reconnect). The XP also go to the career: BeamXP and the job type's branch, if the career has them.
+
+-- The career's attribute key of a branch (see "branch" at the top), or nil.
+local function branchKey(name)
+	local branches = rawget(_G, "career_branches")
+	if type(name) ~= "string" or not branches or type(branches.getSortedBranches) ~= "function" then return nil end
+	local ok, list = pcall(branches.getSortedBranches)
+	if not ok or type(list) ~= "table" then return nil end
+	local function fits(v)
+		if type(v) ~= "string" then return false end
+		local tail = v:sub(-#name - 1)
+		return v == name or tail == "/" .. name or tail == "-" .. name or tail == "_" .. name
+	end
+	for _, b in ipairs(list) do
+		if type(b) == "table" and type(b.attributeKey) == "string" and (fits(b.attributeKey) or fits(b.id) or fits(b.pathId)) then
+			return b.attributeKey
+		end
+	end
+	return nil
+end
 local function rxPaid(data)
 	local msg = U.decode(data)
 	local pay = msg and tonumber(msg.pay)
@@ -464,9 +325,21 @@ local function rxPaid(data)
 	local attributes = rawget(_G, "career_modules_playerAttributes")
 	if not U.careerActive() or not attributes or type(attributes.addAttributes) ~= "function" then return end
 	local mine = active ~= nil and active.id == msg.job
-	local name = mine and active.job.vehicle.name or (type(msg.vehicle) == "string" and msg.vehicle) or "vehicle"
-	if pay > 0 then
-		local ok, err = pcall(attributes.addAttributes, {money = pay}, {tags = {"gameplay"}, label = "Towing job: " .. name})
+	local t = types[msg.type]
+	local label = (t and (t.name .. " job") or "Job") .. ": " .. (type(msg.title) == "string" and msg.title or "?")
+	local xp = math.max(0, math.floor(tonumber(msg.xp) or 0))
+	local change = {money = pay}
+	local function has(key)
+		local ok, value = pcall(function() return type(attributes.getAttribute) == "function" and attributes.getAttribute(key) end)
+		return ok and value ~= nil and value ~= false
+	end
+	if xp > 0 then
+		if has("beamXP") then change.beamXP = xp end
+		local key = t and branchKey(t.branch)
+		if key and has(key) then change[key] = xp end
+	end
+	if pay > 0 or xp > 0 then
+		local ok, err = pcall(attributes.addAttributes, change, {tags = {"gameplay"}, label = label})
 		if not ok then
 			U.log("E", "jobs", "could not credit the pay of job " .. tostring(msg.job) .. ": " .. tostring(err))
 			return
@@ -475,11 +348,13 @@ local function rxPaid(data)
 	end
 	creditedPayouts[msg.payout] = true
 	U.send("sc_jobPaidAck", {payout = msg.payout})
-	local deduction = mine and active.deduction or 0
+	local deduction = math.max(0, math.floor(tonumber(msg.deduction) or 0))
 	U.toast("success", string.format("Job done: +$%d", pay)
-		.. (deduction > 0 and string.format(" (−$%d damage)", deduction) or ""), 8)
+		.. (deduction > 0 and string.format(" (−$%d damage)", deduction) or "")
+		.. (xp > 0 and string.format(" · +%d XP", xp) or ""), 8)
 	if mine then
 		active.paidAt = clock
+		active.route = nil
 		navigate(nil)
 	end
 	pushApp()
@@ -488,29 +363,134 @@ end
 --== Jobs app (phone) ============================================================
 
 local appOpen = false
+local routesLeft = 0          -- drive distances still allowed in this app update
+local routesUsed = {}         -- keys asked for in this app update; the others are dropped after it
 
---- State for the Jobs app.
+-- The drive distance for the app under a key (a job, your job): worked out again only once the
+-- start moved ROUTE_MOVE of it (at least ROUTE_MOVE_MIN m) or the target changed, and at most
+-- ROUTES_PER_PUSH per update – until then the last one (nil before the first).
+local function routeFor(key, from, to)
+	routesUsed[key] = true
+	local r = routes[key]
+	local fresh = r and r.to.x == to.x and r.to.y == to.y
+	if fresh and dist2D(r.from, from) < math.max(ROUTE_MOVE_MIN, r.d * ROUTE_MOVE) then return r.d end
+	if routesLeft <= 0 then return fresh and r.d or nil end
+	routesLeft = routesLeft - 1
+	local d = M.driveDistance(from, to)
+	routes[key] = d and {from = from, to = to, d = d} or nil
+	return d
+end
+
+local function tagsOf(job)
+	local t = types[job.type]
+	local ok, tags = pcall(function() return t and t.tags and t.tags(job) end)
+	return ok and type(tags) == "table" and tags or {}
+end
+
+-- Your level in a job type for the app: {level, share (0..1 of the way to the next level), toGo
+-- (XP to the next level; nil at the top)}, or nil before the server has sent it.
+local function levelForApp(id)
+	local lv = levels[id]
+	if type(lv) ~= "table" or not tonumber(lv.level) then return nil end
+	local xp, from, to = tonumber(lv.xp) or 0, tonumber(lv.from) or 0, tonumber(lv.to)
+	return {level = math.floor(lv.level), share = to and to > from and math.max(0, math.min(1, (xp - from) / (to - from))) or 1,
+		toGo = to and math.max(0, math.ceil(to - xp)) or nil}
+end
+
+-- One job of the list, for the app.
+local function jobForApp(job, me)
+	local t = types[job.type]
+	return {id = job.id, icon = t and t.icon or "?", title = job.title or "?", tags = tagsOf(job),
+		dest = job.dest and job.dest.name or "?", length = job.length, pay = job.pay, xp = tonumber(job.xp), state = job.state,
+		takenBy = job.takenBy, locked = job.locked == true, minLevel = math.max(1, math.floor(tonumber(job.minLevel) or 1)),
+		distance = me and job.pos and routeFor(job.id, me, job.pos) or nil}
+end
+
+-- A job type's jobs in groups by the level they need: the ones you can take first, the hardest at
+-- the top; the ones you can't take yet at the bottom, the nearest level first.
+local function levelGroups(jobs)
+	local byLevel, groups = {}, {}
+	for _, j in ipairs(jobs) do
+		local key = j.minLevel .. (j.locked and "L" or "")
+		if not byLevel[key] then
+			byLevel[key] = {minLevel = j.minLevel, locked = j.locked, open = 0, jobs = {}}
+			table.insert(groups, byLevel[key])
+		end
+		table.insert(byLevel[key].jobs, j)
+		if j.state == "open" then byLevel[key].open = byLevel[key].open + 1 end
+	end
+	for _, g in ipairs(groups) do
+		table.sort(g.jobs, function(a, b)
+			if (a.state == "open") ~= (b.state == "open") then return a.state == "open" end
+			return (a.distance or 1e12) < (b.distance or 1e12)
+		end)
+	end
+	table.sort(groups, function(a, b)
+		if a.locked ~= b.locked then return not a.locked end
+		if a.locked then return a.minLevel < b.minLevel end
+		return a.minLevel > b.minLevel
+	end)
+	return groups
+end
+
+--- State for the Jobs app: a section per job type (in the order they registered; job types this
+--- client doesn't know last) with your level in it and its jobs in groups by level (levelGroups).
+--- Your own job is not in the list, it has its own card.
 function M.appState()
 	local me = myPosition()
-	local jobs = {}
-	for _, job in ipairs(list) do
-		table.insert(jobs, {id = job.id, vehicle = job.vehicle and job.vehicle.name or "?", flatTire = job.flatTire == true,
-			dest = job.dest and job.dest.name or "?", length = job.length, pay = job.pay, state = job.state,
-			takenBy = job.takenBy, distance = me and job.pos and dist2D(me, job.pos) or nil})
-	end
-	table.sort(jobs, function(a, b)
-		if (a.state == "open") ~= (b.state == "open") then return a.state == "open" end
-		return (a.distance or 1e12) < (b.distance or 1e12)
-	end)
-	local state = {enabled = enabled and serverAllows(), jobs = jobs}
+	routesLeft, routesUsed = ROUTES_PER_PUSH, {}
+	-- your job's distance first: it matters most
+	local activeStatus, activeDistance
 	if active then
-		local job = active.job
-		local veh = active.vehId and be:getObjectByID(active.vehId)
-		local from = active.phase == "toDestination" and veh and vecOf(veh:getPosition()) or me
-		local target = active.phase == "toDestination" and job.dest.pos or job.pos
-		state.active = {id = job.id, vehicle = job.vehicle.name, flatTire = job.flatTire == true, dest = job.dest.name,
-			pay = job.pay, phase = active.paidAt and "paid" or (active.doneSent and "checking" or active.phase),
-			distance = from and target and dist2D(from, target) or nil, inZone = (active.stillFor or 0) > 0}
+		activeStatus = statusOf(active)
+		local from = activeStatus.from or me
+		activeDistance = from and activeStatus.target and routeFor("active", from, activeStatus.target) or nil
+	end
+	local byType, order = {}, {}
+	local function section(id)
+		if not byType[id] then
+			local t = types[id]
+			byType[id] = {type = id, name = t and t.name or id, icon = t and t.icon or "?", level = levelForApp(id), jobs = {}}
+			table.insert(order, id)
+		end
+		return byType[id]
+	end
+	for _, id in ipairs(typeOrder) do
+		if levels[id] then section(id) end
+	end
+	for _, job in ipairs(list) do
+		if job.state ~= "mine" and type(job.type) == "string" then table.insert(section(job.type).jobs, jobForApp(job, me)) end
+	end
+	local rank = {}
+	for i, id in ipairs(typeOrder) do rank[id] = i end
+	table.sort(order, function(a, b)
+		if (rank[a] ~= nil) ~= (rank[b] ~= nil) then return rank[a] ~= nil end
+		if rank[a] then return rank[a] < rank[b] end
+		return a < b
+	end)
+	local sections, open = {}, 0
+	for _, id in ipairs(order) do
+		local sec = byType[id]
+		sec.groups, sec.open = levelGroups(sec.jobs), 0
+		sec.jobs = nil
+		for _, g in ipairs(sec.groups) do
+			if not g.locked then sec.open = sec.open + g.open end
+		end
+		open = open + sec.open
+		table.insert(sections, sec)
+	end
+	for key in pairs(routes) do
+		if not routesUsed[key] then routes[key] = nil end
+	end
+	local state = {enabled = enabled and serverAllows(), sections = sections, open = open}
+	if active then
+		local job, s = active.job, activeStatus
+		local steps = active.type.steps or {}
+		state.active = {id = job.id, icon = active.type.icon, title = job.title, tags = tagsOf(job), dest = job.dest.name,
+			pay = job.pay, xp = tonumber(job.xp), steps = steps, step = active.paidAt and math.max(0, #steps - 1) or (s.step or 0),
+			phase = active.paidAt and "paid" or (active.doneSent and "checking" or "running"),
+			text = s.text, short = s.short, hint = s.hint, inZone = s.inZone == true,
+			distance = activeDistance}
 	end
 	return state
 end
@@ -554,44 +534,15 @@ function M.uiGiveUp()
 end
 
 function M.uiNavigate()
-	if not active then return end
-	navigate(active.phase == "toDestination" and active.job.dest.pos or active.job.pos)
+	if not active or active.paidAt then return end
+	local target = statusOf(active).target
+	active.route = target
+	navigate(target)
 end
 
 function M.uiRequest() pushApp() end
 
 function M.getActive() return active end
-
---== Drawing ======================================================================
-
-local function drawMarkers()
-	if not active or active.paidAt or not (debugDrawer and ColorF and vec3) then return end
-	local me = myPosition()
-	if not me then return end
-	if active.phase == "toVehicle" then
-		local veh = active.vehId and be:getObjectByID(active.vehId)
-		local p = veh and vecOf(veh:getPosition()) or active.job.pos
-		if dist2D(me, p) <= MARKER_RANGE then
-			local bob = 0.15 * math.sin(clock * 2.5)
-			local top = vec3(p.x, p.y, p.z + 3.2 + bob)
-			debugDrawer:drawSphere(top, 0.35, ColorF(1, 0.6, 0.1, 0.85))
-			debugDrawer:drawCylinder(vec3(p.x, p.y, p.z + 2.3 + bob), vec3(p.x, p.y, p.z + 2.85 + bob), 0.06, ColorF(1, 0.6, 0.1, 0.85))
-		end
-	elseif active.phase == "toDestination" then
-		local d = active.job.dest.pos
-		if dist2D(me, d) <= MARKER_RANGE then
-			local inZone = (active.stillFor or 0) > 0
-			local r, g, b = 0.25, 0.55, 1
-			if inZone then r, g, b = 0.3, 0.9, 0.45 end
-			debugDrawer:drawCylinder(vec3(d.x, d.y, d.z + 0.02), vec3(d.x, d.y, d.z + 0.08), DROP_RADIUS, ColorF(r, g, b, 0.18))
-			debugDrawer:drawCylinder(vec3(d.x, d.y, d.z), vec3(d.x, d.y, d.z + 4), 0.08, ColorF(r, g, b, 0.7))
-			local label = inZone and string.format("Drop-off \194\183 %d s", math.max(1, math.ceil(DROP_STILL - (active.stillFor or 0))))
-				or ("Drop-off \194\183 " .. active.job.dest.name)
-			local str = String and String(label) or label
-			debugDrawer:drawTextAdvanced(vec3(d.x, d.y, d.z + 4.4), str, ColorF(1, 1, 1, 1), true, false, ColorI(20, 30, 50, 200))
-		end
-	end
-end
 
 --== Hooks =======================================================================
 
@@ -612,16 +563,41 @@ function M.onUpdate(dtReal)
 		local menu = U.ext("sharedCareer_menu")
 		if appOpen or (menu and menu.isVisible("phone")) then pcall(pushApp) end
 	end
-	pcall(drawMarkers)
+	if active and not active.paidAt and active.type.draw then pcall(active.type.draw, active) end
 end
 
--- the reset (R) repairs the broken-down vehicle: break it down again
 function M.onVehicleResetted(id)
-	if active and active.vehId == id and not active.paidAt then breakDown() end
+	if active and not active.paidAt and active.type.vehicleReset then
+		pcall(active.type.vehicleReset, active, id)
+	end
+end
+
+-- The career save's folder: the game names it when it loads a profile (career_saveSystem).
+local savePath = nil
+
+function M.onSetProfile(currentSavePath)
+	savePath = type(currentSavePath) == "string" and currentSavePath or nil
+end
+
+-- The game saves the career: a copy of your levels goes with it (written like the career's own files).
+function M.onSaveCurrentProfile(currentSavePath)
+	if type(currentSavePath) ~= "string" or not next(levels) then return end
+	savePath = currentSavePath
+	local saveSystem = rawget(_G, "career_saveSystem")
+	local write = saveSystem and type(saveSystem.jsonWriteFileSafe) == "function" and saveSystem.jsonWriteFileSafe or rawget(_G, "jsonWriteFile")
+	if type(write) ~= "function" then return end
+	local ok, err = pcall(write, currentSavePath .. LEVELS_FILE, {version = 1, levels = levels}, true)
+	if not ok then U.log("W", "jobs", "could not save the job levels: " .. tostring(err)) end
 end
 
 function M.onCareerActive(on)
 	if on and U.isMP() then
+		-- the copy in the save, until the server's list arrives
+		local path = savePath
+		if path and not next(levels) and type(jsonReadFile) == "function" then
+			local ok, saved = pcall(jsonReadFile, path .. LEVELS_FILE)
+			if ok and type(saved) == "table" and type(saved.levels) == "table" then levels = saved.levels end
+		end
 		M.registerApp()
 		U.send("sc_jobsRequest", "")
 	end
@@ -634,8 +610,8 @@ end
 
 function M.onBeamMPServerLeave()
 	navigate(nil)
-	active, list, enabled, roadNodes = nil, {}, false, nil
-	appOpen = false
+	active, list, levels, enabled = nil, {}, {}, false
+	appOpen, routes = false, {}
 end
 
 function M.onExtensionLoaded()

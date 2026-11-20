@@ -14,6 +14,8 @@ local tmpFuel = os.tmpname()
 os.remove(tmpFuel)
 local tmpPayouts = os.tmpname()
 os.remove(tmpPayouts)
+local tmpProgress = os.tmpname()
+os.remove(tmpProgress)
 
 local sent = {}       -- {to, event, data}
 local chats = {}      -- {to, msg}
@@ -58,6 +60,9 @@ source = source:gsub('local CONFIG_FILE = CONFIG_DIR %.%. "/config%.json"', 'loc
 source = source:gsub('local PROFILES_FILE = CONFIG_DIR %.%. "/profiles%.json"', 'local PROFILES_FILE = "' .. tmpProfiles .. '"')
 source = source:gsub('local FUEL_FILE = CONFIG_DIR %.%. "/fuelprices%.json"', 'local FUEL_FILE = "' .. tmpFuel .. '"')
 source = source:gsub('local PAYOUTS_FILE = CONFIG_DIR %.%. "/payouts%.json"', 'local PAYOUTS_FILE = "' .. tmpPayouts .. '"')
+source = source:gsub('local PROGRESS_FILE = CONFIG_DIR %.%. "/progress%.json"', 'local PROGRESS_FILE = "' .. tmpProgress .. '"')
+-- a job type of the tests with its own level rules (two tiers, more XP)
+source = source:gsub('local LEVEL_RULES_BY_TYPE = {}', 'local LEVEL_RULES_BY_TYPE = {short = {tierLevel = {1, 2}, tierXp = {100, 200}}}')
 assert(load(source, "main.lua"))()
 onInit()
 
@@ -453,34 +458,55 @@ sc_fuelDelivered(1, json.encode({station = "apex", fuel = "gasoline", amount = 1
 check(countTo(0, "sc_fuelPrices") == fpCount, "switched off: deliveries change nothing")
 onConsoleInput("sc set server.fuelEconomy true")
 
---== Towing jobs (beta) ==
+--== Jobs (beta) ==
 do
-	local function offer(from, pay)
-		sc_jobOffer(from, json.encode({vehicle = {model = "fullsize", config = "base", name = "Gavril Grand Marshal"},
-			flatTire = true, pos = {x = 100, y = 200, z = 10}, dir = {x = 1, y = 0},
-			dest = {name = "Belasco Auto", pos = {x = 1100, y = 200, z = 12}}, length = 1300, pay = pay or 480}))
+	local function offer(from, pay, tier)
+		sc_jobOffer(from, json.encode({type = "tow", tier = tier or 1, title = "Gavril Grand Marshal", pos = {x = 100, y = 200, z = 10},
+			dest = {name = "Belasco Auto", pos = {x = 1100, y = 200, z = 12}}, length = 1300, pay = pay or 480,
+			data = {vehicle = {model = "fullsize", config = "base"}, flatTire = true, dir = {x = 1, y = 0}}}))
 	end
 	local function jobsOf(id) return lastTo(id, "sc_jobs") end
 	onConsoleInput("sc jobs reset")
 	check(jobsOf(0) and jobsOf(0).enabled == true and #jobsOf(0).jobs == 0, "jobs list sent to everyone (empty after reset)")
 	check(lastTo(0, "sc_configUpdate").ui.jobs == true, "the clients know that jobs are on")
-	-- missing jobs: one player is asked to make one up, not more often than every 15 s
+	-- missing jobs: one player is asked to make one up, not more often than every 5 s
 	local asked = countTo(0, "sc_jobGenerate") + countTo(1, "sc_jobGenerate")
 	fakeTime = fakeTime + 100
 	sc_tick(); sc_tick()
 	check(countTo(0, "sc_jobGenerate") + countTo(1, "sc_jobGenerate") == asked + 1, "one player asked for a new job")
+	local ask = lastTo(0, "sc_jobGenerate") or lastTo(1, "sc_jobGenerate")
+	check(ask.tier == 1, "no job type known yet: a job of tier 1")
 	offer(0)
 	local list = jobsOf(1).jobs
-	check(#list == 1 and list[1].state == "open" and list[1].pay == 480 and list[1].dest.name == "Belasco Auto"
-		and list[1].flatTire == true, "a made-up job goes to everyone")
+	check(#list == 1 and list[1].state == "open" and list[1].pay == 480 and list[1].xp == 40 and list[1].dest.name == "Belasco Auto"
+		and list[1].type == "tow" and list[1].title == "Gavril Grand Marshal" and list[1].data.flatTire == true
+		and list[1].data.vehicle.model == "fullsize" and list[1].tier == 1 and list[1].minLevel == 1 and not list[1].locked,
+		"a made-up job goes to everyone, with its type's own fields and its tier")
+	check(jobsOf(1).levels.tow.level == 1 and jobsOf(1).levels.tow.to == 100, "everyone starts at level 1 (100 XP to level 2)")
 	local id = list[1].id
 	offer(0); offer(1)
 	offer(0) -- fourth: more than server.jobsOpen (3)
-	check(#jobsOf(1).jobs == 3, "at most server.jobsOpen open jobs")
-	local before = #jobsOf(1).jobs
-	sc_jobOffer(0, json.encode({vehicle = {model = "x"}, pos = {x = "a"}}))
+	check(#jobsOf(1).jobs == 3, "at most server.jobsOpen open jobs of a tier")
+	offer(0, nil, 9)
+	check(#jobsOf(1).jobs == 3, "a tier that doesn't exist is ignored")
+	onConsoleInput("sc jobs reset")
+	sc_jobOffer(0, json.encode({type = "tow", title = "x", pos = {x = "a"}}))
 	sc_jobOffer(0, "broken{")
-	check(#jobsOf(1).jobs == before, "invalid offers are ignored")
+	local valid = {type = "tow", tier = 1, title = "x", pos = {x = 1, y = 2, z = 3}, dest = {pos = {x = 4, y = 5, z = 6}}, length = 1, pay = 1}
+	local function without(key, value)
+		local o = {}
+		for k, v in pairs(valid) do o[k] = v end
+		o[key] = value
+		return json.encode(o)
+	end
+	sc_jobOffer(0, without("type", nil))
+	sc_jobOffer(0, without("type", "no spaces"))
+	sc_jobOffer(0, without("title", nil))
+	sc_jobOffer(0, without("tier", nil))
+	sc_jobOffer(0, without("data", {text = string.rep("x", 3000)}))
+	check(#jobsOf(1).jobs == 0, "invalid offers are ignored (also without a type, tier or title, or with too much data)")
+	sc_jobOffer(0, without("data", nil))
+	check(#jobsOf(1).jobs == 1 and jobsOf(1).jobs[1].dest.name == "Destination", "a job without own fields or a destination name is fine")
 	onConsoleInput("sc jobs reset")
 	offer(0, 999999)
 	check(jobsOf(0).jobs[1].pay == 5000, "the pay is capped at server.jobPayMax")
@@ -498,13 +524,14 @@ do
 	sc_jobTake(1, json.encode({id = second}))
 	check(jobsOf(1).jobs[2].state == "open" and lastChat(1):find("first") ~= nil, "one job at a time")
 	-- done: paid once, only to the taker, at most the job's pay
-	sc_jobDone(0, json.encode({id = id, pay = 480}))
+	sc_jobDone(0, json.encode({id = id, share = 1}))
 	check(lastTo(0, "sc_jobPaid") == nil, "someone else can't finish it")
-	sc_jobDone(1, json.encode({id = id, pay = 999999}))
+	sc_jobDone(1, json.encode({id = id, share = 7}))
 	local paid = lastTo(1, "sc_jobPaid")
-	check(paid and paid.job == id and paid.pay == 480 and type(paid.payout) == "string"
-		and paid.vehicle == "Gavril Grand Marshal", "finished: paid to Ben, at most the job's pay")
-	check(lastChat(0):find("Ben towed a Gavril Grand Marshal to Belasco Auto") ~= nil, "the others hear about it")
+	check(paid and paid.job == id and paid.pay == 480 and type(paid.payout) == "string" and paid.deduction == 0
+		and paid.type == "tow" and paid.title == "Gavril Grand Marshal", "finished: paid to Ben, at most the job's pay (a share above 1 counts as 1)")
+	check(paid.xp == 40 and jobsOf(1).levels.tow.xp == 40, "a tier-1 job gives 40 XP")
+	check(lastChat(0):find("Ben brought the Gavril Grand Marshal to Belasco Auto") ~= nil, "the others hear about it")
 	local function storedPayouts()
 		local f = io.open(tmpPayouts)
 		if not f then return {} end
@@ -515,9 +542,9 @@ do
 	check(storedPayouts()[paid.payout] and storedPayouts()[paid.payout].pay == 480 and storedPayouts()[paid.payout].profile == "ben",
 		"the payout is saved until Ben's client confirms it (survives a server restart)")
 	local paidCount = countTo(1, "sc_jobPaid")
-	sc_jobDone(1, json.encode({id = id, pay = 480}))
+	sc_jobDone(1, json.encode({id = id, share = 1}))
 	check(countTo(1, "sc_jobPaid") == paidCount and #jobsOf(1).jobs == 1, "paid once; the job is gone")
-	sc_jobDone(1, json.encode({id = second, pay = 100}))
+	sc_jobDone(1, json.encode({id = second, share = 1}))
 	check(countTo(1, "sc_jobPaid") == paidCount, "a job that isn't yours isn't paid")
 	-- no confirmation: sent again every 10 s, to Ben only
 	fakeTime = fakeTime + 5
@@ -554,6 +581,7 @@ do
 	fakeTime = fakeTime + 31 * 60
 	sc_tick()
 	check(jobsOf(0).jobs[1].state == "open" and lastChat(1):find("out of time") ~= nil, "out of time after 30 min: open again")
+	check(onConsoleInput("sc levels"):find("ben tow: level 1, 40 XP, 1 done") ~= nil, "sc levels lists the job levels")
 	check(onConsoleInput("sc jobs"):find("Gavril Grand Marshal to Belasco Auto") ~= nil, "sc jobs lists them")
 	onConsoleInput("sc set server.jobs false")
 	check(jobsOf(0).enabled == false and #jobsOf(0).jobs == 0 and lastTo(0, "sc_configUpdate").ui.jobs == false,
@@ -570,6 +598,103 @@ do
 	check(jobsOf(0).jobs[1].state == "open", "the taker leaves: open again")
 end
 
+--== Job levels ==
+do
+	local function jobsOf(id) return lastTo(id, "sc_jobs") end
+	local function offer(tier, pay)
+		sc_jobOffer(0, json.encode({type = "tow", tier = tier, title = "Car " .. tier, pos = {x = 1, y = 2, z = 3},
+			dest = {name = "Shop", pos = {x = 4, y = 5, z = 6}}, length = 1000, pay = pay or 1000}))
+	end
+	local function findJob(id, tier)
+		for _, j in ipairs(jobsOf(id).jobs) do if j.tier == tier and j.state == "open" then return j end end
+	end
+	local function finish(id, tier, share)
+		onConsoleInput("sc jobs reset")
+		offer(tier)
+		local j = findJob(id, tier)
+		sc_jobTake(id, json.encode({id = j.id}))
+		sc_jobDone(id, json.encode({id = j.id, share = share or 1}))
+		local paid = lastTo(id, "sc_jobPaid")
+		sc_jobPaidAck(id, json.encode({payout = paid.payout}))
+		return paid
+	end
+	onConsoleInput("sc levels reset ben")
+	check(jobsOf(1).levels.tow.level == 1 and jobsOf(1).levels.tow.xp == 0, "sc levels reset: Ben is back at level 1")
+	-- a job of a higher tier: listed, locked, can't be taken
+	onConsoleInput("sc jobs reset")
+	offer(2)
+	local j = findJob(1, 2)
+	check(j and j.locked and j.minLevel == 3, "a tier-2 job: locked for Ben (needs level 3)")
+	sc_jobTake(1, json.encode({id = j.id}))
+	check(findJob(1, 2) and lastChat(1):find("Needs level 3") ~= nil, "taking it is refused, Ben hears why")
+	-- damage costs XP too: half the pay, half the XP
+	local paid = finish(1, 1, 0.5)
+	check(paid.pay == 500 and paid.deduction == 500 and paid.xp == 20, "half the pay earned: half the XP")
+	-- levelling up: level 3 opens tier 2, the pay grows with the level
+	for _ = 1, 7 do paid = finish(1, 1) end
+	local lv = jobsOf(1).levels.tow
+	check(lv.level == 3 and lv.xp == 300 and lv.from == 283, "300 XP: level 3")
+	check(lastChat(1):find("Level 3") ~= nil, "Ben hears that new jobs are open")
+	onConsoleInput("sc jobs reset")
+	offer(2)
+	j = findJob(1, 2)
+	check(j and not j.locked and j.pay == 1100 and findJob(0, 2).pay == 1000,
+		"tier 2 open for Ben; he sees his pay with +10 % (level 3), the others the normal pay")
+	paid = finish(1, 2)
+	check(paid.pay == 1100 and paid.xp == 70, "paid with his bonus; a tier-2 job gives 70 XP")
+	-- enough jobs for everyone: tier 1 and every player's highest tier are kept stocked
+	onConsoleInput("sc jobs reset")
+	local before = countTo(0, "sc_jobGenerate") + countTo(1, "sc_jobGenerate")
+	local tiers = {}
+	for _ = 1, 8 do
+		fakeTime = fakeTime + 6
+		sc_tick()
+		local ask = (countTo(0, "sc_jobGenerate") >= countTo(1, "sc_jobGenerate")) and lastTo(0, "sc_jobGenerate") or lastTo(1, "sc_jobGenerate")
+		local now = countTo(0, "sc_jobGenerate") + countTo(1, "sc_jobGenerate")
+		if now > before then
+			before = now
+			table.insert(tiers, ask.tier)
+			offer(ask.tier)
+		end
+	end
+	local count = {0, 0, 0, 0}
+	for _, job in ipairs(jobsOf(0).jobs) do count[job.tier] = count[job.tier] + 1 end
+	check(count[1] == 3 and count[2] == 3 and count[3] == 0 and #tiers == 6,
+		"three open jobs of tier 1 (everyone) and of tier 2 (Ben's highest), made up in turn")
+	-- a low tier gives less XP to a strong player
+	for _ = 1, 15 do finish(1, 2) end
+	check(jobsOf(1).levels.tow.level >= 5, "Ben reaches level 5 (tier 3)")
+	offer(1)
+	local shown = findJob(1, 1).xp
+	paid = finish(1, 1)
+	check(shown == 20 and paid.xp == 20, "a tier-1 job two tiers below his: half the XP, shown on the job before")
+	-- a job type with its own rules (two tiers, from level 1 and 2; 100 XP for tier 1); levels apart
+	local function offerShort(tier)
+		sc_jobOffer(0, json.encode({type = "short", tier = tier, title = "Box", pos = {x = 1, y = 2, z = 3},
+			dest = {name = "Depot", pos = {x = 4, y = 5, z = 6}}, length = 100, pay = 100}))
+	end
+	onConsoleInput("sc jobs reset")
+	offerShort(3)
+	offerShort(2)
+	local short
+	for _, sj in ipairs(jobsOf(1).jobs) do if sj.type == "short" then short = sj end end
+	check(#jobsOf(1).jobs == 1 and short.minLevel == 2 and short.locked and jobsOf(1).levels.short.level == 1,
+		"own rules: no tier 3, tier 2 from level 2 – and Ben starts this job type at level 1")
+	offerShort(1)
+	for _, sj in ipairs(jobsOf(1).jobs) do if sj.tier == 1 then short = sj end end
+	sc_jobTake(1, json.encode({id = short.id}))
+	sc_jobDone(1, json.encode({id = short.id, share = 1}))
+	sc_jobPaidAck(1, json.encode({payout = lastTo(1, "sc_jobPaid").payout}))
+	check(lastTo(1, "sc_jobPaid").xp == 100 and jobsOf(1).levels.short.level == 2 and jobsOf(1).levels.tow.level >= 5,
+		"100 XP: level 2 in this job type; the towing level stays as it was")
+	-- the levels survive a restart of the server
+	local f = assert(io.open(tmpProgress))
+	local stored = json.decode(f:read("*a"))
+	f:close()
+	check(stored.profiles.ben.tow.xp == jobsOf(1).levels.tow.xp and #stored.profiles.ben.tow.history == 20
+		and stored.profiles.ben.tow.stats.done > 20, "progress.json keeps XP, stats and the last 20 jobs")
+end
+
 --== Config was saved and is valid JSON ==
 local saved = json.decode(assert(io.open(tmp)):read("*a"))
 check(saved.client.roadTraffic == 3 and saved.server.paymentMax == 1000000, "config.json saved")
@@ -577,6 +702,7 @@ os.remove(tmp)
 os.remove(tmpProfiles)
 os.remove(tmpFuel)
 os.remove(tmpPayouts)
+os.remove(tmpProgress)
 
 print(string.format("Server: %d ok, %d failed", passed, failures))
 os.exit(failures == 0 and 0 or 1)

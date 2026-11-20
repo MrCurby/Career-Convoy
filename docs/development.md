@@ -14,7 +14,7 @@
 ```
 client/                          client mod (packed into Resources/Client/SharedCareer.zip)
   lua/ge/extensions/sharedCareer/  game-engine Lua, one file per area (see below)
-  lua/vehicle/extensions/auto/     vehicle Lua (sharedCareerVeh: ghost, AI, ropes, jobs, damage;
+  lua/vehicle/extensions/auto/     vehicle Lua (sharedCareerVeh: ghost, AI, ropes, towing jobs, damage;
                                    sharedCareerPauseGuard: BeamMP's position sync during a pause)
   scripts/sharedCareer/            mod entry point (loads the extensions)
   ui/modules/apps/                 the two UI apps: SharedCareer-Menu (the menu with the steering
@@ -121,7 +121,35 @@ One line per problem. Each file starts with a comment that explains the details.
 | A vehicle wrapped around a lamp post can't be pulled free, and the career's "Tow to road" costs $75 | "To the road" in the Tow app uses the game's own `spawn.teleportToLastRoad`, free, while the vehicle stands still and isn't chased by the police | `tow.lua` |
 | One place for SharedCareer apps | The phone with an app registry (`phone.registerApp`); the UI app is only a tab at the screen edge | `phone.lua`, `ui/…/SharedCareer-Phone` |
 | Sending money to other players | `/pay` as a two-step transfer with refund | `money.lua`, server |
-| Towing jobs (beta) for everyone | The server keeps one job list and asks a client to make up each job (roadside spot, old car, repair shop). The taker spawns the broken-down car (`jobBreakDown`), new damage lowers the pay, and the server pays exactly once, also after a crash or reconnect (`config/payouts.json`, `sc_jobPaid` / `sc_jobPaidAck`) | `jobs.lua`, `sharedCareerVeh.lua`, server, `ui/…/SharedCareer-Phone` |
+| Jobs (beta) for everyone | The server keeps one job list and asks a client to make up each job. What all jobs share (taking, giving up, the route, the Jobs app, levels, a pay that arrives exactly once, also after a crash or reconnect: `config/payouts.json`, `sc_jobPaid` / `sc_jobPaidAck`) is in `jobs.lua`; each kind of job is a job type, see [Job types](#job-types) | `jobs.lua`, server, `ui/…/SharedCareer-Phone` |
+| Job levels per player, but one job list for everyone | The server keeps every player's XP per job type (`config/progress.json`) and decides: which tiers you can take, your pay, the XP. It keeps tier 1 and every online player's highest tier stocked. See [Job levels](#job-levels) | server, `jobs.lua` |
+| Towing jobs (the first job type) | A roadside spot, an old car and a repair shop; the taker spawns the broken-down car (`jobBreakDown`), new damage lowers the pay. A crash: the car is spawned in the air, tilted (nose, tail, side, corner or roof first), and falls at the crash's speed, so the game's physics wrecks it; it breaks down once it lies still | `towJobs.lua`, `sharedCareerVeh.lua` |
+
+### Job types
+
+The Jobs app knows nothing about towing: `jobs.lua` is the core, and each kind of job is a job type in a file of its own. `towJobs.lua` is the first one and the example to follow. A new job type is:
+
+1. **A file** `client/lua/ge/extensions/sharedCareer/<name>Jobs.lua`, loaded in `modScript.lua` after `jobs`. In `onExtensionLoaded` it calls `sharedCareer_jobs.registerType(M)`.
+2. **What it brings** (the list is at the top of `jobs.lua`): `id`, `name` (its section in the Jobs app, and "<name> job" in the money history), `icon`, `steps`, optionally `branch` (the career branch whose XP it also gives), and the functions `generate(tier)`, `tags`, `start`, `step`, `status`, `stop`, optionally `draw` and `vehicleReset`. Don't use the game's hook names (`onUpdate`, `onVehicleResetted`, …) for them: the game calls those on every extension.
+3. **Its own fields** go into `job.data` (at most 2 KB as JSON). The server checks only what every job has (`type`, `title`, `pos`, `dest`, `length`, `pay`) and passes `data` on.
+4. **When the job is done**, `step` calls `jobs.handOver(a, share)`: how much of the pay was earned (0..1, less after damage, for example). The server turns it into the player's pay and XP and pays it once.
+5. **Tiers:** `generate(tier)` makes a job of tier 1 (easy) to 4 (hard). A harder tier should be harder to do and pay more (`pay` is the pay at level 1). Levels, unlocking, the level bonus and the XP come from the core and the server. Every job type levels on its own, by the same rules unless it needs others (see [Job levels](#job-levels)).
+6. **An icon** in the Jobs app: the job card shows the SVG for `icon` in `app.html` (`scp-job-icon`); without one it shows `icon` as text.
+
+The server needs no change for a new job type: it keeps levels per job type as soon as it sees the first job of it. A client that doesn't know a job's type (an older mod version) lists it but doesn't start it. Making up jobs, the job types take turns; `server.jobsOpen` counts all of them.
+
+### Job levels
+
+The server is the referee for levels (`main.lua`, "Job levels"): the job list is shared, so who may take which job can't come from a client. A client's save keeps only a copy to show (`career/sharedCareerJobLevels.json`, written with the career).
+
+Every job type levels on its own: towing level 8 doesn't help in a new job type, which starts at level 1. The rules are `LEVEL_RULES`, the same for every job type. A job type that needs other rules (other tiers, faster levels) gets an entry in `LEVEL_RULES_BY_TYPE` with only the values that differ, for example `delivery = {tierLevel = {1, 4, 7}, tierXp = {50, 90, 140}}`. They stay on the server, so a client can't change them.
+
+- **progress.json:** per profile and job type `{xp, level, stats = {done, givenUp, earned, deducted, bestTier}, history}` (the last 20 jobs). The level follows from the XP: `xpBase × (level − 1)^1.5` XP for a level (xpBase 100), at most `maxLevel` (10).
+- **Tiers:** tier t from level `tierLevel[t]` = 1, 3, 5, 8. A job of a higher tier is listed with `locked = true` and `sc_jobTake` refuses it; a tier a job type doesn't have is refused in `sc_jobOffer`.
+- **Pay:** the job's pay (at level 1) + `bonus` (5 %) per level above 1, worked out per player in `sc_jobs` and at the payout.
+- **XP:** `tierXp[tier]` (40, 70, 110, 160) × the share earned; `lowTierXp` (half) for a job two or more tiers below the player's highest. Every job in the list carries the XP it gives that player (`xp`, like `pay`), so the Jobs app shows them under the pay. The payout carries the XP; the client adds it to the career's BeamXP and the job type's branch, if the career has them.
+- **The Jobs app** has a section per job type with your level in it (a ring), and its jobs in groups by the level they need: yours first, the locked ones at the bottom.
+- **Enough jobs for everyone:** `wantedTiers` lists, per job type, tier 1 and the highest tier of every player online; the emptiest one is asked for next (`sc_jobGenerate {type, tier}`, every 5 s while one is missing), up to `server.jobsOpen` each.
 
 ### Join flow
 

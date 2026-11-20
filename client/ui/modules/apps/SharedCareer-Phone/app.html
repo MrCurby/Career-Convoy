@@ -70,7 +70,8 @@
 						<span class="scp-row-right" ng-if="jobs.active.distance !== undefined" ng-bind="formatDistance(jobs.active.distance)"></span>
 					</button>
 				</div>
-				<!-- Jobs (beta): towing jobs for everyone on the server (jobs.lua) -->
+				<!-- Jobs (beta): jobs for everyone on the server (jobs.lua). What a job shows (icon, tags, steps,
+				     what to do now) comes from its job type (towJobs.lua: towing jobs). -->
 				<div class="scp-appbody scp-tow scp-jobs" ng-if="currentApp.id === 'jobs'">
 					<div class="scp-hint" ng-if="!jobs.enabled">Jobs are off on this server.</div>
 
@@ -78,52 +79,73 @@
 					<div class="scp-myjob" ng-if="jobs.active">
 						<div class="scp-myjob-top">
 							<span class="scp-myjob-label">Your job</span>
-							<span class="scp-myjob-pay" ng-bind="money(jobs.active.pay)"></span>
+							<span class="scp-reward">
+								<span class="scp-myjob-pay" ng-bind="money(jobs.active.pay)"></span>
+								<span class="scp-xp" ng-if="jobs.active.xp" ng-bind="xpText(jobs.active.xp)"></span>
+							</span>
 						</div>
-						<div class="scp-myjob-vehicle" ng-bind="jobs.active.vehicle"></div>
+						<div class="scp-myjob-title" ng-bind="jobs.active.title"></div>
 						<div class="scp-chips">
-							<span class="scp-chip-tag scp-tag-engine">Engine failure</span>
-							<span class="scp-chip-tag scp-tag-tire" ng-if="jobs.active.flatTire">Flat tire</span>
+							<span class="scp-chip-tag" ng-repeat="t in jobs.active.tags track by $index" ng-class="'scp-tag-' + t.kind" ng-bind="t.text"></span>
 						</div>
 						<div class="scp-steps">
-							<div class="scp-step" ng-repeat="st in jobSteps track by $index" ng-class="{'scp-step-done': $index < jobStep(), 'scp-step-now': $index === jobStep()}">
+							<div class="scp-step" ng-repeat="st in jobs.active.steps track by $index" ng-class="{'scp-step-done': $index < jobStep(), 'scp-step-now': $index === jobStep()}">
 								<i></i><span ng-bind="st"></span>
 							</div>
 						</div>
 						<div class="scp-myjob-now">
-							<span class="scp-myjob-dist" ng-if="jobs.active.distance !== undefined && jobStep() < 2" ng-bind="formatDistance(jobs.active.distance)"></span>
+							<span class="scp-myjob-dist" ng-if="jobs.active.distance !== undefined && !jobPaid()" ng-bind="formatDistance(jobs.active.distance)"></span>
 							<span class="scp-myjob-what" ng-bind="jobText()"></span>
 						</div>
-						<div class="scp-myjob-buttons" ng-if="jobStep() < 2">
+						<div class="scp-myjob-buttons" ng-if="!jobPaid()">
 							<button class="scp-myjob-btn" ng-click="jobsCall('uiNavigate()')"><span class="scp-btn-svg"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19a2 2 0 1 0 0-.01M19 5a2 2 0 1 0 0-.01" fill="none" stroke="currentColor" stroke-width="2"/><path d="M5 17V9a3 3 0 0 1 3-3h3M19 7v8a3 3 0 0 1-3 3h-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>Route</button>
 							<button class="scp-myjob-btn scp-myjob-giveup" ng-click="jobsCall('uiGiveUp()')">Give up</button>
 						</div>
 					</div>
-					<div class="scp-hint" ng-if="jobs.active && jobStep() < 2">Damage costs pay. Park it in the ring at the shop.</div>
+					<div class="scp-hint" ng-if="jobs.active && jobs.active.hint && !jobPaid()" ng-bind="jobs.active.hint"></div>
 
-					<!-- open jobs -->
-					<div class="scp-label" ng-if="jobs.enabled">Jobs <span ng-bind="openJobCount() + ' open'"></span></div>
-					<div class="scp-job" ng-repeat="j in jobs.jobs track by j.id" ng-if="j.state !== 'mine'" ng-class="{'scp-job-taken': j.state === 'taken'}">
-						<div class="scp-job-head">
-							<span class="scp-job-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 16V11l3-4h6v9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M11 12h6l4 4M11 16h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 12l5-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M19 6v4.5a1.3 1.3 0 1 1-1.3 1.3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="6" cy="17" r="1.8" fill="currentColor"/><circle cx="16.5" cy="17" r="1.8" fill="currentColor"/></svg></span>
-							<span class="scp-job-title">
-								<span class="scp-job-vehicle" ng-bind="j.vehicle"></span>
-								<span class="scp-job-problem" ng-bind="j.flatTire ? 'Engine failure · flat tire' : 'Engine failure'"></span>
+					<!-- a section per job type: your level in it (a ring that fills up to the next level), then
+					     its jobs by the level they need – yours first (the hardest at the top), then the ones
+					     you can't take yet, with a lock -->
+					<div class="scp-jobsection" ng-repeat="sec in jobs.sections track by sec.type" ng-if="jobs.enabled">
+						<div class="scp-level">
+							<span class="scp-level-ring" ng-style="{'background': levelRing(sec.level)}"><span ng-bind="sec.level ? sec.level.level : '–'"></span></span>
+							<span class="scp-level-text">
+								<b ng-bind="sec.name"></b>
+								<span ng-bind="levelText(sec.level)"></span>
 							</span>
-							<span class="scp-job-pay" ng-bind="money(j.pay)"></span>
 						</div>
-						<div class="scp-job-route">
-							<div class="scp-route-row"><span class="scp-route-dot scp-route-from"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z" fill="currentColor"/><circle cx="12" cy="10" r="2.4" fill="rgba(0,0,0,0.45)"/></svg></span><span ng-bind="j.distance !== undefined ? formatDistance(j.distance) + ' away' : '–'"></span></div>
-							<div class="scp-route-line"></div>
-							<div class="scp-route-row"><span class="scp-route-dot scp-route-to"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z" fill="currentColor"/><circle cx="12" cy="10" r="2.4" fill="rgba(0,0,0,0.45)"/></svg></span><span class="scp-route-dest" ng-bind="j.dest"></span><span class="scp-route-len" ng-bind="formatDistance(j.length) + ' tow'"></span></div>
+						<div class="scp-level-group" ng-repeat="g in sec.groups track by (g.minLevel + (g.locked ? 'L' : ''))">
+							<div class="scp-label scp-group-label" ng-class="{'scp-group-locked': g.locked}">
+								<span class="scp-group-name"><span class="scp-ic scp-ic-tiny" ng-if="g.locked"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" fill="currentColor"/><path d="M8 11V8a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2"/></svg></span><span ng-bind="'Level ' + g.minLevel"></span></span>
+								<span ng-bind="g.locked ? 'Locked' : g.open + ' open'"></span>
+							</div>
+							<div class="scp-job" ng-repeat="j in g.jobs track by j.id" ng-class="{'scp-job-taken': j.state === 'taken', 'scp-job-locked': j.locked}">
+								<div class="scp-job-head">
+									<span class="scp-job-icon"><svg ng-if="j.icon === 'tow'" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 16V11l3-4h6v9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M11 12h6l4 4M11 16h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 12l5-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M19 6v4.5a1.3 1.3 0 1 1-1.3 1.3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="6" cy="17" r="1.8" fill="currentColor"/><circle cx="16.5" cy="17" r="1.8" fill="currentColor"/></svg><span ng-if="j.icon !== 'tow'" ng-bind="j.icon"></span></span>
+									<span class="scp-job-title">
+										<span class="scp-job-name" ng-bind="j.title"></span>
+										<span class="scp-job-tags" ng-bind="tagLine(j)"></span>
+									</span>
+									<span class="scp-reward">
+										<span class="scp-job-pay" ng-bind="money(j.pay)"></span>
+										<span class="scp-xp" ng-if="j.xp" ng-bind="xpText(j.xp)"></span>
+									</span>
+								</div>
+								<div class="scp-job-route">
+									<div class="scp-route-row"><span class="scp-route-dot scp-route-from"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z" fill="currentColor"/><circle cx="12" cy="10" r="2.4" fill="rgba(0,0,0,0.45)"/></svg></span><span ng-bind="j.distance !== undefined ? formatDistance(j.distance) + ' away' : '–'"></span></div>
+									<div class="scp-route-line"></div>
+									<div class="scp-route-row"><span class="scp-route-dot scp-route-to"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z" fill="currentColor"/><circle cx="12" cy="10" r="2.4" fill="rgba(0,0,0,0.45)"/></svg></span><span class="scp-route-dest" ng-bind="j.dest"></span><span class="scp-route-len" ng-if="j.length" ng-bind="formatDistance(j.length)"></span></div>
+								</div>
+								<button class="scp-wide scp-job-take" ng-if="j.state === 'open' && !j.locked && !jobs.active" ng-click="jobsCall('uiTake(' + j.id + ')')">Take job</button>
+								<div class="scp-job-status" ng-if="j.state === 'taken'" ng-bind="'Taken by ' + (j.takenBy || 'another player')"></div>
+							</div>
 						</div>
-						<button class="scp-wide scp-job-take" ng-if="j.state === 'open' && !jobs.active" ng-click="jobsCall('uiTake(' + j.id + ')')">Take job</button>
-						<div class="scp-job-status" ng-if="j.state === 'taken'" ng-bind="'Taken by ' + (j.takenBy || 'another player')"></div>
 					</div>
-					<div class="scp-jobs-empty" ng-if="jobs.enabled && !openJobCount() && !jobs.active">
+					<div class="scp-jobs-empty" ng-if="jobs.enabled && !jobs.open && !jobs.active">
 						<span class="scp-jobs-empty-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.9"/><rect x="8.5" y="2.5" width="7" height="3.6" rx="1.2" fill="currentColor"/><path d="M8.5 12.5l2.4 2.4 4.6-4.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.5 18h7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" opacity="0.7"/></svg></span>
 						<div class="scp-empty-title">No jobs right now</div>
-						<div class="scp-empty-text">New ones come every few minutes.</div>
+						<div class="scp-empty-text">New ones are on the way.</div>
 					</div>
 				</div>
 				<!-- Tow: rope and winch, as a remote control (tow.lua). Without a rope: attach it (where you
@@ -137,6 +159,9 @@
 							<button class="scp-attach" ng-click="towCall('uiAttachView()')" title="Aim with the screen center">
 								<span class="scp-attach-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2.2" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
 								<span class="scp-attach-text"><b>Attach rope</b><span>Where I look</span></span>
+							</button>
+							<button class="scp-flip" ng-if="tow.flip" ng-click="towCall('uiFlipUpright()')" title="Put the vehicle you look at on its wheels (free)">
+								<span class="scp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9a8 8 0 0 1 14-3l2 2M20 15a8 8 0 0 1-14 3l-2-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M20 3v5h-5M4 21v-5h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Flip upright</span>
 							</button>
 							<button class="scp-road" ng-if="tow.towToRoad" ng-click="towCall('uiTowToRoad()')" title="Put the vehicle you look at back on the road (free)">
 								<span class="scp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3 L3 21 M16 3 L21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/><path d="M12 4v3M12 10.5v3M12 17v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span><span>To the road</span>
@@ -160,6 +185,10 @@
 								title="Put it back on the road (free)"><span class="scp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3 L3 21 M16 3 L21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/><path d="M12 4v3M12 10.5v3M12 17v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span></button>
 							<button class="scp-iconbtn scp-iconbtn-cut" ng-click="towCall('uiRelease()')" title="Remove the rope"><span class="scp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="18" r="2.6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="18" cy="18" r="2.6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M7.8 16 L17 4 M16.2 16 L7 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span></button>
 						</div>
+
+						<button class="scp-flip" ng-if="tow.flip" ng-click="towCall('uiFlipUpright()')" title="Put it on its wheels (free)">
+							<span class="scp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9a8 8 0 0 1 14-3l2 2M20 15a8 8 0 0 1-14 3l-2-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M20 3v5h-5M4 21v-5h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Flip upright</span>
+						</button>
 
 						<!-- the rope: vehicle – rope (sags when slack, colored by its load, marks run while the winch turns) – anchor -->
 						<div class="scp-ropeview" ng-class="ropeState().cls">
