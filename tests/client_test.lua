@@ -2914,6 +2914,22 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	local crashJob = {data = {crash = {kind = "roof", speed = 5}, flatTire = true}}
 	check(tow.tags(crashJob)[1].text == "On its roof" and tow.tags({data = {crash = {kind = "front", speed = 9}}})[1].text == "Crash"
 		and tow.tags(crashJob)[2].text == "Flat tire", "a crash shows as \"Crash\" or \"On its roof\" instead of the engine failure")
+	local faultsOk, crashEngineOk, seen = true, true, {}
+	for tier = 1, 4 do
+		for _ = 1, 100 do
+			local d = tow.generate(tier).data
+			if type(d.faults) ~= "table" or #d.faults == 0 then faultsOk = false end
+			if d.crash and not (#d.faults == 1 and d.faults[1] == "engine") then crashEngineOk = false end
+			for _, f in ipairs(d.faults or {}) do seen[f] = true end
+		end
+	end
+	check(faultsOk and seen.engine and seen.windshield and seen.taillights,
+		"faults: always at least one; engine, windshield and tail lights all come up")
+	check(crashEngineOk, "a crash always has a broken engine, nothing else")
+	local tags = tow.tags({data = {faults = {"windshield", "taillights"}, heavy = true}})
+	check(#tags == 3 and tags[1].text == "Broken windshield" and tags[2].text == "Broken taillights"
+		and tags[3].text == "Heavy", "each fault shows as its own tag, in order")
+	check(#tow.tags({data = {faults = {"engine", "nonsense"}}}) == 1, "an unknown fault shows no tag")
 	check(tow.payFor(1000, false, 2) == 350 and tow.payFor(1000, false, 4) == 590, "a higher tier pays more (x1.3, x2.2)")
 	handlers.sc_jobGenerate(json.encode({type = "tow", tier = 3}))
 	offer = lastSent("sc_jobOffer")
@@ -2933,7 +2949,7 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	-- the list arrives: the Jobs app (beta) is on the phone
 	local job = {id = 7, type = "tow", title = "Gavril Grand Marshal", pos = {x = 2000, y = -5.8, z = 10},
 		dest = {name = "Belasco Auto", pos = doors.belasco}, length = 2600, pay = 600,
-		data = {vehicle = {model = "fullsize", config = "base"}, flatTire = true, dir = {x = 1, y = 0}}}
+		data = {vehicle = {model = "fullsize", config = "base"}, flatTire = true, faults = {"engine"}, dir = {x = 1, y = 0}}}
 	local function sendList(state)
 		local j = json.decode(json.encode(job))
 		j.state = state
@@ -2991,7 +3007,7 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	for _ = 1, 3 do update(0.1) end
 	check(world.spawned and world.spawned[1] == "fullsize" and world.spawned[2].config == "base" and world.spawned[2].pos.x == 2000
 		and world.spawned[2].autoEnterVehicle == false and world.spawned[2].rot, "within 400 m: the vehicle appears at its place")
-	check(lastCmd(spawnedVeh):find("jobBreakDown%(true%)"), "it breaks down, with the flat tire of the job")
+	check(lastCmd(spawnedVeh):find("jobBreakDown%(true, {engine = true}%)"), "it breaks down, with the flat tire and the faults of the job")
 	local cmds = #spawnedVeh.lua
 	for _ = 1, 35 do update(0.1) end
 	check(#spawnedVeh.lua > cmds and lastCmd(spawnedVeh):find("jobBreakDown"), "no answer from the vehicle: broken down again")
@@ -3005,7 +3021,7 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	-- a reset repairs it: broken down again
 	cmds = #spawnedVeh.lua
 	extensions.hook("onVehicleResetted", 80)
-	check(#spawnedVeh.lua == cmds + 1 and lastCmd(spawnedVeh):find("jobBreakDown%(true%)"), "reset (R): broken down again")
+	check(#spawnedVeh.lua == cmds + 1 and lastCmd(spawnedVeh):find("jobBreakDown%(true, {engine = true}%)"), "reset (R): broken down again")
 	tow.onJobBrokenDown(80, 100)
 	-- at the shop: someone inside doesn't count; standing still and empty for 3 s does
 	spawnedVeh.p = {x = 4005, y = 52, z = 10}
@@ -3210,13 +3226,29 @@ end)()
 	local chunk = assert(loadfile("client/lua/vehicle/extensions/auto/sharedCareerVeh.lua"))
 	setfenv(chunk, env)
 	local veh = chunk()
-	veh.jobBreakDown(true)
+	veh.jobBreakDown(true, {engine = true})
 	local all = table.concat(calls, ", ")
 	check(all == "engine off, gear 0, parkingbrake 0, hazard true, flat",
 		"breakdown: engine off, neutral, parking brake off, hazard lights, flat tire (" .. all .. ")")
 	check(ge[#ge]:find("sharedCareer_towJobs.onJobBrokenDown%(80, 1234%.5%)"), "reports the damage so far")
 	veh.jobReportDamage()
 	check(ge[#ge]:find("onJobDamage%(80, 1234%.5%)"), "reports the damage at the drop-off")
+	-- other faults: the engine keeps running, the windshield and tail lights break
+	local broken = {}
+	env.beamstate.onBeamDeformed = function(cid) table.insert(broken, cid) end
+	env.v = {data = {beams = {
+		{cid = 1, deformGroup = "windshield_break"}, {cid = 2, deformGroup = "tailgatelight_R"},
+		{cid = 3, deformGroup = "headlight_L"}, {cid = 4},
+	}}}
+	calls = {}
+	veh.jobBreakDown(false, {windshield = true})
+	all = table.concat(calls, ", ")
+	check(all == "gear 0, parkingbrake 0, hazard true" and #broken == 1 and broken[1] == 1,
+		"broken windshield: the engine keeps running, only the windshield breaks (" .. all .. ")")
+	broken = {}
+	veh.jobBreakDown(false, {taillights = true})
+	check(#broken == 1 and broken[1] == 2, "broken tail lights: only the tail lights break")
+	env.beamstate.onBeamDeformed, env.v = nil, nil
 	env.powertrain, env.controller, env.electrics = nil, nil, nil
 	calls = {}
 	local ok = pcall(veh.jobBreakDown, false)
