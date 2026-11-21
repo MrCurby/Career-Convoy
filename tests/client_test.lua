@@ -5197,8 +5197,8 @@ end)();
 	veh.jobBreakDown(true, { engine = true })
 	local all = table.concat(calls, ", ")
 	check(
-		all == "engine off, gear 0, parkingbrake 1, hazard true, flat",
-		"breakdown: engine off, neutral, parking brake on, hazard lights, flat tire (" .. all .. ")"
+		all == "engine off, ignition 2, gear 0, parkingbrake 1, hazard true, flat",
+		"breakdown: engine off, ignition on, neutral, parking brake on, hazard lights, flat tire (" .. all .. ")"
 	)
 	check(ge[#ge]:find("sharedCareer_towJobs.onJobBrokenDown%(80, 1234%.5%)"), "reports the damage so far")
 	veh.jobReportDamage()
