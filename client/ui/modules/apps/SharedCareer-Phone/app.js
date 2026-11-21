@@ -106,14 +106,6 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 	$scope.towCall = function (cmd) {
 		bngApi.engineLua('if sharedCareer_tow then sharedCareer_tow.' + cmd + ' end');
 	};
-	var nudging = false;
-	$scope.nudge = function (f, r, u) {
-		nudging = true;
-		$scope.towCall('uiNudge(' + f + ',' + r + ',' + u + ')');
-	};
-	$scope.nudgeStop = function () {
-		if (nudging) { nudging = false; $scope.towCall('uiNudgeStop()'); }
-	};
 	$scope.meters = function (v) { return typeof v === 'number' ? v.toFixed(1) + ' m' : '–'; };
 	$scope.strainText = function (s) {
 		s = s || 0;
@@ -159,10 +151,6 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 	$scope.strapsCall = function (cmd) {
 		bngApi.engineLua('if sharedCareer_straps then sharedCareer_straps.' + cmd + ' end');
 	};
-	// adding a strap by hand: what to aim at
-	$scope.strapStepText = function () {
-		return $scope.straps.step === 2 ? '2. Aim at the truck or trailer' : '1. Aim at the car';
-	};
 	// a strap's load as a colored dot: green, yellow, red near breaking; grey when slack
 	$scope.strapDot = function (s) {
 		if (s.slack) return 'scp-dot-slack';
@@ -176,6 +164,22 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 			$scope.straps = data;
 		});
 	});
+	//== The remote for a rope's loose end (remote.html, ropeRemote.lua): in the Tow and Straps apps ==
+	// its buttons go to the open app; a held button is let go in the app it was pressed in
+	var REMOTE_CALLS = {tow: $scope.towCall, straps: $scope.strapsCall};
+	var nudging = null;
+	$scope.nudge = function (f, r, u) {
+		nudging = $scope.currentApp && REMOTE_CALLS[$scope.currentApp.id];
+		if (nudging) nudging('uiNudge(' + f + ',' + r + ',' + u + ')');
+	};
+	$scope.nudgeStop = function () {
+		if (nudging) { nudging('uiNudgeStop()'); nudging = null; }
+	};
+	$scope.remoteToView = function () {
+		var call = $scope.currentApp && REMOTE_CALLS[$scope.currentApp.id];
+		if (call) call('uiToView()');
+	};
+
 	//== Fuel app (lua/ge/extensions/sharedCareer/fuel.lua, data with "SharedCareerState") ==
 	var SORT_KEY = "sharedCareerFuelSort";
 	$scope.fuel = null;

@@ -6,7 +6,7 @@
 --   setAiTuning(gap, sightFactor)  traffic AI reacts earlier to obstacles (traffic.lua)
 --   ropeTieRay / ropeTieNearest / ropeTieNode / ropeUpdate / ropeRelease / tieProbe
 --                                  ropes and straps from this vehicle (rope.lua), see "Ropes" below
---   anchorNear / hookProbe / anchorHook / anchorPull / anchorRelease / strapCorners / hookBelow
+--   anchorNear / anchorHook / anchorPull / anchorRelease / strapCorners / hookBelow
 --                                  this vehicle holds the other end of a rope or strap, see
 --                                  "Anchor on a vehicle" below
 --   jobBreakDown / jobReportDamage the broken-down vehicle of a towing job (jobs.lua), see
@@ -118,10 +118,12 @@ end
 -- don't bend. Two kinds:
 --   KIND_TOW    a portable winch with its line (staked to the ground, or on another vehicle):
 --               the Tow app
---   KIND_STRAP  a ratchet strap to another vehicle (a car on a trailer): the Straps app. No winch;
---               once its other end is hooked on, it is pulled tight by STRAP_PRELOAD and keeps that
---               length. It stretches STRAP_STRETCH under the vehicle's weight (webbing gives a
---               little, and a softer strap stays calm while both vehicles drive)
+--   KIND_STRAP  a ratchet strap to another vehicle (a car on a trailer): the Straps app. Once its
+--               other end is hooked on, it is pulled tight by STRAP_PRELOAD and keeps that length.
+--               "Tighten" hauls it in like a very weak winch (winch 1 with the speed and strength
+--               the GE side sends; never paying out) down to STRAP_MIN. It stretches STRAP_STRETCH
+--               under the vehicle's weight (webbing gives a little, and a softer strap stays calm
+--               while both vehicles drive)
 -- A tow rope is computed like this:
 --   * stiff: under the vehicle's weight it stretches ROPE_STRAIN of its length (at least
 --     ROPE_STRETCH_MIN), like a steel or synthetic winch line, so it catches the vehicle instead of
@@ -339,12 +341,12 @@ end
 M.ropeTie = tie
 
 -- The node closest to a ray (camera position + direction): {cid, t, x, y, z} or nil.
--- t = distance along the ray. minMass: only nodes at least this heavy.
-local function nodeOnRay(cx, cy, cz, dx, dy, dz, maxDist, minMass)
+-- t = distance along the ray.
+local function nodeOnRay(cx, cy, cz, dx, dy, dz, maxDist)
 	local best = nil
 	for _, node in pairs(allNodes()) do
 		local cid = type(node) == "table" and node.cid
-		if cid and (not minMass or (tonumber(obj:getNodeMass(cid)) or 0) >= minMass) then
+		if cid then
 			local p = obj:getAbsNodePosition(cid)
 			local rx, ry, rz = p.x - cx, p.y - cy, p.z - cz
 			local t = rx * dx + ry * dy + rz * dz
@@ -440,8 +442,8 @@ function M.ropeUpdate(rid, ax, ay, az, winch, moving, speed, strength, avx, avy,
 	end
 	if winch == true then winch = 1 elseif winch == false then winch = 0 end
 	winch = tonumber(winch) or 0
-	-- a strap has no winch
-	h.winch = h.kind == KIND_TOW and (winch > 0 and 1 or (winch < 0 and -1 or 0)) or 0
+	-- a strap only hauls in (Tighten), it never pays out
+	h.winch = winch > 0 and 1 or (h.kind == KIND_TOW and winch < 0 and -1 or 0)
 	h.moving = h.kind == KIND_TOW and (moving == true or moving == 1)
 	if tonumber(speed) then h.speed = tonumber(speed) end
 	if tonumber(strength) then h.strength = tonumber(strength) end
@@ -488,13 +490,13 @@ local function ropeStep(rid, h, dt, perFrame)
 	-- a strap is pulled tight once, when it is hooked on
 	if not h.length then h.length = strap and math.max(STRAP_MIN, d - STRAP_PRELOAD) or d end
 	local weight = h.vehMass * GRAVITY
-	if not strap then
+	do
 		local pull = weight * h.strength / 100
 		-- the winch: the motor slows down under load and stalls at once at the pull limit (it can't
 		-- pull harder); otherwise the drum follows the wanted speed at its acceleration
 		local want = 0
 		if h.winch == 1 then
-			local soft = math.max(WINCH_SOFT_MIN, math.min(1, (h.length - ROPE_MIN) / WINCH_SOFT_END))
+			local soft = strap and 1 or math.max(WINCH_SOFT_MIN, math.min(1, (h.length - ROPE_MIN) / WINCH_SOFT_END))
 			local load = h.tension / pull
 			want = load >= 1 and 0 or -h.speed * soft * (1 - (1 - WINCH_FULL_LOAD) * load)
 		elseif h.winch == -1 then
@@ -504,7 +506,7 @@ local function ropeStep(rid, h, dt, perFrame)
 		local step = ((h.winch == 1 or h.drum < 0) and WINCH_ACCEL_IN or WINCH_ACCEL_OUT) * dt
 		h.drum = h.drum + math.max(-step, math.min(step, want - h.drum))
 		if h.winch == 1 then h.drum = math.max(h.drum, want) end -- the motor stalls at once under load
-		h.length = math.max(ROPE_MIN, math.min(ROPE_MAX, h.length + h.drum * dt))
+		h.length = math.max(strap and STRAP_MIN or ROPE_MIN, math.min(ROPE_MAX, h.length + h.drum * dt))
 		if h.moving then h.length = math.max(h.length, d) end
 		if h.placed then
 			h.length = math.min(ROPE_MAX, math.max(h.length, d))
@@ -546,14 +548,12 @@ end
 -- This vehicle can hold the other end of several ropes (a tow rope, straps), each under its rope
 -- id. Nothing hooks on by itself: the player hooks it on with a button, and the GE side asks
 -- first where it would go.
---   anchorNear(rid, x, y, z)   the Tow app's anchor is near this vehicle (a few times per second).
+--   anchorNear(rid, x, y, z)   a rope's loose end (the remote: Tow app, Straps app) is near this vehicle (a few times per second).
 --               Answers onAnchorNear(id, rid, "cid,cid,...", cid, isHitch): its tow hitches within
 --               TARGET_RANGE m (shown as rings), and the hook point – a tow hitch within HITCH_SNAP
 --               m (a coupler node whose tag names a hitch, fifth wheel or gooseneck), otherwise the
 --               nearest sturdy node within NODE_SNAP m (any node if no sturdy one is in reach);
 --               cid -1 = none
---   hookProbe(cx, cy, cz, dx, dy, dz, maxDist)   the Straps app aims at this vehicle: the sturdy
---               node closest to the view ray -> onHookProbe(id, cid, isHitch)
 --   anchorHook(rid, cid)       hook rope `rid` on at node cid -> onAnchorNode(id, rid, cid, isHitch)
 --   anchorPull(rid, fx, fy, fz) the rope's pull on this vehicle (N, from the roped vehicle, every
 --               frame), spread over the nodes around the anchor node by their mass like the
@@ -572,7 +572,6 @@ local TARGET_RANGE = 6        -- m: tow hitches this close to the anchor are rep
 local HITCH_TAGS = {"hitch", "fifthwheel", "gooseneck"}
 local STRAP_REACH = 2.5       -- m: a strap's carrier end at most this far from its corner
 local STRAP_ABOVE = 0.2       -- m: a carrier end at most this much higher than its corner
-local PROBE_SLACK = 0.25      -- m: a sturdy node this much farther from the view ray still wins
 
 local anchors = {} -- rid -> {node, nodes = {{cid, m}}, mass, fx, fy, fz, age}
 
@@ -645,23 +644,10 @@ local function hookPointNear(p)
 	return best and best.cid or nil, false, targets
 end
 
---- The Tow app's anchor is at x/y/z: report the tow hitches near it and where it would hook on.
+--- A rope's loose end is at x/y/z: report the tow hitches near it and where it would hook on.
 function M.anchorNear(rid, x, y, z)
 	local cid, hitch, targets = hookPointNear({x = tonumber(x) or 0, y = tonumber(y) or 0, z = tonumber(z) or 0})
 	reportToGE("onAnchorNear", "%d, %q, %d, %d", rid, table.concat(targets, ","), cid or -1, hitch and 1 or 0)
-end
-
---- The Straps app aims at this vehicle: where would the strap hook on? The sturdy node closest to
---- the view ray (a light one only if it is clearly closer). Reports onHookProbe(id, cid, isHitch).
-function M.hookProbe(cx, cy, cz, dx, dy, dz, maxDist)
-	maxDist = tonumber(maxDist) or 120
-	local any = nodeOnRay(cx, cy, cz, dx, dy, dz, maxDist)
-	if not any then return end
-	local sturdy = nodeOnRay(cx, cy, cz, dx, dy, dz, maxDist, sturdyMass())
-	local n = any
-	if sturdy and math.sqrt(sturdy.miss) <= math.sqrt(any.miss) + PROBE_SLACK then n = sturdy end
-	local node = nodeByCid(n.cid)
-	reportToGE("onHookProbe", "%d, %d", n.cid, node and isHitch(node) and 1 or 0)
 end
 
 --- Hooks rope `rid` on at node cid (the hook point the GE side was told).

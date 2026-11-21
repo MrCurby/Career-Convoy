@@ -10,10 +10,14 @@
 --                it each name the nearest sturdy point below every corner (hookBelow), and each
 --                corner takes the nearest answer. A corner without one is left out
 --                ("3 of 4 strapped"). Not twice on the same car
---   Add strap    one strap by hand, in two steps, aiming with the middle of the view: 1. at the car
---                (a blue ball shows where it is tied) -> "Here"; 2. at the truck or trailer (a ring
---                shows where it hooks on, a dashed line runs from the car to it, red while it is
---                too far) -> "Here". "Cancel" in between takes it off again
+--   Add strap    one strap by hand, in two steps: 1. aim at the car with the middle of the view (a
+--                blue ball shows where it is tied) -> "Here"; 2. move the strap's end with the
+--                remote (ropeRemote.lua, the same as the Tow app's anchor; at most STRAP_REACH m
+--                from the car) to the truck or trailer: a ring shows where it would hook on, with a
+--                dashed line to it -> "Hook on". "Cancel" in between takes it off again
+--   Tighten      pulls every strap tight like a very weak winch: it hauls in at TIGHTEN_SPEED until
+--                it holds TIGHTEN_STRENGTH % of the car's weight, then it is locked again (or after
+--                TIGHTEN_TIME s). A strap that is already that tight stays as it is
 --   the list     every strap with a dot for its load (green, yellow, red); remove one, or all
 --   Remove rope  while the tow rope (Tow app) is still on a strapped car: takes it off, so you
 --                don't need to go back to the Tow app
@@ -29,18 +33,24 @@
 
 local M = {}
 
-local U, R
+local U, R, Remote
 
-local STRAP_REACH = 3      -- m: the longest strap by hand
+local STRAP_REACH = 3      -- m: a strap's end by hand stays this close to the car
 local CARRIER_SEARCH = 12  -- m from the car: your vehicles this close are asked for points below it
 local STRAP_WAIT = 0.5     -- s to wait for the vehicles' answers (Strap down)
 local MAX_STRAPS = 16      -- straps at most, on all vehicles
 local APP_PUSH_EVERY = 0.2 -- s: how often the app gets the state while it's open
+local TIGHTEN_SPEED = 0.1  -- m/s Tighten hauls a strap in at most
+local TIGHTEN_STRENGTH = 25 -- % of the car's weight: Tighten stops at this pull, per strap
+local TIGHTEN_TIME = 6     -- s: Tighten stops after this long anyway
+local TIGHT = 0.95         -- a strap's winch load (1 = TIGHTEN_STRENGTH) from which it counts as tight
 
 local appOpen = false
+local fine = false         -- fine mode for the remote
 local sinceAppPush = 0
 local clock = 0
-local pick = nil           -- adding a strap by hand: {step = 1} or {step = 2, rope, cargo}
+local pick = nil           -- adding a strap by hand: {step = 1} or {step = 2, rope}
+local tightenUntil = nil   -- Tighten runs until this clock time
 local pending = nil        -- Strap down: {req, cargo, at, corners = {{cid, x, y, z}}, asked = {vid = true},
                            --  best = {[corner] = {vid, cid, d}}}
 local nextReq = 1
@@ -58,9 +68,17 @@ end
 
 --== Drawing ======================================================================
 
--- the ratchet at the strap's lower end: a dark block along the strap, a yellow lever on it
+local LOOSE_END = {1, 0.78, 0.15}
+
+-- the ratchet at the strap's lower end: a dark block along the strap, a yellow lever on it. A
+-- loose end (adding a strap by hand) also gets the remote's ground marker and hook points.
 local function drawEnd(r, a, b)
 	local S = R.shapes
+	if not r.anchorVeh then
+		S.ball(b, 0.05, ColorF(LOOSE_END[1], LOOSE_END[2], LOOSE_END[3], 0.95))
+		Remote.groundMarker(b, LOOSE_END)
+		Remote.drawHookPoints(r, b)
+	end
 	local d = R.distance(a, b)
 	if d < 0.01 then return end
 	local k = math.min(0.15, d / 2) / d
@@ -70,22 +88,18 @@ local function drawEnd(r, a, b)
 	S.ball(top, 0.035, ColorF(1, 0.78, 0.15, 0.95))
 end
 
--- Adding a strap by hand, step 2: a dashed line from the car to the point it would hook on, red
--- while it is too far.
-local function drawPick()
-	if not (pick and pick.step == 2 and R.canDraw()) then return end
-	local a, p = R.gripNow(pick.rope), R.probeResult()
-	if not (a and p and p.mode == "hook") then return end
-	local far = R.distance(a, p.pos) > STRAP_REACH
-	R.shapes.dashed(a, p.pos, far and ColorF(1, 0.25, 0.2, 0.9) or ColorF(1, 0.78, 0.15, 0.9))
-end
-
 --== Straps ========================================================================
 
 local function newStrap(cargo, tieCommand)
 	local r = R.create(R.STRAP, cargo, tieCommand)
 	r.drawEnd = drawEnd
-	r.anchored = function() pushApp() end
+	r.anchored = function(hooked)
+		if pick and pick.rope == hooked then
+			pick = nil
+			hooked.update = nil
+		end
+		pushApp()
+	end
 	r.gone = function(gone)
 		if pick and pick.rope == gone then pick = nil end
 		pushApp()
@@ -212,28 +226,56 @@ function M.addStrap()
 	return true
 end
 
---- "Here": step 1 ties the strap to the car you look at, step 2 hooks it onto the vehicle you look at.
+-- adding a strap by hand, step 2: the remote moves the strap's end, close to the car
+local function moveEnd(r, dt)
+	Remote.move(r, dt, fine and Remote.FINE or 1, STRAP_REACH)
+end
+
+--- "Here" (step 1): ties the strap to the car you look at; its end then hangs there for the remote.
 function M.here()
-	if not pick then return false end
-	if pick.step == 1 then
-		local found, err = cargoInView()
-		if not found then return false, err end
-		local cam, dir = R.cameraPos(), R.viewDir()
-		local r = newStrap(found.id, function(rid)
-			return string.format("sharedCareerVeh.ropeTieRay(%d, %d, %.3f, %.3f, %.3f, %.4f, %.4f, %.4f, %d)",
-				rid, R.STRAP, cam.x, cam.y, cam.z, dir.x, dir.y, dir.z, R.MAX_DISTANCE)
-		end)
-		pick = {step = 2, rope = r, cargo = found.id}
-		R.stopProbe()
-		return true
-	end
-	local p, a = R.probeResult(), R.gripNow(pick.rope)
-	if not (p and p.mode == "hook") then return false, "Aim at your truck or trailer" end
-	if not a then return false end
-	if R.distance(a, p.pos) > STRAP_REACH then return false, "Too far – aim closer" end
-	R.hook(pick.rope, p.id, p.cid)
-	pick = nil
+	if not (pick and pick.step == 1) then return false end
+	local found, err = cargoInView()
+	if not found then return false, err end
+	local cam, dir = R.cameraPos(), R.viewDir()
+	local r = newStrap(found.id, function(rid)
+		return string.format("sharedCareerVeh.ropeTieRay(%d, %d, %.3f, %.3f, %.3f, %.4f, %.4f, %.4f, %d)",
+			rid, R.STRAP, cam.x, cam.y, cam.z, dir.x, dir.y, dir.z, R.MAX_DISTANCE)
+	end)
+	r.update = moveEnd
+	pick = {step = 2, rope = r}
+	R.stopProbe()
 	return true
+end
+
+--- "Hook on" (step 2): the strap's end goes onto the point the ring shows.
+function M.hookOn()
+	if not (pick and pick.step == 2) then return false end
+	if not Remote.hookOn(pick.rope) then return false, "Move it to your truck or trailer" end
+	return true
+end
+
+--- Tighten: every strap hauls in like a very weak winch until it is tight.
+function M.tighten()
+	local any = false
+	for _, r in ipairs(straps()) do
+		if r.anchorVeh then
+			r.winch, r.speed, r.strength, r.strain = 1, TIGHTEN_SPEED, TIGHTEN_STRENGTH, 0
+			any = true
+		end
+	end
+	tightenUntil = any and clock + TIGHTEN_TIME or nil
+	return any
+end
+
+-- every frame while Tighten runs: a strap that is tight is locked again, all of them at the end
+local function tightenStep()
+	local running = false
+	for _, r in ipairs(straps()) do
+		if r.winch == 1 then
+			if clock >= tightenUntil or (r.strain or 0) >= TIGHT then r.winch = 0 else running = true end
+		end
+	end
+	if not running then tightenUntil = nil end
 end
 
 --- Stop adding a strap by hand; a strap tied in step 1 comes off again.
@@ -260,12 +302,8 @@ end
 --- State for the Straps app.
 function M.appState()
 	local state = {allowed = R.allowed(), step = pick and pick.step or 0, busy = pending ~= nil, straps = {},
-		towRope = towRopeOnStrapped() ~= nil}
-	if pick and pick.step == 2 then
-		local a, p = R.gripNow(pick.rope), R.probeResult()
-		state.aimed = p ~= nil and p.mode == "hook"
-		state.tooFar = state.aimed and a ~= nil and R.distance(a, p.pos) > STRAP_REACH
-	end
+		towRope = towRopeOnStrapped() ~= nil, fine = fine, tightening = tightenUntil ~= nil}
+	if pick and pick.step == 2 then state.hookOn = Remote.hookOnState(pick.rope) end
 	local n = 0
 	for _, r in ipairs(straps()) do
 		if r.anchorVeh then
@@ -287,6 +325,7 @@ function M.setAppOpen(on)
 	if not appOpen then
 		M.cancel()
 		R.stopProbe()
+		fine = false
 	end
 	pushApp()
 end
@@ -301,6 +340,13 @@ end
 function M.uiStrapDown() return tell(M.strapDown()) end
 function M.uiAddStrap() return tell(M.addStrap()) end
 function M.uiHere() return tell(M.here()) end
+function M.uiHookOn() return tell(M.hookOn()) end
+function M.uiTighten() return tell(M.tighten()) end
+function M.uiFine(on) fine = on == true; pushApp() end
+--- The remote (ropeRemote.lua, remote.html) for the strap's end while adding one by hand.
+function M.uiNudge(f, r, u) if pick and pick.rope then Remote.nudge(pick.rope, f, r, u) end; pushApp() end
+function M.uiNudgeStop() if pick and pick.rope then Remote.nudgeStop(pick.rope) end; pushApp() end
+function M.uiToView() if pick and pick.rope then Remote.toView(pick.rope, STRAP_REACH) end; pushApp() end
 function M.uiCancel() M.cancel(); pushApp() end
 function M.uiRemove(rid) R.release(R.get(tonumber(rid))); pushApp() end
 function M.uiRemoveAll() M.cancel(); R.releaseAll(R.STRAP); pushApp() end
@@ -325,7 +371,7 @@ end
 function M.onConfigChanged()
 	if not R.allowed() then
 		M.cancel()
-		pending = nil
+		pending, tightenUntil = nil, nil
 	end
 	registerPhoneApp()
 end
@@ -344,11 +390,8 @@ function M.onUpdate(dtReal)
 			pushApp()
 		end
 	end
-	if appOpen and pick then
-		if pick.step == 1 then R.probe("tie") else R.probe("hook", pick.cargo) end
-		local ok, err = pcall(drawPick)
-		if not ok then U.log("E", "straps", "drawing failed: " .. tostring(err)) end
-	end
+	if tightenUntil then tightenStep() end
+	if appOpen and pick and pick.step == 1 then R.probe() end
 	if appOpen then
 		sinceAppPush = sinceAppPush + dt
 		if sinceAppPush >= APP_PUSH_EVERY then
@@ -363,12 +406,13 @@ function M.onCareerActive(active)
 end
 
 function M.onBeamMPServerLeave()
-	pick, pending = nil, nil
+	pick, pending, tightenUntil = nil, nil, nil
 end
 
 function M.onExtensionLoaded()
 	U = extensions.sharedCareer_util
 	R = extensions.sharedCareer_rope
+	Remote = extensions.sharedCareer_ropeRemote
 end
 
 M.onInit = function() setExtensionUnloadMode(M, 'manual') end

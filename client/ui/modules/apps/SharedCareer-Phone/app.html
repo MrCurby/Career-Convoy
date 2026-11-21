@@ -246,19 +246,7 @@
 								<span class="scp-ic"><svg aria-hidden="true"><use href="#sc-icon-straps"/></svg></span>
 								<span class="scp-hookon-text"><b>Strap down</b><span ng-bind="tow.anchorVehicle"></span></span>
 							</button>
-							<div class="scp-remote" ng-if="!tow.anchorVehicle">
-								<div class="scp-pad">
-									<span></span><button class="scp-pad-key" title="Away from me (hold)" ng-mousedown="nudge(1,0,0)" ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()"><span class="scp-ic"><svg aria-hidden="true"><use href="#sc-icon-chevron-up"/></svg></span></button><span></span>
-									<button class="scp-pad-key" title="Left (hold)" ng-mousedown="nudge(0,-1,0)" ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()"><span class="scp-ic"><svg aria-hidden="true"><use href="#sc-icon-chevron-left"/></svg></span></button>
-									<button class="scp-pad-key scp-pad-center" title="Anchor to the middle of my view" ng-click="towCall('uiAnchorToView()')"><span class="scp-ic"><svg aria-hidden="true"><use href="#sc-icon-aim"/></svg></span></button>
-									<button class="scp-pad-key" title="Right (hold)" ng-mousedown="nudge(0,1,0)" ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()"><span class="scp-ic"><svg aria-hidden="true"><use href="#sc-icon-chevron-right"/></svg></span></button>
-									<span></span><button class="scp-pad-key" title="Towards me (hold)" ng-mousedown="nudge(-1,0,0)" ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()"><span class="scp-ic"><svg aria-hidden="true"><use href="#sc-icon-chevron-down"/></svg></span></button><span></span>
-								</div>
-								<div class="scp-lift">
-									<button class="scp-pad-key" title="Up (hold)" ng-mousedown="nudge(0,0,1)" ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()"><span class="scp-ic"><svg aria-hidden="true"><use href="#sc-icon-arrow-up"/></svg></span><span class="scp-pad-label">Up</span></button>
-									<button class="scp-pad-key" title="Down (hold)" ng-mousedown="nudge(0,0,-1)" ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()"><span class="scp-ic"><svg aria-hidden="true"><use href="#sc-icon-arrow-down"/></svg></span><span class="scp-pad-label">Down</span></button>
-								</div>
-							</div>
+							<div ng-if="!tow.anchorVehicle" ng-include="'/ui/modules/apps/SharedCareer-Phone/remote.html'"></div>
 							<button class="scp-hookon" ng-if="!tow.anchorVehicle && tow.hookOn" ng-class="{'scp-hookon-hitch': tow.hookOn.hitch}" ng-click="towCall('uiHookOn()')"
 								title="Put the anchor where the ring is">
 								<span class="scp-ic"><svg aria-hidden="true"><use href="#sc-icon-anchor-vehicle"/></svg></span>
@@ -270,8 +258,9 @@
 
 				<!-- Straps: ratchet straps that hold a car on a trailer or truck (straps.lua). "Strap down"
 				     straps the car you look at at its four corners; "Add strap" adds one by hand in two
-				     steps (aim at the car, then at the truck). Below: the straps, each with its load, and
-				     "Remove rope" while the tow rope is still on a strapped car. -->
+				     steps (aim at the car, then move the strap's end with the remote to the truck and hook
+				     it on). Below: the straps, each with its load, "Tighten", and "Remove rope" while the
+				     tow rope is still on a strapped car. -->
 				<div class="scp-appbody scp-tow scp-straps" ng-if="currentApp.id === 'straps'">
 					<div class="scp-hint scp-hint-box" ng-if="!straps.allowed">Straps are off on this server.</div>
 					<div ng-if="straps.allowed">
@@ -284,19 +273,34 @@
 							</button>
 						</div>
 						<div class="scp-hint" ng-if="!straps.step && !straps.straps.length">Look at the car first.</div>
-						<div class="scp-strap-step" ng-if="straps.step">
-							<span class="scp-strap-step-text"><span class="scp-ic scp-ic-tiny"><svg aria-hidden="true"><use href="#sc-icon-aim"/></svg></span> <span ng-bind="strapStepText()"></span></span>
-							<div class="scp-hint scp-hint-warn" ng-if="straps.tooFar">Too far – aim closer.</div>
+						<div class="scp-strap-step" ng-if="straps.step === 1">
+							<span class="scp-strap-step-text"><span class="scp-ic scp-ic-tiny"><svg aria-hidden="true"><use href="#sc-icon-aim"/></svg></span> <span>1. Aim at the car</span></span>
 							<div class="scp-strap-step-buttons">
 								<button class="scp-go scp-go-on" ng-click="strapsCall('uiHere()')">Here</button>
 								<button class="scp-go" ng-click="strapsCall('uiCancel()')">Cancel</button>
 							</div>
+						</div>
+						<div class="scp-panel scp-strap-end" ng-if="straps.step === 2">
+							<div class="scp-panel-head">
+								<span class="scp-panel-title"><span class="scp-ic"><svg aria-hidden="true"><use href="#sc-icon-straps"/></svg></span>2. Move to the truck</span>
+								<button class="scp-fine" ng-class="{'scp-fine-on': straps.fine}" ng-click="strapsCall('uiFine(' + !straps.fine + ')')" title="Slower, for exact placing">Fine</button>
+							</div>
+							<div ng-include="'/ui/modules/apps/SharedCareer-Phone/remote.html'"></div>
+							<button class="scp-hookon scp-strapdown" ng-if="straps.hookOn" ng-click="strapsCall('uiHookOn()')" title="Hook it on where the ring is">
+								<span class="scp-ic"><svg aria-hidden="true"><use href="#sc-icon-anchor-vehicle"/></svg></span>
+								<span class="scp-hookon-text"><b>Hook on</b><span ng-bind="straps.hookOn.vehicle"></span></span>
+							</button>
+							<button class="scp-wide scp-strap-cancel" ng-click="strapsCall('uiCancel()')">Cancel</button>
 						</div>
 						<div class="scp-label" ng-if="straps.straps.length">Straps <button class="scp-go" ng-click="strapsCall('uiRemoveAll()')">Remove all</button></div>
 						<div class="scp-list-row scp-strap-row" ng-repeat="s in straps.straps track by s.id">
 							<span class="scp-dot" ng-class="strapDot(s)"></span><span class="scp-row-name" ng-bind="'Strap ' + s.n"></span><span class="scp-row-right" ng-bind="s.vehicle"></span>
 							<button class="scp-iconbtn scp-iconbtn-cut" ng-click="strapsCall('uiRemove(' + s.id + ')')" title="Remove the strap"><span class="scp-ic"><svg aria-hidden="true"><use href="#sc-icon-cut"/></svg></span></button>
 						</div>
+						<button class="scp-wide scp-tighten" ng-if="straps.straps.length" ng-class="{'scp-tighten-on': straps.tightening}" ng-disabled="straps.tightening"
+							ng-click="strapsCall('uiTighten()')" title="Pull all straps tight">
+							<span class="scp-ic"><svg aria-hidden="true"><use href="#sc-icon-winch-in"/></svg></span><span>Tighten</span>
+						</button>
 						<button class="scp-wide scp-rope-off" ng-if="straps.towRope && !straps.step" ng-click="strapsCall('uiRemoveRope()')" title="Take the tow rope off">
 							<span class="scp-ic"><svg aria-hidden="true"><use href="#sc-icon-cut"/></svg></span><span>Remove rope</span>
 						</button>

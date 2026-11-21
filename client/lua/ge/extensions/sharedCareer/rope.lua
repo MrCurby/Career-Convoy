@@ -9,18 +9,18 @@
 --
 -- A rope (create) is tied to one of your vehicles; the vehicle picks the node and reports it
 -- (onRopeTied). Its other end, the anchor, is a point in the world (a tow rope: the app moves it)
--- or a node on another of your vehicles (hook). An anchor on a vehicle moves with it: its
+-- or a node on another of your vehicles (hook). A loose end is moved with the remote
+-- (ropeRemote.lua); a strap only pulls once it is hooked on. An anchor on a vehicle moves with it: its
 -- position and speed go to the roped vehicle every frame, the rope's pull comes back (onRopePull)
 -- and goes on to the anchor vehicle (anchorPull), so it feels the load. Nothing hooks on by
 -- itself: the app asks where it would hook on and the player decides.
---   hook points   for a tow rope (wantHookPoints): a few times per second your vehicles near the
---                 anchor are asked (anchorNear) for their tow hitches (shown as rings) and the
---                 point where the anchor would hook on – a tow hitch within 0.7 m, otherwise the
---                 nearest sturdy point within 0.5 m. hookPoint(r) gives the nearest one; the Tow
---                 app shows it as a ring with a dashed line and offers "Hook on"
---   preview       probe("tie") while an app wants to tie a rope where you look: a blue ball where
---                 it would go (tieProbe); probe("hook", except) while it wants to hook a strap on
---                 where you look: a ring on that point (hookProbe)
+--   hook points   for a loose end (wantHookPoints): a few times per second your vehicles near it
+--                 are asked (anchorNear) for their tow hitches (shown as rings) and the point
+--                 where it would hook on – a tow hitch within 0.7 m, otherwise the nearest sturdy
+--                 point within 0.5 m. hookPoint(r) gives the nearest one; the remote
+--                 (ropeRemote.lua) shows it as a ring with a dashed line, the app offers "Hook on"
+--   preview       probe() while an app wants to tie a rope where you look: a blue ball where it
+--                 would go (tieProbe)
 --
 -- Staying in step with the vehicles:
 --   * vehicle reset (onVehicleResetted, and the vehicle's own onReset) or removed: rope removed
@@ -259,8 +259,10 @@ function M.clock() return clock end
 --- (ropeTieRay / ropeTieNearest / ropeTieNode). The rope (a table) is what the apps work with:
 ---   id, kind, veh            the rope id, its kind, the roped vehicle
 ---   grip, node               where it is tied (from onRopeTied / onRopeState), the tie node
----   target                   the anchor point; anchorVeh = {id, name, node, hitch} on a vehicle
----   winch, moving, speed, strength   set by the app (tow rope), sent to the vehicle
+---   target                   the anchor point (a loose end starts where the rope is tied);
+---                            anchorVeh = {id, name, node, hitch} on a vehicle
+---   winch, moving, speed, strength   set by the app, sent to the vehicle (a strap: only winch 1,
+---                            Tighten)
 ---   payOutOnce               the next message pays out rope to the anchor (it jumped)
 ---   strain, slack, length, rate, ropeLoad   from the vehicle
 ---   wantHookPoints           ask the vehicles near the anchor where it would hook on
@@ -336,9 +338,9 @@ function M.stuck(r)
 	return r ~= nil and (r.stuckFor or 0) >= STUCK_AFTER
 end
 
---== Hook points near a tow rope's anchor ===========================================
+--== Hook points near a loose end ====================================================
 
--- A few times per second: ask your vehicles near the anchor where it would hook on (and where
+-- A few times per second: ask your vehicles near the loose end where it would hook on (and where
 -- their tow hitches are, for the rings).
 local function askHookPoints(r, dt)
 	if r.anchorVeh or not r.target then return end
@@ -429,6 +431,8 @@ local function step(r, dt, dtSim)
 		end
 	end
 	if r.wantHookPoints then askHookPoints(r, dt) end
+	-- a strap's loose end is the app's alone: the strap pulls only once it is hooked on
+	if r.kind == M.STRAP and not r.anchorVeh then return end
 	r.since = r.since + dt
 	-- nothing to send until the vehicle has reported where the rope is tied, and the anchor is known
 	if r.since < SEND_EVERY or not (r.grip and r.target) then return end
@@ -449,8 +453,8 @@ function M.onRopeTied(id, rid, t, x, y, z, node)
 	r.grip = {x = x, y = y, z = z}
 	r.node = tonumber(node)
 	r.silent = 0
-	-- a tow rope's anchor starts at the grip (rope slack) until it is moved
-	if r.kind == M.TOW and not r.target then r.target = {x = x, y = y, z = z} end
+	-- the loose end starts at the grip (rope slack) until it is moved or hooked on
+	if not r.target then r.target = {x = x, y = y, z = z} end
 	if r.hookAfterTie then
 		M.hook(r, r.hookAfterTie.vid, r.hookAfterTie.cid)
 		r.hookAfterTie = nil
@@ -495,7 +499,7 @@ function M.onRopePull(id, rid, fx, fy, fz)
 		rid, tonumber(fx) or 0, tonumber(fy) or 0, tonumber(fz) or 0))
 end
 
---- A vehicle near a tow rope's anchor: its tow hitches ("cid,cid,...") and its hook point (cid, -1 = none).
+--- A vehicle near a loose end: its tow hitches ("cid,cid,...") and its hook point (cid, -1 = none).
 function M.onAnchorNear(id, rid, list, cid, hitch)
 	local r = ropes[rid]
 	if not r or r.anchorVeh then return end
@@ -528,22 +532,14 @@ end
 
 --- Preview: where a rope would be tied.
 function M.onTieProbe(id, x, y, z)
-	if probeWant and probeWant.mode == "tie" then probe = {mode = "tie", id = id, x = x, y = y, z = z, age = 0} end
-end
-
---- Preview: where a strap would hook on.
-function M.onHookProbe(id, cid, hitch)
-	if probeWant and probeWant.mode == "hook" then
-		probe = {mode = "hook", id = id, cid = tonumber(cid), hitch = hitch == 1 or hitch == true, age = 0}
-	end
+	if probeWant then probe = {id = id, x = x, y = y, z = z, age = 0} end
 end
 
 --== Preview ========================================================================
 
---- An open app wants the preview this frame: "tie" (where a rope would be tied where you look) or
---- "hook" (where a strap would hook on where you look; except: not on this vehicle).
-function M.probe(mode, except)
-	probeWant = {mode = mode, except = except, at = clock}
+--- An open app wants the preview this frame: where a rope would be tied where you look.
+function M.probe()
+	probeWant = {at = clock}
 end
 
 --- The app no longer wants the preview (closed, or the rope is on): it goes at once.
@@ -551,20 +547,16 @@ function M.stopProbe()
 	probeWant, probe = nil, nil
 end
 
---- The preview now: {mode, id, pos, cid, hitch} or nil.
+--- The preview now: {id, pos} or nil.
 function M.probeResult()
 	if not probe then return nil end
-	if probe.mode == "tie" then return {mode = "tie", id = probe.id, pos = {x = probe.x, y = probe.y, z = probe.z}} end
-	local veh = be:getObjectByID(probe.id)
-	local p = veh and nodePos(veh, probe.cid)
-	if not p then return nil end
-	return {mode = "hook", id = probe.id, pos = p, cid = probe.cid, hitch = probe.hitch}
+	return {id = probe.id, pos = {x = probe.x, y = probe.y, z = probe.z}}
 end
 
 local function updateProbe(dt)
 	if probe then
 		probe.age = probe.age + dt
-		if probe.age > PROBE_KEEP or not probeWant or probe.mode ~= probeWant.mode then probe = nil end
+		if probe.age > PROBE_KEEP or not probeWant then probe = nil end
 	end
 	if not probeWant or not M.allowed() then return end
 	sinceProbe = sinceProbe + dt
@@ -573,14 +565,10 @@ local function updateProbe(dt)
 	-- the apps aim with the middle of the view (the cursor is on the phone)
 	local cam, dir = M.cameraPos(), M.viewDir()
 	if not (cam and dir) then return end
-	local mode, except = probeWant.mode, probeWant.except
-	local found = M.vehicleOnRay(cam, dir, function(veh, id)
-		if mode == "tie" then return M.canRope(veh, id) end
-		return M.canHold(veh, id, except)
-	end)
+	local found = M.vehicleOnRay(cam, dir, M.canRope)
 	if not found then return end
-	sendToVehicle(found.id, string.format("sharedCareerVeh.%s(%.3f, %.3f, %.3f, %.4f, %.4f, %.4f, %d)",
-		mode == "tie" and "tieProbe" or "hookProbe", cam.x, cam.y, cam.z, dir.x, dir.y, dir.z, M.MAX_DISTANCE))
+	sendToVehicle(found.id, string.format("sharedCareerVeh.tieProbe(%.3f, %.3f, %.3f, %.4f, %.4f, %.4f, %d)",
+		cam.x, cam.y, cam.z, dir.x, dir.y, dir.z, M.MAX_DISTANCE))
 end
 
 --== Drawing =========================================================================
@@ -903,15 +891,11 @@ local function drawRope(r, dt)
 	if r.drawEnd then r.drawEnd(r, a, b, dt) end
 end
 
--- The preview: a blue ball where a rope would be tied, a hook point where a strap would hook on.
+-- The preview: a blue ball where a rope would be tied.
 local function drawProbe()
 	local p = M.probeResult()
 	if not p then return end
-	if p.mode == "tie" then
-		ball(p.pos, 0.12 * (1 + 0.12 * math.sin(clock * 2 * math.pi)), ColorF(0.3, 0.8, 1, 0.45))
-	else
-		shapes.hookPoint(p.pos, p.hitch)
-	end
+	ball(p.pos, 0.12 * (1 + 0.12 * math.sin(clock * 2 * math.pi)), ColorF(0.3, 0.8, 1, 0.45))
 end
 
 function M.draw(dt)
