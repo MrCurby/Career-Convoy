@@ -915,7 +915,10 @@ end
 --   clutch      the clutch no longer grips (CLUTCH_GRIP of its torque); a car without a friction
 --               clutch (automatic, DCT) gets a broken gearbox instead
 --   gearbox     the gearboxes break (the game's own break: no gear drives any more)
---   radiator    the radiator leaks its coolant (RADIATOR_DAMAGE, the game's radiator damage)
+--   radiator    the radiator leaks its coolant (RADIATOR_DAMAGE, the game's radiator damage) and
+--               steams: the game lets a broken radiator steam while the coolant is hot (heavy above
+--               95 degrees C), so the engine is kept at STEAM_TEMP at least. All of it, not just the
+--               coolant: the coolant passes its heat on to the engine block within seconds
 --   oilpan      the oil pan leaks its oil (OILPAN_DAMAGE, the game's oil pan damage); driving it
 --               without oil ruins the engine
 --   windshield  the windshield breaks
@@ -931,13 +934,16 @@ end
 -- the deform groups a fault breaks, by parts of their names
 local FAULT_PARTS = { windshield = { "windshield" }, taillights = { "tailgatelight", "taillight" } }
 local CLUTCH_GRIP = 0.02 -- share of its torque a broken clutch still passes on
-local RADIATOR_DAMAGE = 0.1 -- the game's radiator damage of a fully broken radiator
+local RADIATOR_DAMAGE = 0.05 -- the game's radiator damage: it leaks above 0.015, steams more the higher
+local STEAM_TEMP = 100 -- degrees C an engine with a broken radiator is kept at least
+local ENGINE_TEMPS = { "coolantTemperature", "engineBlockTemperature", "cylinderWallTemperature", "oilTemperature" }
 local OILPAN_DAMAGE = 0.01 -- the game's oil pan damage: about 0.1 kg of oil a second
 
 local HAZARD_HOLD = 10 -- s the ignition and hazard lights are kept on
 
 local jobCar = false -- this vehicle broke down for a towing job
 local hazardHold = 0 -- s left to keep the ignition and hazard lights on
+local hotEngines = {} -- the thermals of engines with a broken radiator (kept at STEAM_TEMP)
 
 local function damageNow()
 	return tonumber(beamstate and beamstate.damage) or 0
@@ -965,7 +971,20 @@ local function keepHazards(dt)
 	end)
 end
 
+-- warms every engine with a broken radiator up to STEAM_TEMP (never cools one down)
+local function keepSteaming()
+	for thermals in pairs(hotEngines) do
+		for _, name in ipairs(ENGINE_TEMPS) do
+			if (tonumber(thermals[name]) or STEAM_TEMP) < STEAM_TEMP then
+				thermals[name] = STEAM_TEMP
+			end
+		end
+	end
+end
+
+-- a reset repairs the radiator (the job breaks it again)
 jobAfterReset = function()
+	hotEngines = {}
 	if jobCar then
 		hazardHold = HAZARD_HOLD
 	end
@@ -1061,7 +1080,9 @@ local POWERTRAIN_FAULTS = {
 	gearbox = breakGearboxes,
 	radiator = function()
 		for _, device in ipairs(devicesWhere(thermalsOf)) do
-			pcall(device.thermals.applyDeformGroupDamageRadiator, RADIATOR_DAMAGE)
+			if pcall(device.thermals.applyDeformGroupDamageRadiator, RADIATOR_DAMAGE) then
+				hotEngines[device.thermals] = true
+			end
 		end
 	end,
 	oilpan = function()
@@ -1199,6 +1220,7 @@ function M.updateGFX(dt)
 		return
 	end
 	keepHazards(dt)
+	keepSteaming()
 	if next(anchors) then
 		if not physicsStep then
 			anchorStep(math.min(dt, ROPE_MAX_DT), true)

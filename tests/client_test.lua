@@ -5066,8 +5066,25 @@ end)();
 	gearbox.isBroken, devices = false, { engine, gearbox }
 	veh.jobBreakDown(false, { clutch = true })
 	check(gearbox.isBroken, "no friction clutch (automatic): the gearbox breaks instead")
+	local thermals = engine.thermals
+	thermals.coolantTemperature, thermals.engineBlockTemperature = 60, 60
+	thermals.cylinderWallTemperature, thermals.oilTemperature = 60, 130
+	veh.updateGFX(0.1)
+	check(thermals.coolantTemperature == 60, "a whole radiator: the engine isn't warmed")
 	veh.jobBreakDown(false, { radiator = true })
 	check(leaks.radiator and leaks.radiator > 0 and not leaks.oilpan, "broken radiator: only the coolant leaks")
+	veh.updateGFX(0.1)
+	check(
+		thermals.coolantTemperature >= 95
+			and thermals.engineBlockTemperature == thermals.coolantTemperature
+			and thermals.cylinderWallTemperature == thermals.coolantTemperature
+			and thermals.oilTemperature == 130,
+		"broken radiator: the engine is kept hot so it steams (never cooled down)"
+	)
+	veh.onReset()
+	thermals.coolantTemperature = 60
+	veh.updateGFX(0.1)
+	check(thermals.coolantTemperature == 60, "after a reset: no longer kept hot")
 	veh.jobBreakDown(false, { oilpan = true })
 	check(
 		leaks.oilpan and leaks.oilpan > 0 and not table.concat(calls, ", "):find("engine off"),
