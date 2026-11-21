@@ -4944,6 +4944,7 @@ check(
 	local opt = world.spawned[2]
 	check(
 		opt.cling == false
+			and opt.safeSpawn == false
 			and opt.pos.z > 10 + 3 + 1.2
 			and opt.pos.z < 10 + 3 + 1.4
 			and opt.rot.dir.z
@@ -4981,6 +4982,7 @@ check(
 		rolled.deleted
 			and spawnedVeh ~= rolled
 			and world.spawned[2].cling == true
+			and world.spawned[2].safeSpawn == true
 			and lastCmd(spawnedVeh):find("jobBreakDown"),
 		"landed too far away: removed, spawned again at once as a breakdown on the ground"
 	)

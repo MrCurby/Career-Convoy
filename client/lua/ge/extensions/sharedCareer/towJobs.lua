@@ -36,7 +36,8 @@
 --     Crashes: the car is spawned in the air, tilted the way the crash kind says (CRASHES: nose,
 --     tail, side, corner or roof first), and falls onto the roadside: it hits the ground at the
 --     crash's speed (the height is worked out from it), so the game's own physics bends it like a
---     real crash. Only once it lies still (CRASH_STILL s) does it break down, so the crash doesn't
+--     real crash. It is spawned without the game's safe spawn, which would put it on its wheels on
+--     the ground. Only once it lies still (CRASH_STILL s) does it break down, so the crash doesn't
 --     count as new damage against the pay. If it landed too far away (rolled down a slope, fell
 --     through the ground), it is removed and comes back as a plain breakdown. BeamMP shows the fall
 --     to the others; once it lies still they also get its damage (damage.lua).
@@ -611,10 +612,13 @@ local function spawnVehicle(a)
 	)
 	-- a crash falls from the height that makes it hit the ground at its speed: v^2 / 2g
 	local height = crash and (CRASH_CLEAR + speed * speed / (2 * 9.81)) or 0
+	-- a crash: no safe spawn, else the game (spawn.setSafePosition) turns a car on its roof back
+	-- onto its wheels and puts it on the ground, so it doesn't fall and isn't bent
 	local options = {
 		pos = vec3(job.pos.x, job.pos.y, job.pos.z + height),
 		autoEnterVehicle = false,
 		cling = not crash,
+		safeSpawn = not crash,
 		config = vehicle.config,
 	}
 	if type(quatFromDir) == "function" then
