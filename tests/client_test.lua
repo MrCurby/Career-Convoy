@@ -4310,8 +4310,15 @@ check(
 		end
 	end
 	check(
-		faultsOk and seen.engine and seen.windshield and seen.taillights,
-		"faults: always at least one; engine, windshield and tail lights all come up"
+		faultsOk
+			and seen.engine
+			and seen.clutch
+			and seen.gearbox
+			and seen.radiator
+			and seen.oilpan
+			and seen.windshield
+			and seen.taillights,
+		"faults: always at least one; every kind comes up"
 	)
 	check(crashEngineOk, "a crash always has a broken engine, nothing else")
 	local tags = tow.tags({ data = { faults = { "windshield", "taillights" }, heavy = true } })
@@ -4323,6 +4330,16 @@ check(
 		"each fault shows as its own tag, in order"
 	)
 	check(#tow.tags({ data = { faults = { "engine", "nonsense" } } }) == 1, "an unknown fault shows no tag")
+	tags = tow.tags({ data = { faults = { "clutch", "gearbox", "radiator", "oilpan" } } })
+	check(
+		#tags == 4
+			and tags[1].text == "Broken clutch"
+			and tags[2].text == "Broken gearbox"
+			and tags[3].text == "Broken radiator"
+			and tags[4].text == "Oil leak"
+			and tags[4].kind == "oilpan",
+		"clutch, gearbox, radiator and oil pan show as tags"
+	)
 	check(
 		tow.payFor(1000, false, 2) == 350 and tow.payFor(1000, false, 4) == 590,
 		"a higher tier pays more (x1.3, x2.2)"
@@ -4998,6 +5015,65 @@ end)();
 	broken = {}
 	veh.jobBreakDown(false, { taillights = true })
 	check(#broken == 1 and broken[1] == 2, "broken tail lights: only the tail lights break")
+	-- powertrain faults: clutch, gearbox, radiator, oil pan
+	local tracked, leaks = {}, {}
+	env.damageTracker = {
+		setDamage = function(group, name, value)
+			tracked[group .. "." .. name] = value
+		end,
+	}
+	local engine = {
+		type = "combustionEngine",
+		name = "mainEngine",
+		disable = function()
+			table.insert(calls, "engine off")
+		end,
+		thermals = {
+			applyDeformGroupDamageRadiator = function(x)
+				leaks.radiator = x
+			end,
+			applyDeformGroupDamageOilpan = function(x)
+				leaks.oilpan = x
+			end,
+		},
+	}
+	local clutch = { type = "frictionClutch", name = "clutch", damageLockTorqueCoef = 1 }
+	local gearbox = {
+		type = "manualGearbox",
+		name = "gearbox",
+		onBreak = function(self)
+			self.isBroken = true
+		end,
+	}
+	local devices = { engine, clutch, gearbox, { type = "electricMotor", name = "rearMotor" } }
+	env.powertrain = {
+		getDevices = function()
+			return devices
+		end,
+	}
+	calls = {}
+	veh.jobBreakDown(false, { clutch = true })
+	check(
+		clutch.damageLockTorqueCoef < 0.1
+			and clutch.clutchPermanentlyDamaged
+			and not gearbox.isBroken
+			and tracked["powertrain.clutch"]
+			and not table.concat(calls, ", "):find("engine off"),
+		"broken clutch: it no longer grips, the gearbox and engine stay whole"
+	)
+	veh.jobBreakDown(false, { gearbox = true })
+	check(gearbox.isBroken and tracked["powertrain.gearbox"], "broken gearbox: the game's own break")
+	gearbox.isBroken, devices = false, { engine, gearbox }
+	veh.jobBreakDown(false, { clutch = true })
+	check(gearbox.isBroken, "no friction clutch (automatic): the gearbox breaks instead")
+	veh.jobBreakDown(false, { radiator = true })
+	check(leaks.radiator and leaks.radiator > 0 and not leaks.oilpan, "broken radiator: only the coolant leaks")
+	veh.jobBreakDown(false, { oilpan = true })
+	check(
+		leaks.oilpan and leaks.oilpan > 0 and not table.concat(calls, ", "):find("engine off"),
+		"oil leak: the oil leaks, the engine keeps running"
+	)
+	env.damageTracker = nil
 	env.beamstate.onBeamDeformed, env.v = nil, nil
 	env.powertrain, env.controller, env.electrics = nil, nil, nil
 	calls = {}

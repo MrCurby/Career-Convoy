@@ -15,8 +15,8 @@
 --     the pay     (PAY_BASE + PAY_PER_KM per km of the tow (by road: jobs.driveDistance; the
 --                 straight line x ROAD_FACTOR where there is no way by road)) x the
 --                 tier's pay, x PAY_FLAT with a flat tire, x client.jobPay
---     faults     what is broken (FAULTS: engine, windshield, tail lights), each by its chance, at
---                least one; a crash always has a broken engine
+--     faults     what is broken (FAULTS: engine, clutch, gearbox, radiator, oil pan, windshield,
+--                tail lights), each by its chance, at least one; a crash always has a broken engine
 --     a crash    from tier 2 on, some jobs are crashes (the tier's crash chance) instead of a
 --                breakdown: the car is wrecked (see "Crashes" below)
 --     its kind    car, suv, pickup, van, bus or truck (KINDS, from the game's "Body Style", else its
@@ -115,6 +115,10 @@ local CRASHES = {
 -- what can be broken on a broken-down car (not a crash): how often, and its tag; at least one always is
 local FAULTS = {
 	{ kind = "engine", chance = 0.1, tag = "Engine failure" },
+	{ kind = "clutch", chance = 0.15, tag = "Broken clutch" },
+	{ kind = "gearbox", chance = 0.15, tag = "Broken gearbox" },
+	{ kind = "radiator", chance = 0.15, tag = "Broken radiator" },
+	{ kind = "oilpan", chance = 0.2, tag = "Oil leak" },
 	{ kind = "windshield", chance = 0.7, tag = "Broken windshield" },
 	{ kind = "taillights", chance = 0.3, tag = "Broken taillights" },
 }
@@ -414,7 +418,7 @@ local function faultOf(kind)
 	return nil
 end
 
--- What is broken on a broken-down car: each fault by its chance, at least one ({"engine", ...}).
+-- What is broken on a broken-down car: each fault by its chance, at least one ({"clutch", ...}).
 local function pickFaults()
 	local faults = {}
 	for _, f in ipairs(FAULTS) do
