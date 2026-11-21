@@ -35,13 +35,17 @@ M.pool = nil
 
 local function clamp(n)
 	n = tonumber(n)
-	if not n or n ~= n then return 0 end
+	if not n or n ~= n then
+		return 0
+	end
 	return math.floor(math.max(0, math.min(MAX, n)))
 end
 
 function M.amounts(config)
 	local share = type(config) == "table" and config.trafficShare
-	if type(share) ~= "table" then return nil end
+	if type(share) ~= "table" then
+		return nil
+	end
 	return clamp(share.road), clamp(share.parked)
 end
 
@@ -56,35 +60,46 @@ end
 function M.arm(config)
 	disarm()
 	local road, parked = M.amounts(config)
-	if not road then return end
+	if not road then
+		return
+	end
 	if not gameplay_traffic or type(gameplay_traffic.setupTrafficHelper) ~= "function" then
 		U.log("W", "traffic", "gameplay_traffic.setupTrafficHelper missing – server traffic not applied")
 		return
 	end
 	local original = gameplay_traffic.setupTrafficHelper
-	local entry = {original = original, since = os.clockhp()}
+	local entry = { original = original, since = os.clockhp() }
 	entry.wrapper = function(trafficAmount, trafficOptions, parkingAmount, ...)
 		disarm()
 		local options = {}
 		if type(trafficOptions) == "table" then
-			for k, v in pairs(trafficOptions) do options[k] = v end
+			for k, v in pairs(trafficOptions) do
+				options[k] = v
+			end
 		end
-		if road > 0 then options.police = options.police ~= false end
+		if road > 0 then
+			options.police = options.police ~= false
+		end
 		-- Spawn traffic as "simple_traffic": less physics, smaller config, and because BeamMP
 		-- sends the owner's config to everyone, simple on every player's PC.
-		if type(config.trafficSimpleVehicles) == "boolean" then options.simpleVehs = config.trafficSimpleVehicles end
+		if type(config.trafficSimpleVehicles) == "boolean" then
+			options.simpleVehs = config.trafficSimpleVehicles
+		end
 		-- Pool = share + reserve; the reserve stays hidden until someone sets more traffic
 		-- in the menu.
 		local reserve = clamp(config.trafficReserve)
 		local poolRoad, poolParked = clamp(road + reserve), clamp(parked + reserve)
-		U.log("I", "traffic", string.format("server traffic: %d driving, %d parked (pool %d / %d)",
-			road, parked, poolRoad, poolParked))
+		U.log(
+			"I",
+			"traffic",
+			string.format("server traffic: %d driving, %d parked (pool %d / %d)", road, parked, poolRoad, poolParked)
+		)
 		local ok, result = pcall(original, poolRoad, options, poolParked, ...)
 		if ok then
-			M.pool = {road = poolRoad, parked = poolParked}
+			M.pool = { road = poolRoad, parked = poolParked }
 			-- The career may set the active amounts from its own settings afterwards;
 			-- one frame later we enforce the server values.
-			M.pending = {road = road, parked = parked}
+			M.pending = { road = road, parked = parked }
 			return result
 		end
 		U.log("E", "traffic", "setupTrafficHelper with server amounts failed: " .. tostring(result))
@@ -100,7 +115,7 @@ function M.applyLive(road, parked)
 	if M.pool then
 		road, parked = math.min(road, M.pool.road), math.min(parked, M.pool.parked)
 	end
-	M.active = {road = road, parked = parked}
+	M.active = { road = road, parked = parked }
 	if gameplay_traffic and type(gameplay_traffic.setActiveAmount) == "function" then
 		pcall(gameplay_traffic.setActiveAmount, road)
 	end
@@ -111,9 +126,13 @@ end
 
 local function rxTraffic(data)
 	local share = U.decode(data)
-	if not share then return end
+	if not share then
+		return
+	end
 	local config = U.config()
-	if config then config.trafficShare = share end
+	if config then
+		config.trafficShare = share
+	end
 	M.applyLive(share.road, share.parked)
 	U.log("I", "traffic", string.format("new traffic share: %d / %d", clamp(share.road), clamp(share.parked)))
 end
@@ -159,12 +178,18 @@ local function aiCommand(aggression, grip, tuning)
 		table.insert(parts, string.format("if ai.setAggression then ai.setAggression(%.3f) end", aggression))
 	end
 	if grip then
-		table.insert(parts, string.format("if ai.setParameters then ai.setParameters({staticFrictionCoefMult = %.3f}) end", grip))
+		table.insert(
+			parts,
+			string.format("if ai.setParameters then ai.setParameters({staticFrictionCoefMult = %.3f}) end", grip)
+		)
 	end
 	local cmd = #parts > 0 and ("if ai then " .. table.concat(parts, " ") .. " end") or nil
 	if tuning then
-		local t = string.format("if sharedCareerVeh and sharedCareerVeh.setAiTuning then sharedCareerVeh.setAiTuning(%.3f, %.3f) end",
-			tuning.gap, tuning.sight)
+		local t = string.format(
+			"if sharedCareerVeh and sharedCareerVeh.setAiTuning then sharedCareerVeh.setAiTuning(%.3f, %.3f) end",
+			tuning.gap,
+			tuning.sight
+		)
 		cmd = cmd and (cmd .. " " .. t) or t
 	end
 	return cmd
@@ -173,39 +198,57 @@ end
 -- value from the server: 0 (or missing/invalid) = game value, otherwise clamped to [lo, hi]
 local function tuningValue(raw, lo, hi)
 	local v = tonumber(raw)
-	if not v or v <= 0 then return 0 end
+	if not v or v <= 0 then
+		return 0
+	end
 	return math.max(lo, math.min(hi, v))
 end
 M.aiCommand = aiCommand
 
 function M.applyAiCaution(now)
 	local config = U.config()
-	if not config then return end
+	if not config then
+		return
+	end
 	local aggression = tonumber(config.trafficAggression)
 	aggression = (aggression and aggression > 0) and math.max(0.05, math.min(1, aggression)) or nil
 	local grip = tonumber(config.trafficGrip)
 	grip = (grip and grip > 0) and math.max(0.5, math.min(0.95, grip)) or nil
 	local tuning = nil
 	if config.trafficReactionGap ~= nil or config.trafficSightRange ~= nil then
-		tuning = {gap = tuningValue(config.trafficReactionGap, 0.3, 3), sight = tuningValue(config.trafficSightRange, 3, 8)}
+		tuning = {
+			gap = tuningValue(config.trafficReactionGap, 0.3, 3),
+			sight = tuningValue(config.trafficSightRange, 3, 8),
+		}
 	end
 	local value = aiCommand(aggression, grip, tuning)
-	if not value then return end
-	if not gameplay_traffic or type(gameplay_traffic.getTrafficData) ~= "function" then return end
+	if not value then
+		return
+	end
+	if not gameplay_traffic or type(gameplay_traffic.getTrafficData) ~= "function" then
+		return
+	end
 	local seen = {}
 	for gameId, data in pairs(gameplay_traffic.getTrafficData() or {}) do
-		if type(data) == "table" and data.isAi == true and not isPolice(data) and gameId ~= be:getPlayerVehicleID(0) then
+		if
+			type(data) == "table"
+			and data.isAi == true
+			and not isPolice(data)
+			and gameId ~= be:getPlayerVehicleID(0)
+		then
 			seen[gameId] = true
 			local veh = be:getObjectByID(gameId)
 			local last = aiApplied[gameId]
 			if veh and (not last or last.value ~= value or now - last.at >= AI_REFRESH) then
 				veh:queueLuaCommand(value)
-				aiApplied[gameId] = {value = value, at = now}
+				aiApplied[gameId] = { value = value, at = now }
 			end
 		end
 	end
 	for gameId in pairs(aiApplied) do
-		if not seen[gameId] then aiApplied[gameId] = nil end
+		if not seen[gameId] then
+			aiApplied[gameId] = nil
+		end
 	end
 end
 
@@ -223,7 +266,9 @@ function M.onUpdate(dtReal)
 		sinceAi = 0
 		if U.isMP() then
 			local ok, err = pcall(M.applyAiCaution, os.clockhp())
-			if not ok then U.log("E", "traffic", "AI setting failed: " .. tostring(err)) end
+			if not ok then
+				U.log("E", "traffic", "AI setting failed: " .. tostring(err))
+			end
 		end
 	end
 	if M.pending then
@@ -232,7 +277,9 @@ function M.onUpdate(dtReal)
 		M.applyLive(p.road, p.parked)
 	end
 	-- If the career never called the helper, don't leave it hooked forever.
-	if armed and os.clockhp() - armed.since > 120 then disarm() end
+	if armed and os.clockhp() - armed.since > 120 then
+		disarm()
+	end
 end
 
 function M.onBeamMPServerLeave()
@@ -246,6 +293,8 @@ function M.onExtensionLoaded()
 	U.on("sc_traffic", rxTraffic)
 end
 
-M.onInit = function() setExtensionUnloadMode(M, 'manual') end
+M.onInit = function()
+	setExtensionUnloadMode(M, "manual")
+end
 
 return M

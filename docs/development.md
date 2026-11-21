@@ -29,6 +29,8 @@ docs/                            documentation
 .github/workflows/release.yml    automatic releases
 .github/workflows/dev-build.yml  dev builds of every branch but main (pre-releases "build-<branch>")
 .github/workflows/tests.yml      checks of a pull request into main (tests, version)
+stylua.toml                      Lua formatting (StyLua)
+.vscode/                         VS Code: StyLua formats Lua on save; recommended extensions
 ```
 
 ## Building and testing
@@ -36,7 +38,7 @@ docs/                            documentation
 You need `luajit`, `lua5.3`, `python3`, `node` and `zip`. On Fedora: `sudo dnf install luajit lua5.3 python3 nodejs zip`. On Debian/Ubuntu: `sudo apt install luajit lua5.3 python3 nodejs zip`.
 
 ```bash
-tools/test.sh      # syntax check, all tests and the English-only language check
+tools/test.sh      # syntax check, all tests, Lua formatting and the English-only language check
 tools/build.sh     # build Resources/Client/SharedCareer.zip from client/
 tools/package.sh   # tests + build + release package SharedCareer-<version>.zip
 tools/package.sh --dev   # the same as a dev build, SharedCareer-<version>-dev.<commit>.zip
@@ -45,6 +47,14 @@ tools/version_check.sh   # a branch that changes the mod must raise the version,
 ```
 
 The tests rebuild the BeamNG and BeamMP APIs as mocks and play through joining, career start, garage, visibility, traffic, time sync, the node grabber, rope and winch, straps, the phone, UI layout cleanup, fuel prices, payments, the menu and the welcome dialog. The menu and phone windows (`app.js`) run in node with stand-ins for AngularJS and `bngApi` (`tests/ui_mock.js`, `tests/ui_test.js`); a timeline of random clicks on them is then replayed against the real `menu.lua` (`tests/ui_replay.lua`). They check the logic, but **they don't replace testing in the real game**. UI changes were additionally checked by rendering the apps in a headless browser.
+
+### Lua formatting
+
+All Lua code is formatted with [StyLua](https://github.com/JohnnyMorganz/StyLua) as set in `stylua.toml` (tabs, lines up to 120 characters, double quotes). In VS Code, install the recommended "StyLua" extension: `.vscode/settings.json` makes it format a Lua file on save. Without VS Code: `stylua .` formats everything.
+
+`tools/test.sh` checks it with `stylua --check .` when `stylua` is installed (`cargo install stylua` or `npm install -g @johnnymorganz/stylua-bin`), and skips it with a note otherwise. The pull request check always runs it, with the StyLua version pinned in `.github/workflows/tests.yml`.
+
+StyLua puts only one space before a comment at the end of a line, so comments are not lined up in columns. To keep a hand-made layout (a table laid out as a grid, for example), put `-- stylua: ignore start` and `-- stylua: ignore end` around it.
 
 ## Branches: a branch per change, then main
 

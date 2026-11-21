@@ -25,9 +25,9 @@ local U
 local CAREER_GROUP = "careerNodeGrabberActions"
 local GRAB_ACTION = "nodegrabberGrab"
 
-local busy = false      -- we change the filter ourselves: ignore the hook it fires
-local lifted = false    -- we lifted the career's block at least once
-local left = false      -- left the server: stay out until the next career start
+local busy = false -- we change the filter ourselves: ignore the hook it fires
+local lifted = false -- we lifted the career's block at least once
+local left = false -- left the server: stay out until the next career start
 
 local function filter()
 	local f = extensions.core_input_actionFilter
@@ -44,7 +44,8 @@ end
 
 -- the career's own rule (career.lua): blocked in a vehicle or in the free camera
 local function careerWouldBlock()
-	local freeCam = core_camera and type(core_camera.getActiveGlobalCameraName) == "function"
+	local freeCam = core_camera
+		and type(core_camera.getActiveGlobalCameraName) == "function"
 		and core_camera.getActiveGlobalCameraName()
 	local walking = gameplay_walk and type(gameplay_walk.isWalking) == "function" and gameplay_walk.isWalking()
 	return freeCam ~= nil or not walking
@@ -52,18 +53,26 @@ end
 
 local function setCareerBlock(blocked)
 	local f = filter()
-	if not f then return end
+	if not f then
+		return
+	end
 	busy = true
 	local ok, err = pcall(f.addAction, 0, CAREER_GROUP, blocked)
 	busy = false
-	if not ok then U.log("E", "nodegrab", "could not change the input filter: " .. tostring(err)) end
+	if not ok then
+		U.log("E", "nodegrab", "could not change the input filter: " .. tostring(err))
+	end
 end
 
 --- Lifts the career's block if the server allows the node grabber.
 function M.update()
-	if left or not U.isMP() or not allowed() or not U.careerActive() then return end
+	if left or not U.isMP() or not allowed() or not U.careerActive() then
+		return
+	end
 	local f = filter()
-	if not f or not f.isActionBlocked(GRAB_ACTION) then return end
+	if not f or not f.isActionBlocked(GRAB_ACTION) then
+		return
+	end
 	setCareerBlock(false)
 	if not lifted then
 		lifted = true
@@ -73,21 +82,31 @@ end
 
 --- Puts the career's own rule back (setting switched off, leaving the server).
 local function restore()
-	if not lifted then return end
+	if not lifted then
+		return
+	end
 	lifted = false
-	if U.careerActive() and careerWouldBlock() then setCareerBlock(true) end
+	if U.careerActive() and careerWouldBlock() then
+		setCareerBlock(true)
+	end
 end
 
 --== Hooks =====================================================================
 
 function M.onActionFilterUpdated()
-	if busy then return end
+	if busy then
+		return
+	end
 	M.update()
 end
 
 -- new settings from the server (called by core.lua)
 function M.onConfigChanged()
-	if allowed() then M.update() else restore() end
+	if allowed() then
+		M.update()
+	else
+		restore()
+	end
 end
 
 function M.onCareerActive(active)
@@ -108,6 +127,8 @@ function M.onExtensionLoaded()
 	U = extensions.sharedCareer_util
 end
 
-M.onInit = function() setExtensionUnloadMode(M, 'manual') end
+M.onInit = function()
+	setExtensionUnloadMode(M, "manual")
+end
 
 return M

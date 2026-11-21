@@ -24,9 +24,9 @@ local M = {}
 
 local U
 
-local LAYOUT_DIRS = {"/settings/ui_apps/layouts/", "settings/ui_apps/layouts/"}
+local LAYOUT_DIRS = { "/settings/ui_apps/layouts/", "settings/ui_apps/layouts/" }
 local BACKUP_SUFFIX = ".sharedcareer-backup"
-local PLAYER_LISTS = {beammpPlayerListVue = true, beammpPlayerListAngular = true}
+local PLAYER_LISTS = { beammpPlayerListVue = true, beammpPlayerListAngular = true }
 local REPLACEMENT_LIST = "beammpPlayerListVue"
 
 local done = false
@@ -39,19 +39,37 @@ local CAREER_LAYOUT = "settings/ui_apps/layouts/default/career.uilayout.json"
 local CAREER_ORIGINAL = "settings/ui_apps/originalLayouts/default/career.uilayout.json"
 local APPS = {
 	{
-		appName = "sharedCareerMenu", stateKey = "menuAppAdded", label = "SharedCareer menu",
+		appName = "sharedCareerMenu",
+		stateKey = "menuAppAdded",
+		label = "SharedCareer menu",
 		-- right, below the BeamMP player list (which reaches down to about 590 px)
-		placement = {position = "absolute", right = "0px", top = "600px", width = "345px", height = "190px",
-			left = "", bottom = ""},
+		placement = {
+			position = "absolute",
+			right = "0px",
+			top = "600px",
+			width = "345px",
+			height = "190px",
+			left = "",
+			bottom = "",
+		},
 	},
 	{
-		appName = "sharedCareerPhone", stateKey = "phoneAppAdded", label = "SharedCareer phone",
+		appName = "sharedCareerPhone",
+		stateKey = "phoneAppAdded",
+		label = "SharedCareer phone",
 		-- only the tab, directly below the menu: the phone itself opens on top of the page, so the
 		-- app frame never blocks clicks elsewhere. BeamNG's frame around an app catches clicks over
 		-- its whole area – apps must never overlap (0.8.0–0.8.3: the steering-wheel tab couldn't be
 		-- clicked).
-		placement = {position = "absolute", right = "0px", top = "790px", width = "30px", height = "80px",
-			left = "", bottom = ""},
+		placement = {
+			position = "absolute",
+			right = "0px",
+			top = "790px",
+			width = "30px",
+			height = "80px",
+			left = "",
+			bottom = "",
+		},
 	},
 }
 M.APPS = APPS
@@ -62,9 +80,13 @@ function M.addAppsOnce()
 	local state = U.readState()
 	local todo = {}
 	for _, def in ipairs(APPS) do
-		if not state[def.stateKey] then table.insert(todo, def) end
+		if not state[def.stateKey] then
+			table.insert(todo, def)
+		end
 	end
-	if #todo == 0 then return 0 end
+	if #todo == 0 then
+		return 0
+	end
 	-- The player's own career layout, otherwise the game's original as the base
 	local okCustom, custom = pcall(jsonReadFile, CAREER_LAYOUT)
 	local layout = okCustom and type(custom) == "table" and custom or nil
@@ -78,15 +100,19 @@ function M.addAppsOnce()
 	end
 	local present = {}
 	for _, app in ipairs(layout.apps) do
-		if type(app) == "table" and app.appName then present[app.appName] = true end
+		if type(app) == "table" and app.appName then
+			present[app.appName] = true
+		end
 	end
 	local added = {}
 	for _, def in ipairs(todo) do
 		if present[def.appName] then
 			state[def.stateKey] = true -- already there (added by the player): just remember it
 		else
-			local app = {appName = def.appName, placement = {}}
-			for k, v in pairs(def.placement) do app.placement[k] = v end
+			local app = { appName = def.appName, placement = {} }
+			for k, v in pairs(def.placement) do
+				app.placement[k] = v
+			end
 			table.insert(layout.apps, app)
 			table.insert(added, def)
 		end
@@ -113,26 +139,45 @@ end
 --   from / to       move it, but only if it is still where the mod put it
 local MOVES = {
 	-- 0.13.0: the fuel prices are an app on the phone now; the separate fuel window is gone
-	{stateKey = "fuelAppRetired", appName = "sharedCareerFuel", remove = true},
+	{ stateKey = "fuelAppRetired", appName = "sharedCareerFuel", remove = true },
 	-- ... and the phone tab takes its place directly below the menu
-	{stateKey = "phoneTabUp", appName = "sharedCareerPhone", from = {right = "0px", top = "920px"}, to = {top = "760px"}},
+	{
+		stateKey = "phoneTabUp",
+		appName = "sharedCareerPhone",
+		from = { right = "0px", top = "920px" },
+		to = { top = "760px" },
+	},
 	-- 0.26.0: the menu is taller (the Time tab has the "Clock" row) ...
-	{stateKey = "menuTaller", appName = "sharedCareerMenu", from = {right = "0px", top = "600px", height = "160px"},
-		to = {height = "190px"}},
+	{
+		stateKey = "menuTaller",
+		appName = "sharedCareerMenu",
+		from = { right = "0px", top = "600px", height = "160px" },
+		to = { height = "190px" },
+	},
 	-- ... and the phone tab moves down with it, so the two never overlap
-	{stateKey = "phoneTabBelowTallerMenu", appName = "sharedCareerPhone", from = {right = "0px", top = "760px"},
-		to = {top = "790px"}},
+	{
+		stateKey = "phoneTabBelowTallerMenu",
+		appName = "sharedCareerPhone",
+		from = { right = "0px", top = "760px" },
+		to = { top = "790px" },
+	},
 }
 
 function M.moveAppsOnce()
 	local state = U.readState()
 	local todo = {}
 	for _, mv in ipairs(MOVES) do
-		if not state[mv.stateKey] then table.insert(todo, mv) end
+		if not state[mv.stateKey] then
+			table.insert(todo, mv)
+		end
 	end
-	if #todo == 0 then return 0 end
+	if #todo == 0 then
+		return 0
+	end
 	local ok, layout = pcall(jsonReadFile, CAREER_LAYOUT)
-	if not ok or type(layout) ~= "table" or type(layout.apps) ~= "table" then return 0 end
+	if not ok or type(layout) ~= "table" or type(layout.apps) ~= "table" then
+		return 0
+	end
 	local moved = 0
 	for _, mv in ipairs(todo) do
 		if mv.remove then
@@ -147,9 +192,15 @@ function M.moveAppsOnce()
 		for _, app in ipairs(mv.remove and {} or layout.apps) do
 			if type(app) == "table" and app.appName == mv.appName and type(app.placement) == "table" then
 				local matches = true
-				for k, v in pairs(mv.from) do if app.placement[k] ~= v then matches = false end end
+				for k, v in pairs(mv.from) do
+					if app.placement[k] ~= v then
+						matches = false
+					end
+				end
 				if matches then
-					for k, v in pairs(mv.to) do app.placement[k] = v end
+					for k, v in pairs(mv.to) do
+						app.placement[k] = v
+					end
 					moved = moved + 1
 				end
 			end
@@ -161,7 +212,9 @@ function M.moveAppsOnce()
 		return 0
 	end
 	U.writeState(state)
-	if moved > 0 then U.log("I", "cleanup", "updated " .. moved .. " SharedCareer app(s) in the career layout") end
+	if moved > 0 then
+		U.log("I", "cleanup", "updated " .. moved .. " SharedCareer app(s) in the career layout")
+	end
 	return moved
 end
 
@@ -171,15 +224,19 @@ end
 
 local RENAMES = {
 	-- 0.15.0: the menu does much more than the time of day
-	{stateKey = "menuAppRenamed", from = "sharedCareerTime", to = "sharedCareerMenu"},
+	{ stateKey = "menuAppRenamed", from = "sharedCareerTime", to = "sharedCareerMenu" },
 }
 
 --- Renames apps in a layout (the table is modified). Returns the number of changed apps.
 function M.renameInLayout(layout, from, to)
-	if type(layout) ~= "table" or type(layout.apps) ~= "table" then return 0 end
+	if type(layout) ~= "table" or type(layout.apps) ~= "table" then
+		return 0
+	end
 	local hasNew = false
 	for _, app in ipairs(layout.apps) do
-		if type(app) == "table" and app.appName == to then hasNew = true end
+		if type(app) == "table" and app.appName == to then
+			hasNew = true
+		end
 	end
 	local changed = 0
 	for i = #layout.apps, 1, -1 do
@@ -204,10 +261,14 @@ end
 --- Removes Mileage apps from a layout (the table is modified). Returns the number of
 --- removed apps.
 function M.cleanLayout(layout)
-	if type(layout) ~= "table" or type(layout.apps) ~= "table" then return 0 end
+	if type(layout) ~= "table" or type(layout.apps) ~= "table" then
+		return 0
+	end
 	local hasPlayerList = false
 	for _, app in ipairs(layout.apps) do
-		if type(app) == "table" and PLAYER_LISTS[app.appName] then hasPlayerList = true end
+		if type(app) == "table" and PLAYER_LISTS[app.appName] then
+			hasPlayerList = true
+		end
 	end
 	local kept, removed = {}, 0
 	for _, app in ipairs(layout.apps) do
@@ -217,7 +278,9 @@ function M.cleanLayout(layout)
 			-- The Mileage list had replaced the BeamMP list: put that back in the same place.
 			if name:lower() == "mileageplayerlist" and not hasPlayerList then
 				local replacement = {}
-				for k, v in pairs(app) do replacement[k] = v end
+				for k, v in pairs(app) do
+					replacement[k] = v
+				end
 				replacement.appName = REPLACEMENT_LIST
 				replacement.settings = nil
 				table.insert(kept, replacement)
@@ -227,15 +290,21 @@ function M.cleanLayout(layout)
 			table.insert(kept, app)
 		end
 	end
-	if removed > 0 then layout.apps = kept end
+	if removed > 0 then
+		layout.apps = kept
+	end
 	return removed
 end
 
 local function layoutFiles()
 	local files, seen = {}, {}
-	if not FS or type(FS.findFiles) ~= "function" then return files end
+	if not FS or type(FS.findFiles) ~= "function" then
+		return files
+	end
 	for _, dir in ipairs(LAYOUT_DIRS) do
-		local ok, found = pcall(function() return FS:findFiles(dir, "*.uilayout.json", -1, true, false) end)
+		local ok, found = pcall(function()
+			return FS:findFiles(dir, "*.uilayout.json", -1, true, false)
+		end)
 		if ok and type(found) == "table" then
 			for _, path in ipairs(found) do
 				local key = tostring(path):gsub("^/", "")
@@ -245,7 +314,9 @@ local function layoutFiles()
 				end
 			end
 		end
-		if #files > 0 then break end
+		if #files > 0 then
+			break
+		end
 	end
 	return files
 end
@@ -254,21 +325,29 @@ function M.renameAppsOnce()
 	local state = U.readState()
 	local todo = {}
 	for _, rn in ipairs(RENAMES) do
-		if not state[rn.stateKey] then table.insert(todo, rn) end
+		if not state[rn.stateKey] then
+			table.insert(todo, rn)
+		end
 	end
-	if #todo == 0 then return 0 end
+	if #todo == 0 then
+		return 0
+	end
 	local paths, seen = {}, {}
 	for _, path in ipairs(layoutFiles()) do
 		paths[#paths + 1] = path
 		seen[tostring(path):gsub("^/", "")] = true
 	end
-	if not seen[CAREER_LAYOUT] then paths[#paths + 1] = CAREER_LAYOUT end
+	if not seen[CAREER_LAYOUT] then
+		paths[#paths + 1] = CAREER_LAYOUT
+	end
 	local total = 0
 	for _, path in ipairs(paths) do
 		local ok, layout = pcall(jsonReadFile, path)
 		if ok and type(layout) == "table" then
 			local changed = 0
-			for _, rn in ipairs(todo) do changed = changed + M.renameInLayout(layout, rn.from, rn.to) end
+			for _, rn in ipairs(todo) do
+				changed = changed + M.renameInLayout(layout, rn.from, rn.to)
+			end
 			if changed > 0 then
 				if pcall(jsonWriteFile, path, layout, true) then
 					total = total + changed
@@ -278,23 +357,29 @@ function M.renameAppsOnce()
 			end
 		end
 	end
-	for _, rn in ipairs(todo) do state[rn.stateKey] = true end
+	for _, rn in ipairs(todo) do
+		state[rn.stateKey] = true
+	end
 	U.writeState(state)
-	if total > 0 then U.log("I", "cleanup", "renamed " .. total .. " SharedCareer app(s) in the UI layouts") end
+	if total > 0 then
+		U.log("I", "cleanup", "renamed " .. total .. " SharedCareer app(s) in the UI layouts")
+	end
 	return total
 end
 
 local function notifyLayouts()
 	local apps = rawget(_G, "ui_apps")
 	if type(apps) == "table" then
-		for _, fn in ipairs({"notifyLayoutsChanged", "requestUIAppsData"}) do
+		for _, fn in ipairs({ "notifyLayoutsChanged", "requestUIAppsData" }) do
 			if type(apps[fn]) == "function" then
 				pcall(apps[fn])
 				return
 			end
 		end
 	end
-	if guihooks then guihooks.trigger("UiAppLayoutsChanged") end
+	if guihooks then
+		guihooks.trigger("UiAppLayoutsChanged")
+	end
 end
 
 --- Cleans up all layout files. Returns the number of removed apps.
@@ -331,25 +416,40 @@ end
 -- After the career start (then the layout files exist and the UI is ready).
 function M.onCareerActive(active)
 	local cfg = U.config()
-	if not active or done or not cfg or not U.isMP() then return end
+	if not active or done or not cfg or not U.isMP() then
+		return
+	end
 	done = true
 	local changed = false
 	if cfg.cleanupMileageApps ~= false then
 		local ok, removed = pcall(M.run)
-		if not ok then U.log("E", "cleanup", "cleanup failed: " .. tostring(removed)) end
+		if not ok then
+			U.log("E", "cleanup", "cleanup failed: " .. tostring(removed))
+		end
 	end
 	local okRename, renamed = pcall(M.renameAppsOnce)
-	if not okRename then U.log("E", "cleanup", "renaming SharedCareer apps failed: " .. tostring(renamed))
-	elseif renamed > 0 then changed = true end
+	if not okRename then
+		U.log("E", "cleanup", "renaming SharedCareer apps failed: " .. tostring(renamed))
+	elseif renamed > 0 then
+		changed = true
+	end
 	local okMove, moved = pcall(M.moveAppsOnce)
-	if not okMove then U.log("E", "cleanup", "moving SharedCareer apps failed: " .. tostring(moved))
-	elseif moved > 0 then changed = true end
+	if not okMove then
+		U.log("E", "cleanup", "moving SharedCareer apps failed: " .. tostring(moved))
+	elseif moved > 0 then
+		changed = true
+	end
 	if cfg.addApps ~= false then
 		local ok, added = pcall(M.addAppsOnce)
-		if not ok then U.log("E", "cleanup", "SharedCareer apps: " .. tostring(added))
-		elseif added > 0 then changed = true end
+		if not ok then
+			U.log("E", "cleanup", "SharedCareer apps: " .. tostring(added))
+		elseif added > 0 then
+			changed = true
+		end
 	end
-	if changed then notifyLayouts() end
+	if changed then
+		notifyLayouts()
+	end
 end
 
 function M.onBeamMPServerLeave()
@@ -360,6 +460,8 @@ function M.onExtensionLoaded()
 	U = extensions.sharedCareer_util
 end
 
-M.onInit = function() setExtensionUnloadMode(M, 'manual') end
+M.onInit = function()
+	setExtensionUnloadMode(M, "manual")
+end
 
 return M

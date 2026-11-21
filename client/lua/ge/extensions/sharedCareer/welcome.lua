@@ -13,11 +13,11 @@ local M = {}
 
 local U
 
-local DELAY = 3            -- seconds after the career has finished loading
+local DELAY = 3 -- seconds after the career has finished loading
 
 local shownThisJoin = false
-local pending = nil        -- dialog that is still waiting for a button press (see openDialog)
-local waitTime = 0         -- seconds since "career finished loading" while the dialog is pending
+local pending = nil -- dialog that is still waiting for a button press (see openDialog)
+local waitTime = 0 -- seconds since "career finished loading" while the dialog is pending
 
 M.TITLE = "Welcome to SharedCareer"
 
@@ -28,16 +28,16 @@ function M.content()
 		title = M.TITLE,
 		intro = "Play the BeamNG career together.",
 		items = {
-			{head = "Your save:", text = "money, cars and progress stay yours."},
-			{head = "One world:", text = "same traffic, time and traffic lights."},
-			{head = "Menu (F7):", text = "time, traffic, options, players."},
-			{head = "Phone (F4):", text = "Jobs, Tow and Fuel apps."},
-			{head = "Chat:", text = "/pay <name> <amount> sends money."},
+			{ head = "Your save:", text = "money, cars and progress stay yours." },
+			{ head = "One world:", text = "same traffic, time and traffic lights." },
+			{ head = "Menu (F7):", text = "time, traffic, options, players." },
+			{ head = "Phone (F4):", text = "Jobs, Tow and Fuel apps." },
+			{ head = "Chat:", text = "/pay <name> <amount> sends money." },
 		},
 		outro = "Click the steering wheel in the menu to see this again.",
 		buttons = {
-			{label = "Don't show again", action = "never"},
-			{label = "Got it", action = "ok", primary = true},
+			{ label = "Don't show again", action = "never" },
+			{ label = "Got it", action = "ok", primary = true },
 		},
 	}
 end
@@ -63,7 +63,9 @@ end
 function M.show(force)
 	if not force then
 		local cfg = U.config()
-		if not cfg or cfg.showWelcome == false or U.readState().welcomeHidden then return false end
+		if not cfg or cfg.showWelcome == false or U.readState().welcomeHidden then
+			return false
+		end
 	end
 	return openDialog(M.content())
 end
@@ -71,7 +73,9 @@ end
 --- From the window: a button in the dialog was pressed.
 function M.uiDialogButton(kind, action)
 	pending = nil
-	if kind == "welcome" and action == "never" then M.sharedCareerWelcomeNever() end
+	if kind == "welcome" and action == "never" then
+		M.sharedCareerWelcomeNever()
+	end
 end
 
 --- From the window while it builds itself: send the open dialog (if any) again.
@@ -88,12 +92,16 @@ end
 -- then "Transition started: menu"). Once after the career start, switch back to "play".
 
 local function currentRoute(router)
-	for _, name in ipairs({"getCurrentRoute", "getCurrentRouteName", "getRoute", "getCurrentState"}) do
+	for _, name in ipairs({ "getCurrentRoute", "getCurrentRouteName", "getRoute", "getCurrentState" }) do
 		if type(router[name]) == "function" then
 			local ok, r = pcall(router[name])
 			if ok then
-				if type(r) == "table" then r = r.name or r.path or r.route end
-				if type(r) == "string" then return r end
+				if type(r) == "table" then
+					r = r.name or r.path or r.route
+				end
+				if type(r) == "string" then
+					return r
+				end
 			end
 		end
 	end
@@ -112,19 +120,30 @@ function M.ensurePlayScreen()
 		return false
 	end
 	local ok, err = pcall(router.navigate, "play")
-	U.log(ok and "I" or "E", "welcome", "switched to the driving screen (route was " .. tostring(route or "unknown") .. ")"
-		.. (ok and "" or (": " .. tostring(err))))
+	U.log(
+		ok and "I" or "E",
+		"welcome",
+		"switched to the driving screen (route was "
+			.. tostring(route or "unknown")
+			.. ")"
+			.. (ok and "" or (": " .. tostring(err)))
+	)
 	return ok
 end
 
 --- Message from the server (guest notice, version mismatch, career does not start): as a dialog.
 local function rxDialog(data)
 	local msg = U.decode(data)
-	if not msg or type(msg.title) ~= "string" then return end
+	if not msg or type(msg.title) ~= "string" then
+		return
+	end
 	openDialog({
-		kind = "server", title = msg.title, intro = tostring(msg.body or ""), items = {},
+		kind = "server",
+		title = msg.title,
+		intro = tostring(msg.body or ""),
+		items = {},
 		warning = msg.warning == true,
-		buttons = {{label = "OK", action = "ok", primary = true}},
+		buttons = { { label = "OK", action = "ok", primary = true } },
 	})
 end
 
@@ -132,9 +151,10 @@ end
 function M.sharedCareerWelcomeNever()
 	local state = U.readState()
 	state.welcomeHidden = true
-	if U.writeState(state) then U.log("I", "welcome", "welcome dialog will not be shown again") end
+	if U.writeState(state) then
+		U.log("I", "welcome", "welcome dialog will not be shown again")
+	end
 end
-
 
 --== Hooks =====================================================================
 
@@ -142,18 +162,26 @@ end
 -- DELAY seconds. Earlier, the dialog would appear behind the loading screen and be closed
 -- again on the switch to the driving screen (as in 0.8.0).
 function M.onUpdate(dtReal)
-	if shownThisJoin or not U.isMP() then return end
+	if shownThisJoin or not U.isMP() then
+		return
+	end
 	local core = U.ext("sharedCareer_core")
 	if not core or type(core.isReady) ~= "function" or not core.isReady() or not U.careerActive() then
 		waitTime = 0
 		return
 	end
 	waitTime = waitTime + (tonumber(dtReal) or 0)
-	if waitTime < DELAY then return end
+	if waitTime < DELAY then
+		return
+	end
 	shownThisJoin = true
 	M.ensurePlayScreen()
 	local shown = M.show(false)
-	U.log("I", "welcome", shown and "welcome dialog shown" or "welcome dialog skipped (don't show again / switched off)")
+	U.log(
+		"I",
+		"welcome",
+		shown and "welcome dialog shown" or "welcome dialog skipped (don't show again / switched off)"
+	)
 end
 
 function M.onBeamMPServerLeave()
@@ -165,6 +193,8 @@ function M.onExtensionLoaded()
 	U.on("sc_dialog", rxDialog)
 end
 
-M.onInit = function() setExtensionUnloadMode(M, 'manual') end
+M.onInit = function()
+	setExtensionUnloadMode(M, "manual")
+end
 
 return M

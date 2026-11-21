@@ -1,6 +1,6 @@
 # SharedCareer :: checks of a pull request into main
 #
-#   tests          all tests (tools/test.sh)
+#   tests          all tests and the Lua formatting (tools/test.sh)
 #   version        a pull request that changes the mod must raise the version
 #                  (tools/version_check.sh), so merging builds a release
 #
@@ -24,7 +24,9 @@ jobs:
           fetch-depth: 0   # with tags: tests/config_update_test.lua compares the settings with the last release
 
       - name: Install tools
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq luajit lua5.3 zip
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq luajit lua5.3 zip
+          npm install -g @johnnymorganz/stylua-bin@2.6.0
 
       - name: Run all tests
         run: tools/test.sh

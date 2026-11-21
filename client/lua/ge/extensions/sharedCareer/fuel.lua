@@ -19,12 +19,12 @@ local M = {}
 
 local U
 
-local factors = nil        -- {[station] = {[fuel] = factor}} from the server
+local factors = nil -- {[station] = {[fuel] = factor}} from the server
 local enabled = false
-local originals = {}       -- [station][fuel] = {baseline, gain, bias}
+local originals = {} -- [station][fuel] = {baseline, gain, bias}
 local applyPending = false
-local expected = {}        -- [station][fuel] = price the game should return after apply
-local fallback = false     -- true if getFuelPrice had to be wrapped directly
+local expected = {} -- [station][fuel] = price the game should return after apply
+local fallback = false -- true if getFuelPrice had to be wrapped directly
 local sinceCheck = 1
 
 local function gasStations()
@@ -51,7 +51,7 @@ function M.apply()
 					originals[station.id] = originals[station.id] or {}
 					local o = originals[station.id][fuel]
 					if not o then
-						o = {baseline = p.priceBaseline, gain = p.priceRandomnessGain, bias = p.priceRandomnessBias}
+						o = { baseline = p.priceBaseline, gain = p.priceRandomnessGain, bias = p.priceRandomnessBias }
 						originals[station.id][fuel] = o
 					end
 					if enabled then
@@ -70,7 +70,9 @@ function M.apply()
 	end
 	if changed > 0 then
 		local ok, err = pcall(priceModule.setDisplayPrices)
-		if not ok then U.log("E", "fuel", "setDisplayPrices failed: " .. tostring(err)) end
+		if not ok then
+			U.log("E", "fuel", "setDisplayPrices failed: " .. tostring(err))
+		end
 		M.verify(priceModule)
 	end
 	return changed
@@ -88,14 +90,20 @@ local function makeGetFuelPrice(original)
 end
 
 function M.verify(priceModule)
-	if not enabled or fallback or type(priceModule.getFuelPrice) ~= "function" then return end
+	if not enabled or fallback or type(priceModule.getFuelPrice) ~= "function" then
+		return
+	end
 	for station, fuels in pairs(expected) do
 		for fuel, price in pairs(fuels) do
 			local ok, actual = pcall(priceModule.getFuelPrice, station, fuel)
 			if ok and tonumber(actual) and math.abs(actual - price) > 0.0005 then
 				fallback = true
 				U.replace(priceModule, "getFuelPrice", makeGetFuelPrice)
-				U.log("W", "fuel", "game did not take the new prices – using getFuelPrice fallback (price signs keep the old value)")
+				U.log(
+					"W",
+					"fuel",
+					"game did not take the new prices – using getFuelPrice fallback (price signs keep the old value)"
+				)
 			end
 			return
 		end
@@ -104,7 +112,9 @@ end
 
 local function rxFuelPrices(data)
 	local msg = U.decode(data)
-	if not msg then return end
+	if not msg then
+		return
+	end
 	enabled = msg.enabled == true
 	factors = type(msg.factors) == "table" and msg.factors or {}
 	applyPending = true
@@ -114,20 +124,28 @@ end
 
 local function fuelTypeOf(cargo)
 	local t = tostring(cargo.materialType or ""):lower()
-	if t:find("diesel", 1, true) then return "diesel" end
-	if t:find("gasoline", 1, true) or t:find("petrol", 1, true) then return "gasoline" end
+	if t:find("diesel", 1, true) then
+		return "diesel"
+	end
+	if t:find("gasoline", 1, true) or t:find("petrol", 1, true) then
+		return "gasoline"
+	end
 	return nil
 end
 
 --- Station ID (for the prices) for a delivery location (e.g. "apex_fuel").
 function M.stationFor(deliveryFacId)
 	local stations = gasStations()
-	if not stations or type(deliveryFacId) ~= "string" then return nil end
+	if not stations or type(deliveryFacId) ~= "string" then
+		return nil
+	end
 	local name
 	local generator = rawget(_G, "career_modules_delivery_generator")
 	if generator and type(generator.getFacilityById) == "function" then
 		local ok, fac = pcall(generator.getFacilityById, deliveryFacId)
-		if ok and type(fac) == "table" then name = fac.name end
+		if ok and type(fac) == "table" then
+			name = fac.name
+		end
 	end
 	local stripped = deliveryFacId:gsub("_fuel$", ""):gsub("^fuel_", "")
 	for _, s in pairs(stations) do
@@ -142,7 +160,9 @@ end
 
 --- Pick the fuel deliveries out of the delivered cargo items and report them.
 function M.reportDelivered(cargoItems)
-	if not enabled or type(cargoItems) ~= "table" then return end
+	if not enabled or type(cargoItems) ~= "table" then
+		return
+	end
 	local totals = {} -- [station][fuel] = {amount, name}
 	for _, cargo in ipairs(cargoItems) do
 		local fuel = type(cargo) == "table" and fuelTypeOf(cargo)
@@ -151,7 +171,7 @@ function M.reportDelivered(cargoItems)
 			local station, stationName = M.stationFor(facId)
 			if station then
 				totals[station] = totals[station] or {}
-				local t = totals[station][fuel] or {amount = 0, name = U.translate(stationName)}
+				local t = totals[station][fuel] or { amount = 0, name = U.translate(stationName) }
 				t.amount = t.amount + (tonumber(cargo.slots) or 0)
 				totals[station][fuel] = t
 			else
@@ -163,7 +183,7 @@ function M.reportDelivered(cargoItems)
 		for fuel, t in pairs(fuels) do
 			if t.amount > 0 then
 				U.log("I", "fuel", string.format("delivered %s %s to %s", tostring(t.amount), fuel, station))
-				U.send("sc_fuelDelivered", {station = station, fuel = fuel, amount = t.amount, stationName = t.name})
+				U.send("sc_fuelDelivered", { station = station, fuel = fuel, amount = t.amount, stationName = t.name })
 			end
 		end
 	end
@@ -174,7 +194,9 @@ local function makeOnCargoDelivered(original)
 		local results = U.pack(original(cargoItems, ...))
 		if U.isMP() then
 			local ok, err = pcall(M.reportDelivered, cargoItems)
-			if not ok then U.log("E", "fuel", "fuel delivery check failed: " .. tostring(err)) end
+			if not ok then
+				U.log("E", "fuel", "fuel delivery check failed: " .. tostring(err))
+			end
 		end
 		return U.unpack(results, 1, results.n)
 	end
@@ -182,11 +204,17 @@ end
 
 local function ensurePatch()
 	local progress = rawget(_G, "career_modules_delivery_progress")
-	if type(progress) ~= "table" then return end
+	if type(progress) ~= "table" then
+		return
+	end
 	local before = progress.onCargoDelivered
 	U.replace(progress, "onCargoDelivered", makeOnCargoDelivered)
 	-- If the game calls the function via extensions.hook: rebuild the hook cache.
-	if progress.onCargoDelivered ~= before and type(extensions) == "table" and type(extensions.hookUpdate) == "function" then
+	if
+		progress.onCargoDelivered ~= before
+		and type(extensions) == "table"
+		and type(extensions.hookUpdate) == "function"
+	then
 		pcall(extensions.hookUpdate, "onCargoDelivered")
 	end
 end
@@ -198,7 +226,7 @@ M.ensurePatch = ensurePatch
 -- Prices in the map's unit (West Coast: per US gallon, like on the signs).
 
 local GALLON = 3.78541
-local positions = {}      -- [station id] = {x, y, z, source}; only found positions are kept
+local positions = {} -- [station id] = {x, y, z, source}; only found positions are kept
 local navigatingStation = nil
 local sourcesLogged = false
 
@@ -209,18 +237,30 @@ local sourcesLogged = false
 -- every station 1.1 km away, "Go" routed to nowhere). It's only used as a fallback, and only
 -- if the point is believable: not the map origin and not shared with another station.
 local function objectPosition(name)
-	if type(name) ~= "string" or name == "" then return nil end
+	if type(name) ~= "string" or name == "" then
+		return nil
+	end
 	local tree = rawget(_G, "scenetree")
-	if not tree or type(tree.findObject) ~= "function" then return nil end
+	if not tree or type(tree.findObject) ~= "function" then
+		return nil
+	end
 	local ok, obj = pcall(tree.findObject, name)
-	if not ok or not obj then return nil end
-	local okPos, p = pcall(function() return obj:getPosition() end)
-	if okPos and p and tonumber(p.x) then return p end
+	if not ok or not obj then
+		return nil
+	end
+	local okPos, p = pcall(function()
+		return obj:getPosition()
+	end)
+	if okPos and p and tonumber(p.x) then
+		return p
+	end
 	return nil
 end
 
 local function pumpPosition(station)
-	if type(station.pumps) ~= "table" then return nil end
+	if type(station.pumps) ~= "table" then
+		return nil
+	end
 	local sx, sy, sz, n = 0, 0, 0, 0
 	for _, pump in ipairs(station.pumps) do
 		local p
@@ -233,34 +273,44 @@ local function pumpPosition(station)
 			sx, sy, sz, n = sx + p.x, sy + p.y, sz + p.z, n + 1
 		end
 	end
-	if n == 0 then return nil end
-	return {x = sx / n, y = sy / n, z = sz / n, source = "pumps"}
+	if n == 0 then
+		return nil
+	end
+	return { x = sx / n, y = sy / n, z = sz / n, source = "pumps" }
 end
 
-local doorPoints = nil    -- [station id] = believable door point; nil = not looked up yet
+local doorPoints = nil -- [station id] = believable door point; nil = not looked up yet
 
 -- The door point of every station, once per map; points shared by two stations are dropped.
 local function lookUpDoorPoints()
-	if doorPoints then return doorPoints end
+	if doorPoints then
+		return doorPoints
+	end
 	local found, any = {}, false
 	for _, station in pairs(gasStations() or {}) do
 		if type(station) == "table" and station.id then
 			local p = U.facilityDoor(station)
 			if p then
 				any = true
-				found[station.id] = {x = p.x, y = p.y, z = p.z, source = "doors"}
+				found[station.id] = { x = p.x, y = p.y, z = p.z, source = "doors" }
 			end
 		end
 	end
 	local shared = {}
 	for id, p in pairs(found) do
 		for other, q in pairs(found) do
-			if id ~= other and math.abs(q.x - p.x) < 2 and math.abs(q.y - p.y) < 2 then shared[id] = true end
+			if id ~= other and math.abs(q.x - p.x) < 2 and math.abs(q.y - p.y) < 2 then
+				shared[id] = true
+			end
 		end
 	end
-	for id in pairs(shared) do found[id] = nil end
+	for id in pairs(shared) do
+		found[id] = nil
+	end
 	-- shortly after loading the game may not know any yet: then ask again next time
-	if any then doorPoints = found end
+	if any then
+		doorPoints = found
+	end
 	return found
 end
 
@@ -271,15 +321,19 @@ end
 -- Only remember positions that were found: shortly after loading the game may not know them
 -- yet, then it is tried again next time.
 local function stationPosition(station)
-	if positions[station.id] then return positions[station.id] end
+	if positions[station.id] then
+		return positions[station.id]
+	end
 	local p = pumpPosition(station) or doorPosition(station)
-	if p then positions[station.id] = p end
+	if p then
+		positions[station.id] = p
+	end
 	return p
 end
 
 --- Where the stations' positions came from (for the log and the tests): {pumps, doors, none}.
 function M.positionSources()
-	local count = {pumps = 0, doors = 0, none = 0}
+	local count = { pumps = 0, doors = 0, none = 0 }
 	for _, station in pairs(gasStations() or {}) do
 		if type(station) == "table" and station.id then
 			local p = stationPosition(station)
@@ -295,7 +349,12 @@ local function unitFor(fuel)
 	local level = type(getCurrentLevelIdentifier) == "function" and getCurrentLevelIdentifier() or nil
 	if levels and level and type(levels.getLevelByName) == "function" then
 		local ok, info = pcall(levels.getLevelByName, level)
-		if ok and type(info) == "table" and type(info.localUnits) == "table" and info.localUnits[fuel] == "gallonUS" then
+		if
+			ok
+			and type(info) == "table"
+			and type(info.localUnits) == "table"
+			and info.localUnits[fuel] == "gallonUS"
+		then
 			return "gal", GALLON
 		end
 	end
@@ -305,8 +364,12 @@ end
 local function playerPosition()
 	local veh = type(getPlayerVehicle) == "function" and getPlayerVehicle(0) or nil
 	if veh then
-		local ok, pos = pcall(function() return veh:getPosition() end)
-		if ok then return pos end
+		local ok, pos = pcall(function()
+			return veh:getPosition()
+		end)
+		if ok then
+			return pos
+		end
 	end
 	return nil
 end
@@ -315,19 +378,21 @@ end
 function M.overview()
 	local stations = gasStations()
 	local priceModule = rawget(_G, "freeroam_facilities_fuelPrice")
-	if not stations or type(priceModule) ~= "table" or type(priceModule.getFuelPrice) ~= "function" then return nil end
+	if not stations or type(priceModule) ~= "table" or type(priceModule.getFuelPrice) ~= "function" then
+		return nil
+	end
 	local me = playerPosition()
 	local list = {}
 	for _, station in pairs(stations) do
 		if type(station) == "table" and station.id and type(station.prices) == "table" then
-			local entry = {id = station.id, name = U.translate(station.name) or station.id, fuels = {}}
+			local entry = { id = station.id, name = U.translate(station.name) or station.id, fuels = {} }
 			for fuel in pairs(station.prices) do
 				local ok, price = pcall(priceModule.getFuelPrice, station.id, fuel)
 				if ok and tonumber(price) then
 					local unit, mult = unitFor(fuel)
 					local f = enabled and factors and factors[station.id] and tonumber(factors[station.id][fuel]) or 1
-					entry.fuels[fuel] = {price = price * mult, unit = unit,
-						discount = math.floor((1 - f) * 100 + 0.5)}
+					entry.fuels[fuel] =
+						{ price = price * mult, unit = unit, discount = math.floor((1 - f) * 100 + 0.5) }
 				end
 			end
 			local pos = stationPosition(station)
@@ -336,27 +401,41 @@ function M.overview()
 				entry.distance = math.sqrt(dx * dx + dy * dy)
 			end
 			entry.canNavigate = pos ~= nil
-			if next(entry.fuels) then table.insert(list, entry) end
+			if next(entry.fuels) then
+				table.insert(list, entry)
+			end
 		end
 	end
 	if not sourcesLogged and #list > 0 then
 		local c = M.positionSources()
 		if c.pumps + c.doors > 0 then
 			sourcesLogged = true
-			U.log("I", "fuel", string.format("gas station positions: %d from pumps, %d from doors, %d unknown",
-				c.pumps, c.doors, c.none))
+			U.log(
+				"I",
+				"fuel",
+				string.format(
+					"gas station positions: %d from pumps, %d from doors, %d unknown",
+					c.pumps,
+					c.doors,
+					c.none
+				)
+			)
 		end
 	end
-	return {stations = list, navigating = navigatingStation, enabled = enabled}
+	return { stations = list, navigating = navigatingStation, enabled = enabled }
 end
 
 function M.uiNavigate(stationId)
 	local stations = gasStations()
-	if not stations then return end
+	if not stations then
+		return
+	end
 	for _, station in pairs(stations) do
 		if type(station) == "table" and station.id == stationId then
 			local pos = stationPosition(station)
-			if pos and U.setRoute("fuel", pos) then navigatingStation = stationId end
+			if pos and U.setRoute("fuel", pos) then
+				navigatingStation = stationId
+			end
 			return
 		end
 	end
@@ -375,16 +454,22 @@ end
 --== Hooks =====================================================================
 
 function M.onUpdate(dtReal)
-	if not U.isMP() then return end
+	if not U.isMP() then
+		return
+	end
 	sinceCheck = sinceCheck + (tonumber(dtReal) or 0)
 	if applyPending and U.careerActive() then
 		applyPending = false
 		local n = M.apply()
-		if n == 0 then applyPending = true end -- map/stations not ready yet
+		if n == 0 then
+			applyPending = true
+		end -- map/stations not ready yet
 	end
 	if sinceCheck >= 1 then
 		sinceCheck = 0
-		if U.careerActive() then ensurePatch() end
+		if U.careerActive() then
+			ensurePatch()
+		end
 	end
 end
 
@@ -407,7 +492,7 @@ end
 local function registerPhoneApp()
 	local phone = U.ext("sharedCareer_phone")
 	if phone and type(phone.registerApp) == "function" then
-		phone.registerApp({id = "fuel", title = "Fuel", icon = "fuel", color = "#2a9d55", order = 20})
+		phone.registerApp({ id = "fuel", title = "Fuel", icon = "fuel", color = "#2a9d55", order = 20 })
 	end
 end
 
@@ -435,6 +520,8 @@ function M.onExtensionLoaded()
 	U.on("sc_fuelPrices", rxFuelPrices)
 end
 
-M.onInit = function() setExtensionUnloadMode(M, 'manual') end
+M.onInit = function()
+	setExtensionUnloadMode(M, "manual")
+end
 
 return M

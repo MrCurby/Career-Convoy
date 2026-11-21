@@ -10,12 +10,14 @@ local M = {}
 
 local U
 
-local debited = {}  -- id -> true
+local debited = {} -- id -> true
 local credited = {} -- id -> true
 
 local function money()
 	local attrs = career_modules_playerAttributes
-	if type(attrs) ~= "table" or type(attrs.getAttribute) ~= "function" then return nil end
+	if type(attrs) ~= "table" or type(attrs.getAttribute) ~= "function" then
+		return nil
+	end
 	local attribute = attrs.getAttribute("money")
 	return type(attribute) == "table" and tonumber(attribute.value) or nil
 end
@@ -27,10 +29,12 @@ end
 
 local function rxDebit(data)
 	local msg = U.decode(data)
-	if not msg or type(msg.id) ~= "string" then return end
+	if not msg or type(msg.id) ~= "string" then
+		return
+	end
 	local amount = validAmount(msg.amount)
 	if debited[msg.id] then
-		U.send("sc_payDebitResult", {id = msg.id, ok = true})
+		U.send("sc_payDebitResult", { id = msg.id, ok = true })
 		return
 	end
 	local reason = nil
@@ -43,31 +47,37 @@ local function rxDebit(data)
 		reason = "not enough money"
 	end
 	if reason then
-		U.send("sc_payDebitResult", {id = msg.id, ok = false, reason = reason})
+		U.send("sc_payDebitResult", { id = msg.id, ok = false, reason = reason })
 		return
 	end
-	career_modules_playerAttributes.addAttributes({money = -amount},
-		{tags = {"gameplay"}, label = "Payment to " .. tostring(msg.to)})
+	career_modules_playerAttributes.addAttributes(
+		{ money = -amount },
+		{ tags = { "gameplay" }, label = "Payment to " .. tostring(msg.to) }
+	)
 	debited[msg.id] = true
 	U.saveCareer("money")
-	U.send("sc_payDebitResult", {id = msg.id, ok = true})
+	U.send("sc_payDebitResult", { id = msg.id, ok = true })
 	U.toast("info", string.format("-$%d to %s", amount, tostring(msg.to)))
 end
 
 local function rxCredit(data)
 	local msg = U.decode(data)
-	if not msg or type(msg.id) ~= "string" then return end
-	local amount = validAmount(msg.amount)
-	if credited[msg.id] then
-		U.send("sc_payCreditAck", {id = msg.id})
+	if not msg or type(msg.id) ~= "string" then
 		return
 	end
-	if not amount or not U.careerActive() then return end -- no confirmation -> the server refunds
+	local amount = validAmount(msg.amount)
+	if credited[msg.id] then
+		U.send("sc_payCreditAck", { id = msg.id })
+		return
+	end
+	if not amount or not U.careerActive() then
+		return
+	end -- no confirmation -> the server refunds
 	local label = msg.refund and "Refund" or ("Payment from " .. tostring(msg.from))
-	career_modules_playerAttributes.addAttributes({money = amount}, {tags = {"gameplay"}, label = label})
+	career_modules_playerAttributes.addAttributes({ money = amount }, { tags = { "gameplay" }, label = label })
 	credited[msg.id] = true
 	U.saveCareer("money")
-	U.send("sc_payCreditAck", {id = msg.id})
+	U.send("sc_payCreditAck", { id = msg.id })
 	U.toast("success", string.format("+$%d – %s", amount, label))
 end
 
@@ -81,6 +91,8 @@ function M.onExtensionLoaded()
 	U.on("sc_payCredit", rxCredit)
 end
 
-M.onInit = function() setExtensionUnloadMode(M, 'manual') end
+M.onInit = function()
+	setExtensionUnloadMode(M, "manual")
+end
 
 return M

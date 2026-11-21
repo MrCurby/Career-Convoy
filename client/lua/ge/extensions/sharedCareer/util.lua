@@ -24,12 +24,12 @@
 
 local M = {}
 
-M.VERSION = "0.28.1"
+M.VERSION = "0.28.2"
 
 local unpack = table.unpack or unpack
 
 function M.pack(...)
-	return {n = select("#", ...), ...}
+	return { n = select("#", ...), ... }
 end
 M.unpack = unpack
 
@@ -45,42 +45,58 @@ end
 --- Saves the running career at once (after money changed hands). Logs under `tag` if that fails.
 function M.saveCareer(tag)
 	local saveSystem = rawget(_G, "career_saveSystem")
-	if not saveSystem or type(saveSystem.saveCurrent) ~= "function" then return false end
+	if not saveSystem or type(saveSystem.saveCurrent) ~= "function" then
+		return false
+	end
 	local ok, err = pcall(saveSystem.saveCurrent)
-	if not ok then M.log("E", tag, "saving failed: " .. tostring(err)) end
+	if not ok then
+		M.log("E", tag, "saving failed: " .. tostring(err))
+	end
 	return ok
 end
 
 -- true while we are on a BeamMP server.
 function M.isMP()
 	local net = rawget(_G, "MPCoreNetwork")
-	if type(net) ~= "table" or type(net.isMPSession) ~= "function" then return false end
+	if type(net) ~= "table" or type(net.isMPSession) ~= "function" then
+		return false
+	end
 	local ok, session = pcall(net.isMPSession)
 	return ok and session == true
 end
 
 function M.decode(data)
-	if type(data) ~= "string" or data == "" or data == "null" then return nil end
+	if type(data) ~= "string" or data == "" or data == "null" then
+		return nil
+	end
 	local ok, value = pcall(jsonDecode, data)
-	if ok and type(value) == "table" then return value end
+	if ok and type(value) == "table" then
+		return value
+	end
 	return nil
 end
 
 function M.send(event, value)
-	if type(rawget(_G, "TriggerServerEvent")) ~= "function" then return end
+	if type(rawget(_G, "TriggerServerEvent")) ~= "function" then
+		return
+	end
 	TriggerServerEvent(event, type(value) == "string" and value or jsonEncode(value or {}))
 end
 
 function M.on(event, handler)
-	if type(rawget(_G, "AddEventHandler")) ~= "function" then return end
+	if type(rawget(_G, "AddEventHandler")) ~= "function" then
+		return
+	end
 	AddEventHandler(event, handler)
 end
 
 function M.toast(kind, msg, seconds)
 	if guihooks and type(guihooks.trigger) == "function" then
 		guihooks.trigger("toastrMsg", {
-			type = kind, title = "SharedCareer", msg = msg,
-			config = {timeOut = (seconds or 5) * 1000},
+			type = kind,
+			title = "SharedCareer",
+			msg = msg,
+			config = { timeOut = (seconds or 5) * 1000 },
 		})
 	end
 end
@@ -89,7 +105,9 @@ end
 -- loads missing extensions).
 function M.ext(name)
 	local m = (type(extensions) == "table" and rawget(extensions, name)) or rawget(_G, name)
-	if type(m) == "table" then return m end
+	if type(m) == "table" then
+		return m
+	end
 	return nil
 end
 
@@ -104,7 +122,7 @@ end
 -- jobs.lua, fuel.lua. The owner before is told with onRouteLost() and drops its route –
 -- otherwise BeamMP's player following would keep putting the route back to the player.
 
-local routeOwner = nil   -- extension short name, e.g. "jobs"
+local routeOwner = nil -- extension short name, e.g. "jobs"
 
 --- `owner` takes the route over; the owner before gets onRouteLost().
 function M.takeRoute(owner)
@@ -112,36 +130,50 @@ function M.takeRoute(owner)
 	routeOwner = owner
 	if before and before ~= owner then
 		local ext = M.ext("sharedCareer_" .. before)
-		if ext and type(ext.onRouteLost) == "function" then ext.onRouteLost() end
+		if ext and type(ext.onRouteLost) == "function" then
+			ext.onRouteLost()
+		end
 	end
 end
 
 --- `owner` sets the route to pos ({x, y, z}); false if the game has no navigation.
 function M.setRoute(owner, pos)
 	local markers = rawget(_G, "core_groundMarkers")
-	if not markers or type(markers.setPath) ~= "function" then return false end
+	if not markers or type(markers.setPath) ~= "function" then
+		return false
+	end
 	M.takeRoute(owner)
 	local ok, err = pcall(markers.setPath, vec3(pos.x, pos.y, pos.z))
-	if not ok then M.log("E", owner, "setting the route failed: " .. tostring(err)) end
+	if not ok then
+		M.log("E", owner, "setting the route failed: " .. tostring(err))
+	end
 	return ok
 end
 
 --- Clears the route, but only if `owner` still owns it (not a route someone else set since).
 function M.clearRoute(owner)
-	if routeOwner ~= owner then return end
+	if routeOwner ~= owner then
+		return
+	end
 	routeOwner = nil
 	local markers = rawget(_G, "core_groundMarkers")
-	if markers and type(markers.setPath) == "function" then pcall(markers.setPath, nil) end
+	if markers and type(markers.setPath) == "function" then
+		pcall(markers.setPath, nil)
+	end
 end
 
 --== Game texts and map facilities ==============================================
 
 --- A game text key (e.g. a facility name) in the player's language, nil without a text for it.
 function M.translate(key)
-	if type(key) ~= "string" then return nil end
+	if type(key) ~= "string" then
+		return nil
+	end
 	if type(translateLanguage) == "function" then
 		local ok, text = pcall(translateLanguage, key, key)
-		if ok and type(text) == "string" and text ~= key then return text end
+		if ok and type(text) == "string" and text ~= key then
+			return text
+		end
 	end
 	return nil
 end
@@ -149,11 +181,17 @@ end
 --- The facilities of the current map ({gasStations = {...}, garages = {...}, ...}), or nil.
 function M.facilities()
 	local facilities = rawget(_G, "freeroam_facilities")
-	if type(facilities) ~= "table" or type(facilities.getFacilities) ~= "function" then return nil end
+	if type(facilities) ~= "table" or type(facilities.getFacilities) ~= "function" then
+		return nil
+	end
 	local level = type(getCurrentLevelIdentifier) == "function" and getCurrentLevelIdentifier() or nil
-	if not level then return nil end
+	if not level then
+		return nil
+	end
 	local ok, data = pcall(facilities.getFacilities, level)
-	if not ok or type(data) ~= "table" then return nil end
+	if not ok or type(data) ~= "table" then
+		return nil
+	end
 	return data
 end
 
@@ -161,12 +199,18 @@ end
 --- returns as a placeholder while it doesn't know the doors yet).
 function M.facilityDoor(facility)
 	local facilities = rawget(_G, "freeroam_facilities")
-	if not facilities or type(facilities.getAverageDoorPositionForFacility) ~= "function" then return nil end
+	if not facilities or type(facilities.getAverageDoorPositionForFacility) ~= "function" then
+		return nil
+	end
 	local ok, p = pcall(facilities.getAverageDoorPositionForFacility, facility)
 	-- a vec3 in the game (LuaJIT cdata), a table in the tests: both have .x
-	if not ok or not p or not tonumber(p.x) then return nil end
-	if math.abs(p.x) + math.abs(p.y) + math.abs(p.z) < 1 then return nil end
-	return {x = p.x, y = p.y, z = p.z}
+	if not ok or not p or not tonumber(p.x) then
+		return nil
+	end
+	if math.abs(p.x) + math.abs(p.y) + math.abs(p.z) < 1 then
+		return nil
+	end
+	return { x = p.x, y = p.y, z = p.z }
 end
 
 --== state.json =================================================================
@@ -184,7 +228,9 @@ function M.readState()
 	state = (ok and type(state) == "table") and state or {}
 	for old, new in pairs(STATE_RENAMED) do
 		if state[old] ~= nil then
-			if state[new] == nil then state[new] = state[old] end
+			if state[new] == nil then
+				state[new] = state[old]
+			end
 			state[old] = nil
 		end
 	end
@@ -194,7 +240,9 @@ end
 --- Writes the state file. Returns true if it worked; logs the error otherwise.
 function M.writeState(state)
 	local ok, err = pcall(jsonWriteFile, STATE_FILE, state, true)
-	if not ok then M.log("E", "util", "could not write " .. STATE_FILE .. ": " .. tostring(err)) end
+	if not ok then
+		M.log("E", "util", "could not write " .. STATE_FILE .. ": " .. tostring(err))
+	end
 	return ok
 end
 
@@ -205,11 +253,17 @@ end
 function M.addKey(tag, action, def)
 	local keys = rawget(_G, "MPKeybindsGE")
 	if type(keys) ~= "table" or type(keys.addAction) ~= "function" then
-		M.log("W", tag, "MPKeybindsGE.addAction not available – no key '" .. tostring(def.title) .. "' (BeamMP too old?)")
+		M.log(
+			"W",
+			tag,
+			"MPKeybindsGE.addAction not available – no key '" .. tostring(def.title) .. "' (BeamMP too old?)"
+		)
 		return false
 	end
 	local ok, err = pcall(keys.addAction, action, def)
-	if not ok then M.log("E", tag, "could not register the key '" .. tostring(def.title) .. "': " .. tostring(err)) end
+	if not ok then
+		M.log("E", tag, "could not register the key '" .. tostring(def.title) .. "': " .. tostring(err))
+	end
 	return ok
 end
 
@@ -219,7 +273,9 @@ end
 function M.profileName(nickname, suffix)
 	local name = string.lower(tostring(nickname or "") .. tostring(suffix or ""))
 	name = name:gsub("[^a-z0-9]", "")
-	if name == "" then name = "sharedcareer" end
+	if name == "" then
+		name = "sharedcareer"
+	end
 	return name
 end
 
@@ -229,7 +285,7 @@ end
 -- own wrapper again (stack overflow after a few levels), all wrappers are remembered in a
 -- weak table.
 
-local ours = setmetatable({}, {__mode = "k"})
+local ours = setmetatable({}, { __mode = "k" })
 
 function M.isOurs(fn)
 	return type(fn) == "function" and ours[fn] == true
@@ -238,8 +294,12 @@ end
 -- Replaces module[fnName] with makeWrapper(original). Returns true if the function is
 -- now our wrapper (newly set or already before).
 function M.replace(module, fnName, makeWrapper)
-	if type(module) ~= "table" or type(module[fnName]) ~= "function" then return false end
-	if ours[module[fnName]] then return true end
+	if type(module) ~= "table" or type(module[fnName]) ~= "function" then
+		return false
+	end
+	if ours[module[fnName]] then
+		return true
+	end
 	local wrapper = makeWrapper(module[fnName])
 	ours[wrapper] = true
 	module[fnName] = wrapper

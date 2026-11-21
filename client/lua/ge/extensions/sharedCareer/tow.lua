@@ -49,17 +49,17 @@ local M = {}
 
 local U, R, Remote
 
-local NEARBY_RANGE = 60    -- m: vehicles listed in the Tow app
+local NEARBY_RANGE = 60 -- m: vehicles listed in the Tow app
 local APP_PUSH_EVERY = 0.2 -- s: how often the Tow app gets the state while it's open
-local STRENGTHS = {30, 60, 100, 150} -- strength choices in the Tow app (% of the vehicle's weight)
-local STRAP_ROPE = 3       -- m: a locked rope this short to a vehicle = the car is pulled up onto it
+local STRENGTHS = { 30, 60, 100, 150 } -- strength choices in the Tow app (% of the vehicle's weight)
+local STRAP_ROPE = 3 -- m: a locked rope this short to a vehicle = the car is pulled up onto it
 
-local rope = nil           -- the tow rope (rope.lua), with nudge = {f, r, u} while a button is held
-local fine = false         -- fine mode
-local strengthPick = 60    -- the player's pick
-local appOpen = false      -- the Tow app is open on the phone
+local rope = nil -- the tow rope (rope.lua), with nudge = {f, r, u} while a button is held
+local fine = false -- fine mode
+local strengthPick = 60 -- the player's pick
+local appOpen = false -- the Tow app is open on the phone
 local sinceAppPush = 0
-local pushApp              -- defined with the app below
+local pushApp -- defined with the app below
 
 local function towToRoadAllowed()
 	local c = U.config()
@@ -69,14 +69,22 @@ end
 local function numberSetting(key, default, lo, hi)
 	local c = U.config()
 	local v = c and tonumber(c[key])
-	if not v or v <= 0 then return default end
+	if not v or v <= 0 then
+		return default
+	end
 	return math.max(lo, math.min(hi, v))
 end
 
 -- m/s the winch hauls in at most, and the force limit in % of the vehicle's weight
-local function winchSpeed() return numberSetting("winchSpeed", 1, 0.2, 5) end
-local function maxStrength() return numberSetting("winchStrength", 150, 10, 150) end
-local function winchStrength() return math.min(strengthPick, maxStrength()) end
+local function winchSpeed()
+	return numberSetting("winchSpeed", 1, 0.2, 5)
+end
+local function maxStrength()
+	return numberSetting("winchStrength", 150, 10, 150)
+end
+local function winchStrength()
+	return math.min(strengthPick, maxStrength())
+end
 
 --== The rope ======================================================================
 
@@ -99,7 +107,9 @@ local function attach(id, tieCommand)
 		pushApp()
 	end
 	rope.gone = function(r)
-		if rope == r then rope = nil end
+		if rope == r then
+			rope = nil
+		end
 		pushApp()
 	end
 	rope.speed, rope.strength = winchSpeed(), winchStrength()
@@ -112,7 +122,9 @@ end
 
 --- Winch: 1 haul in, 0 stop, -1 pay out.
 function M.setWinch(mode)
-	if not rope then return false end
+	if not rope then
+		return false
+	end
 	mode = tonumber(mode) or 0
 	rope.winch = mode > 0 and 1 or (mode < 0 and -1 or 0)
 	rope.since = 1
@@ -134,8 +146,20 @@ local function attachAtView()
 	end
 	-- the vehicle ties the rope to the node closest to the aim line and reports it (onRopeTied)
 	attach(found.id, function(rid)
-		return string.format("sharedCareerVeh.ropeTieRay(%d, %d, %.3f, %.3f, %.3f, %.4f, %.4f, %.4f, %d, %.2f, %.1f)",
-			rid, R.TOW, cam.x, cam.y, cam.z, dir.x, dir.y, dir.z, R.MAX_DISTANCE, winchSpeed(), winchStrength())
+		return string.format(
+			"sharedCareerVeh.ropeTieRay(%d, %d, %.3f, %.3f, %.3f, %.4f, %.4f, %.4f, %d, %.2f, %.1f)",
+			rid,
+			R.TOW,
+			cam.x,
+			cam.y,
+			cam.z,
+			dir.x,
+			dir.y,
+			dir.z,
+			R.MAX_DISTANCE,
+			winchSpeed(),
+			winchStrength()
+		)
 	end)
 	return true
 end
@@ -151,17 +175,23 @@ end
 local TOW_MAX_SPEED = 2 -- m/s: the vehicle must be slower than this
 
 local function speedOf(veh)
-	if type(veh.getVelocity) ~= "function" then return 0 end
+	if type(veh.getVelocity) ~= "function" then
+		return 0
+	end
 	local ok, v = pcall(veh.getVelocity, veh)
 	v = ok and R.vecOf(v)
-	if not v then return 0 end
+	if not v then
+		return 0
+	end
 	return math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z)
 end
 
 -- true if the police chase this vehicle (the traffic system's pursuit data)
 local function inPursuit(id)
 	local traffic = rawget(_G, "gameplay_traffic")
-	if type(traffic) ~= "table" or type(traffic.getTrafficData) ~= "function" then return false end
+	if type(traffic) ~= "table" or type(traffic.getTrafficData) ~= "function" then
+		return false
+	end
 	local ok, data = pcall(traffic.getTrafficData)
 	local entry = ok and type(data) == "table" and data[id]
 	local pursuit = type(entry) == "table" and entry.pursuit
@@ -173,13 +203,17 @@ end
 local function towTarget()
 	if rope then
 		local veh = be:getObjectByID(rope.veh)
-		if not veh then return nil, "Vehicle not found" end
+		if not veh then
+			return nil, "Vehicle not found"
+		end
 		return veh, rope.veh
 	end
 	local cam, dir = R.cameraPos(), R.viewDir()
 	local found = cam and dir and R.vehicleOnRay(cam, dir)
 	local ok, err = R.canRope(found and found.veh, found and found.id)
-	if not ok then return nil, err end
+	if not ok then
+		return nil, err
+	end
 	return found.veh, found.id
 end
 
@@ -194,7 +228,9 @@ local FLIP_TILT = 0.5 -- the vehicle's up direction points up less than this (ab
 
 -- true if the vehicle lies on its roof or side
 local function tilted(veh)
-	if not veh or type(veh.getDirectionVectorUp) ~= "function" then return false end
+	if not veh or type(veh.getDirectionVectorUp) ~= "function" then
+		return false
+	end
 	local ok, up = pcall(veh.getDirectionVectorUp, veh)
 	up = ok and R.vecOf(up)
 	return up ~= nil and up.z < FLIP_TILT
@@ -203,14 +239,28 @@ end
 --- Turns the vehicle on the rope (or the one you look at) onto its wheels where it is.
 --- Returns true, or false and a message.
 function M.flipUpright()
-	if not R.allowed() then return false, "Off on this server" end
+	if not R.allowed() then
+		return false, "Off on this server"
+	end
 	local veh, id = towTarget()
-	if not veh then return false, id end
-	if not tilted(veh) then return false, "It stands on its wheels" end
-	if not (spawn and type(spawn.safeTeleport) == "function") then return false, "Not available in this game version" end
-	if inPursuit(id) then return false, "Not during a police chase" end
-	if speedOf(veh) > TOW_MAX_SPEED then return false, "Stop the vehicle first" end
-	if rope then M.release() end
+	if not veh then
+		return false, id
+	end
+	if not tilted(veh) then
+		return false, "It stands on its wheels"
+	end
+	if not (spawn and type(spawn.safeTeleport) == "function") then
+		return false, "Not available in this game version"
+	end
+	if inPursuit(id) then
+		return false, "Not during a police chase"
+	end
+	if speedOf(veh) > TOW_MAX_SPEED then
+		return false, "Stop the vehicle first"
+	end
+	if rope then
+		M.release()
+	end
 	local ok, err = pcall(function()
 		spawn.safeTeleport(veh, veh:getPosition(), quatFromDir(veh:getDirectionVector()), nil, nil, nil, nil, false)
 	end)
@@ -225,16 +275,26 @@ end
 --- Puts the vehicle on the rope (or the one you look at) on the last road it drove on.
 --- Returns true, or false and a message.
 function M.towToRoad()
-	if not towToRoadAllowed() then return false, "Off on this server" end
+	if not towToRoadAllowed() then
+		return false, "Off on this server"
+	end
 	local veh, id = towTarget()
-	if not veh then return false, id end
+	if not veh then
+		return false, id
+	end
 	if not (spawn and type(spawn.teleportToLastRoad) == "function") then
 		return false, "Not available in this game version"
 	end
-	if inPursuit(id) then return false, "Not during a police chase" end
-	if speedOf(veh) > TOW_MAX_SPEED then return false, "Stop the vehicle first" end
-	if rope then M.release() end
-	local ok, err = pcall(spawn.teleportToLastRoad, veh, {resetVehicle = false})
+	if inPursuit(id) then
+		return false, "Not during a police chase"
+	end
+	if speedOf(veh) > TOW_MAX_SPEED then
+		return false, "Stop the vehicle first"
+	end
+	if rope then
+		M.release()
+	end
+	local ok, err = pcall(spawn.teleportToLastRoad, veh, { resetVehicle = false })
 	if not ok then
 		U.log("E", "tow", "tow to the road failed: " .. tostring(err))
 		return false, "Towing to the road failed"
@@ -246,30 +306,36 @@ end
 --== Drawing (the anchor's end; the rope itself: rope.lua) ===========================
 
 -- anchor colors {r, g, b, a}
-local ANCHOR_MOVING = {0.3, 0.9, 1, 0.9}
-local ANCHOR_HAULING = {1, 0.55, 0.1, 0.9}
-local ANCHOR_PAYING = {0.75, 0.55, 1, 0.9}
+local ANCHOR_MOVING = { 0.3, 0.9, 1, 0.9 }
+local ANCHOR_HAULING = { 1, 0.55, 0.1, 0.9 }
+local ANCHOR_PAYING = { 0.75, 0.55, 1, 0.9 }
 
 -- The winch gauge: a ring facing the camera that fills with the winch's load, a small drum inside.
-local GAUGE_RADIUS = 0.2   -- m
+local GAUGE_RADIUS = 0.2 -- m
 local function winchGauge(p, strain)
 	local S = R.shapes
 	local f = R.viewDir()
-	if not f then return end
+	if not f then
+		return
+	end
 	-- the camera's right and up, so the ring faces it
 	local rx, ry = f.y, -f.x
 	local rl = math.sqrt(rx * rx + ry * ry)
-	if rl < 0.01 then rx, ry, rl = 1, 0, 1 end
+	if rl < 0.01 then
+		rx, ry, rl = 1, 0, 1
+	end
 	rx, ry = rx / rl, ry / rl
 	local ux, uy, uz = ry * f.z, -rx * f.z, rx * f.y - ry * f.x -- right x forward
 	local function at(angle, rad)
 		local c, sn = math.sin(angle) * rad, math.cos(angle) * rad
-		return {x = p.x + rx * c + ux * sn, y = p.y + ry * c + uy * sn, z = p.z + uz * sn}
+		return { x = p.x + rx * c + ux * sn, y = p.y + ry * c + uy * sn, z = p.z + uz * sn }
 	end
 	local limit = strain >= 0.95
 	local blink = limit and (0.55 + 0.45 * math.sin(R.clock() * 2 * math.pi * 2.5)) or 1
 	local r, g, b = R.winchColor(strain)
-	if limit then r, g, b = 1, 0.18, 0.12 end
+	if limit then
+		r, g, b = 1, 0.18, 0.12
+	end
 	local back = ColorF(1, 1, 1, 0.25)
 	local fill = ColorF(r, g, b, 0.95 * blink)
 	local steps, filled = 24, math.floor(24 * math.min(1, strain) + 0.5)
@@ -283,15 +349,24 @@ local function winchGauge(p, strain)
 	end
 	-- the drum: a short barrel across the ring's middle
 	local d = 0.07
-	if not S.cylinder({x = p.x - rx * d, y = p.y - ry * d, z = p.z}, {x = p.x + rx * d, y = p.y + ry * d, z = p.z}, 0.045, fill) then
-		S.line({x = p.x - rx * d, y = p.y - ry * d, z = p.z}, {x = p.x + rx * d, y = p.y + ry * d, z = p.z}, fill)
+	if
+		not S.cylinder(
+			{ x = p.x - rx * d, y = p.y - ry * d, z = p.z },
+			{ x = p.x + rx * d, y = p.y + ry * d, z = p.z },
+			0.045,
+			fill
+		)
+	then
+		S.line({ x = p.x - rx * d, y = p.y - ry * d, z = p.z }, { x = p.x + rx * d, y = p.y + ry * d, z = p.z }, fill)
 	end
 end
 
 function drawEnd(r, a, b, dt)
 	local S = R.shapes
-	local rgb = r.nudge and ANCHOR_MOVING or r.winch == 1 and ANCHOR_HAULING
-		or r.winch == -1 and ANCHOR_PAYING or R.ANCHOR_RESTING
+	local rgb = r.nudge and ANCHOR_MOVING
+		or r.winch == 1 and ANCHOR_HAULING
+		or r.winch == -1 and ANCHOR_PAYING
+		or R.ANCHOR_RESTING
 	local pulse = r.winch == 1 and not r.nudge and 1 + 0.25 * math.sin(R.clock() * 2 * math.pi * 1.5) or 1
 	if r.anchorVeh then
 		-- on a vehicle: a shackle on the point, no post and no ground marker
@@ -302,30 +377,41 @@ function drawEnd(r, a, b, dt)
 		Remote.drawHookPoints(r, b)
 	end
 	-- the winch gauge above the anchor, while the winch hauls in
-	local gaugeAt = {x = b.x, y = b.y, z = b.z + (r.anchorVeh and 0.45 or R.PIN_HEIGHT + 0.4)}
-	if r.winch == 1 then winchGauge(gaugeAt, r.strain or 0) end
+	local gaugeAt = { x = b.x, y = b.y, z = b.z + (r.anchorVeh and 0.45 or R.PIN_HEIGHT + 0.4) }
+	if r.winch == 1 then
+		winchGauge(gaugeAt, r.strain or 0)
+	end
 	if appOpen then
 		local text = r.winch == 1 and string.format("Winch %d %%", math.floor((r.strain or 0) * 100 + 0.5))
 			or (r.winch == -1 and "Paying out" or "Locked")
-		S.sign({x = gaugeAt.x, y = gaugeAt.y, z = gaugeAt.z + 0.35}, text)
+		S.sign({ x = gaugeAt.x, y = gaugeAt.y, z = gaugeAt.z + 0.35 }, text)
 	end
 end
 
 --== Tow app (phone) =============================================================
 
-local function straps() return U.ext("sharedCareer_straps") end
+local function straps()
+	return U.ext("sharedCareer_straps")
+end
 
 -- The vehicle on the rope is pulled up onto the one the anchor is hooked on and not strapped yet.
 local function canStrapDown()
 	local s = straps()
-	return rope ~= nil and rope.anchorVeh ~= nil and rope.winch == 0 and rope.length ~= nil
-		and rope.length <= STRAP_ROPE and s ~= nil and not s.isStrapped(rope.veh)
+	return rope ~= nil
+		and rope.anchorVeh ~= nil
+		and rope.winch == 0
+		and rope.length ~= nil
+		and rope.length <= STRAP_ROPE
+		and s ~= nil
+		and not s.isStrapped(rope.veh)
 end
 
 -- own vehicles near the camera that can take a rope, nearest first (at most 6)
 local function nearbyVehicles()
 	local cam = R.cameraPos()
-	if not cam then return {} end
+	if not cam then
+		return {}
+	end
 	local list = {}
 	local count = type(be.getObjectCount) == "function" and be:getObjectCount() or 0
 	for i = 0, count - 1 do
@@ -334,12 +420,18 @@ local function nearbyVehicles()
 			local id = veh:getID()
 			if R.canRope(veh, id) then
 				local d = R.distance(R.vecOf(veh:getPosition()), cam)
-				if d <= NEARBY_RANGE then table.insert(list, {id = id, name = R.vehicleName(veh), distance = math.floor(d + 0.5)}) end
+				if d <= NEARBY_RANGE then
+					table.insert(list, { id = id, name = R.vehicleName(veh), distance = math.floor(d + 0.5) })
+				end
 			end
 		end
 	end
-	table.sort(list, function(a, b) return a.distance < b.distance end)
-	while #list > 6 do table.remove(list) end
+	table.sort(list, function(a, b)
+		return a.distance < b.distance
+	end)
+	while #list > 6 do
+		table.remove(list)
+	end
 	return list
 end
 
@@ -348,12 +440,24 @@ function M.appState()
 	local max = maxStrength()
 	local choices = {}
 	for _, v in ipairs(STRENGTHS) do
-		if v <= max then table.insert(choices, v) end
+		if v <= max then
+			table.insert(choices, v)
+		end
 	end
-	if #choices == 0 or choices[#choices] < max then table.insert(choices, math.floor(max + 0.5)) end
+	if #choices == 0 or choices[#choices] < max then
+		table.insert(choices, math.floor(max + 0.5))
+	end
 	local target = R.allowed() and towTarget() or nil
-	local state = {allowed = R.allowed(), attached = rope ~= nil, fine = fine, towToRoad = towToRoadAllowed(), flip = tilted(target),
-		strength = winchStrength(), maxStrength = max, strengths = choices}
+	local state = {
+		allowed = R.allowed(),
+		attached = rope ~= nil,
+		fine = fine,
+		towToRoad = towToRoadAllowed(),
+		flip = tilted(target),
+		strength = winchStrength(),
+		maxStrength = max,
+		strengths = choices,
+	}
 	if rope then
 		local veh = be:getObjectByID(rope.veh)
 		state.vehicle = veh and R.vehicleName(veh) or "?"
@@ -373,7 +477,9 @@ function M.appState()
 			state.hookOn = Remote.hookOnState(rope)
 		end
 		local grip = R.gripNow(rope)
-		if grip and rope.target then state.distance = R.distance(grip, rope.target) end
+		if grip and rope.target then
+			state.distance = R.distance(grip, rope.target)
+		end
 	else
 		state.nearby = nearbyVehicles()
 	end
@@ -381,14 +487,18 @@ function M.appState()
 end
 
 function pushApp()
-	if guihooks and type(guihooks.trigger) == "function" then guihooks.trigger("SharedCareerTow", M.appState()) end
+	if guihooks and type(guihooks.trigger) == "function" then
+		guihooks.trigger("SharedCareerTow", M.appState())
+	end
 end
 
 function M.setAppOpen(on)
 	appOpen = on == true
 	if not appOpen then
 		R.stopProbe()
-		if rope then rope.nudge = nil end
+		if rope then
+			rope.nudge = nil
+		end
 	end
 	pushApp()
 end
@@ -396,15 +506,25 @@ end
 -- buttons of the Tow app
 --- Strap the vehicle on the rope onto the vehicle the anchor is hooked on.
 function M.uiStrapDown()
-	if not canStrapDown() then return false end
+	if not canStrapDown() then
+		return false
+	end
 	local ok, err = straps().strapOnto(rope.veh, rope.anchorVeh.id)
-	if not ok and err then R.message(err) end
+	if not ok and err then
+		R.message(err)
+	end
 	pushApp()
 	return ok
 end
-function M.uiAttachView() local ok = attachAtView(); pushApp(); return ok end
+function M.uiAttachView()
+	local ok = attachAtView()
+	pushApp()
+	return ok
+end
 function M.uiAttachVehicle(id)
-	if not R.allowed() then return false end
+	if not R.allowed() then
+		return false
+	end
 	id = tonumber(id)
 	local veh = id and be:getObjectByID(id)
 	local ok, err = R.canRope(veh, id)
@@ -414,17 +534,33 @@ function M.uiAttachVehicle(id)
 		return false
 	end
 	attach(id, function(rid)
-		return string.format("sharedCareerVeh.ropeTieNearest(%d, %d, %.3f, %.3f, %.3f, %.2f, %.1f)",
-			rid, R.TOW, cam.x, cam.y, cam.z, winchSpeed(), winchStrength())
+		return string.format(
+			"sharedCareerVeh.ropeTieNearest(%d, %d, %.3f, %.3f, %.3f, %.2f, %.1f)",
+			rid,
+			R.TOW,
+			cam.x,
+			cam.y,
+			cam.z,
+			winchSpeed(),
+			winchStrength()
+		)
 	end)
 	pushApp()
 	return true
 end
-function M.uiRelease() M.release(); pushApp() end
+function M.uiRelease()
+	M.release()
+	pushApp()
+end
 --- Hook the anchor onto the point the ring shows.
-function M.uiHookOn() return Remote.hookOn(rope) end
+function M.uiHookOn()
+	return Remote.hookOn(rope)
+end
 --- The anchor comes off its vehicle and stays where it is.
-function M.uiUnhook() R.unhook(rope); pushApp() end
+function M.uiUnhook()
+	R.unhook(rope)
+	pushApp()
+end
 function M.uiFlipUpright()
 	local ok, err = M.flipUpright()
 	R.message(ok and "On its wheels" or err)
@@ -437,30 +573,62 @@ function M.uiTowToRoad()
 	pushApp()
 	return ok
 end
-function M.uiWinch(mode) M.setWinch(mode); pushApp() end
-function M.uiFine(on) fine = on == true; pushApp() end
+function M.uiWinch(mode)
+	M.setWinch(mode)
+	pushApp()
+end
+function M.uiFine(on)
+	fine = on == true
+	pushApp()
+end
 --- Pull strength in % of the vehicle's weight (capped at the server's client.winchStrength).
 function M.uiStrength(v)
 	v = tonumber(v)
-	if not v then return end
+	if not v then
+		return
+	end
 	strengthPick = math.max(10, math.min(150, v))
-	if rope then rope.since = 1 end
+	if rope then
+		rope.since = 1
+	end
 	pushApp()
 end
 --- The remote (ropeRemote.lua, remote.html): move the anchor while a button is held (f = forward,
 --- r = right, u = up; -1..1), not while it is hooked onto a vehicle; "to my view" puts it in the
 --- middle of the view, at its current distance from you.
-function M.uiNudge(f, r, u) Remote.nudge(rope, f, r, u); pushApp() end
-function M.uiNudgeStop() Remote.nudgeStop(rope); pushApp() end
-function M.uiToView() Remote.toView(rope); pushApp() end
+function M.uiNudge(f, r, u)
+	Remote.nudge(rope, f, r, u)
+	pushApp()
+end
+function M.uiNudgeStop()
+	Remote.nudgeStop(rope)
+	pushApp()
+end
+function M.uiToView()
+	Remote.toView(rope)
+	pushApp()
+end
 
 -- the Tow app on the phone
 local function registerPhoneApp()
 	local phone = U.ext("sharedCareer_phone")
-	if not phone or type(phone.registerApp) ~= "function" then return end
+	if not phone or type(phone.registerApp) ~= "function" then
+		return
+	end
 	if R.allowed() then
-		phone.registerApp({id = "tow", title = "Tow", icon = "tow", color = "#e8730c", order = 10,
-			onOpen = function() M.setAppOpen(true) end, onClose = function() M.setAppOpen(false) end})
+		phone.registerApp({
+			id = "tow",
+			title = "Tow",
+			icon = "tow",
+			color = "#e8730c",
+			order = 10,
+			onOpen = function()
+				M.setAppOpen(true)
+			end,
+			onClose = function()
+				M.setAppOpen(false)
+			end,
+		})
 	else
 		phone.unregisterApp("tow")
 		M.setAppOpen(false)
@@ -476,13 +644,17 @@ function M.isHolding()
 end
 
 --- The tow rope (rope.lua), or nil.
-function M.rope() return rope end
+function M.rope()
+	return rope
+end
 
 --== Hooks =====================================================================
 
 function M.onUpdate(dtReal)
 	-- the preview of where a rope would attach, while the app is open and no rope is on
-	if appOpen and not rope and R.allowed() then R.probe() end
+	if appOpen and not rope and R.allowed() then
+		R.probe()
+	end
 	if appOpen then
 		sinceAppPush = sinceAppPush + (tonumber(dtReal) or 0)
 		if sinceAppPush >= APP_PUSH_EVERY then
@@ -493,7 +665,9 @@ function M.onUpdate(dtReal)
 end
 
 function M.onCareerActive(active)
-	if active and U.isMP() then registerPhoneApp() end
+	if active and U.isMP() then
+		registerPhoneApp()
+	end
 end
 
 function M.onExtensionLoaded()
@@ -502,6 +676,8 @@ function M.onExtensionLoaded()
 	Remote = extensions.sharedCareer_ropeRemote
 end
 
-M.onInit = function() setExtensionUnloadMode(M, 'manual') end
+M.onInit = function()
+	setExtensionUnloadMode(M, "manual")
+end
 
 return M

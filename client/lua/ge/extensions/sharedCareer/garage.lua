@@ -44,21 +44,37 @@ local rebuilding = false
 --== 1. Garage rebuild ==========================================================
 
 local function ownCarId(veh)
-	if veh == nil then return nil end
-	local ok, id = pcall(function() return veh:getID() end)
-	if not ok or type(id) ~= "number" then return nil end
+	if veh == nil then
+		return nil
+	end
+	local ok, id = pcall(function()
+		return veh:getID()
+	end)
+	if not ok or type(id) ~= "number" then
+		return nil
+	end
 	local mp = rawget(_G, "MPVehicleGE")
-	if type(mp) ~= "table" or type(mp.isOwn) ~= "function" then return nil end
-	if not mp.isOwn(id) then return nil end
+	if type(mp) ~= "table" or type(mp.isOwn) ~= "function" then
+		return nil
+	end
+	if not mp.isOwn(id) then
+		return nil
+	end
 	return id
 end
 
 -- Inventory ID if the vehicle is a car from our own career garage.
 local function inventoryIdOf(veh)
 	local inventory = career_modules_inventory
-	if type(inventory) ~= "table" or type(inventory.getInventoryIdFromVehicleId) ~= "function" then return nil end
-	local ok, id = pcall(function() return inventory.getInventoryIdFromVehicleId(veh:getID()) end)
-	if ok then return id end
+	if type(inventory) ~= "table" or type(inventory.getInventoryIdFromVehicleId) ~= "function" then
+		return nil
+	end
+	local ok, id = pcall(function()
+		return inventory.getInventoryIdFromVehicleId(veh:getID())
+	end)
+	if ok then
+		return id
+	end
 	return nil
 end
 
@@ -66,7 +82,9 @@ local function makeReplaceVehicle(original)
 	return function(modelName, opt, otherVeh, ...)
 		-- We may sit in the chain several times (BeamMP wraps us, we wrap BeamMP).
 		-- Only the outermost level does something.
-		if rebuilding or not U.isMP() then return original(modelName, opt, otherVeh, ...) end
+		if rebuilding or not U.isMP() then
+			return original(modelName, opt, otherVeh, ...)
+		end
 		local id = ownCarId(otherVeh)
 		if not id then
 			if otherVeh ~= nil and inventoryIdOf(otherVeh) ~= nil then
@@ -81,7 +99,9 @@ local function makeReplaceVehicle(original)
 		local previous = rawget(_G, "getPlayerVehicle")
 		local real = previous or getPlayerVehicle
 		rawset(_G, "getPlayerVehicle", function(player, ...)
-			if player == 0 then return otherVeh end
+			if player == 0 then
+				return otherVeh
+			end
 			return real(player, ...)
 		end)
 		rebuilding = true
@@ -100,8 +120,13 @@ end
 
 local function makeSpawnNewVehicle(original)
 	return function(modelName, opt, ...)
-		if U.isMP() and modelName == "unicycle" and type(opt) == "table" and opt.config == CAREER_UNICYCLE
-				and FS:fileExists(MP_UNICYCLE) then
+		if
+			U.isMP()
+			and modelName == "unicycle"
+			and type(opt) == "table"
+			and opt.config == CAREER_UNICYCLE
+			and FS:fileExists(MP_UNICYCLE)
+		then
 			opt = deepcopy(opt)
 			opt.config = MP_UNICYCLE
 		end
@@ -113,19 +138,27 @@ end
 
 local function withWideTether(fn, ...)
 	local tether = career_modules_tether
-	if type(tether) ~= "table" then return fn(...) end
+	if type(tether) ~= "table" then
+		return fn(...)
+	end
 	local door, sphere = tether.startDoorTether, tether.startSphereTether
 	local function widen(start)
-		if type(start) ~= "function" then return start end
+		if type(start) ~= "function" then
+			return start
+		end
 		return function(target, range, ...)
-			if type(range) == "number" and range < COMPUTER_RANGE then range = COMPUTER_RANGE end
+			if type(range) == "number" and range < COMPUTER_RANGE then
+				range = COMPUTER_RANGE
+			end
 			return start(target, range, ...)
 		end
 	end
 	tether.startDoorTether, tether.startSphereTether = widen(door), widen(sphere)
 	local results = U.pack(pcall(fn, ...))
 	tether.startDoorTether, tether.startSphereTether = door, sphere
-	if not results[1] then error(results[2], 0) end
+	if not results[1] then
+		error(results[2], 0)
+	end
 	return U.unpack(results, 2, results.n)
 end
 
@@ -135,7 +168,9 @@ local clickedInventoryId = nil
 local function makeOpenMenu(original)
 	return function(...)
 		clickedInventoryId = nil
-		if not U.isMP() then return original(...) end
+		if not U.isMP() then
+			return original(...)
+		end
 		return withWideTether(original, ...)
 	end
 end
@@ -150,14 +185,20 @@ end
 -- Tuning, parts and painting work with the vehicle you are sitting in. At the computer
 -- you are on foot, so we put the player into the clicked car.
 local function enterMenuVehicle()
-	if not U.isMP() then return end
+	if not U.isMP() then
+		return
+	end
 	local inventory = career_modules_inventory
 	local inventoryId = clickedInventoryId
 	clickedInventoryId = nil
-	if type(inventory) ~= "table" or not inventoryId then return end
+	if type(inventory) ~= "table" or not inventoryId then
+		return
+	end
 	local vehId = inventory.getVehicleIdFromInventoryId and inventory.getVehicleIdFromInventoryId(inventoryId)
 	local veh = vehId and be:getObjectByID(vehId)
-	if not veh or veh.JBeam == "unicycle" or be:getPlayerVehicleID(0) == vehId then return end
+	if not veh or veh.JBeam == "unicycle" or be:getPlayerVehicleID(0) == vehId then
+		return
+	end
 	if gameplay_walk and gameplay_walk.isWalking and gameplay_walk.isWalking() then
 		gameplay_walk.getInVehicle(veh)
 	else
@@ -187,7 +228,9 @@ local MIN_HEIGHT = 2.5
 local function accessRange()
 	local config = U.config()
 	local r = config and tonumber(config.computerAccessRange)
-	if not r or r <= 0 or not U.isMP() then return 0 end
+	if not r or r <= 0 or not U.isMP() then
+		return 0
+	end
 	return math.min(r, 30)
 end
 
@@ -197,7 +240,9 @@ end
 
 local function atLeast(v, minLen)
 	local len = vlen(v)
-	if len <= 0 or len >= minLen then return v end
+	if len <= 0 or len >= minLen then
+		return v
+	end
 	local f = minLen / len
 	return vec3(v.x * f, v.y * f, v.z * f)
 end
@@ -212,9 +257,13 @@ end
 
 -- Brings a marker's computer boxes to the current radius (or back to the original).
 local function widenMarker(self)
-	if type(self) ~= "table" or type(self.doors) ~= "table" or type(self.cluster) ~= "table" then return end
+	if type(self) ~= "table" or type(self.doors) ~= "table" or type(self.cluster) ~= "table" then
+		return
+	end
 	local range = accessRange()
-	if self.scRange == range then return end
+	if self.scRange == range then
+		return
+	end
 	self.scRange = range
 	for _, ntuple in ipairs(self.cluster.doors or {}) do
 		local name = type(ntuple) == "table" and ntuple[1]
@@ -223,10 +272,11 @@ local function widenMarker(self)
 			local pos = area and area:getPosition()
 			for _, door in ipairs(self.doors) do
 				if pos and door.areaPos and sameSpot(door.areaPos, pos) then
-					door.scOriginal = door.scOriginal or {x = door.xVec, y = door.yVec, z = door.zVec}
+					door.scOriginal = door.scOriginal or { x = door.xVec, y = door.yVec, z = door.zVec }
 					local o = door.scOriginal
 					if range > 0 then
-						door.xVec, door.yVec, door.zVec = atLeast(o.x, range), atLeast(o.y, range), atLeast(o.z, MIN_HEIGHT)
+						door.xVec, door.yVec, door.zVec =
+							atLeast(o.x, range), atLeast(o.y, range), atLeast(o.z, MIN_HEIGHT)
 					else
 						door.xVec, door.yVec, door.zVec = o.x, o.y, o.z
 					end
@@ -241,15 +291,21 @@ local markerClass, markerKey, markerModule = nil, nil, nil
 
 local function findMarkerClass()
 	-- Already found and the module is loaded unchanged: don't search.
-	if markerKey and package.loaded[markerKey] == markerModule and markerClass then return markerClass end
+	if markerKey and package.loaded[markerKey] == markerModule and markerClass then
+		return markerClass
+	end
 	for key, mod in pairs(package.loaded) do
 		if type(key) == "string" and key:find("markers/walkingMarker", 1, true) and type(mod) == "table" then
 			markerKey, markerModule = key, mod
-			if type(mod.setup) == "function" then return mod end
+			if type(mod.setup) == "function" then
+				return mod
+			end
 			if type(mod.create) == "function" then
 				local ok, instance = pcall(mod.create)
 				local class = ok and type(instance) == "table" and getmetatable(instance)
-				if type(class) == "table" and type(class.setup) == "function" then return class end
+				if type(class) == "table" and type(class.setup) == "function" then
+					return class
+				end
 			end
 		end
 	end
@@ -258,7 +314,9 @@ end
 
 local function ensureMarkerPatch()
 	local class = findMarkerClass()
-	if not class then return end -- the game hasn't loaded the markers yet; next second
+	if not class then
+		return
+	end -- the game hasn't loaded the markers yet; next second
 	if class ~= markerClass then
 		markerClass = class
 		U.log("I", "garage", "computer range: walkingMarker found")
@@ -268,7 +326,9 @@ local function ensureMarkerPatch()
 			U.replace(class, name, function(original)
 				return function(self, ...)
 					local ok, err = pcall(widenMarker, self)
-					if not ok then U.log("E", "garage", "computer range: " .. tostring(err)) end
+					if not ok then
+						U.log("E", "garage", "computer range: " .. tostring(err))
+					end
 					return original(self, ...)
 				end
 			end)
@@ -288,19 +348,27 @@ M.ensurePatches = ensurePatches
 
 function M.onUpdate(dtReal)
 	sinceCheck = sinceCheck + (tonumber(dtReal) or 0)
-	if sinceCheck < CHECK_EVERY then return end
+	if sinceCheck < CHECK_EVERY then
+		return
+	end
 	sinceCheck = 0
-	if U.isMP() then ensurePatches() end
+	if U.isMP() then
+		ensurePatches()
+	end
 end
 
 function M.onCareerActive()
-	if U.isMP() then ensurePatches() end
+	if U.isMP() then
+		ensurePatches()
+	end
 end
 
 function M.onExtensionLoaded()
 	U = extensions.sharedCareer_util
 end
 
-M.onInit = function() setExtensionUnloadMode(M, 'manual') end
+M.onInit = function()
+	setExtensionUnloadMode(M, "manual")
+end
 
 return M

@@ -28,15 +28,15 @@ local U
 
 local JOIN_TIMEOUT = 60
 local CAREER_WAIT_TIMEOUT = 30
-local CAREER_SCREENS = {"careerActivate", "careerVehicles"}
+local CAREER_SCREENS = { "careerActivate", "careerVehicles" }
 
 local config = nil
 local helloSent = false
 local started = false
-local waiting = nil  -- {since}: settings received, career_career not loaded yet
+local waiting = nil -- {since}: settings received, career_career not loaded yet
 local starting = nil -- {since}: start in progress
 local reported = false
-local readyOk = false   -- career start reported as successful (loading screens gone)
+local readyOk = false -- career start reported as successful (loading screens gone)
 local currentProfile = nil
 
 function M.getConfig()
@@ -56,9 +56,13 @@ end
 
 local function applyInputBlocks()
 	local filter = extensions.core_input_actionFilter
-	if not filter or not config then return end
+	if not filter or not config then
+		return
+	end
 	local blocked = {}
-	if not config.allowConsole then table.insert(blocked, "toggleConsoleNG") end
+	if not config.allowConsole then
+		table.insert(blocked, "toggleConsoleNG")
+	end
 	if not config.allowWorldEditor then
 		table.insert(blocked, "editorToggle")
 		table.insert(blocked, "editorSafeModeToggle")
@@ -70,7 +74,9 @@ end
 
 local function clearInputBlocks()
 	local filter = extensions.core_input_actionFilter
-	if not filter then return end
+	if not filter then
+		return
+	end
 	filter.setGroup("sharedCareer", {})
 	filter.addAction(0, "sharedCareer", false)
 end
@@ -85,14 +91,18 @@ end
 --                          but looks plainer.
 -- The player's own values are remembered and restored when leaving.
 
-local GAME_SETTINGS = {"trafficSimpleVehicles", "simplifyRemoteVehicles"}
+local GAME_SETTINGS = { "trafficSimpleVehicles", "simplifyRemoteVehicles" }
 local userSettings = nil
 
 local function applyGameSettings()
-	if not config or type(settings) ~= "table" or type(settings.setValue) ~= "function" then return end
+	if not config or type(settings) ~= "table" or type(settings.setValue) ~= "function" then
+		return
+	end
 	if not userSettings then
 		userSettings = {}
-		for _, key in ipairs(GAME_SETTINGS) do userSettings[key] = settings.getValue(key) end
+		for _, key in ipairs(GAME_SETTINGS) do
+			userSettings[key] = settings.getValue(key)
+		end
 	end
 	for _, key in ipairs(GAME_SETTINGS) do
 		if type(config[key]) == "boolean" and settings.getValue(key) ~= config[key] then
@@ -102,9 +112,13 @@ local function applyGameSettings()
 end
 
 local function restoreGameSettings()
-	if not userSettings or type(settings) ~= "table" then return end
+	if not userSettings or type(settings) ~= "table" then
+		return
+	end
 	for key, value in pairs(userSettings) do
-		if value ~= nil then settings.setValue(key, value) end
+		if value ~= nil then
+			settings.setValue(key, value)
+		end
 	end
 	userSettings = nil
 end
@@ -112,22 +126,28 @@ end
 --== Loading screen ============================================================
 
 local function loadingOpen(tag)
-	return core_gamestate and type(core_gamestate.getLoadingStatus) == "function"
+	return core_gamestate
+		and type(core_gamestate.getLoadingStatus) == "function"
 		and core_gamestate.getLoadingStatus(tag) == true
 end
 
 local function openCareerScreens()
 	local open = {}
 	for _, tag in ipairs(CAREER_SCREENS) do
-		if loadingOpen(tag) then table.insert(open, tag) end
+		if loadingOpen(tag) then
+			table.insert(open, tag)
+		end
 	end
 	return open
 end
 
 local function releaseCareerScreens()
 	-- The career's own handler also cleans up on the traffic loading screen.
-	if loadingOpen("careerVehicles") and career_modules_playerDriving
-			and type(career_modules_playerDriving.onTrafficOrParkingReady) == "function" then
+	if
+		loadingOpen("careerVehicles")
+		and career_modules_playerDriving
+		and type(career_modules_playerDriving.onTrafficOrParkingReady) == "function"
+	then
 		pcall(career_modules_playerDriving.onTrafficOrParkingReady)
 	end
 	for _, tag in ipairs(openCareerScreens()) do
@@ -140,10 +160,15 @@ local function releaseCareerScreens()
 end
 
 local function report(ok, reason)
-	if reported then return end
+	if reported then
+		return
+	end
 	reported = true
 	readyOk = ok == true
-	U.send("sc_careerResult", {ok = ok, reason = reason and tostring(reason):sub(1, 200) or nil, profile = currentProfile})
+	U.send(
+		"sc_careerResult",
+		{ ok = ok, reason = reason and tostring(reason):sub(1, 200) or nil, profile = currentProfile }
+	)
 	if ok then
 		U.log("I", "core", "career running")
 	else
@@ -157,7 +182,7 @@ end
 local function callStart(profile)
 	if type(career_career.startingOptions) == "table" then
 		-- 0.39+
-		return career_career.createOrLoadCareerAndStart(profile, false, {startMode = "freshStart"})
+		return career_career.createOrLoadCareerAndStart(profile, false, { startMode = "freshStart" })
 	end
 	-- older versions: third parameter = tutorial on/off
 	return career_career.createOrLoadCareerAndStart(profile, false, false)
@@ -168,15 +193,18 @@ local function beginStart()
 	-- The server assigns the profile name per BeamMP account (stays the same when renamed).
 	-- Older servers don't send one: then the BeamMP name.
 	local base = type(config.profileBase) == "string" and config.profileBase ~= "" and config.profileBase
-		or (MPConfig and MPConfig.getNickname and MPConfig.getNickname()) or "player"
+		or (MPConfig and MPConfig.getNickname and MPConfig.getNickname())
+		or "player"
 	local profile = U.profileName(base, config.saveSuffix)
 	currentProfile = profile
 	U.log("I", "core", "starting career with profile '" .. profile .. "'")
-	starting = {since = os.clockhp()}
+	starting = { since = os.clockhp() }
 	started = true
 
 	local traffic = U.ext("sharedCareer_traffic")
-	if traffic then traffic.arm(config) end
+	if traffic then
+		traffic.arm(config)
+	end
 
 	local protect = U.ext("sharedCareer_protect")
 	local ok, result = protect.run(callStart, profile)
@@ -203,13 +231,17 @@ local function updateStart()
 		end
 		return
 	end
-	if not starting then return end
+	if not starting then
+		return
+	end
 	local open = openCareerScreens()
 	if U.careerActive() and #open == 0 then
 		starting = nil
 		report(true)
 		local garage = U.ext("sharedCareer_garage")
-		if garage then garage.ensurePatches() end
+		if garage then
+			garage.ensurePatches()
+		end
 		return
 	end
 	if os.clockhp() - starting.since > JOIN_TIMEOUT then
@@ -235,44 +267,62 @@ local function rxConfig(data)
 	config = decoded
 	applyInputBlocks()
 	applyGameSettings()
-	if started or waiting then return end
+	if started or waiting then
+		return
+	end
 	if decoded.serverVersion and decoded.serverVersion ~= U.VERSION then
 		U.log("W", "core", "server version " .. tostring(decoded.serverVersion) .. ", client " .. U.VERSION)
 	end
 	if career_career and type(career_career.createOrLoadCareerAndStart) == "function" then
 		beginStart()
 	else
-		waiting = {since = os.clockhp()}
+		waiting = { since = os.clockhp() }
 	end
 end
 
 local function rxConfigUpdate(data)
 	local decoded = U.decode(data)
-	if not decoded then return end
+	if not decoded then
+		return
+	end
 	config = decoded
 	applyInputBlocks()
 	applyGameSettings()
 	local vehicles = U.ext("sharedCareer_vehicles")
-	if vehicles then vehicles.onConfigChanged() end
+	if vehicles then
+		vehicles.onConfigChanged()
+	end
 	local traffic = U.ext("sharedCareer_traffic")
 	if traffic and started and type(decoded.trafficShare) == "table" then
 		traffic.applyLive(decoded.trafficShare.road, decoded.trafficShare.parked)
 	end
 	local players = U.ext("sharedCareer_players")
-	if players and players.onConfigChanged then players.onConfigChanged() end
+	if players and players.onConfigChanged then
+		players.onConfigChanged()
+	end
 	local nodegrab = U.ext("sharedCareer_nodegrab")
-	if nodegrab and nodegrab.onConfigChanged then nodegrab.onConfigChanged() end
+	if nodegrab and nodegrab.onConfigChanged then
+		nodegrab.onConfigChanged()
+	end
 	local phone = U.ext("sharedCareer_phone")
-	if phone and phone.onConfigChanged then phone.onConfigChanged() end
-	for _, name in ipairs({"sharedCareer_rope", "sharedCareer_tow", "sharedCareer_straps"}) do
+	if phone and phone.onConfigChanged then
+		phone.onConfigChanged()
+	end
+	for _, name in ipairs({ "sharedCareer_rope", "sharedCareer_tow", "sharedCareer_straps" }) do
 		local ropes = U.ext(name)
-		if ropes and ropes.onConfigChanged then ropes.onConfigChanged() end
+		if ropes and ropes.onConfigChanged then
+			ropes.onConfigChanged()
+		end
 	end
 	local jobs = U.ext("sharedCareer_jobs")
-	if jobs and jobs.onConfigChanged then jobs.onConfigChanged() end
+	if jobs and jobs.onConfigChanged then
+		jobs.onConfigChanged()
+	end
 	-- Update the menu immediately (for everyone who has it open right now)
 	local menu = U.ext("sharedCareer_menu")
-	if menu then menu.onSettingsChanged() end
+	if menu then
+		menu.onSettingsChanged()
+	end
 end
 
 local function rxSignals(data)
@@ -287,7 +337,7 @@ end
 function M.onWorldReadyState(state)
 	if state == 2 and not helloSent and U.isMP() then
 		helloSent = true
-		U.send("sc_hello", {version = U.VERSION})
+		U.send("sc_hello", { version = U.VERSION })
 		U.log("I", "core", "map loaded, settings requested")
 	end
 end
@@ -316,7 +366,9 @@ function M.onExtensionLoaded()
 	U.on("sc_signals", rxSignals)
 	U.log("I", "core", "SharedCareer " .. U.VERSION .. " loaded")
 	-- The mod was reloaded while the map was already ready.
-	if rawget(_G, "worldReadyState") == 2 then M.onWorldReadyState(2) end
+	if rawget(_G, "worldReadyState") == 2 then
+		M.onWorldReadyState(2)
+	end
 end
 
 function M.onExtensionUnloaded()
@@ -324,6 +376,8 @@ function M.onExtensionUnloaded()
 	restoreGameSettings()
 end
 
-M.onInit = function() setExtensionUnloadMode(M, 'manual') end
+M.onInit = function()
+	setExtensionUnloadMode(M, "manual")
+end
 
 return M

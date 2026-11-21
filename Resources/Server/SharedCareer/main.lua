@@ -77,7 +77,7 @@
 --   sc_jobPaidAck {payout}                           credit this (again until sc_jobPaidAck)
 --                       (from the SharedCareer menu window)
 
-local VERSION = "0.28.1"
+local VERSION = "0.28.2"
 local TAG = "[SharedCareer] "
 
 local CONFIG_DIR = "Resources/Server/SharedCareer/config"
@@ -116,11 +116,11 @@ local DEFAULTS = {
 		-- Shared fuel prices: everyone pays the same price at a station (no random part),
 		-- and whoever delivers gasoline/diesel there makes that fuel cheaper there for everyone.
 		fuelEconomy = true,
-		fuelLitersPerStep = 1000,     -- this many liters ...
-		fuelDiscountPerStep = 5,      -- ... make the fuel at that station this many % cheaper
-		fuelMaxDiscount = 30,         -- at most this many % cheaper
-		fuelRecoveryPercent = 1,      -- the discount drops by this many percentage points ...
-		fuelRecoveryMinutes = 5,      -- ... every this many minutes (the price slowly returns)
+		fuelLitersPerStep = 1000, -- this many liters ...
+		fuelDiscountPerStep = 5, -- ... make the fuel at that station this many % cheaper
+		fuelMaxDiscount = 30, -- at most this many % cheaper
+		fuelRecoveryPercent = 1, -- the discount drops by this many percentage points ...
+		fuelRecoveryMinutes = 5, -- ... every this many minutes (the price slowly returns)
 		-- Clock paused: the time stands still until someone presses "Run" (window) or types
 		-- sc time start. Pause: window or sc time stop.
 		timePaused = false,
@@ -141,9 +141,9 @@ local DEFAULTS = {
 		-- Jobs (beta) in the Jobs app on the phone, for now towing jobs: broken-down cars at the
 		-- roadside, towed to a repair shop. One list for everyone, every job goes to one player.
 		jobs = true,
-		jobsOpen = 3,              -- open jobs per level group that players on the server have reached
-		jobTimeoutMinutes = 30,    -- a taken job is open again after this many minutes
-		jobPayMax = 5000,          -- the highest pay of one job, in $
+		jobsOpen = 3, -- open jobs per level group that players on the server have reached
+		jobTimeoutMinutes = 30, -- a taken job is open again after this many minutes
+		jobPayMax = 5000, -- the highest pay of one job, in $
 	},
 	client = {
 		-- Appended to the profile name, e.g. "_myserver", so that every server gets its own
@@ -270,9 +270,13 @@ local function encode(value)
 end
 
 local function decodeTable(data)
-	if type(data) ~= "string" or #data == 0 or #data > MAX_PAYLOAD then return nil end
+	if type(data) ~= "string" or #data == 0 or #data > MAX_PAYLOAD then
+		return nil
+	end
 	local ok, value = pcall(Util.JsonDecode, data)
-	if ok and type(value) == "table" then return value end
+	if ok and type(value) == "table" then
+		return value
+	end
 	return nil
 end
 
@@ -290,7 +294,9 @@ end
 local function notify(player_id, msg, icon)
 	if type(MP.SendNotification) == "function" then
 		local ok = pcall(MP.SendNotification, player_id, msg, icon or "info")
-		if ok then return end
+		if ok then
+			return
+		end
 	end
 	chat(player_id, msg)
 end
@@ -300,7 +306,7 @@ end
 -- there right now (e.g. the career doesn't start). BeamMP's MP.ConfirmationDialog is
 -- deliberately NOT used: in BeamNG 0.40 it led to the main menu instead of showing a dialog.
 local function dialog(player_id, title, body, warning)
-	send(player_id, "sc_dialog", {title = title, body = body, warning = warning == true})
+	send(player_id, "sc_dialog", { title = title, body = body, warning = warning == true })
 	notify(player_id, title .. ": " .. tostring(body):gsub("%s+", " "):sub(1, 200), warning and "warning" or "info")
 end
 
@@ -315,7 +321,9 @@ end
 
 local function clampInt(value, low, high)
 	local n = tonumber(value)
-	if not n or n ~= n then return low end
+	if not n or n ~= n then
+		return low
+	end
 	return math.floor(math.max(low, math.min(high, n)))
 end
 
@@ -323,7 +331,9 @@ end
 
 local function readFile(path)
 	local f = io.open(path, "r")
-	if not f then return nil end
+	if not f then
+		return nil
+	end
 	local text = f:read("*a")
 	f:close()
 	return text
@@ -331,9 +341,13 @@ end
 
 -- Writes `value` as readable JSON to a file in the config folder. Returns true if it worked.
 local function writeJson(path, value)
-	if FS and FS.CreateDirectory and not FS.Exists(CONFIG_DIR) then FS.CreateDirectory(CONFIG_DIR) end
+	if FS and FS.CreateDirectory and not FS.Exists(CONFIG_DIR) then
+		FS.CreateDirectory(CONFIG_DIR)
+	end
 	local text = encode(value)
-	if Util.JsonPrettify then text = Util.JsonPrettify(text) end
+	if Util.JsonPrettify then
+		text = Util.JsonPrettify(text)
+	end
 	local f = io.open(path, "w")
 	if not f then
 		log("Could not write " .. path)
@@ -349,8 +363,13 @@ end
 -- on the old default (-> they get the new one) and which someone changed (-> they stay).
 -- That way simply installing an update is enough.
 local function saveConfig()
-	return writeJson(CONFIG_FILE, {server = Config.server, client = Config.client,
-		_retired = next(Retired) and Retired or nil, _defaults = DEFAULTS, _version = VERSION})
+	return writeJson(CONFIG_FILE, {
+		server = Config.server,
+		client = Config.client,
+		_retired = next(Retired) and Retired or nil,
+		_defaults = DEFAULTS,
+		_version = VERSION,
+	})
 end
 
 --== Settings across versions ===================================================
@@ -369,7 +388,9 @@ end
 local RENAMED = {
 	client = {
 		addApps = "addTimeApp", -- 0.15.0
-		allowRopes = "allowGrab", winchSpeed = "grabSpeed", winchStrength = "grabStrength", -- 0.22.0
+		allowRopes = "allowGrab",
+		winchSpeed = "grabSpeed",
+		winchStrength = "grabStrength", -- 0.22.0
 	},
 }
 
@@ -390,7 +411,9 @@ local function mergeConfig(loaded)
 	loaded = type(loaded) == "table" and loaded or {}
 	local retired = {}
 	if type(loaded._retired) == "table" then
-		for name, value in pairs(loaded._retired) do retired[name] = value end
+		for name, value in pairs(loaded._retired) do
+			retired[name] = value
+		end
 	end
 	local result, updated, newlyRetired = {}, {}, {}
 	local function retire(name, value, why)
@@ -407,13 +430,19 @@ local function mergeConfig(loaded)
 			if oldKey then
 				renamedFrom[oldKey] = true
 				local oldName = section .. "." .. oldKey
-				if value == nil then value = values[oldKey] end
-				if value == nil then value = retired[oldName] end
+				if value == nil then
+					value = values[oldKey]
+				end
+				if value == nil then
+					value = retired[oldName]
+				end
 				retired[oldName] = nil
 			end
 			-- a setting that comes back gets its old value
 			local name = section .. "." .. key
-			if value == nil and retired[name] ~= nil and type(retired[name]) == type(default) then value = retired[name] end
+			if value == nil and retired[name] ~= nil and type(retired[name]) == type(default) then
+				value = retired[name]
+			end
 			if value ~= nil and type(value) ~= type(default) then
 				retire(name, value, "expected a " .. type(default))
 				value = nil
@@ -422,11 +451,16 @@ local function mergeConfig(loaded)
 				result[section][key] = default
 			elseif value ~= default and wasDefault(section, key, value, loaded._defaults) then
 				result[section][key] = default
-				table.insert(updated, string.format("%s.%s: %s -> %s", section, key, tostring(value), tostring(default)))
+				table.insert(
+					updated,
+					string.format("%s.%s: %s -> %s", section, key, tostring(value), tostring(default))
+				)
 			else
 				result[section][key] = value
 			end
-			if value ~= nil then retired[name] = nil end
+			if value ~= nil then
+				retired[name] = nil
+			end
 		end
 		for key, value in pairs(values) do
 			if defaults[key] == nil and not renamedFrom[key] then
@@ -450,7 +484,10 @@ local function loadConfig()
 			-- Don't just overwrite a broken file: back it up so nothing gets lost.
 			local backup = CONFIG_FILE .. ".broken"
 			local f = io.open(backup, "w")
-			if f then f:write(text); f:close() end
+			if f then
+				f:write(text)
+				f:close()
+			end
 			log("config.json is not valid JSON – saved as config.json.broken, using default settings")
 		end
 	end
@@ -458,11 +495,15 @@ local function loadConfig()
 	Config, Retired, updated, newlyRetired = mergeConfig(loaded)
 	if #updated > 0 then
 		log("Update: " .. #updated .. " setting(s) moved to the new default (values you changed are kept):")
-		for _, line in ipairs(updated) do log("  " .. line) end
+		for _, line in ipairs(updated) do
+			log("  " .. line)
+		end
 	end
 	if #newlyRetired > 0 then
 		log("Update: " .. #newlyRetired .. " setting(s) this version doesn't use, kept in config.json under _retired:")
-		for _, line in ipairs(newlyRetired) do log("  " .. line) end
+		for _, line in ipairs(newlyRetired) do
+			log("  " .. line)
+		end
 	end
 	saveConfig() -- new settings and defaults show up in the file automatically this way
 end
@@ -479,18 +520,24 @@ local profiles = {} -- BeamMP account ID (string) -> profile name
 
 local function sanitizeProfile(name)
 	local s = string.lower(tostring(name or "")):gsub("[^a-z0-9]", "")
-	if s == "" then s = "sharedcareer" end
+	if s == "" then
+		s = "sharedcareer"
+	end
 	return s
 end
 
 local function loadProfiles()
 	local text = readFile(PROFILES_FILE)
-	if not text then return end
+	if not text then
+		return
+	end
 	local ok, value = pcall(Util.JsonDecode, text)
 	if ok and type(value) == "table" then
 		profiles = {}
 		for account, name in pairs(value) do
-			if type(name) == "string" then profiles[tostring(account)] = sanitizeProfile(name) end
+			if type(name) == "string" then
+				profiles[tostring(account)] = sanitizeProfile(name)
+			end
 		end
 	else
 		log("profiles.json is not valid JSON – it will be rewritten on the next join")
@@ -515,15 +562,19 @@ local function identityOf(player_id)
 			account = tostring(ids.beammp):match("^%d+$")
 		end
 	end
-	if guest then account = nil end
-	return {account = account, guest = guest or account == nil}
+	if guest then
+		account = nil
+	end
+	return { account = account, guest = guest or account == nil }
 end
 
 -- Profile name for this player (without the server suffix; the client appends that).
 local function profileFor(player_id, identity)
 	if identity.account then
 		local known = profiles[identity.account]
-		if known then return known end
+		if known then
+			return known
+		end
 		local name = sanitizeProfile(playerName(player_id))
 		profiles[identity.account] = name
 		saveProfiles()
@@ -544,7 +595,9 @@ end
 local function careerPlayerIds()
 	local ids = {}
 	for id, entry in pairs(players) do
-		if entry.counted then table.insert(ids, id) end
+		if entry.counted then
+			table.insert(ids, id)
+		end
 	end
 	table.sort(ids)
 	return ids
@@ -555,11 +608,15 @@ local function shareOf(perPlayer, total, ids, player_id)
 	perPlayer = clampInt(perPlayer, 0, 50)
 	total = clampInt(total, 0, 400)
 	local n = #ids
-	if total == 0 or n == 0 or perPlayer * n <= total then return perPlayer end
+	if total == 0 or n == 0 or perPlayer * n <= total then
+		return perPlayer
+	end
 	local each = math.floor(total / n)
 	local spare = total - each * n
 	for i, id in ipairs(ids) do
-		if id == player_id then return math.min(perPlayer, each + (i <= spare and 1 or 0)) end
+		if id == player_id then
+			return math.min(perPlayer, each + (i <= spare and 1 or 0))
+		end
 	end
 	return math.min(perPlayer, each)
 end
@@ -593,7 +650,9 @@ end
 
 -- A client may only report its own vehicles ("<its player_id>-<vehicle_id>").
 local function ownsVehicle(player_id, serverVehicleID)
-	if type(serverVehicleID) ~= "string" then return false end
+	if type(serverVehicleID) ~= "string" then
+		return false
+	end
 	local owner = serverVehicleID:match("^(%d+)%-%d+$")
 	return owner ~= nil and tonumber(owner) == tonumber(player_id)
 end
@@ -624,25 +683,57 @@ local REAL_DAY_SECONDS = 24 * 60 * 60
 --   us  second Sunday of March 2:00 to first Sunday of November 2:00 (local time)
 --   au  first Sunday of October 2:00 to first Sunday of April 3:00 (local time, southern half)
 local TIME_ZONES = {
-	["UTC"] = {0}, ["Europe/London"] = {0, "eu"}, ["Europe/Dublin"] = {0, "eu"}, ["Europe/Lisbon"] = {0, "eu"},
-	["Europe/Berlin"] = {1, "eu"}, ["Europe/Vienna"] = {1, "eu"}, ["Europe/Zurich"] = {1, "eu"},
-	["Europe/Paris"] = {1, "eu"}, ["Europe/Brussels"] = {1, "eu"}, ["Europe/Amsterdam"] = {1, "eu"},
-	["Europe/Luxembourg"] = {1, "eu"}, ["Europe/Madrid"] = {1, "eu"}, ["Europe/Rome"] = {1, "eu"},
-	["Europe/Copenhagen"] = {1, "eu"}, ["Europe/Oslo"] = {1, "eu"}, ["Europe/Stockholm"] = {1, "eu"},
-	["Europe/Warsaw"] = {1, "eu"}, ["Europe/Prague"] = {1, "eu"}, ["Europe/Budapest"] = {1, "eu"},
-	["Europe/Helsinki"] = {2, "eu"}, ["Europe/Athens"] = {2, "eu"}, ["Europe/Bucharest"] = {2, "eu"},
-	["Europe/Kyiv"] = {2, "eu"}, ["Europe/Istanbul"] = {3}, ["Europe/Moscow"] = {3},
-	["America/New_York"] = {-5, "us"}, ["America/Toronto"] = {-5, "us"}, ["America/Chicago"] = {-6, "us"},
-	["America/Denver"] = {-7, "us"}, ["America/Phoenix"] = {-7}, ["America/Los_Angeles"] = {-8, "us"},
-	["America/Vancouver"] = {-8, "us"}, ["America/Anchorage"] = {-9, "us"}, ["Pacific/Honolulu"] = {-10},
-	["America/Sao_Paulo"] = {-3}, ["Asia/Dubai"] = {4}, ["Asia/Kolkata"] = {5.5}, ["Asia/Shanghai"] = {8},
-	["Asia/Singapore"] = {8}, ["Asia/Tokyo"] = {9}, ["Australia/Brisbane"] = {10},
-	["Australia/Sydney"] = {10, "au"}, ["Australia/Melbourne"] = {10, "au"}, ["Pacific/Auckland"] = {12},
+	["UTC"] = { 0 },
+	["Europe/London"] = { 0, "eu" },
+	["Europe/Dublin"] = { 0, "eu" },
+	["Europe/Lisbon"] = { 0, "eu" },
+	["Europe/Berlin"] = { 1, "eu" },
+	["Europe/Vienna"] = { 1, "eu" },
+	["Europe/Zurich"] = { 1, "eu" },
+	["Europe/Paris"] = { 1, "eu" },
+	["Europe/Brussels"] = { 1, "eu" },
+	["Europe/Amsterdam"] = { 1, "eu" },
+	["Europe/Luxembourg"] = { 1, "eu" },
+	["Europe/Madrid"] = { 1, "eu" },
+	["Europe/Rome"] = { 1, "eu" },
+	["Europe/Copenhagen"] = { 1, "eu" },
+	["Europe/Oslo"] = { 1, "eu" },
+	["Europe/Stockholm"] = { 1, "eu" },
+	["Europe/Warsaw"] = { 1, "eu" },
+	["Europe/Prague"] = { 1, "eu" },
+	["Europe/Budapest"] = { 1, "eu" },
+	["Europe/Helsinki"] = { 2, "eu" },
+	["Europe/Athens"] = { 2, "eu" },
+	["Europe/Bucharest"] = { 2, "eu" },
+	["Europe/Kyiv"] = { 2, "eu" },
+	["Europe/Istanbul"] = { 3 },
+	["Europe/Moscow"] = { 3 },
+	["America/New_York"] = { -5, "us" },
+	["America/Toronto"] = { -5, "us" },
+	["America/Chicago"] = { -6, "us" },
+	["America/Denver"] = { -7, "us" },
+	["America/Phoenix"] = { -7 },
+	["America/Los_Angeles"] = { -8, "us" },
+	["America/Vancouver"] = { -8, "us" },
+	["America/Anchorage"] = { -9, "us" },
+	["Pacific/Honolulu"] = { -10 },
+	["America/Sao_Paulo"] = { -3 },
+	["Asia/Dubai"] = { 4 },
+	["Asia/Kolkata"] = { 5.5 },
+	["Asia/Shanghai"] = { 8 },
+	["Asia/Singapore"] = { 8 },
+	["Asia/Tokyo"] = { 9 },
+	["Australia/Brisbane"] = { 10 },
+	["Australia/Sydney"] = { 10, "au" },
+	["Australia/Melbourne"] = { 10, "au" },
+	["Pacific/Auckland"] = { 12 },
 }
 
 -- Days since 1970-01-01 for a date (any year, no time zone involved).
 local function daysFromCivil(y, m, d)
-	if m <= 2 then y = y - 1 end
+	if m <= 2 then
+		y = y - 1
+	end
 	local era = (y >= 0 and y or y - 399) // 400
 	local yoe = y - era * 400
 	local doy = (153 * (m > 2 and m - 3 or m + 9) + 2) // 5 + d - 1
@@ -683,13 +774,19 @@ end
 local warnedZone = nil
 local function timeZone()
 	local name = tostring(Config.server.realtimeZone or "")
-	if name == "" then return nil end
-	if TIME_ZONES[name] then return TIME_ZONES[name] end
+	if name == "" then
+		return nil
+	end
+	if TIME_ZONES[name] then
+		return TIME_ZONES[name]
+	end
 	local sign, h, m = name:match("^UTC([+-])(%d+):?(%d*)$")
-	if sign then return {(tonumber(h) + (tonumber(m) or 0) / 60) * (sign == "-" and -1 or 1)} end
+	if sign then
+		return { (tonumber(h) + (tonumber(m) or 0) / 60) * (sign == "-" and -1 or 1) }
+	end
 	if warnedZone ~= name then
 		warnedZone = name
-		log("unknown time zone \"" .. name .. "\" in server.realtimeZone – using the server's local time")
+		log('unknown time zone "' .. name .. "\" in server.realtimeZone – using the server's local time")
 	end
 	return nil
 end
@@ -722,14 +819,19 @@ end
 local function timePhases()
 	local dayStart = tonumber(Config.server.dayStartHour) or 6
 	local nightStart = tonumber(Config.server.nightStartHour) or 20
-	if not (dayStart >= 0 and dayStart < nightStart and nightStart < 24) then dayStart, nightStart = 6, 20 end
+	if not (dayStart >= 0 and dayStart < nightStart and nightStart < 24) then
+		dayStart, nightStart = 6, 20
+	end
 	local dayMin = tonumber(Config.server.dayMinutes) or 0
 	local nightMin = tonumber(Config.server.nightMinutes) or 0
-	if dayMin <= 0 or nightMin <= 0 then return nil end
+	if dayMin <= 0 or nightMin <= 0 then
+		return nil
+	end
 	local dayHours, nightHours = nightStart - dayStart, 24 - (nightStart - dayStart)
 	return {
-		dayStart = dayStart, nightStart = nightStart,
-		daySpeed = dayHours / (dayMin * 60),     -- game hours per real second
+		dayStart = dayStart,
+		nightStart = nightStart,
+		daySpeed = dayHours / (dayMin * 60), -- game hours per real second
 		nightSpeed = nightHours / (nightMin * 60),
 	}
 end
@@ -748,9 +850,13 @@ local function advance(hour, seconds, ph)
 		local speed = day and ph.daySpeed or ph.nightSpeed
 		local boundary = day and ph.nightStart or ph.dayStart
 		local untilBoundary = (boundary - hour) % 24
-		if untilBoundary == 0 then untilBoundary = 24 end
+		if untilBoundary == 0 then
+			untilBoundary = 24
+		end
 		local needed = untilBoundary / speed
-		if seconds < needed then return (hour + seconds * speed) % 24 end
+		if seconds < needed then
+			return (hour + seconds * speed) % 24
+		end
 		seconds = seconds - needed
 		hour = boundary % 24
 	end
@@ -758,15 +864,21 @@ local function advance(hour, seconds, ph)
 end
 
 local function currentHour()
-	if realtimeOn() then return realHour() end
-	if not timeState then timeState = {hour = (tonumber(Config.server.startHour) or 10) % 24, at = now()} end
+	if realtimeOn() then
+		return realHour()
+	end
+	if not timeState then
+		timeState = { hour = (tonumber(Config.server.startHour) or 10) % 24, at = now() }
+	end
 	local ph = timePhases()
-	if not ph or Config.server.timePaused == true then return timeState.hour end
+	if not ph or Config.server.timePaused == true then
+		return timeState.hour
+	end
 	return advance(timeState.hour, now() - timeState.at, ph)
 end
 
 local function setHour(hour)
-	timeState = {hour = hour % 24, at = now()}
+	timeState = { hour = hour % 24, at = now() }
 end
 
 -- Before changing the speed: pin the current time, otherwise it jumps.
@@ -792,51 +904,81 @@ local function timePayload()
 	if realtimeOn() then
 		local dayStart = tonumber(Config.server.dayStartHour) or 6
 		local nightStart = tonumber(Config.server.nightStartHour) or 20
-		if ph then dayStart, nightStart = ph.dayStart, ph.nightStart end
+		if ph then
+			dayStart, nightStart = ph.dayStart, ph.nightStart
+		end
 		payload = {
-			hour = hour, play = true,
-			dayLength = REAL_DAY_SECONDS, dayLengthDay = REAL_DAY_SECONDS, dayLengthNight = REAL_DAY_SECONDS,
-			dayStart = dayStart, nightStart = nightStart,
+			hour = hour,
+			play = true,
+			dayLength = REAL_DAY_SECONDS,
+			dayLengthDay = REAL_DAY_SECONDS,
+			dayLengthNight = REAL_DAY_SECONDS,
+			dayStart = dayStart,
+			nightStart = nightStart,
 		}
 		extra.paused, extra.realtime = false, true
 	elseif not ph or paused then
-		payload = {hour = hour, play = false, dayLength = 0,
-			dayStart = tonumber(Config.server.dayStartHour) or 6, nightStart = tonumber(Config.server.nightStartHour) or 20}
+		payload = {
+			hour = hour,
+			play = false,
+			dayLength = 0,
+			dayStart = tonumber(Config.server.dayStartHour) or 6,
+			nightStart = tonumber(Config.server.nightStartHour) or 20,
+		}
 	else
 		local lenDay, lenNight = 24 / ph.daySpeed, 24 / ph.nightSpeed
 		payload = {
-			hour = hour, play = true,
+			hour = hour,
+			play = true,
 			dayLength = isDay(hour, ph) and lenDay or lenNight,
-			dayLengthDay = lenDay, dayLengthNight = lenNight,
-			dayStart = ph.dayStart, nightStart = ph.nightStart,
+			dayLengthDay = lenDay,
+			dayLengthNight = lenNight,
+			dayStart = ph.dayStart,
+			nightStart = ph.nightStart,
 		}
 	end
-	for k, v in pairs(extra) do payload[k] = v end
+	for k, v in pairs(extra) do
+		payload[k] = v
+	end
 	return payload
 end
 
 local function sendTime(player_id)
-	if Config.client.syncTimeOfDay ~= true then return end
+	if Config.client.syncTimeOfDay ~= true then
+		return
+	end
 	send(player_id, "sc_time", timePayload())
 end
 
 local function formatHour(hour)
 	local h = math.floor(hour)
 	local m = math.floor((hour - h) * 60 + 0.5)
-	if m == 60 then h, m = (h + 1) % 24, 0 end
+	if m == 60 then
+		h, m = (h + 1) % 24, 0
+	end
 	return string.format("%02d:%02d", h, m)
 end
 
-local TIME_KEYS = {dayMinutes = true, nightMinutes = true, dayStartHour = true, nightStartHour = true, timePaused = true,
-	realtimeSync = true}
+local TIME_KEYS = {
+	dayMinutes = true,
+	nightMinutes = true,
+	dayStartHour = true,
+	nightStartHour = true,
+	timePaused = true,
+	realtimeSync = true,
+}
 
 -- Real time on/off. Off: pin the real time first, so the clock runs on from there without
 -- a jump. On: a pause no longer applies, so it is lifted.
 local function setRealtime(on)
-	if realtimeOn() == on then return false end
+	if realtimeOn() == on then
+		return false
+	end
 	rebaseTime()
 	Config.server.realtimeSync = on
-	if on then Config.server.timePaused = false end
+	if on then
+		Config.server.timePaused = false
+	end
 	saveConfig()
 	return true
 end
@@ -844,7 +986,9 @@ end
 -- Pause/resume the clock. Pin the current time first, so it stops exactly there
 -- or runs on from there.
 local function setPaused(paused)
-	if (Config.server.timePaused == true) == paused then return false end
+	if (Config.server.timePaused == true) == paused then
+		return false
+	end
 	rebaseTime()
 	Config.server.timePaused = paused
 	saveConfig()
@@ -854,7 +998,9 @@ end
 -- New time/lengths immediately to all players with a running career.
 local function sendTimeToAll()
 	for id, entry in pairs(players) do
-		if entry.careerActive and MP.IsPlayerConnected(id) then sendTime(id) end
+		if entry.careerActive and MP.IsPlayerConnected(id) then
+			sendTime(id)
+		end
 	end
 end
 
@@ -865,7 +1011,9 @@ end
 
 local function settingsFor(player_id)
 	local settings = {}
-	for key, value in pairs(Config.client) do settings[key] = value end
+	for key, value in pairs(Config.client) do
+		settings[key] = value
+	end
 	settings.trafficShare = trafficShareFor(player_id)
 	settings.serverVersion = VERSION
 	local entry = players[player_id]
@@ -874,7 +1022,11 @@ local function settingsFor(player_id)
 		settings.isGuest = entry.guest
 	end
 	local count = 0
-	for _, e in pairs(players) do if e.counted then count = count + 1 end end
+	for _, e in pairs(players) do
+		if e.counted then
+			count = count + 1
+		end
+	end
 	settings.ui = {
 		roadTrafficTotal = Config.server.roadTrafficTotal,
 		parkedTrafficTotal = Config.server.parkedTrafficTotal,
@@ -903,15 +1055,20 @@ end
 -- gas station as in the game (freeroam_facilities gasStations), fuel = "gasoline" | "diesel".
 -- Saved in config/fuelprices.json, sent to everyone as sc_fuelPrices {enabled, factors}.
 local FUEL_FILE = CONFIG_DIR .. "/fuelprices.json"
-local FUEL_TYPES = {gasoline = true, diesel = true}
+local FUEL_TYPES = { gasoline = true, diesel = true }
 local fuelDiscounts = {}
 local fuelRecoveryElapsed = 0
 
 local function loadFuel()
 	local text = readFile(FUEL_FILE)
-	if not text then return end
+	if not text then
+		return
+	end
 	local ok, value = pcall(Util.JsonDecode, text)
-	if not ok or type(value) ~= "table" then log("fuelprices.json is not valid JSON – starting with normal prices") return end
+	if not ok or type(value) ~= "table" then
+		log("fuelprices.json is not valid JSON – starting with normal prices")
+		return
+	end
 	fuelDiscounts = {}
 	for station, fuels in pairs(value) do
 		if type(fuels) == "table" then
@@ -933,9 +1090,11 @@ local function fuelPayload()
 	local factors = {}
 	for station, fuels in pairs(fuelDiscounts) do
 		factors[station] = {}
-		for fuel, d in pairs(fuels) do factors[station][fuel] = 1 - d / 100 end
+		for fuel, d in pairs(fuels) do
+			factors[station][fuel] = 1 - d / 100
+		end
 	end
-	return {enabled = Config.server.fuelEconomy == true, factors = factors}
+	return { enabled = Config.server.fuelEconomy == true, factors = factors }
 end
 
 local function sendFuel(player_id)
@@ -945,7 +1104,9 @@ end
 local function sendFuelToAll()
 	local data = encode(fuelPayload())
 	for id, entry in pairs(players) do
-		if entry.careerActive and MP.IsPlayerConnected(id) then MP.TriggerClientEvent(id, "sc_fuelPrices", data) end
+		if entry.careerActive and MP.IsPlayerConnected(id) then
+			MP.TriggerClientEvent(id, "sc_fuelPrices", data)
+		end
 	end
 end
 
@@ -954,10 +1115,16 @@ local FUEL_MAX_AMOUNT = 100000
 function sc_fuelDelivered(player_id, data)
 	local entry = players[player_id]
 	local msg = decodeTable(data)
-	if not entry or not entry.careerActive or not msg or Config.server.fuelEconomy ~= true then return end
+	if not entry or not entry.careerActive or not msg or Config.server.fuelEconomy ~= true then
+		return
+	end
 	local station, fuel, amount = msg.station, msg.fuel, tonumber(msg.amount)
-	if type(station) ~= "string" or #station == 0 or #station > 64 or not FUEL_TYPES[fuel] then return end
-	if not amount or amount ~= amount or amount <= 0 then return end
+	if type(station) ~= "string" or #station == 0 or #station > 64 or not FUEL_TYPES[fuel] then
+		return
+	end
+	if not amount or amount ~= amount or amount <= 0 then
+		return
+	end
 	amount = math.min(amount, FUEL_MAX_AMOUNT)
 	local perStep = math.max(1, tonumber(Config.server.fuelLitersPerStep) or 1000)
 	local maxD = math.max(0, math.min(90, tonumber(Config.server.fuelMaxDiscount) or 30))
@@ -969,34 +1136,62 @@ function sc_fuelDelivered(player_id, data)
 	saveFuel()
 	sendFuelToAll()
 	local name = type(msg.stationName) == "string" and msg.stationName ~= "" and msg.stationName:sub(1, 64) or station
-	log(string.format("%s delivered %d l %s to %s: discount %.1f%% -> %.1f%%", playerName(player_id), amount, fuel, station, before, after))
+	log(
+		string.format(
+			"%s delivered %d l %s to %s: discount %.1f%% -> %.1f%%",
+			playerName(player_id),
+			amount,
+			fuel,
+			station,
+			before,
+			after
+		)
+	)
 	for id, e in pairs(players) do
 		if e.careerActive and MP.IsPlayerConnected(id) then
-			notify(id, string.format("%s delivered %d l of %s to %s – %s there is now %d%% cheaper",
-				playerName(player_id), math.floor(amount + 0.5), fuel, name, fuel, math.floor(after + 0.5)), "local_gas_station")
+			notify(
+				id,
+				string.format(
+					"%s delivered %d l of %s to %s – %s there is now %d%% cheaper",
+					playerName(player_id),
+					math.floor(amount + 0.5),
+					fuel,
+					name,
+					fuel,
+					math.floor(after + 0.5)
+				),
+				"local_gas_station"
+			)
 		end
 	end
 end
 
 -- Every second: discounts drop slowly (prices return to the normal price).
 local function fuelRecoveryTick(dt)
-	if Config.server.fuelEconomy ~= true or not next(fuelDiscounts) then return end
+	if Config.server.fuelEconomy ~= true or not next(fuelDiscounts) then
+		return
+	end
 	fuelRecoveryElapsed = fuelRecoveryElapsed + dt
 	local every = math.max(0.1, tonumber(Config.server.fuelRecoveryMinutes) or 5) * 60
-	if fuelRecoveryElapsed < every then return end
+	if fuelRecoveryElapsed < every then
+		return
+	end
 	fuelRecoveryElapsed = 0
 	local step = math.max(0, tonumber(Config.server.fuelRecoveryPercent) or 1)
-	if step == 0 then return end
+	if step == 0 then
+		return
+	end
 	for station, fuels in pairs(fuelDiscounts) do
 		for fuel, d in pairs(fuels) do
 			fuels[fuel] = d - step > 0.01 and d - step or nil
 		end
-		if not next(fuels) then fuelDiscounts[station] = nil end
+		if not next(fuels) then
+			fuelDiscounts[station] = nil
+		end
 	end
 	saveFuel()
 	sendFuelToAll()
 end
-
 
 --== Jobs (beta) ================================================================
 -- The server keeps one list for everyone; the clients make the jobs up (they know the map: road
@@ -1011,7 +1206,7 @@ end
 --        as JSON), takenBy (player id), takenAt}
 -- Enough jobs for everyone: per job type, the open jobs are kept at server.jobsOpen for tier 1 and
 -- for the highest tier each player on the server can take (wantedTiers).
-local JOB_ASK_EVERY = 5        -- s between two requests for a new job
+local JOB_ASK_EVERY = 5 -- s between two requests for a new job
 local JOB_TEXT_MAX = 128
 local JOB_DATA_MAX = 2048
 local jobAskedAt = -math.huge
@@ -1040,8 +1235,8 @@ end
 --                            (the last HISTORY_MAX jobs, newest first)
 local PROGRESS_FILE = CONFIG_DIR .. "/progress.json"
 local LEVEL_RULES = {
-	tierLevel = {1, 3, 5, 8},
-	tierXp = {40, 70, 110, 160},
+	tierLevel = { 1, 3, 5, 8 },
+	tierXp = { 40, 70, 110, 160 },
 	maxLevel = 10,
 	xpBase = 100,
 	bonus = 0.05,
@@ -1056,9 +1251,13 @@ local knownTypes = {}
 -- The level rules of a job type: LEVEL_RULES with the type's own values over them.
 local function rulesOf(kind)
 	local own = LEVEL_RULES_BY_TYPE[kind]
-	if not own then return LEVEL_RULES end
+	if not own then
+		return LEVEL_RULES
+	end
 	local rules = {}
-	for k, v in pairs(LEVEL_RULES) do rules[k] = own[k] ~= nil and own[k] or v end
+	for k, v in pairs(LEVEL_RULES) do
+		rules[k] = own[k] ~= nil and own[k] or v
+	end
 	return rules
 end
 
@@ -1069,7 +1268,9 @@ end
 
 local function levelOf(rules, xp)
 	local level = 1
-	while level < rules.maxLevel and xp >= levelXp(rules, level + 1) do level = level + 1 end
+	while level < rules.maxLevel and xp >= levelXp(rules, level + 1) do
+		level = level + 1
+	end
 	return level
 end
 
@@ -1077,7 +1278,9 @@ end
 local function topTier(rules, level)
 	local tier = 1
 	for t, needed in ipairs(rules.tierLevel) do
-		if level >= needed then tier = t end
+		if level >= needed then
+			tier = t
+		end
 	end
 	return tier
 end
@@ -1096,8 +1299,10 @@ end
 local function progressOf(profile, kind, create)
 	local mine = profile and progress[profile]
 	local p = mine and mine[kind]
-	if p then return p end
-	p = {xp = 0, level = 1, stats = {done = 0, givenUp = 0, earned = 0, deducted = 0, bestTier = 0}, history = {}}
+	if p then
+		return p
+	end
+	p = { xp = 0, level = 1, stats = { done = 0, givenUp = 0, earned = 0, deducted = 0, bestTier = 0 }, history = {} }
 	if create and profile then
 		progress[profile] = mine or {}
 		progress[profile][kind] = p
@@ -1119,21 +1324,28 @@ end
 local function xpAt(job, level)
 	local rules = rulesOf(job.type)
 	local xp = rules.tierXp[job.tier] or rules.tierXp[1]
-	if topTier(rules, level) - job.tier >= 2 then xp = xp * rules.lowTierXp end
+	if topTier(rules, level) - job.tier >= 2 then
+		xp = xp * rules.lowTierXp
+	end
 	return xp
 end
 
 local function saveProgress()
-	writeJson(PROGRESS_FILE, {version = 1, profiles = progress})
+	writeJson(PROGRESS_FILE, { version = 1, profiles = progress })
 end
 
 local function loadProgress()
 	local raw = readFile(PROGRESS_FILE)
-	if not raw then return end
+	if not raw then
+		return
+	end
 	local ok, value = pcall(Util.JsonDecode, raw)
 	if not ok or type(value) ~= "table" or type(value.profiles) ~= "table" then
 		local f = io.open(PROGRESS_FILE .. ".broken", "w")
-		if f then f:write(raw); f:close() end
+		if f then
+			f:write(raw)
+			f:close()
+		end
 		log("progress.json is not valid JSON – saved as progress.json.broken, job levels start over")
 		return
 	end
@@ -1146,7 +1358,9 @@ local function loadProgress()
 					local entry = progressOf(profile, kind, true)
 					entry.xp, entry.level = xp, levelOf(rulesOf(kind), xp)
 					local stats = type(p.stats) == "table" and p.stats or {}
-					for k in pairs(entry.stats) do entry.stats[k] = tonumber(stats[k]) or 0 end
+					for k in pairs(entry.stats) do
+						entry.stats[k] = tonumber(stats[k]) or 0
+					end
 					entry.history = type(p.history) == "table" and p.history or {}
 					knownTypes[kind] = true
 				end
@@ -1161,8 +1375,12 @@ local function levelsFor(player_id)
 	local out = {}
 	for kind in pairs(knownTypes) do
 		local p, rules = progressOf(profileOf(player_id), kind), rulesOf(kind)
-		out[kind] = {level = p.level, xp = p.xp, from = levelXp(rules, p.level),
-			to = p.level < rules.maxLevel and levelXp(rules, p.level + 1) or nil}
+		out[kind] = {
+			level = p.level,
+			xp = p.xp,
+			from = levelXp(rules, p.level),
+			to = p.level < rules.maxLevel and levelXp(rules, p.level + 1) or nil,
+		}
 	end
 	return out
 end
@@ -1181,15 +1399,26 @@ local function addJobXp(player_id, job, share, pay, deduction)
 	p.stats.earned = p.stats.earned + pay
 	p.stats.deducted = p.stats.deducted + deduction
 	p.stats.bestTier = math.max(p.stats.bestTier, job.tier)
-	table.insert(p.history, 1, {at = os.time(), job = job.id, tier = job.tier, pay = pay, deduction = deduction,
-		xp = xp, levelAfter = p.level})
-	while #p.history > HISTORY_MAX do table.remove(p.history) end
+	table.insert(p.history, 1, {
+		at = os.time(),
+		job = job.id,
+		tier = job.tier,
+		pay = pay,
+		deduction = deduction,
+		xp = xp,
+		levelAfter = p.level,
+	})
+	while #p.history > HISTORY_MAX do
+		table.remove(p.history)
+	end
 	saveProgress()
 	return xp, p.level, p.level > levelBefore, topTier(rules, p.level) > before
 end
 
 local function addGivenUp(player_id, kind)
-	if not player_id or not kind then return end
+	if not player_id or not kind then
+		return
+	end
 	local p = progressOf(profileOf(player_id), kind, true)
 	p.stats.givenUp = p.stats.givenUp + 1
 	saveProgress()
@@ -1198,30 +1427,46 @@ end
 --== Jobs (continued) ==============================================================
 
 local function vecOf(v, withZ)
-	if type(v) ~= "table" then return nil end
+	if type(v) ~= "table" then
+		return nil
+	end
 	local x, y, z = tonumber(v.x), tonumber(v.y), tonumber(v.z)
-	if not x or not y or x ~= x or y ~= y or (withZ and (not z or z ~= z)) then return nil end
-	if math.abs(x) > 1e6 or math.abs(y) > 1e6 or (z and math.abs(z) > 1e6) then return nil end
-	return {x = x, y = y, z = z}
+	if not x or not y or x ~= x or y ~= y or (withZ and (not z or z ~= z)) then
+		return nil
+	end
+	if math.abs(x) > 1e6 or math.abs(y) > 1e6 or (z and math.abs(z) > 1e6) then
+		return nil
+	end
+	return { x = x, y = y, z = z }
 end
 
 local function text(v)
-	if type(v) ~= "string" or v == "" then return nil end
+	if type(v) ~= "string" or v == "" then
+		return nil
+	end
 	return v:sub(1, JOB_TEXT_MAX)
 end
 
 -- A job type's id: a short word.
 local function jobType(v)
-	if type(v) ~= "string" or #v > 32 or not v:match("^%a[%w_]*$") then return nil end
+	if type(v) ~= "string" or #v > 32 or not v:match("^%a[%w_]*$") then
+		return nil
+	end
 	return v
 end
 
 -- A job type's own fields: a table, small enough.
 local function jobData(v)
-	if v == nil then return {} end
-	if type(v) ~= "table" then return nil end
+	if v == nil then
+		return {}
+	end
+	if type(v) ~= "table" then
+		return nil
+	end
 	local ok, json = pcall(encode, v)
-	if not ok or type(json) ~= "string" or #json > JOB_DATA_MAX then return nil end
+	if not ok or type(json) ~= "string" or #json > JOB_DATA_MAX then
+		return nil
+	end
 	return v
 end
 
@@ -1229,7 +1474,9 @@ end
 local function openJobCount(kind, tier)
 	local n = 0
 	for _, job in pairs(jobs) do
-		if not job.takenBy and job.type == kind and job.tier == tier then n = n + 1 end
+		if not job.takenBy and job.type == kind and job.tier == tier then
+			n = n + 1
+		end
 	end
 	return n
 end
@@ -1240,20 +1487,30 @@ local function wantedTiers()
 	local wanted, seen = {}, {}
 	local function want(kind, tier)
 		local key = kind .. "|" .. tier
-		if seen[key] then return end
+		if seen[key] then
+			return
+		end
 		seen[key] = true
-		table.insert(wanted, {type = kind, tier = tier, open = openJobCount(kind, tier)})
+		table.insert(wanted, { type = kind, tier = tier, open = openJobCount(kind, tier) })
 	end
 	for kind in pairs(knownTypes) do
 		want(kind, 1)
 		for id, entry in pairs(players) do
-			if entry.careerActive and MP.IsPlayerConnected(id) then want(kind, topTier(rulesOf(kind), levelFor(id, kind))) end
+			if entry.careerActive and MP.IsPlayerConnected(id) then
+				want(kind, topTier(rulesOf(kind), levelFor(id, kind)))
+			end
 		end
 	end
-	if #wanted == 0 then return {{tier = 1, open = 0}} end
+	if #wanted == 0 then
+		return { { tier = 1, open = 0 } }
+	end
 	table.sort(wanted, function(a, b)
-		if a.open ~= b.open then return a.open < b.open end
-		if a.type ~= b.type then return a.type < b.type end
+		if a.open ~= b.open then
+			return a.open < b.open
+		end
+		if a.type ~= b.type then
+			return a.type < b.type
+		end
 		return a.tier < b.tier
 	end)
 	return wanted
@@ -1262,20 +1519,35 @@ end
 local function jobFor(job, player_id)
 	local level = levelFor(player_id, job.type)
 	local minLevel = tierLevel(job.type, job.tier) or 1
-	return {id = job.id, type = job.type, tier = job.tier, minLevel = minLevel, locked = level < minLevel,
-		title = job.title, pos = job.pos, dest = job.dest, length = job.length, pay = payAt(job, level),
-		xp = math.floor(xpAt(job, level) + 0.5), data = job.data,
+	return {
+		id = job.id,
+		type = job.type,
+		tier = job.tier,
+		minLevel = minLevel,
+		locked = level < minLevel,
+		title = job.title,
+		pos = job.pos,
+		dest = job.dest,
+		length = job.length,
+		pay = payAt(job, level),
+		xp = math.floor(xpAt(job, level) + 0.5),
+		data = job.data,
 		state = job.takenBy == nil and "open" or (job.takenBy == player_id and "mine" or "taken"),
-		takenBy = job.takenBy and playerName(job.takenBy) or nil}
+		takenBy = job.takenBy and playerName(job.takenBy) or nil,
+	}
 end
 
 local function jobsPayload(player_id)
 	local list = {}
 	if jobsEnabled() then
-		for _, job in pairs(jobs) do table.insert(list, jobFor(job, player_id)) end
-		table.sort(list, function(a, b) return a.id < b.id end)
+		for _, job in pairs(jobs) do
+			table.insert(list, jobFor(job, player_id))
+		end
+		table.sort(list, function(a, b)
+			return a.id < b.id
+		end)
 	end
-	return {enabled = jobsEnabled(), jobs = list, levels = levelsFor(player_id)}
+	return { enabled = jobsEnabled(), jobs = list, levels = levelsFor(player_id) }
 end
 
 local function sendJobs(player_id)
@@ -1284,7 +1556,9 @@ end
 
 local function sendJobsToAll()
 	for id, entry in pairs(players) do
-		if entry.careerActive and MP.IsPlayerConnected(id) then sendJobs(id) end
+		if entry.careerActive and MP.IsPlayerConnected(id) then
+			sendJobs(id)
+		end
 	end
 end
 
@@ -1293,40 +1567,66 @@ local function reopenJob(job, why)
 	addGivenUp(taker, job.type)
 	job.takenBy, job.takenAt = nil, nil
 	log(string.format("job %d is open again (%s)", job.id, why))
-	if taker and MP.IsPlayerConnected(taker) then notify(taker, "Job cancelled: " .. why, "warning") end
+	if taker and MP.IsPlayerConnected(taker) then
+		notify(taker, "Job cancelled: " .. why, "warning")
+	end
 end
 
 function sc_jobsRequest(player_id)
 	local entry = players[player_id]
-	if entry and entry.careerActive then sendJobs(player_id) end
+	if entry and entry.careerActive then
+		sendJobs(player_id)
+	end
 end
 
 -- A client made up a job (after sc_jobGenerate).
 function sc_jobOffer(player_id, data)
 	local entry = players[player_id]
 	local msg = decodeTable(data)
-	if not entry or not entry.careerActive or not msg or not jobsEnabled() then return end
+	if not entry or not entry.careerActive or not msg or not jobsEnabled() then
+		return
+	end
 	local dest = msg.dest
 	local kind, title, data = jobType(msg.type), text(msg.title), jobData(msg.data)
 	local tier = tonumber(msg.tier)
 	local pos = vecOf(msg.pos, true)
 	local destPos = type(dest) == "table" and vecOf(dest.pos, true)
 	local length, pay = tonumber(msg.length), tonumber(msg.pay)
-	if not (kind and title and data and tier and tierLevel(kind, tier) and pos and destPos and length and pay)
-		or length ~= length or pay ~= pay then return end
-	if openJobCount(kind, tier) >= jobsOpen() then return end
+	if
+		not (kind and title and data and tier and tierLevel(kind, tier) and pos and destPos and length and pay)
+		or length ~= length
+		or pay ~= pay
+	then
+		return
+	end
+	if openJobCount(kind, tier) >= jobsOpen() then
+		return
+	end
 	knownTypes[kind] = true
 	jobSeq = jobSeq + 1
 	local job = {
 		id = jobSeq,
-		type = kind, tier = tier, title = title, data = data,
+		type = kind,
+		tier = tier,
+		title = title,
+		data = data,
 		pos = pos,
-		dest = {name = text(dest.name) or "Destination", pos = destPos},
+		dest = { name = text(dest.name) or "Destination", pos = destPos },
 		length = math.max(0, math.min(1e5, length)),
 		pay = math.floor(math.max(0, math.min(tonumber(Config.server.jobPayMax) or 5000, pay)) + 0.5),
 	}
 	jobs[job.id] = job
-	log(string.format("new job %d (%s, tier %d): %s to %s, $%d", job.id, job.type, job.tier, job.title, job.dest.name, job.pay))
+	log(
+		string.format(
+			"new job %d (%s, tier %d): %s to %s, $%d",
+			job.id,
+			job.type,
+			job.tier,
+			job.title,
+			job.dest.name,
+			job.pay
+		)
+	)
 	sendJobsToAll()
 end
 
@@ -1334,9 +1634,13 @@ function sc_jobTake(player_id, data)
 	local entry = players[player_id]
 	local msg = decodeTable(data)
 	local job = msg and jobs[tonumber(msg.id)]
-	if not entry or not entry.careerActive or not job or not jobsEnabled() then return end
+	if not entry or not entry.careerActive or not job or not jobsEnabled() then
+		return
+	end
 	if job.takenBy then
-		if job.takenBy ~= player_id then notify(player_id, playerName(job.takenBy) .. " took that job first") end
+		if job.takenBy ~= player_id then
+			notify(player_id, playerName(job.takenBy) .. " took that job first")
+		end
 		sendJobs(player_id)
 		return
 	end
@@ -1361,7 +1665,9 @@ end
 function sc_jobGiveUp(player_id, data)
 	local msg = decodeTable(data)
 	local job = msg and jobs[tonumber(msg.id)]
-	if not job or job.takenBy ~= player_id then return end
+	if not job or job.takenBy ~= player_id then
+		return
+	end
 	addGivenUp(player_id, job.type)
 	job.takenBy, job.takenAt = nil, nil
 	log(string.format("%s gave up job %d", playerName(player_id), job.id))
@@ -1384,19 +1690,31 @@ local payoutSeq = 0
 local function savePayouts()
 	local stored = {}
 	for id, p in pairs(payouts) do
-		stored[id] = {job = p.job, type = p.type, title = p.title, pay = p.pay, deduction = p.deduction, xp = p.xp,
-			profile = p.profile}
+		stored[id] = {
+			job = p.job,
+			type = p.type,
+			title = p.title,
+			pay = p.pay,
+			deduction = p.deduction,
+			xp = p.xp,
+			profile = p.profile,
+		}
 	end
 	writeJson(PAYOUTS_FILE, stored)
 end
 
 local function loadPayouts()
 	local raw = readFile(PAYOUTS_FILE)
-	if not raw then return end
+	if not raw then
+		return
+	end
 	local ok, value = pcall(Util.JsonDecode, raw)
 	if not ok or type(value) ~= "table" then
 		local f = io.open(PAYOUTS_FILE .. ".broken", "w")
-		if f then f:write(raw); f:close() end
+		if f then
+			f:write(raw)
+			f:close()
+		end
 		log("payouts.json is not valid JSON – saved as payouts.json.broken, open job payouts are not sent")
 		return
 	end
@@ -1405,37 +1723,58 @@ local function loadPayouts()
 		local pay = type(p) == "table" and tonumber(p.pay)
 		if type(id) == "string" and pay and pay >= 0 and type(p.profile) == "string" then
 			-- older versions only had towing jobs and called the title "vehicle"
-			payouts[id] = {id = id, job = tonumber(p.job), type = jobType(p.type) or "tow", title = text(p.title) or text(p.vehicle),
-				pay = pay, deduction = tonumber(p.deduction) or 0, xp = tonumber(p.xp) or 0, profile = p.profile}
+			payouts[id] = {
+				id = id,
+				job = tonumber(p.job),
+				type = jobType(p.type) or "tow",
+				title = text(p.title) or text(p.vehicle),
+				pay = pay,
+				deduction = tonumber(p.deduction) or 0,
+				xp = tonumber(p.xp) or 0,
+				profile = p.profile,
+			}
 		end
 	end
 end
 
 local function sendPayout(player_id, p)
 	p.sentAt = now()
-	send(player_id, "sc_jobPaid", {payout = p.id, job = p.job, type = p.type, title = p.title, pay = p.pay,
-		deduction = p.deduction, xp = p.xp})
+	send(
+		player_id,
+		"sc_jobPaid",
+		{ payout = p.id, job = p.job, type = p.type, title = p.title, pay = p.pay, deduction = p.deduction, xp = p.xp }
+	)
 end
 
 -- Sends this player every payout of their save that is still open.
 local function deliverPayouts(player_id)
 	local entry = players[player_id]
-	if not entry or not entry.careerActive or not entry.profile then return end
+	if not entry or not entry.careerActive or not entry.profile then
+		return
+	end
 	for _, p in pairs(payouts) do
-		if p.profile == entry.profile then sendPayout(player_id, p) end
+		if p.profile == entry.profile then
+			sendPayout(player_id, p)
+		end
 	end
 end
 
 -- Every second: payouts without confirmation go out again.
 local function payoutsTick()
-	if not next(payouts) then return end
+	if not next(payouts) then
+		return
+	end
 	local byProfile = {}
 	for id, entry in pairs(players) do
-		if entry.careerActive and entry.profile and MP.IsPlayerConnected(id) then byProfile[entry.profile] = id end
+		if entry.careerActive and entry.profile and MP.IsPlayerConnected(id) then
+			byProfile[entry.profile] = id
+		end
 	end
 	for _, p in pairs(payouts) do
 		local id = byProfile[p.profile]
-		if id and now() - (p.sentAt or -math.huge) >= PAYOUT_RESEND then sendPayout(id, p) end
+		if id and now() - (p.sentAt or -math.huge) >= PAYOUT_RESEND then
+			sendPayout(id, p)
+		end
 	end
 end
 
@@ -1444,7 +1783,9 @@ function sc_jobPaidAck(player_id, data)
 	local entry = players[player_id]
 	local msg = decodeTable(data)
 	local p = msg and type(msg.payout) == "string" and payouts[msg.payout]
-	if not entry or not p or p.profile ~= entry.profile then return end
+	if not entry or not p or p.profile ~= entry.profile then
+		return
+	end
 	payouts[p.id] = nil
 	savePayouts()
 	log(string.format("%s received $%d for job %s", playerName(player_id), p.pay, tostring(p.job)))
@@ -1456,7 +1797,9 @@ function sc_jobDone(player_id, data)
 	local entry = players[player_id]
 	local msg = decodeTable(data)
 	local job = msg and jobs[tonumber(msg.id)]
-	if not entry or not job or job.takenBy ~= player_id then return end
+	if not entry or not job or job.takenBy ~= player_id then
+		return
+	end
 	local share = tonumber(msg.share)
 	share = share and share == share and math.max(0, math.min(1, share)) or 1
 	local full = payAt(job, levelFor(player_id, job.type))
@@ -1465,8 +1808,16 @@ function sc_jobDone(player_id, data)
 	jobs[job.id] = nil
 	local xp, level, levelUp, newTier = addJobXp(player_id, job, share, pay, deduction)
 	payoutSeq = payoutSeq + 1
-	local p = {id = string.format("%d-%d-%d", os.time(), job.id, payoutSeq), job = job.id, type = job.type,
-		title = job.title, pay = pay, deduction = deduction, xp = xp, profile = profileOf(player_id)}
+	local p = {
+		id = string.format("%d-%d-%d", os.time(), job.id, payoutSeq),
+		job = job.id,
+		type = job.type,
+		title = job.title,
+		pay = pay,
+		deduction = deduction,
+		xp = xp,
+		profile = profileOf(player_id),
+	}
 	payouts[p.id] = p
 	savePayouts()
 	log(string.format("%s finished job %d: $%d, %d XP (level %d)", playerName(player_id), job.id, pay, xp, level))
@@ -1479,7 +1830,11 @@ function sc_jobDone(player_id, data)
 	end
 	for id, e in pairs(players) do
 		if e.careerActive and MP.IsPlayerConnected(id) and id ~= player_id then
-			notify(id, string.format("%s brought the %s to %s", playerName(player_id), job.title, job.dest.name), "local_shipping")
+			notify(
+				id,
+				string.format("%s brought the %s to %s", playerName(player_id), job.title, job.dest.name),
+				"local_shipping"
+			)
 		end
 	end
 end
@@ -1487,7 +1842,9 @@ end
 -- Every second: taken jobs that ran out of time are open again; if a wanted tier is missing jobs
 -- (wantedTiers), one player (in turn) is asked to make one up for it.
 local function jobsTick()
-	if not jobsEnabled() then return end
+	if not jobsEnabled() then
+		return
+	end
 	local timeout = math.max(1, tonumber(Config.server.jobTimeoutMinutes) or 30) * 60
 	local changed = false
 	for _, job in pairs(jobs) do
@@ -1496,18 +1853,28 @@ local function jobsTick()
 			changed = true
 		end
 	end
-	if changed then sendJobsToAll() end
+	if changed then
+		sendJobsToAll()
+	end
 	local need = wantedTiers()[1]
-	if need.open >= jobsOpen() then return end
-	if now() - jobAskedAt < JOB_ASK_EVERY then return end
+	if need.open >= jobsOpen() then
+		return
+	end
+	if now() - jobAskedAt < JOB_ASK_EVERY then
+		return
+	end
 	local ids = {}
 	for id, entry in pairs(players) do
-		if entry.careerActive and MP.IsPlayerConnected(id) then table.insert(ids, id) end
+		if entry.careerActive and MP.IsPlayerConnected(id) then
+			table.insert(ids, id)
+		end
 	end
-	if #ids == 0 then return end
+	if #ids == 0 then
+		return
+	end
 	table.sort(ids)
 	jobAskedAt = now()
-	send(ids[(jobSeq + math.floor(now())) % #ids + 1], "sc_jobGenerate", {type = need.type, tier = need.tier})
+	send(ids[(jobSeq + math.floor(now())) % #ids + 1], "sc_jobGenerate", { type = need.type, tier = need.tier })
 end
 
 local function jobsLeave(player_id)
@@ -1518,34 +1885,47 @@ local function jobsLeave(player_id)
 			changed = true
 		end
 	end
-	if changed then sendJobsToAll() end
+	if changed then
+		sendJobsToAll()
+	end
 end
 
 --== Player list (Players tab, status on name tags) ============================
 -- Every client reports its status (sc_status); the server sends the list to everyone
 -- (sc_players) on join, career start, status change and leave.
-local PLAYER_STATUS = {driving = true, walking = true, mission = true, loading = true}
+local PLAYER_STATUS = { driving = true, walking = true, mission = true, loading = true }
 
 local function broadcastPlayers()
 	local list = {}
 	for id, entry in pairs(players) do
 		if entry.counted then
-			table.insert(list, {id = id, name = playerName(id),
-				status = entry.careerActive and (entry.status or "driving") or "loading"})
+			table.insert(list, {
+				id = id,
+				name = playerName(id),
+				status = entry.careerActive and (entry.status or "driving") or "loading",
+			})
 		end
 	end
-	table.sort(list, function(a, b) return a.id < b.id end)
-	local data = encode({players = list})
+	table.sort(list, function(a, b)
+		return a.id < b.id
+	end)
+	local data = encode({ players = list })
 	for id, entry in pairs(players) do
-		if entry.counted and MP.IsPlayerConnected(id) then MP.TriggerClientEvent(id, "sc_players", data) end
+		if entry.counted and MP.IsPlayerConnected(id) then
+			MP.TriggerClientEvent(id, "sc_players", data)
+		end
 	end
 end
 
 function sc_status(player_id, data)
 	local entry = players[player_id]
 	local msg = decodeTable(data)
-	if not entry or not msg or not PLAYER_STATUS[msg.status] then return end
-	if entry.status == msg.status then return end
+	if not entry or not msg or not PLAYER_STATUS[msg.status] then
+		return
+	end
+	if entry.status == msg.status then
+		return
+	end
 	entry.status = msg.status
 	broadcastPlayers()
 end
@@ -1555,14 +1935,30 @@ end
 -- The client is ready (map loaded) and wants the settings.
 function sc_hello(player_id, data)
 	local entry = players[player_id]
-	if not entry then return end
+	if not entry then
+		return
+	end
 	local hello = decodeTable(data) or {}
 	if hello.version and hello.version ~= VERSION then
-		log(string.format("%s uses client version %s, server is %s", playerName(player_id),
-			tostring(hello.version), VERSION))
-		dialog(player_id, "SharedCareer: version mismatch",
-			string.format("Your mod is version %s, the server runs %s. Please fully restart BeamNG " ..
-				"and reconnect, otherwise errors may occur.", tostring(hello.version), VERSION), true)
+		log(
+			string.format(
+				"%s uses client version %s, server is %s",
+				playerName(player_id),
+				tostring(hello.version),
+				VERSION
+			)
+		)
+		dialog(
+			player_id,
+			"SharedCareer: version mismatch",
+			string.format(
+				"Your mod is version %s, the server runs %s. Please fully restart BeamNG "
+					.. "and reconnect, otherwise errors may occur.",
+				tostring(hello.version),
+				VERSION
+			),
+			true
+		)
 	end
 
 	-- The same account twice at the same time would save into the same profile.
@@ -1585,8 +1981,12 @@ function sc_hello(player_id, data)
 	sharesSent[player_id] = settings.trafficShare
 	send(player_id, "sc_config", settings)
 	send(player_id, "sc_vehStates", vehicleStates)
-	for _, damage in pairs(damageStates) do MP.TriggerClientEvent(player_id, "sc_damage", damage) end
-	for _, couplings in pairs(couplingStates) do MP.TriggerClientEvent(player_id, "sc_couplings", couplings) end
+	for _, damage in pairs(damageStates) do
+		MP.TriggerClientEvent(player_id, "sc_damage", damage)
+	end
+	for _, couplings in pairs(couplingStates) do
+		MP.TriggerClientEvent(player_id, "sc_couplings", couplings)
+	end
 	-- On a full server the others get their smaller share immediately.
 	updateTrafficShares()
 	broadcastPlayers()
@@ -1596,18 +1996,31 @@ end
 function sc_careerResult(player_id, data)
 	local entry = players[player_id]
 	local result = decodeTable(data)
-	if not entry or not result then return end
+	if not entry or not result then
+		return
+	end
 	if result.ok == true then
 		entry.careerActive = true
 		entry.startFailed = false
 		local profile = type(result.profile) == "string" and result.profile:sub(1, 64) or entry.profile
-		log(playerName(player_id) .. " started their career (profile " .. tostring(profile) ..
-			(entry.guest and ", guest" or "") .. ")")
+		log(
+			playerName(player_id)
+				.. " started their career (profile "
+				.. tostring(profile)
+				.. (entry.guest and ", guest" or "")
+				.. ")"
+		)
 		if entry.guest then
-			dialog(player_id, "SharedCareer: you are playing as a guest",
-				"Your progress is saved under the guest name \"" .. playerName(player_id) .. "\". " ..
-				"With a different guest name you start over. For a permanent save, " ..
-				"log in with a BeamMP account.", false)
+			dialog(
+				player_id,
+				"SharedCareer: you are playing as a guest",
+				'Your progress is saved under the guest name "'
+					.. playerName(player_id)
+					.. '". '
+					.. "With a different guest name you start over. For a permanent save, "
+					.. "log in with a BeamMP account.",
+				false
+			)
 		else
 			notify(player_id, "SharedCareer: career loaded (save " .. tostring(profile) .. ")", "check")
 		end
@@ -1624,9 +2037,14 @@ function sc_careerResult(player_id, data)
 		if Config.server.kickOnFailedStart then
 			MP.DropPlayer(player_id, "SharedCareer: career could not start")
 		else
-			dialog(player_id, "SharedCareer: career could not start",
-				reason .. "\n\nPlease disconnect and reconnect. If that does not help, " ..
-				"send the server owner your beamng.log.", true)
+			dialog(
+				player_id,
+				"SharedCareer: career could not start",
+				reason
+					.. "\n\nPlease disconnect and reconnect. If that does not help, "
+					.. "send the server owner your beamng.log.",
+				true
+			)
 		end
 	end
 end
@@ -1634,7 +2052,9 @@ end
 -- The sender's own vehicles: {["<pid>-<vid>"] = {active = bool, traffic = bool}, ...}
 function sc_vehReport(player_id, data)
 	local report = decodeTable(data)
-	if not report then return end
+	if not report then
+		return
+	end
 	local changed = {}
 	for id, reported in pairs(report) do
 		local state = vehicleStates[id]
@@ -1646,14 +2066,20 @@ function sc_vehReport(player_id, data)
 			if type(reported.traffic) == "boolean" and state.traffic ~= reported.traffic then
 				state.traffic, differs = reported.traffic, true
 			end
-			if differs then changed[id] = state end
+			if differs then
+				changed[id] = state
+			end
 		end
 	end
-	if next(changed) then broadcastStates(changed, player_id) end
+	if next(changed) then
+		broadcastStates(changed, player_id)
+	end
 end
 
 function sc_vehStatesRequest(player_id)
-	if players[player_id] then send(player_id, "sc_vehStates", vehicleStates) end
+	if players[player_id] then
+		send(player_id, "sc_vehStates", vehicleStates)
+	end
 end
 
 --== Damage ====================================================================
@@ -1664,21 +2090,29 @@ end
 
 function sc_damage(player_id, data)
 	local msg = decodeTable(data)
-	if not msg or type(msg.damage) ~= "table" or not ownsVehicle(player_id, msg.id) or not vehicleStates[msg.id] then return end
+	if not msg or type(msg.damage) ~= "table" or not ownsVehicle(player_id, msg.id) or not vehicleStates[msg.id] then
+		return
+	end
 	damageStates[msg.id] = data
 	for id in pairs(players) do
-		if id ~= player_id and MP.IsPlayerConnected(id) then MP.TriggerClientEvent(id, "sc_damage", data) end
+		if id ~= player_id and MP.IsPlayerConnected(id) then
+			MP.TriggerClientEvent(id, "sc_damage", data)
+		end
 	end
 end
 
 -- A new, rebuilt or deleted vehicle has no damage: the others forget the old one (the server id
 -- may be used again for another vehicle).
 local function clearDamage(id)
-	if not damageStates[id] then return end
+	if not damageStates[id] then
+		return
+	end
 	damageStates[id] = nil
-	local data = encode({id = id, cleared = true})
+	local data = encode({ id = id, cleared = true })
 	for pid in pairs(players) do
-		if MP.IsPlayerConnected(pid) then MP.TriggerClientEvent(pid, "sc_damage", data) end
+		if MP.IsPlayerConnected(pid) then
+			MP.TriggerClientEvent(pid, "sc_damage", data)
+		end
 	end
 end
 
@@ -1686,7 +2120,7 @@ function sc_damageRequest(player_id, data)
 	local msg = decodeTable(data)
 	local owner = msg and type(msg.id) == "string" and tonumber(msg.id:match("^(%d+)%-%d+$"))
 	if owner and owner ~= tonumber(player_id) and players[owner] and MP.IsPlayerConnected(owner) then
-		send(owner, "sc_damageRequest", {id = msg.id})
+		send(owner, "sc_damageRequest", { id = msg.id })
 	end
 end
 
@@ -1697,7 +2131,9 @@ end
 
 local function broadcastCouplings(player_id, data)
 	for id in pairs(players) do
-		if id ~= player_id and MP.IsPlayerConnected(id) then MP.TriggerClientEvent(id, "sc_couplings", data) end
+		if id ~= player_id and MP.IsPlayerConnected(id) then
+			MP.TriggerClientEvent(id, "sc_couplings", data)
+		end
 	end
 end
 
@@ -1705,16 +2141,23 @@ end
 -- must involve one of the sender's vehicles
 function sc_couplings(player_id, data)
 	local msg = decodeTable(data)
-	if not msg or type(msg.list) ~= "table" then return end
+	if not msg or type(msg.list) ~= "table" then
+		return
+	end
 	local list = {}
 	for _, p in ipairs(msg.list) do
-		if type(p) == "table" and tonumber(p.an) and tonumber(p.bn)
+		if
+			type(p) == "table"
+			and tonumber(p.an)
+			and tonumber(p.bn)
 			and (ownsVehicle(player_id, p.a) or ownsVehicle(player_id, p.b))
-			and type(p.a) == "string" and type(p.b) == "string" then
-			table.insert(list, {a = p.a, an = tonumber(p.an), b = p.b, bn = tonumber(p.bn)})
+			and type(p.a) == "string"
+			and type(p.b) == "string"
+		then
+			table.insert(list, { a = p.a, an = tonumber(p.an), b = p.b, bn = tonumber(p.bn) })
 		end
 	end
-	local out = encode({pid = player_id, list = list})
+	local out = encode({ pid = player_id, list = list })
 	couplingStates[player_id] = out
 	broadcastCouplings(player_id, out)
 end
@@ -1732,52 +2175,82 @@ local LENGTH_MIN, LENGTH_MAX = 1, 600
 
 local function notifyAll(msg, icon)
 	for id, entry in pairs(players) do
-		if entry.careerActive and MP.IsPlayerConnected(id) then notify(id, msg, icon) end
+		if entry.careerActive and MP.IsPlayerConnected(id) then
+			notify(id, msg, icon)
+		end
 	end
 end
 
 function sc_timeControl(player_id, data)
 	local entry = players[player_id]
 	local msg = decodeTable(data)
-	if not entry or not entry.careerActive or not msg then return end
+	if not entry or not entry.careerActive or not msg then
+		return
+	end
 	if Config.server.allowPlayerTimeControl ~= true then
 		notify(player_id, "Only the server owner can change the time of day on this server.", "warning")
 		sendTime(player_id)
 		return
 	end
 	local t = now()
-	if entry.lastTimeControl and t - entry.lastTimeControl < TIME_CONTROL_COOLDOWN then return end
+	if entry.lastTimeControl and t - entry.lastTimeControl < TIME_CONTROL_COOLDOWN then
+		return
+	end
 	entry.lastTimeControl = t
 
 	if msg.action == "realtime" then
 		local on = msg.on == true
-		if not setRealtime(on) then sendTime(player_id) return end
-		log(playerName(player_id) .. (on and " turns real time on" or (" turns real time off at " .. formatHour(currentHour()))))
+		if not setRealtime(on) then
+			sendTime(player_id)
+			return
+		end
+		log(
+			playerName(player_id)
+				.. (on and " turns real time on" or (" turns real time off at " .. formatHour(currentHour())))
+		)
 		sendTimeToAll()
 		notifyAll(playerName(player_id) .. (on and " turned on real time" or " turned off real time"), "schedule")
 	elseif msg.action == "pause" then
 		local paused = msg.paused == true
 		local wasReal = paused and setRealtime(false)
-		if not setPaused(paused) and not wasReal then sendTime(player_id) return end
-		log(playerName(player_id) .. (paused and " pauses the clock at " or " resumes the clock at ") .. formatHour(currentHour()))
+		if not setPaused(paused) and not wasReal then
+			sendTime(player_id)
+			return
+		end
+		log(
+			playerName(player_id)
+				.. (paused and " pauses the clock at " or " resumes the clock at ")
+				.. formatHour(currentHour())
+		)
 		sendTimeToAll()
-		notifyAll(playerName(player_id) .. (paused and " paused the clock (" or " resumed the clock (") ..
-			formatHour(currentHour()) .. ")", "schedule")
+		notifyAll(
+			playerName(player_id)
+				.. (paused and " paused the clock (" or " resumed the clock (")
+				.. formatHour(currentHour())
+				.. ")",
+			"schedule"
+		)
 	elseif realtimeOn() then
 		sendTime(player_id)
 	elseif msg.action == "set" then
 		local hour = tonumber(msg.hour)
-		if not hour or hour ~= hour or hour < 0 or hour > 24 then return end
+		if not hour or hour ~= hour or hour < 0 or hour > 24 then
+			return
+		end
 		setHour(hour % 24)
 		log(playerName(player_id) .. " sets the time to " .. formatHour(hour % 24))
 		sendTimeToAll()
 		notifyAll(playerName(player_id) .. " set the time to " .. formatHour(hour % 24), "schedule")
 	elseif msg.action == "lengths" then
 		local day, night = tonumber(msg.dayMinutes), tonumber(msg.nightMinutes)
-		if not day or not night or day ~= day or night ~= night then return end
+		if not day or not night or day ~= day or night ~= night then
+			return
+		end
 		day = math.floor(math.max(LENGTH_MIN, math.min(LENGTH_MAX, day)) + 0.5)
 		night = math.floor(math.max(LENGTH_MIN, math.min(LENGTH_MAX, night)) + 0.5)
-		if day == Config.server.dayMinutes and night == Config.server.nightMinutes then return end
+		if day == Config.server.dayMinutes and night == Config.server.nightMinutes then
+			return
+		end
 		rebaseTime() -- pin the time, only the speed changes
 		Config.server.dayMinutes, Config.server.nightMinutes = day, night
 		saveConfig()
@@ -1797,26 +2270,43 @@ local TRANSFER_TIMEOUT = 30
 
 local function findPlayer(query)
 	query = tostring(query or ""):lower()
-	if query == "" then return nil, "No player name given." end
+	if query == "" then
+		return nil, "No player name given."
+	end
 	local asId = tonumber(query)
-	if asId and players[asId] then return asId end
+	if asId and players[asId] then
+		return asId
+	end
 	local exact, partial = nil, {}
 	for id in pairs(players) do
 		local name = playerName(id):lower()
-		if name == query then exact = id end
-		if name:sub(1, #query) == query then table.insert(partial, id) end
+		if name == query then
+			exact = id
+		end
+		if name:sub(1, #query) == query then
+			table.insert(partial, id)
+		end
 	end
-	if exact then return exact end
-	if #partial == 1 then return partial[1] end
-	if #partial > 1 then return nil, "Several players match \"" .. query .. "\"." end
-	return nil, "No player \"" .. query .. "\" found."
+	if exact then
+		return exact
+	end
+	if #partial == 1 then
+		return partial[1]
+	end
+	if #partial > 1 then
+		return nil, 'Several players match "' .. query .. '".'
+	end
+	return nil, 'No player "' .. query .. '" found.'
 end
 
 local function refund(transfer, why)
 	transfer.stage = "refunding"
 	if isConnected(transfer.from) then
 		send(transfer.from, "sc_payCredit", {
-			id = transfer.id, amount = transfer.amount, from = transfer.toName, refund = true,
+			id = transfer.id,
+			amount = transfer.amount,
+			from = transfer.toName,
+			refund = true,
 		})
 		notify(transfer.from, "Payment to " .. transfer.toName .. " refunded: " .. why, "warning")
 	else
@@ -1868,17 +2358,27 @@ local function startPayment(player_id, targetQuery, amountText)
 	transferSeq = transferSeq + 1
 	local id = string.format("%d-%d", math.floor(t * 1000), transferSeq)
 	transfers[id] = {
-		id = id, from = player_id, to = target, amount = amount, stage = "debit", createdAt = t,
-		fromName = playerName(player_id), toName = playerName(target),
+		id = id,
+		from = player_id,
+		to = target,
+		amount = amount,
+		stage = "debit",
+		createdAt = t,
+		fromName = playerName(player_id),
+		toName = playerName(target),
 	}
-	send(player_id, "sc_payDebit", {id = id, amount = amount, to = playerName(target)})
+	send(player_id, "sc_payDebit", { id = id, amount = amount, to = playerName(target) })
 end
 
 function sc_payDebitResult(player_id, data)
 	local msg = decodeTable(data)
-	if not msg or type(msg.id) ~= "string" then return end
+	if not msg or type(msg.id) ~= "string" then
+		return
+	end
 	local transfer = transfers[msg.id]
-	if not transfer or transfer.from ~= player_id or transfer.stage ~= "debit" then return end
+	if not transfer or transfer.from ~= player_id or transfer.stage ~= "debit" then
+		return
+	end
 	if msg.ok ~= true then
 		transfers[msg.id] = nil
 		notify(player_id, "Payment cancelled: " .. tostring(msg.reason or "not enough money"))
@@ -1890,14 +2390,18 @@ function sc_payDebitResult(player_id, data)
 	end
 	transfer.stage = "credit"
 	transfer.createdAt = now()
-	send(transfer.to, "sc_payCredit", {id = transfer.id, amount = transfer.amount, from = transfer.fromName})
+	send(transfer.to, "sc_payCredit", { id = transfer.id, amount = transfer.amount, from = transfer.fromName })
 end
 
 function sc_payCreditAck(player_id, data)
 	local msg = decodeTable(data)
-	if not msg or type(msg.id) ~= "string" then return end
+	if not msg or type(msg.id) ~= "string" then
+		return
+	end
 	local transfer = transfers[msg.id]
-	if not transfer then return end
+	if not transfer then
+		return
+	end
 	if transfer.stage == "credit" and transfer.to == player_id then
 		transfers[msg.id] = nil
 		log(string.format("Payment: %s -> %s $%d", transfer.fromName, transfer.toName, transfer.amount))
@@ -1949,9 +2453,13 @@ local CONSOLE_HELP = table.concat({
 }, "\n")
 
 function onChatMessage(player_id, name, message)
-	if type(message) ~= "string" then return end
+	if type(message) ~= "string" then
+		return
+	end
 	local cmd, rest = message:match("^%s*/(%S+)%s*(.-)%s*$")
-	if not cmd then return end
+	if not cmd then
+		return
+	end
 	cmd = cmd:lower()
 	if cmd == "pay" then
 		local target, amount = rest:match("^(.-)%s+(%S+)$")
@@ -1986,18 +2494,30 @@ local function setSetting(path, valueText)
 	local old = Config[section][key]
 	local value
 	if type(old) == "boolean" then
-		if valueText == "true" then value = true elseif valueText == "false" then value = false end
+		if valueText == "true" then
+			value = true
+		elseif valueText == "false" then
+			value = false
+		end
 	elseif type(old) == "number" then
 		value = tonumber(valueText)
 	else
 		value = valueText or ""
 	end
-	if value == nil then return "Invalid value for " .. path .. " (expected " .. type(old) .. ")" end
-	if section == "server" and TIME_KEYS[key] then rebaseTime() end
+	if value == nil then
+		return "Invalid value for " .. path .. " (expected " .. type(old) .. ")"
+	end
+	if section == "server" and TIME_KEYS[key] then
+		rebaseTime()
+	end
 	Config[section][key] = value
 	saveConfig()
-	if section == "server" and key:sub(1, 4) == "fuel" then sendFuelToAll() end
-	if section == "server" and key:sub(1, 3) == "job" then sendJobsToAll() end
+	if section == "server" and key:sub(1, 4) == "fuel" then
+		sendFuelToAll()
+	end
+	if section == "server" and key:sub(1, 3) == "job" then
+		sendJobsToAll()
+	end
 	-- Live update for everyone who is already playing (also contains the new traffic shares).
 	-- Start options like saveSuffix only apply on the next join.
 	sendSettingsToAll()
@@ -2008,45 +2528,66 @@ end
 -- Only these settings may be changed by a player in the menu (if server.allowPlayerSettings);
 -- each applies to everyone immediately. Values are checked and clamped.
 local MENU_SETTINGS = {
-	["client.roadTraffic"]         = {kind = "int",  min = 0, max = 50, label = "Driving traffic per player"},
-	["client.parkedTraffic"]       = {kind = "int",  min = 0, max = 50, label = "Parked cars per player"},
-	["client.trafficAggression"]   = {kind = "num",  min = 0.05, max = 1, label = "AI driving style"},
-	["client.remoteVehicleGhost"]  = {kind = "bool", label = "Other players' cars without collision (AI traffic always collides)"},
-	["client.remoteUnicycleGhost"] = {kind = "bool", label = "Players on foot without collision"},
-	["server.trafficSignalSync"]   = {kind = "bool", label = "Synced traffic lights"},
-	["server.roadTrafficTotal"]    = {kind = "int",  min = 0, max = 400, label = "Server limit driving traffic"},
-	["server.parkedTrafficTotal"]  = {kind = "int",  min = 0, max = 400, label = "Server limit parked cars"},
-	["client.showPlayerStatus"]    = {kind = "bool", label = "Player status on name tags"},
+	["client.roadTraffic"] = { kind = "int", min = 0, max = 50, label = "Driving traffic per player" },
+	["client.parkedTraffic"] = { kind = "int", min = 0, max = 50, label = "Parked cars per player" },
+	["client.trafficAggression"] = { kind = "num", min = 0.05, max = 1, label = "AI driving style" },
+	["client.remoteVehicleGhost"] = {
+		kind = "bool",
+		label = "Other players' cars without collision (AI traffic always collides)",
+	},
+	["client.remoteUnicycleGhost"] = { kind = "bool", label = "Players on foot without collision" },
+	["server.trafficSignalSync"] = { kind = "bool", label = "Synced traffic lights" },
+	["server.roadTrafficTotal"] = { kind = "int", min = 0, max = 400, label = "Server limit driving traffic" },
+	["server.parkedTrafficTotal"] = { kind = "int", min = 0, max = 400, label = "Server limit parked cars" },
+	["client.showPlayerStatus"] = { kind = "bool", label = "Player status on name tags" },
 }
 local MENU_COOLDOWN = 0.5
 
-local function onOff(v) return v and "on" or "off" end
+local function onOff(v)
+	return v and "on" or "off"
+end
 
 function sc_setSetting(player_id, data)
 	local entry = players[player_id]
 	local msg = decodeTable(data)
-	if not entry or not entry.careerActive or not msg or type(msg.key) ~= "string" then return end
+	if not entry or not entry.careerActive or not msg or type(msg.key) ~= "string" then
+		return
+	end
 	local def = MENU_SETTINGS[msg.key]
-	if not def then return end
+	if not def then
+		return
+	end
 	if Config.server.allowPlayerSettings ~= true then
 		notify(player_id, "Only the server owner can change settings on this server.", "warning")
 		return
 	end
 	local t = now()
-	if entry.lastSetting and t - entry.lastSetting < MENU_COOLDOWN then return end
+	if entry.lastSetting and t - entry.lastSetting < MENU_COOLDOWN then
+		return
+	end
 	entry.lastSetting = t
 
 	local value = msg.value
 	if def.kind == "bool" then
-		if type(value) ~= "boolean" then return end
+		if type(value) ~= "boolean" then
+			return
+		end
 	else
 		value = tonumber(value)
-		if not value or value ~= value then return end
+		if not value or value ~= value then
+			return
+		end
 		value = math.max(def.min, math.min(def.max, value))
-		if def.kind == "int" then value = math.floor(value + 0.5) else value = math.floor(value * 100 + 0.5) / 100 end
+		if def.kind == "int" then
+			value = math.floor(value + 0.5)
+		else
+			value = math.floor(value * 100 + 0.5) / 100
+		end
 	end
 	local section, key = msg.key:match("^(%a+)%.(%w+)$")
-	if Config[section][key] == value then return end
+	if Config[section][key] == value then
+		return
+	end
 	setSetting(msg.key, tostring(value))
 	local shown = def.kind == "bool" and onOff(value) or tostring(value)
 	log(string.format("%s: %s = %s", playerName(player_id), msg.key, shown))
@@ -2059,16 +2600,22 @@ end
 
 function onConsoleInput(input)
 	local words = {}
-	for word in tostring(input):gmatch("%S+") do table.insert(words, word) end
-	if not words[1] or words[1]:lower() ~= "sc" then return end
+	for word in tostring(input):gmatch("%S+") do
+		table.insert(words, word)
+	end
+	if not words[1] or words[1]:lower() ~= "sc" then
+		return
+	end
 	local sub = (words[2] or "help"):lower()
 	if sub == "set" then
 		return setSetting(words[3], words[4])
 	elseif sub == "get" then
 		local lines = {}
-		for _, section in ipairs({"server", "client"}) do
+		for _, section in ipairs({ "server", "client" }) do
 			local keys = {}
-			for key in pairs(Config[section]) do table.insert(keys, key) end
+			for key in pairs(Config[section]) do
+				table.insert(keys, key)
+			end
 			table.sort(keys)
 			for _, key in ipairs(keys) do
 				table.insert(lines, section .. "." .. key .. " = " .. tostring(Config[section][key]))
@@ -2092,8 +2639,12 @@ function onConsoleInput(input)
 		if words[3] then
 			local hour = tonumber((words[3]:gsub(",", ".")))
 			local hh, mm = words[3]:match("^(%d+):(%d+)$")
-			if hh then hour = tonumber(hh) + tonumber(mm) / 60 end
-			if not hour or hour < 0 or hour >= 24 then return "Time must be 0 to 23.99 or HH:MM, e.g. sc time 18:30" end
+			if hh then
+				hour = tonumber(hh) + tonumber(mm) / 60
+			end
+			if not hour or hour < 0 or hour >= 24 then
+				return "Time must be 0 to 23.99 or HH:MM, e.g. sc time 18:30"
+			end
 			setRealtime(false)
 			setHour(hour)
 			sendTimeToAll()
@@ -2101,13 +2652,26 @@ function onConsoleInput(input)
 		end
 		local ph = timePhases()
 		if realtimeOn() then
-			return "Time: " .. formatHour(currentHour()) .. " (real time, " .. zoneLabel() .. " – sc time <HH:MM> ends it)"
+			return "Time: "
+				.. formatHour(currentHour())
+				.. " (real time, "
+				.. zoneLabel()
+				.. " – sc time <HH:MM> ends it)"
 		end
-		if Config.server.timePaused == true then return "Time: " .. formatHour(currentHour()) .. " (paused – sc time start)" end
-		if not ph then return "Time: " .. formatHour(currentHour()) .. " (stopped)" end
-		return string.format("Time: %s (day %s–%s: %s min, night: %s min)", formatHour(currentHour()),
-			formatHour(ph.dayStart), formatHour(ph.nightStart), tostring(Config.server.dayMinutes),
-			tostring(Config.server.nightMinutes))
+		if Config.server.timePaused == true then
+			return "Time: " .. formatHour(currentHour()) .. " (paused – sc time start)"
+		end
+		if not ph then
+			return "Time: " .. formatHour(currentHour()) .. " (stopped)"
+		end
+		return string.format(
+			"Time: %s (day %s–%s: %s min, night: %s min)",
+			formatHour(currentHour()),
+			formatHour(ph.dayStart),
+			formatHour(ph.nightStart),
+			tostring(Config.server.dayMinutes),
+			tostring(Config.server.nightMinutes)
+		)
 	elseif sub == "fuel" then
 		if words[3] and words[3]:lower() == "reset" then
 			fuelDiscounts = {}
@@ -2117,10 +2681,14 @@ function onConsoleInput(input)
 		end
 		local lines = {}
 		for station, fuels in pairs(fuelDiscounts) do
-			for fuel, d in pairs(fuels) do table.insert(lines, string.format("  %s %s: -%.1f%%", station, fuel, d)) end
+			for fuel, d in pairs(fuels) do
+				table.insert(lines, string.format("  %s %s: -%.1f%%", station, fuel, d))
+			end
 		end
 		table.sort(lines)
-		if #lines == 0 then return "Fuel prices: normal everywhere" .. (Config.server.fuelEconomy and "" or " (fuel economy off)") end
+		if #lines == 0 then
+			return "Fuel prices: normal everywhere" .. (Config.server.fuelEconomy and "" or " (fuel economy off)")
+		end
 		return "Fuel discounts:\n" .. table.concat(lines, "\n")
 	elseif sub == "jobs" then
 		if words[3] and words[3]:lower() == "reset" then
@@ -2130,27 +2698,55 @@ function onConsoleInput(input)
 		end
 		local lines = {}
 		for _, job in pairs(jobs) do
-			table.insert(lines, string.format("  #%d %s tier %d: %s to %s, %.1f km, $%d%s", job.id, job.type, job.tier, job.title, job.dest.name,
-				job.length / 1000, job.pay, job.takenBy and (" – taken by " .. playerName(job.takenBy)) or " – open"))
+			table.insert(
+				lines,
+				string.format(
+					"  #%d %s tier %d: %s to %s, %.1f km, $%d%s",
+					job.id,
+					job.type,
+					job.tier,
+					job.title,
+					job.dest.name,
+					job.length / 1000,
+					job.pay,
+					job.takenBy and (" – taken by " .. playerName(job.takenBy)) or " – open"
+				)
+			)
 		end
 		for _, p in pairs(payouts) do
-			table.insert(lines, string.format("  payout $%d for %s to save %s – not confirmed yet", p.pay,
-				tostring(p.title), p.profile))
+			table.insert(
+				lines,
+				string.format(
+					"  payout $%d for %s to save %s – not confirmed yet",
+					p.pay,
+					tostring(p.title),
+					p.profile
+				)
+			)
 		end
 		table.sort(lines)
-		if #lines == 0 then return "Jobs: none" .. (jobsEnabled() and "" or " (switched off)") end
+		if #lines == 0 then
+			return "Jobs: none" .. (jobsEnabled() and "" or " (switched off)")
+		end
 		return "Jobs:\n" .. table.concat(lines, "\n")
 	elseif sub == "levels" then
 		if words[3] and words[3]:lower() == "reset" then
 			local name = table.concat(words, " ", 4)
-			if name == "" then return "Usage: sc levels reset <player or profile>" end
+			if name == "" then
+				return "Usage: sc levels reset <player or profile>"
+			end
 			local profile = progress[name] and name or nil
 			if not profile then
 				for id in pairs(players) do
-					if playerName(id):lower():find(name:lower(), 1, true) then profile = profileOf(id) break end
+					if playerName(id):lower():find(name:lower(), 1, true) then
+						profile = profileOf(id)
+						break
+					end
 				end
 			end
-			if not profile or not progress[profile] then return "No job levels for " .. name end
+			if not profile or not progress[profile] then
+				return "No job levels for " .. name
+			end
 			progress[profile] = nil
 			saveProgress()
 			sendJobsToAll()
@@ -2159,11 +2755,16 @@ function onConsoleInput(input)
 		local lines = {}
 		for profile, kinds in pairs(progress) do
 			for kind, p in pairs(kinds) do
-				table.insert(lines, string.format("  %s %s: level %d, %d XP, %d done", profile, kind, p.level, p.xp, p.stats.done))
+				table.insert(
+					lines,
+					string.format("  %s %s: level %d, %d XP, %d done", profile, kind, p.level, p.xp, p.stats.done)
+				)
 			end
 		end
 		table.sort(lines)
-		if #lines == 0 then return "Job levels: nobody has any yet" end
+		if #lines == 0 then
+			return "Job levels: nobody has any yet"
+		end
 		return "Job levels:\n" .. table.concat(lines, "\n")
 	elseif sub == "reload" then
 		loadConfig()
@@ -2183,17 +2784,21 @@ end
 
 -- Connection established; the career only starts after sc_hello / sc_careerResult.
 function onPlayerJoin(player_id)
-	players[player_id] = {name = MP.GetPlayerName(player_id), careerActive = false}
+	players[player_id] = { name = MP.GetPlayerName(player_id), careerActive = false }
 end
 
 -- Clean up: vehicle states, open transfers (refund if needed), traffic shares.
 function onPlayerDisconnect(player_id)
 	local prefix = tostring(player_id) .. "-"
 	for id in pairs(vehicleStates) do
-		if id:sub(1, #prefix) == prefix then vehicleStates[id] = nil end
+		if id:sub(1, #prefix) == prefix then
+			vehicleStates[id] = nil
+		end
 	end
 	for id in pairs(damageStates) do
-		if id:sub(1, #prefix) == prefix then damageStates[id] = nil end
+		if id:sub(1, #prefix) == prefix then
+			damageStates[id] = nil
+		end
 	end
 	for id, transfer in pairs(transfers) do
 		if transfer.to == player_id and transfer.stage == "credit" then
@@ -2201,12 +2806,14 @@ function onPlayerDisconnect(player_id)
 		elseif transfer.from == player_id then
 			-- Sender gone: in stage "debit" nothing has been credited yet -> discard.
 			-- In stage "credit" the credit continues normally.
-			if transfer.stage ~= "credit" then transfers[id] = nil end
+			if transfer.stage ~= "credit" then
+				transfers[id] = nil
+			end
 		end
 	end
 	if couplingStates[player_id] then
 		couplingStates[player_id] = nil
-		broadcastCouplings(player_id, encode({pid = player_id, list = {}}))
+		broadcastCouplings(player_id, encode({ pid = player_id, list = {} }))
 	end
 	jobsLeave(player_id)
 	players[player_id] = nil
@@ -2218,9 +2825,9 @@ end
 -- New vehicle: visible; the owner reports afterwards whether it is traffic.
 function onVehicleSpawn(player_id, vehicle_id, data)
 	local id = player_id .. "-" .. vehicle_id
-	vehicleStates[id] = {active = true}
+	vehicleStates[id] = { active = true }
 	clearDamage(id)
-	broadcastStates({[id] = vehicleStates[id]})
+	broadcastStates({ [id] = vehicleStates[id] })
 end
 
 -- A newly built car is active again, for everyone.
@@ -2230,7 +2837,7 @@ function onVehicleEdited(player_id, vehicle_id, data)
 	state.active = true
 	clearDamage(id) -- a rebuilt vehicle is undamaged
 	vehicleStates[id] = state
-	broadcastStates({[id] = state})
+	broadcastStates({ [id] = state })
 end
 
 function onVehicleDeleted(player_id, vehicle_id)
@@ -2243,7 +2850,9 @@ end
 -- sc_tick every second (time limits for transfers, fuel discounts, jobs).
 
 function sc_signalTick()
-	if not Config.server.trafficSignalSync then return end
+	if not Config.server.trafficSignalSync then
+		return
+	end
 	local data = tostring(now())
 	for id, entry in pairs(players) do
 		if entry.careerActive and MP.IsPlayerConnected(id) then
@@ -2254,7 +2863,9 @@ end
 
 -- Time sync every 30 s; in between, the day runs on by itself on every player's PC.
 function sc_timeTick()
-	if Config.client.syncTimeOfDay ~= true then return end
+	if Config.client.syncTimeOfDay ~= true then
+		return
+	end
 	local data = encode(timePayload())
 	for id, entry in pairs(players) do
 		if entry.careerActive and MP.IsPlayerConnected(id) then

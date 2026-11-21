@@ -32,9 +32,9 @@ local U
 local ACTION = "sharedCareerPhone"
 local KEY = "f4"
 
-local apps = {}            -- id -> {id, title, icon, color, order, beta, onOpen, onClose}
+local apps = {} -- id -> {id, title, icon, color, order, beta, onOpen, onClose}
 local keyRegistered = false
-local screen = "play"      -- the game's current screen (UI route), from onUiChangedState
+local screen = "play" -- the game's current screen (UI route), from onUiChangedState
 
 local function enabled()
 	local config = U.config()
@@ -42,21 +42,27 @@ local function enabled()
 end
 
 local function trigger(name, data)
-	if guihooks and type(guihooks.trigger) == "function" then guihooks.trigger(name, data or {}) end
+	if guihooks and type(guihooks.trigger) == "function" then
+		guihooks.trigger(name, data or {})
+	end
 end
 
 --- State for the phone window: on/off and the registered apps (sorted, without functions).
 function M.state()
 	local list = {}
 	for _, app in pairs(apps) do
-		table.insert(list, {id = app.id, title = app.title, icon = app.icon, color = app.color, order = app.order,
-			beta = app.beta})
+		table.insert(
+			list,
+			{ id = app.id, title = app.title, icon = app.icon, color = app.color, order = app.order, beta = app.beta }
+		)
 	end
 	table.sort(list, function(a, b)
-		if a.order ~= b.order then return a.order < b.order end
+		if a.order ~= b.order then
+			return a.order < b.order
+		end
 		return a.title < b.title
 	end)
-	return {enabled = enabled(), apps = list}
+	return { enabled = enabled(), apps = list }
 end
 
 local function push()
@@ -65,7 +71,9 @@ end
 
 --- Registers an app on the phone. def = {id, title, icon (icon name or short text), color, order, beta, onOpen, onClose}.
 function M.registerApp(def)
-	if type(def) ~= "table" or type(def.id) ~= "string" or def.id == "" then return false end
+	if type(def) ~= "table" or type(def.id) ~= "string" or def.id == "" then
+		return false
+	end
 	apps[def.id] = {
 		id = def.id,
 		title = tostring(def.title or def.id),
@@ -97,10 +105,14 @@ end
 --- A tap on an app icon.
 function M.uiOpenApp(id)
 	local app = apps[id]
-	if not app or not enabled() then return false end
+	if not app or not enabled() then
+		return false
+	end
 	if app.onOpen then
 		local ok, err = pcall(app.onOpen)
-		if not ok then U.log("E", "phone", "app '" .. tostring(id) .. "' failed to open: " .. tostring(err)) end
+		if not ok then
+			U.log("E", "phone", "app '" .. tostring(id) .. "' failed to open: " .. tostring(err))
+		end
 	end
 	return true
 end
@@ -108,29 +120,39 @@ end
 --- The app was left (home screen, phone put away).
 function M.uiCloseApp(id)
 	local app = apps[id]
-	if not app or not app.onClose then return end
+	if not app or not app.onClose then
+		return
+	end
 	local ok, err = pcall(app.onClose)
-	if not ok then U.log("E", "phone", "app '" .. tostring(id) .. "' failed to close: " .. tostring(err)) end
+	if not ok then
+		U.log("E", "phone", "app '" .. tostring(id) .. "' failed to close: " .. tostring(err))
+	end
 end
 
 --== Key and game menus ==========================================================
 
 -- Driving (no game menu open): "play", or the screen the game drives on right now (e.g. a mission's).
 local function driving()
-	if screen == "play" then return true end
+	if screen == "play" then
+		return true
+	end
 	local menus = U.ext("ui_menuManager")
 	return menus ~= nil and type(menus.getGameplayRoute) == "function" and screen == menus.getGameplayRoute()
 end
 
 local function registerKey()
-	if keyRegistered then return end
+	if keyRegistered then
+		return
+	end
 	keyRegistered = true
 	U.addKey("phone", ACTION, {
 		title = "SharedCareer: phone",
 		desc = "Takes the phone out or puts it away",
 		default = KEY,
 		onDown = function()
-			if not enabled() then return end
+			if not enabled() then
+				return
+			end
 			trigger(driving() and "SharedCareerPhoneToggle" or "SharedCareerPhoneAway")
 		end,
 	})
@@ -148,7 +170,9 @@ end
 -- the game switched screens: put the phone away when a game menu opens
 function M.onUiChangedState(toState)
 	screen = type(toState) == "string" and toState or "play"
-	if not driving() then trigger("SharedCareerPhoneAway") end
+	if not driving() then
+		trigger("SharedCareerPhoneAway")
+	end
 end
 
 -- settings from the server changed (called by core.lua): phone on/off
@@ -160,6 +184,8 @@ function M.onExtensionLoaded()
 	U = extensions.sharedCareer_util
 end
 
-M.onInit = function() setExtensionUnloadMode(M, 'manual') end
+M.onInit = function()
+	setExtensionUnloadMode(M, "manual")
+end
 
 return M
