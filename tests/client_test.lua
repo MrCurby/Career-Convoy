@@ -197,7 +197,7 @@ local function resetWorld()
 		end,
 	}
 	_G.worldReadyState = 0
-	local store = { trafficSimpleVehicles = false, simplifyRemoteVehicles = false }
+	local store = { trafficSimpleVehicles = false, simplifyRemoteVehicles = false, trafficAllowMods = true }
 	_G.settings = {
 		getValue = function(k)
 			return store[k]
@@ -333,6 +333,7 @@ local config = {
 	serverVersion = VERSION,
 	trafficSimpleVehicles = true,
 	simplifyRemoteVehicles = true,
+	trafficAllowMods = false,
 }
 
 --== 1. Join: career starts, remote cars survive ================================
@@ -355,6 +356,7 @@ check(world.trafficSetup[1] == 4 and world.trafficSetup[3] == 3, "server traffic
 check(world.trafficSetup[2].simpleVehs == true, "traffic spawns as simple vehicles")
 check(settings.getValue("trafficSimpleVehicles") == true, "game setting trafficSimpleVehicles set")
 check(settings.getValue("simplifyRemoteVehicles") == true, "BeamMP setting simplifyRemoteVehicles set")
+check(settings.getValue("trafficAllowMods") == false, "no mod cars in the traffic")
 update()
 check(world.activeRoad == 4, "server traffic overrides the career setting afterwards")
 check(lastSent("sc_careerResult") and lastSent("sc_careerResult").ok == true, "success reported to the server")
@@ -3201,7 +3203,55 @@ check(
 )
 local n2 = #sentToServer
 sharedCareer_menu.uiSetSetting("client.saveSuffix", "x")
-check(#sentToServer == n2, "menu only sends allowed settings")
+check(#sentToServer == n2, "menu only sends allowed settings");
+
+--== 7f2. Missions hide the traffic instead of deleting it =====================
+(function()
+	resetWorld()
+	installCareer()
+	local frozen, unfrozen
+	gameplay_traffic.freezeState = function(options)
+		frozen = options
+		return "traffic", "police", "parking"
+	end
+	gameplay_traffic.unfreezeState = function(t, p, k, options)
+		unfrozen = { t, p, k, options }
+	end
+	gameplay_traffic.getTrafficData = function()
+		return { [70] = { isAi = true }, [71] = { isAi = true }, [73] = { isAi = false } }
+	end
+	gameplay_parking.getParkedCarsList = function()
+		return { 72 }
+	end
+	extensions.hook("onWorldReadyState", 2)
+	handlers.sc_config(json.encode(config))
+	update()
+	local car = addVehicle(70, "0-70", true)
+	local pooled = addVehicle(71, "0-71", true)
+	pooled.active = false
+	local parked = addVehicle(72, "0-72", true)
+	local player = addVehicle(73, "0-73", true)
+	local t, p, k = gameplay_traffic.freezeState({ despawnVehicles = true, exceptVehicleId = 73 })
+	check(
+		frozen.despawnVehicles == false and frozen.exceptVehicleId == 73 and t == "traffic" and k == "parking",
+		"mission start: the game keeps the cars (not deleted), its state comes back"
+	)
+	check(
+		not car.deleted and car.active == false and parked.active == false and player.active == true,
+		"mission start: traffic and parked cars hidden, the player's car stays"
+	)
+	gameplay_traffic.unfreezeState("traffic", "police", "parking", { respawnVehicles = true })
+	check(
+		car.active == true and parked.active == true and pooled.active == false,
+		"mission end: shown again; a car the pool hid stays hidden"
+	)
+	check(unfrozen[1] == "traffic" and unfrozen[4].respawnVehicles == false, "mission end: nothing spawned again")
+	gameplay_traffic.freezeState({ despawnVehicles = false })
+	check(frozen.despawnVehicles == false and car.active == true, "a freeze that deletes nothing: left to the game")
+	gameplay_traffic.freezeState({ despawnVehicles = true, exceptVehicleId = 73 })
+	extensions.hook("onBeamMPServerLeave")
+	check(car.active == true, "leaving the server during a mission: the cars are shown again")
+end)()
 
 --== 7g. Players tab, name tags and the menu key =============================
 resetWorld()
@@ -3929,7 +3979,9 @@ check(
 extensions.hook("onBeamMPServerLeave")
 check(sharedCareer_core.getConfig() == nil and not sharedCareer_core.isStarted(), "state reset")
 check(
-	settings.getValue("trafficSimpleVehicles") == false and settings.getValue("simplifyRemoteVehicles") == false,
+	settings.getValue("trafficSimpleVehicles") == false
+		and settings.getValue("simplifyRemoteVehicles") == false
+		and settings.getValue("trafficAllowMods") == true,
 	"the player's own settings restored"
 );
 

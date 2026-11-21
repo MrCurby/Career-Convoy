@@ -113,6 +113,8 @@ One line per problem. Each file starts with a comment that explains the details.
 | Other players on foot are invisible | A visible BeamMP unicycle variant | `garage.lua` |
 | You have to stand exactly in front of a garage computer | Enlarged computer zones on West Coast USA (generated from the original level file), plus a range boost while playing on other maps | `levels/…`, `tools/zones/`, `garage.lua` |
 | Traffic costs a lot of performance on every PC | Traffic spawns as simplified vehicles, and BeamMP sends that model to everyone | `core.lua`, `traffic.lua` |
+| A mission start deletes all your traffic and parked cars and spawns them again at its end. BeamMP builds other players' new cars only once you slow down (its spawn queue), so while you drive their new traffic is missing on your PC, and on its owner's PC you crash into it | On a server the cars are hidden for the mission instead (`gameplay_traffic.freezeState` / `unfreezeState` with `despawnVehicles` / `respawnVehicles` off) and shown again at its end; the visibility sync hides them for everyone | `traffic.lua`, `vehicles.lua` |
+| A mod car in someone's traffic is missing for players without the mod | The server turns off mod cars in the traffic (`trafficAllowMods`) | `core.lua`, server |
 | Too much traffic with many players | The server splits a total limit across all players | `traffic.lua`, server |
 | Traffic AI drives too close and rams players | Lower aggression and grip estimate, larger safety gap and sight range (set inside `ai.lua` through upvalues, no game files edited). Police excluded | `traffic.lua`, `sharedCareerVeh.lua` |
 | Everybody has a different time of day | The server runs the clock, and the pause-menu environment controls are locked | `env.lua`, server |

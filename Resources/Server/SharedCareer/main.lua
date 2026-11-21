@@ -165,6 +165,9 @@ local DEFAULTS = {
 		-- Spawn traffic as simplified vehicles ("simple_traffic"). Because BeamMP sends the
 		-- owner's config to everyone, the traffic is then simple everywhere.
 		trafficSimpleVehicles = true,
+		-- Mod vehicles in the traffic. Off: a mod car other players don't have is missing on
+		-- their PCs, so they drive through it while its owner sees them crash into it.
+		trafficAllowMods = false,
 		-- Aggression of the traffic AI, 0.05 (very careful) to 1 (very aggressive).
 		-- Lower = brakes earlier, keeps more distance. 0 = game default, don't change.
 		-- The police are excluded. Can be changed live: sc set client.trafficAggression 0.15
