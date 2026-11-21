@@ -117,6 +117,52 @@ function M.config()
 	return core and core.getConfig()
 end
 
+--== Position and money ===========================================================
+
+--- {x, y, z} of a vec3 or table, or nil.
+function M.vecOf(v)
+	if v == nil then
+		return nil
+	end
+	local ok, x, y, z = pcall(function()
+		return v.x, v.y, v.z
+	end)
+	if not ok or not tonumber(x) then
+		return nil
+	end
+	return { x = tonumber(x), y = tonumber(y) or 0, z = tonumber(z) or 0 }
+end
+
+--- Where you are: your vehicle (on foot: the unicycle), or the camera. {x, y, z} or nil.
+function M.myPosition()
+	local veh = type(getPlayerVehicle) == "function" and getPlayerVehicle(0) or nil
+	if veh then
+		local ok, p = pcall(function()
+			return veh:getPosition()
+		end)
+		if ok and p then
+			return M.vecOf(p)
+		end
+	end
+	if core_camera and type(core_camera.getPosition) == "function" then
+		local ok, p = pcall(core_camera.getPosition)
+		if ok and p then
+			return M.vecOf(p)
+		end
+	end
+	return nil
+end
+
+--- Your career money, or nil without a running career.
+function M.money()
+	local attrs = rawget(_G, "career_modules_playerAttributes")
+	if type(attrs) ~= "table" or type(attrs.getAttribute) ~= "function" then
+		return nil
+	end
+	local attribute = attrs.getAttribute("money")
+	return type(attribute) == "table" and tonumber(attribute.value) or nil
+end
+
 --== Route (the game's navigation on the road) ==================================
 -- There is only one route. Who set it last owns it: players.lua (following a player),
 -- jobs.lua, fuel.lua. The owner before is told with onRouteLost() and drops its route –

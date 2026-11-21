@@ -87,21 +87,6 @@ local pushApp -- defined with the app below
 
 --== Helpers for the job types ====================================================
 
---- {x, y, z} of a vec3 or table, or nil.
-function M.vecOf(v)
-	if v == nil then
-		return nil
-	end
-	local ok, x, y, z = pcall(function()
-		return v.x, v.y, v.z
-	end)
-	if not ok or not tonumber(x) then
-		return nil
-	end
-	return { x = tonumber(x), y = tonumber(y) or 0, z = tonumber(z) or 0 }
-end
-local vecOf = M.vecOf
-
 function M.dist2D(a, b)
 	local dx, dy = a.x - b.x, a.y - b.y
 	return math.sqrt(dx * dx + dy * dy)
@@ -135,7 +120,7 @@ function M.driveDistance(a, b)
 		end
 		local nodes = map.getMap().nodes
 		local first, last =
-			nodes[path[1]] and vecOf(nodes[path[1]].pos), nodes[path[#path]] and vecOf(nodes[path[#path]].pos)
+			nodes[path[1]] and U.vecOf(nodes[path[1]].pos), nodes[path[#path]] and U.vecOf(nodes[path[#path]].pos)
 		if not (first and last) then
 			return nil
 		end
@@ -143,27 +128,6 @@ function M.driveDistance(a, b)
 	end)
 	return ok and tonumber(d) or nil
 end
-
---- Where you are: your vehicle, or the camera.
-function M.myPosition()
-	local veh = type(getPlayerVehicle) == "function" and getPlayerVehicle(0) or nil
-	if veh then
-		local ok, p = pcall(function()
-			return veh:getPosition()
-		end)
-		if ok and p then
-			return vecOf(p)
-		end
-	end
-	if core_camera and type(core_camera.getPosition) == "function" then
-		local ok, p = pcall(core_camera.getPosition)
-		if ok and p then
-			return vecOf(p)
-		end
-	end
-	return nil
-end
-local myPosition = M.myPosition
 
 --- client.jobPay: the server's factor on every pay (0..10, default 1).
 function M.payFactor()
@@ -562,7 +526,7 @@ end
 --- client doesn't know last) with your level in it and its jobs in groups by level (levelGroups).
 --- Your own job is not in the list, it has its own card.
 function M.appState()
-	local me = myPosition()
+	local me = U.myPosition()
 	routesLeft, routesUsed = ROUTES_PER_PUSH, {}
 	-- your job's distance first: it matters most
 	local activeStatus, activeDistance

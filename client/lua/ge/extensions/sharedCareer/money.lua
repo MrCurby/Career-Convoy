@@ -13,15 +13,6 @@ local U
 local debited = {} -- id -> true
 local credited = {} -- id -> true
 
-local function money()
-	local attrs = career_modules_playerAttributes
-	if type(attrs) ~= "table" or type(attrs.getAttribute) ~= "function" then
-		return nil
-	end
-	local attribute = attrs.getAttribute("money")
-	return type(attribute) == "table" and tonumber(attribute.value) or nil
-end
-
 local function validAmount(n)
 	n = tonumber(n)
 	return n and n >= 1 and n == math.floor(n) and n or nil
@@ -38,7 +29,7 @@ local function rxDebit(data)
 		return
 	end
 	local reason = nil
-	local current = money()
+	local current = U.money()
 	if not amount then
 		reason = "invalid amount"
 	elseif not U.careerActive() or not current then

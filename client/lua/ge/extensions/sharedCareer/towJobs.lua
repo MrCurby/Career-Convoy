@@ -207,7 +207,7 @@ end
 -- Where on the roadside of this node a car can stand: {pos, dir} or nil.
 local function roadside(nodes, name)
 	local n = nodes[name]
-	local p = n and J.vecOf(n.pos)
+	local p = n and U.vecOf(n.pos)
 	if not p then
 		return nil
 	end
@@ -215,7 +215,7 @@ local function roadside(nodes, name)
 		local q = type(link) == "table"
 			and (tonumber(link.drivability) or 0) >= MIN_DRIVABILITY
 			and nodes[other]
-			and J.vecOf(nodes[other].pos)
+			and U.vecOf(nodes[other].pos)
 		if q then
 			local dx, dy = q.x - p.x, q.y - p.y
 			local len = math.sqrt(dx * dx + dy * dy)
@@ -236,7 +236,7 @@ local function vehiclePositions()
 	local count = type(be.getObjectCount) == "function" and be:getObjectCount() or 0
 	for i = 0, count - 1 do
 		local veh = be:getObject(i)
-		local p = veh and type(veh.getPosition) == "function" and J.vecOf(veh:getPosition())
+		local p = veh and type(veh.getPosition) == "function" and U.vecOf(veh:getPosition())
 		if p then
 			table.insert(out, p)
 		end
@@ -651,7 +651,7 @@ end
 -- While the crashed car falls and settles: once it lies still it breaks down (the crash is not new
 -- damage against the pay). Landed too far away: removed, it comes back as a plain breakdown.
 local function settle(a, veh, dt)
-	local p, v = J.vecOf(veh:getPosition()), type(veh.getVelocity) == "function" and J.vecOf(veh:getVelocity())
+	local p, v = U.vecOf(veh:getPosition()), type(veh.getVelocity) == "function" and U.vecOf(veh:getVelocity())
 	local speed = v and math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z) or 0
 	a.crashing.still = speed <= DROP_SPEED and a.crashing.still + dt or 0
 	if a.crashing.still < CRASH_STILL and clock - a.crashing.since < CRASH_WAIT then
@@ -701,7 +701,7 @@ end
 
 function M.step(a, dt)
 	local job = a.job
-	local me = J.myPosition()
+	local me = U.myPosition()
 	local veh = a.vehId and be:getObjectByID(a.vehId)
 	if a.vehId and not veh then
 		-- deleted, reloaded or refused by the server: it appears again at its place
@@ -726,14 +726,14 @@ function M.step(a, dt)
 	if not a.brokenDown and clock - a.sentAt >= BREAKDOWN_RETRY then
 		breakDown(a)
 	end
-	local p = J.vecOf(veh:getPosition())
+	local p = U.vecOf(veh:getPosition())
 	if a.phase == "toVehicle" and me and p and J.dist2D(me, p) <= NEAR_VEHICLE then
 		a.phase = "toDestination"
 		U.toast("info", "Route set: tow it to " .. job.dest.name, 6)
 	end
 	local speed = 0
 	if type(veh.getVelocity) == "function" then
-		local v = J.vecOf(veh:getVelocity())
+		local v = U.vecOf(veh:getVelocity())
 		if v then
 			speed = math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z)
 		end
@@ -764,7 +764,7 @@ function M.status(a)
 		return {
 			step = 1,
 			target = a.job.dest.pos,
-			from = veh and J.vecOf(veh:getPosition()) or nil,
+			from = veh and U.vecOf(veh:getPosition()) or nil,
 			inZone = inZone,
 			text = inZone and "In the ring – wait" or ("to " .. a.job.dest.name),
 			short = inZone and "In the ring – wait" or ("Tow to " .. a.job.dest.name),
@@ -817,13 +817,13 @@ function M.draw(a)
 	if not (debugDrawer and ColorF and vec3) then
 		return
 	end
-	local me = J.myPosition()
+	local me = U.myPosition()
 	if not me then
 		return
 	end
 	if a.phase == "toVehicle" then
 		local veh = a.vehId and be:getObjectByID(a.vehId)
-		local p = veh and J.vecOf(veh:getPosition()) or a.job.pos
+		local p = veh and U.vecOf(veh:getPosition()) or a.job.pos
 		if J.dist2D(me, p) <= MARKER_RANGE then
 			local bob = 0.15 * math.sin(clock * 2.5)
 			local top = vec3(p.x, p.y, p.z + 3.2 + bob)

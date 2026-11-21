@@ -2191,6 +2191,7 @@ function sc_careerResult(player_id, data)
 		sendFuel(player_id)
 		sendJobs(player_id)
 		deliverPayouts(player_id)
+		sendLicenses(player_id)
 		broadcastPlayers()
 	else
 		entry.careerActive = false
@@ -2979,6 +2980,7 @@ function onPlayerDisconnect(player_id)
 		broadcastCouplings(player_id, encode({ pid = player_id, list = {} }))
 	end
 	jobsLeave(player_id)
+	licensesLeave(player_id)
 	players[player_id] = nil
 	sharesSent[player_id] = nil
 	updateTrafficShares()
@@ -3042,6 +3044,7 @@ function sc_tick()
 	fuelRecoveryTick(1)
 	jobsTick()
 	payoutsTick()
+	licensesTick()
 end
 
 function onInit()
@@ -3050,6 +3053,7 @@ function onInit()
 	loadFuel()
 	loadPayouts()
 	loadProgress()
+	loadLicenses()
 
 	MP.RegisterEvent("onPlayerJoin", "onPlayerJoin")
 	MP.RegisterEvent("onPlayerDisconnect", "onPlayerDisconnect")
@@ -3078,6 +3082,10 @@ function onInit()
 	MP.RegisterEvent("sc_jobGiveUp", "sc_jobGiveUp")
 	MP.RegisterEvent("sc_jobDone", "sc_jobDone")
 	MP.RegisterEvent("sc_jobPaidAck", "sc_jobPaidAck")
+
+	MP.RegisterEvent("sc_licensesRequest", "sc_licensesRequest")
+	MP.RegisterEvent("sc_licenseBuy", "sc_licenseBuy")
+	MP.RegisterEvent("sc_licenseChargeResult", "sc_licenseChargeResult")
 
 	MP.RegisterEvent("sc_signalTick", "sc_signalTick")
 	MP.RegisterEvent("sc_tick", "sc_tick")
