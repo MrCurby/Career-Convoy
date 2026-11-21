@@ -46,7 +46,8 @@ The maintainer puts a lot of weight on tidy code. Keep it that way with every ch
 
 ## Workflow
 
-- `tools/test.sh` – syntax check, all tests, language check. Run it before every commit.
+- `tools/test.sh` – syntax check, all tests, Lua formatting, language check. Run it before every commit.
+- Lua is formatted with StyLua (`stylua.toml`); run `stylua .` before committing Lua changes.
 - `tools/bump.sh patch|minor|x.y.z` – raise the version (client `util.lua` + server `main.lua`).
 - Each change in its own branch; never push to `main`. Every push to a branch builds a dev build
   (`SharedCareer-<version>-dev.<commit>.zip`, GitHub pre-release `build-<branch>`) without a version

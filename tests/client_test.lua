@@ -2483,10 +2483,10 @@ check(#dialogs == 0, "showWelcome = false: no dialog")
 handlers.sc_dialog(json.encode({title = "SharedCareer: you are playing as a guest", body = "Your progress...", warning = false}))
 check(#dialogs == 1 and dialogs[1].kind == "server" and dialogs[1].title:find("guest") and dialogs[1].buttons[1].label == "OK",
 	"server message as a dialog in the window")
-_G.MPGameNetwork = nil
+_G.MPGameNetwork = nil;
 
 --== 7j. Damage: the owner's damage counts =====================================
-;(function()
+(function()
 	resetWorld()
 	installCareer()
 	extensions.hook("onWorldReadyState", 2)
@@ -2623,10 +2623,10 @@ _G.MPGameNetwork = nil
 	wait(2.4)
 	check(not hasCmd(mine, "damageSnapshot"), "client.syncDamage = false: nothing is sent")
 	_G.map, _G.vec3, _G.quatFromDir = nil, nil, nil
-end)()
+end)();
 
 --== 7k. Damage: vehicle side ====================================================
-;(function()
+(function()
 	local vecMeta = {}
 	local function vec(x, y, z) return setmetatable({x = x, y = y, z = z}, vecMeta) end
 	vecMeta.__index = {
@@ -2706,10 +2706,10 @@ end)()
 	ge = {}
 	veh.damageLoad({nn = 3, bn = 4, n = {}, d = {}, b = {}})
 	check(#ge == 0, "different node count: ignored")
-end)()
+end)();
 
 --== 7l. Other players' vehicles survive a pause (BeamMP positionVE) ==============
-;(function()
+(function()
 	local calls = {}
 	local speed = 1
 	_G.positionVE = {
@@ -2750,10 +2750,10 @@ end)()
 	_G.positionVE, _G.extensions = nil, savedExt
 	local ok = pcall(guard.updateGFX, 0.016)
 	check(ok, "without BeamMP: nothing happens")
-end)()
+end)();
 
 --== 7m. Trailers stay coupled on every PC =====================================
-;(function()
+(function()
 	resetWorld()
 	installCareer()
 	extensions.hook("onWorldReadyState", 2)
@@ -2856,11 +2856,11 @@ check(lastSent("sc_payDebitResult").ok == false and career_modules_playerAttribu
 extensions.hook("onBeamMPServerLeave")
 check(sharedCareer_core.getConfig() == nil and not sharedCareer_core.isStarted(), "state reset")
 check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue("simplifyRemoteVehicles") == false,
-	"the player's own settings restored")
+	"the player's own settings restored");
 
 --== 10. Jobs (beta): towing jobs, and a job type of the tests ===================
 -- (in a function of its own: the main chunk is at Lua's limit of 200 local variables)
-;(function()
+(function()
 	resetWorld()
 	installCareer({money = 1000})
 	extensions.hook("onWorldReadyState", 2)
@@ -3347,10 +3347,10 @@ check(settings.getValue("trafficSimpleVehicles") == false and settings.getValue(
 	check(career_modules_playerAttributes.money() == moneyBefore and acks() == acksBefore + 1,
 		"after a reconnect: a payout sent again is only confirmed")
 	_G.map, _G.freeroam_facilities, _G.jsonReadFile, _G.util_configListGenerator, _G.core_groundMarkers = nil, nil, nil, nil, nil
-end)()
+end)();
 
 -- the vehicle side: breaking down and reporting the damage
-;(function()
+(function()
 	local calls, ge = {}, {}
 	local env = setmetatable({
 		powertrain = {getDevices = function()
@@ -3396,11 +3396,11 @@ end)()
 	calls = {}
 	local ok = pcall(veh.jobBreakDown, false)
 	check(ok and table.concat(calls, ", ") == "parkingbrake 1", "missing parts of a vehicle: breaks down without them")
-end)()
+end)();
 
 --== 11. Ropes on two vehicles: the anchor on a vehicle, straps =====================
 -- vehicle side: a roped car pulled by an anchor that drives off; the anchor vehicle's hitch and pull
-;(function()
+(function()
 	local function vec(x, y, z) return {x = x, y = y, z = z} end
 	-- the roped car: rigid, 2 t, 20 nodes like in 7b4
 	local body = {p = vec(0, 0, 0), v = vec(0, 0, 0), f = vec(0, 0, 0), ge = {}}
@@ -3475,10 +3475,10 @@ end)()
 	sendAnchor(false)
 	run(1)
 	check(snapped and veh.ropeInfo(1) == nil, "the pickup jerks off at 8 m/s: the rope snaps")
-end)()
+end)();
 -- vehicle side: a strap on a car standing on a truck – pulled tight once when hooked on, it holds
 -- the car while both drive, and never pulls before it is hooked on
-;(function()
+(function()
 	local function vec(x, y, z) return {x = x, y = y, z = z} end
 	local body = {p = vec(0, 0, 0), v = vec(0, 0, 0), f = vec(0, 0, 0), ge = {}}
 	local nodes, rel = {}, {}
@@ -3564,10 +3564,10 @@ end)()
 	body.ge = {}
 	veh.onReset()
 	check(veh.ropeInfo(3) == nil and (body.ge[1] or ""):find("onRopeLost%(78, 3, 1%)"), "reset: the strap comes off and says so")
-end)()
+end)();
 -- vehicle side: holding the other end (where it would hook on, hooking on by request, the pull,
 -- several ropes at once)
-;(function()
+(function()
 	local nodes = {[0] = {cid = 0}, {cid = 1}, {cid = 2, couplerTag = "tow_hitch"}, {cid = 3}, {cid = 4}}
 	local pos = {[0] = {x = 0, y = 0, z = 0}, {x = 0, y = -2, z = 0.5}, {x = 0, y = -2.6, z = 0.4}, {x = 0, y = 2, z = 0.5},
 		{x = 0, y = 2.35, z = 0.5}}
@@ -3633,9 +3633,9 @@ end)()
 	fy = 0
 	for _, f in ipairs(forces) do fy = fy + f.y end
 	check(veh.anchorInfo(1) == nil and veh.anchorInfo(2) and math.abs(fy + 500) < 1e-6, "rope 1 released: only rope 2 pulls")
-end)()
+end)();
 -- vehicle side: Strap down – the load's corners, and the points below them on the truck
-;(function()
+(function()
 	local function vehicleEnv(id, nodeList, masses, refs, ge)
 		local nodes, pos = {}, {}
 		for i, n in ipairs(nodeList) do
@@ -3685,10 +3685,10 @@ end)()
 	for k in pairs(ge) do ge[k] = nil end
 	truck.hookBelow(9, "20,20,1")
 	check((ge[1] or ""):find('onHookBelow%(72, 9, ""%)'), "a corner with nothing in reach: no answer for it")
-end)()
+end)();
 -- GE side: the anchor near a vehicle shows where it would hook on; "Hook on" hooks it on there, it
 -- follows the vehicle, the pull goes on to it; "Unhook"
-;(function()
+(function()
 	resetWorld()
 	installCareer()
 	extensions.hook("onWorldReadyState", 2)
@@ -3826,9 +3826,9 @@ end)()
 	sharedCareer_tow.uiRelease()
 	check(not sharedCareer_tow.isHolding(), "rope removed")
 	_G.core_camera, _G.debugDrawer = nil, nil
-end)()
+end)();
 -- GE side: the Straps app – Strap down, a strap by hand, the list
-;(function()
+(function()
 	resetWorld()
 	installCareer()
 	extensions.hook("onWorldReadyState", 2)
