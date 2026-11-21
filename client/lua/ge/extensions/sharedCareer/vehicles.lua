@@ -51,38 +51,78 @@ local wantList = false
 
 local function mp()
 	local m = rawget(_G, "MPVehicleGE")
-	if type(m) == "table" and type(m.getVehicles) == "function" then return m end
+	if type(m) == "table" and type(m.getVehicles) == "function" then
+		return m
+	end
 	return nil
 end
 
 -- props/trailers that should never have a name tag above them.
 local PROPS = {
-	barrels = true, barrier = true, barrier_plastic = true, blockwall = true, bollard = true,
-	boxutility = true, boxutility_large = true, cannon = true, cargotrailer = true, cones = true,
-	containerTrailer = true, dolly = true, dryvan = true, flatbed = true, gate = true, haybale = true,
-	logs = true, log_trailer = true, metal_box = true, metal_ramp = true, rocks = true,
-	roadsigns = true, sawhorse = true, shipping_container = true, spikestrip = true, tanker = true,
-	tirestacks = true, tirewall = true, trafficbarrel = true, tsfb = true, woodcrate = true,
-	woodplanks = true, caravan = true, frameless_dump = true, tiltdeck = true,
+	barrels = true,
+	barrier = true,
+	barrier_plastic = true,
+	blockwall = true,
+	bollard = true,
+	boxutility = true,
+	boxutility_large = true,
+	cannon = true,
+	cargotrailer = true,
+	cones = true,
+	containerTrailer = true,
+	dolly = true,
+	dryvan = true,
+	flatbed = true,
+	gate = true,
+	haybale = true,
+	logs = true,
+	log_trailer = true,
+	metal_box = true,
+	metal_ramp = true,
+	rocks = true,
+	roadsigns = true,
+	sawhorse = true,
+	shipping_container = true,
+	spikestrip = true,
+	tanker = true,
+	tirestacks = true,
+	tirewall = true,
+	trafficbarrel = true,
+	tsfb = true,
+	woodcrate = true,
+	woodplanks = true,
+	caravan = true,
+	frameless_dump = true,
+	tiltdeck = true,
 }
 
 local function applyState(serverId)
 	local m = mp()
 	local state = states[serverId]
-	if not m or not state then return end
+	if not m or not state then
+		return
+	end
 	local entry = m.getVehicles()[serverId]
 	local gameId = entry and entry.gameVehicleID
-	if not gameId or gameId == -1 or m.isOwn(gameId) then return end
+	if not gameId or gameId == -1 or m.isOwn(gameId) then
+		return
+	end
 	local veh = be:getObjectByID(gameId)
-	if not veh then return end
+	if not veh then
+		return
+	end
 	local active = state.active ~= false
-	if veh:getActive() ~= active then veh:setActive(active and 1 or 0) end
+	if veh:getActive() ~= active then
+		veh:setActive(active and 1 or 0)
+	end
 	entry.hideNametag = (state.active == false) or (state.traffic == true) or PROPS[entry.jbeam] == true
 end
 
 local function rxStates(data)
 	local list = U.decode(data)
-	if not list then return end
+	if not list then
+		return
+	end
 	for serverId, state in pairs(list) do
 		if type(state) == "table" then
 			states[serverId] = state
@@ -92,15 +132,23 @@ local function rxStates(data)
 end
 
 local function isTrafficCar(gameId, veh)
-	if gameId == be:getPlayerVehicleID(0) then return false end
-	if veh.isTraffic == "true" or veh.isParked == "true" then return true end
+	if gameId == be:getPlayerVehicleID(0) then
+		return false
+	end
+	if veh.isTraffic == "true" or veh.isParked == "true" then
+		return true
+	end
 	if gameplay_traffic and type(gameplay_traffic.getTrafficData) == "function" then
 		local data = (gameplay_traffic.getTrafficData() or {})[gameId]
-		if type(data) == "table" and data.isAi == true then return true end
+		if type(data) == "table" and data.isAi == true then
+			return true
+		end
 	end
 	if gameplay_parking and type(gameplay_parking.getParkedCarsList) == "function" then
 		for _, id in ipairs(gameplay_parking.getParkedCarsList(true) or {}) do
-			if id == gameId then return true end
+			if id == gameId then
+				return true
+			end
 		end
 	end
 	return false
@@ -108,7 +156,9 @@ end
 
 local function reportOwn(all)
 	local m = mp()
-	if not m then return end
+	if not m then
+		return
+	end
 	local changed, seen = nil, {}
 	for serverId, entry in pairs(m.getVehicles()) do
 		local gameId = entry.gameVehicleID
@@ -116,20 +166,30 @@ local function reportOwn(all)
 			local veh = be:getObjectByID(gameId)
 			if veh then
 				seen[serverId] = true
-				local state = {active = veh:getActive() and true or false, traffic = isTrafficCar(gameId, veh)}
+				local state = { active = veh:getActive() and true or false, traffic = isTrafficCar(gameId, veh) }
 				local last = reported[serverId]
-				if all or not last or last.gameId ~= gameId or last.active ~= state.active or last.traffic ~= state.traffic then
+				if
+					all
+					or not last
+					or last.gameId ~= gameId
+					or last.active ~= state.active
+					or last.traffic ~= state.traffic
+				then
 					changed = changed or {}
 					changed[serverId] = state
-					reported[serverId] = {gameId = gameId, active = state.active, traffic = state.traffic}
+					reported[serverId] = { gameId = gameId, active = state.active, traffic = state.traffic }
 				end
 			end
 		end
 	end
 	for serverId in pairs(reported) do
-		if not seen[serverId] then reported[serverId] = nil end
+		if not seen[serverId] then
+			reported[serverId] = nil
+		end
 	end
-	if changed then U.send("sc_vehReport", changed) end
+	if changed then
+		U.send("sc_vehReport", changed)
+	end
 end
 M.reportOwn = reportOwn
 
@@ -148,7 +208,9 @@ end
 --                                         AI cars behave the same no matter who owns them
 local function applyGhosts()
 	local m, cfg = mp(), U.config()
-	if not m or not cfg then return end
+	if not m or not cfg then
+		return
+	end
 	for serverId, entry in pairs(m.getVehicles()) do
 		local gameId = entry.gameVehicleID
 		local veh = gameId and gameId ~= -1 and be:getObjectByID(gameId)
@@ -178,7 +240,9 @@ end
 -- spot, as the game does by default) and never on our own vehicles.
 local function keepTrafficClear()
 	local m = mp()
-	if not m then return end
+	if not m then
+		return
+	end
 	for serverId, entry in pairs(m.getVehicles()) do
 		local gameId = entry.gameVehicleID
 		if gameId and gameId ~= -1 and prepared[gameId] then
@@ -204,14 +268,18 @@ end
 -- a stack trace for every car it doesn't know yet.
 local function serverIdOf(m, gameId)
 	for serverId, entry in pairs(m.getVehicles()) do
-		if entry.gameVehicleID == gameId then return serverId, entry end
+		if entry.gameVehicleID == gameId then
+			return serverId, entry
+		end
 	end
 	return nil
 end
 
 local function prepareRemoteVehicles()
 	local m = mp()
-	if not m then return end
+	if not m then
+		return
+	end
 	for serverId, entry in pairs(m.getVehicles()) do
 		local gameId = entry.gameVehicleID
 		if gameId and gameId ~= -1 and not prepared[gameId] and entry.isLocal ~= true and not m.isOwn(gameId) then
@@ -222,7 +290,11 @@ local function prepareRemoteVehicles()
 				-- this car. NEVER set it on our own cars, or the traffic stands still.
 				veh:setDynDataFieldbyName("ignoreTraffic", 0, "true")
 				veh:setField("renderDistance", "", 1610)
-				if states[serverId] then applyState(serverId) else wantList = true end
+				if states[serverId] then
+					applyState(serverId)
+				else
+					wantList = true
+				end
 			end
 		end
 	end
@@ -247,7 +319,9 @@ end
 
 function M.onVehicleActiveChanged(gameId, active)
 	local m = mp()
-	if not m or not U.isMP() or not gameId then return end
+	if not m or not U.isMP() or not gameId then
+		return
+	end
 	if m.isOwn(gameId) then
 		reportNow = true
 		return
@@ -256,26 +330,36 @@ function M.onVehicleActiveChanged(gameId, active)
 	-- (e.g. our own career hid it): restore the server state.
 	local serverId = serverIdOf(m, gameId)
 	local state = serverId and states[serverId]
-	if state and (state.active ~= false) ~= (active and true or false) then applyState(serverId) end
+	if state and (state.active ~= false) ~= (active and true or false) then
+		applyState(serverId)
+	end
 end
 
 -- Never "get into" a remote prop/trailer.
 function M.onVehicleSwitched(oldId, newId)
 	local m = mp()
-	if not m or not U.isMP() then return end
+	if not m or not U.isMP() then
+		return
+	end
 	local veh = newId and be:getObjectByID(newId)
-	if veh and PROPS[veh.JBeam] and not m.isOwn(newId) then be:enterNextVehicle(0, 1) end
+	if veh and PROPS[veh.JBeam] and not m.isOwn(newId) then
+		be:enterNextVehicle(0, 1)
+	end
 end
 
 function M.onUpdate(dtReal)
-	if not U.isMP() or not U.config() then return end
+	if not U.isMP() or not U.config() then
+		return
+	end
 	dtReal = tonumber(dtReal) or 0
 	since, sinceAll = since + dtReal, sinceAll + dtReal
 	if reportNow then
 		reportNow = false
 		reportOwn(false)
 	end
-	if since < EVERY then return end
+	if since < EVERY then
+		return
+	end
 	since = 0
 	if wantList then
 		wantList = false
@@ -283,7 +367,9 @@ function M.onUpdate(dtReal)
 	end
 	prepareRemoteVehicles()
 	local all = sinceAll >= REPORT_ALL
-	if all then sinceAll = 0 end
+	if all then
+		sinceAll = 0
+	end
 	reportOwn(all)
 	applyGhosts()
 	keepTrafficClear()
@@ -303,6 +389,8 @@ function M.onExtensionLoaded()
 	U.on("sc_vehStates", rxStates)
 end
 
-M.onInit = function() setExtensionUnloadMode(M, 'manual') end
+M.onInit = function()
+	setExtensionUnloadMode(M, "manual")
+end
 
 return M

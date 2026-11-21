@@ -22,41 +22,51 @@ local M = {}
 
 local R
 
-local NUDGE_SPEED = 1      -- m/s the end moves while a button is held
-M.FINE = 0.25              -- fine mode: speed factor
-local MIN_DISTANCE = 3     -- m, closest "to view" puts the end
-local HITCH_NEAR = 3       -- m: closer than this, a hitch ring lights up
+local NUDGE_SPEED = 1 -- m/s the end moves while a button is held
+M.FINE = 0.25 -- fine mode: speed factor
+local MIN_DISTANCE = 3 -- m, closest "to view" puts the end
+local HITCH_NEAR = 3 -- m: closer than this, a hitch ring lights up
 
 -- The remote's direction (f = forward, r = right, u = up) in the world, as seen from the camera.
 local function nudgeVector(n)
-	local f = R.viewDir() or {x = 0, y = 1, z = 0}
+	local f = R.viewDir() or { x = 0, y = 1, z = 0 }
 	local len = math.sqrt(f.x * f.x + f.y * f.y)
 	local fx, fy = 0, 1
-	if len > 0.01 then fx, fy = f.x / len, f.y / len end
+	if len > 0.01 then
+		fx, fy = f.x / len, f.y / len
+	end
 	local rx, ry = fy, -fx
-	return {x = fx * n.f + rx * n.r, y = fy * n.f + ry * n.r, z = n.u}
+	return { x = fx * n.f + rx * n.r, y = fy * n.f + ry * n.r, z = n.u }
 end
 
 -- p, pulled back to at most `reach` m from where the rope is tied (no reach: p)
 local function withinReach(r, p, reach)
 	local grip = reach and R.gripNow(r)
-	if not grip then return p end
+	if not grip then
+		return p
+	end
 	local d = R.distance(grip, p)
-	if d <= reach then return p end
+	if d <= reach then
+		return p
+	end
 	local k = reach / d
-	return {x = grip.x + (p.x - grip.x) * k, y = grip.y + (p.y - grip.y) * k, z = grip.z + (p.z - grip.z) * k}
+	return { x = grip.x + (p.x - grip.x) * k, y = grip.y + (p.y - grip.y) * k, z = grip.z + (p.z - grip.z) * k }
 end
 
 --- Hold a button: move the loose end (f = forward, r = right, u = up; -1..1). Not while it is on a
 --- vehicle.
 function M.nudge(r, f, right, u)
-	if not r or r.anchorVeh then return end
-	r.nudge = {f = tonumber(f) or 0, r = tonumber(right) or 0, u = tonumber(u) or 0}
+	if not r or r.anchorVeh then
+		return
+	end
+	r.nudge = { f = tonumber(f) or 0, r = tonumber(right) or 0, u = tonumber(u) or 0 }
 	r.since = 1
 end
 
 function M.nudgeStop(r)
-	if not r then return end
+	if not r then
+		return
+	end
 	r.nudge = nil
 	r.since = 1
 end
@@ -67,7 +77,8 @@ end
 function M.move(r, dt, factor, reach)
 	if r.nudge and r.target and not r.anchorVeh then
 		local v, s = nudgeVector(r.nudge), NUDGE_SPEED * (factor or 1) * dt
-		r.target = withinReach(r, {x = r.target.x + v.x * s, y = r.target.y + v.y * s, z = r.target.z + v.z * s}, reach)
+		r.target =
+			withinReach(r, { x = r.target.x + v.x * s, y = r.target.y + v.y * s, z = r.target.z + v.z * s }, reach)
 	end
 	r.moving = r.nudge ~= nil
 	r.wantHookPoints = not r.anchorVeh
@@ -76,11 +87,15 @@ end
 --- The loose end to the middle of the view, at its current distance from you (at most `reach` m
 --- from where the rope is tied). Returns true if it moved.
 function M.toView(r, reach)
-	if not r or not r.target or r.anchorVeh then return false end
+	if not r or not r.target or r.anchorVeh then
+		return false
+	end
 	local cam, dir = R.cameraPos(), R.viewDir()
-	if not cam or not dir then return false end
+	if not cam or not dir then
+		return false
+	end
 	local dist = math.max(MIN_DISTANCE, math.min(R.MAX_DISTANCE, R.distance(r.target, cam)))
-	r.target = withinReach(r, {x = cam.x + dir.x * dist, y = cam.y + dir.y * dist, z = cam.z + dir.z * dist}, reach)
+	r.target = withinReach(r, { x = cam.x + dir.x * dist, y = cam.y + dir.y * dist, z = cam.z + dir.z * dist }, reach)
 	r.payOutOnce = true
 	r.since = 1
 	return true
@@ -89,13 +104,15 @@ end
 --- Where the end would hook on, for the app: {vehicle (name), hitch} or nil.
 function M.hookOnState(r)
 	local hp = R.hookPoint(r)
-	return hp and {vehicle = hp.name, hitch = hp.hitch} or nil
+	return hp and { vehicle = hp.name, hitch = hp.hitch } or nil
 end
 
 --- Hook the end on where the ring shows. Returns true if there is such a point.
 function M.hookOn(r)
 	local hp = R.hookPoint(r)
-	if not hp then return false end
+	if not hp then
+		return false
+	end
 	R.hook(r, hp.vid, hp.cid)
 	return true
 end
@@ -104,27 +121,31 @@ end
 
 -- The ground below a point (z), or nil: castRayStatic (static geometry and terrain) straight down.
 -- The last answer is kept while the point stays where it is.
-local GROUND_RANGE = 60    -- m
-local groundCache = nil    -- {x, y, z, ground}
+local GROUND_RANGE = 60 -- m
+local groundCache = nil -- {x, y, z, ground}
 local function groundBelow(p)
 	local c = groundCache
 	if c and math.abs(c.x - p.x) < 0.01 and math.abs(c.y - p.y) < 0.01 and math.abs(c.z - p.z) < 0.01 then
 		return c.ground
 	end
 	local ground = nil
-	local ok, cast = pcall(function() return castRayStatic end)
+	local ok, cast = pcall(function()
+		return castRayStatic
+	end)
 	if ok and type(cast) == "function" then
 		local from = p.z + 0.05
 		local hitOk, hit = pcall(cast, vec3(p.x, p.y, from), vec3(0, 0, -1), GROUND_RANGE)
 		hit = hitOk and tonumber(hit)
-		if hit and hit >= 0 and hit < GROUND_RANGE then ground = from - hit end
+		if hit and hit >= 0 and hit < GROUND_RANGE then
+			ground = from - hit
+		end
 	end
-	groundCache = {x = p.x, y = p.y, z = p.z, ground = ground}
+	groundCache = { x = p.x, y = p.y, z = p.z, ground = ground }
 	return ground
 end
 
-local GROUND_MIN = 0.3     -- m above the ground before the marker shows
-local DASH = 0.15          -- m: dash and gap of the drop line
+local GROUND_MIN = 0.3 -- m above the ground before the marker shows
+local DASH = 0.15 -- m: dash and gap of the drop line
 
 --- A loose end above the ground: a dashed drop line to the ground and a disc there, in its color
 --- {r, g, b}.
@@ -132,17 +153,19 @@ function M.groundMarker(p, rgb)
 	local S = R.shapes
 	local color = ColorF(rgb[1], rgb[2], rgb[3], 0.7)
 	local g = groundBelow(p)
-	if not g or p.z - g < GROUND_MIN then return end
+	if not g or p.z - g < GROUND_MIN then
+		return
+	end
 	local z = p.z
 	while z > g do
 		local zEnd = math.max(g, z - DASH)
-		S.line({x = p.x, y = p.y, z = z}, {x = p.x, y = p.y, z = zEnd}, color)
+		S.line({ x = p.x, y = p.y, z = z }, { x = p.x, y = p.y, z = zEnd }, color)
 		z = zEnd - DASH
 	end
 	local disc = ColorF(rgb[1], rgb[2], rgb[3], 0.3)
-	if not S.cylinder({x = p.x, y = p.y, z = g + 0.005}, {x = p.x, y = p.y, z = g + 0.02}, 0.3, disc) then
-		S.line({x = p.x - 0.3, y = p.y, z = g + 0.02}, {x = p.x + 0.3, y = p.y, z = g + 0.02}, color)
-		S.line({x = p.x, y = p.y - 0.3, z = g + 0.02}, {x = p.x, y = p.y + 0.3, z = g + 0.02}, color)
+	if not S.cylinder({ x = p.x, y = p.y, z = g + 0.005 }, { x = p.x, y = p.y, z = g + 0.02 }, 0.3, disc) then
+		S.line({ x = p.x - 0.3, y = p.y, z = g + 0.02 }, { x = p.x + 0.3, y = p.y, z = g + 0.02 }, color)
+		S.line({ x = p.x, y = p.y - 0.3, z = g + 0.02 }, { x = p.x, y = p.y + 0.3, z = g + 0.02 }, color)
 	end
 end
 
@@ -174,6 +197,8 @@ function M.onExtensionLoaded()
 	R = extensions.sharedCareer_rope
 end
 
-M.onInit = function() setExtensionUnloadMode(M, 'manual') end
+M.onInit = function()
+	setExtensionUnloadMode(M, "manual")
+end
 
 return M

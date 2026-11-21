@@ -17,10 +17,10 @@
 
 local M = {}
 
-local guarded = nil   -- the positionVE table the guard is in
-local originals = {}  -- BeamMP's own functions: setGameSpeed, updateGFX, onPhysicsStep, getVehicleRotation
+local guarded = nil -- the positionVE table the guard is in
+local originals = {} -- BeamMP's own functions: setGameSpeed, updateGFX, onPhysicsStep, getVehicleRotation
 local paused = false
-local lastSpeed = 1   -- the last real game speed
+local lastSpeed = 1 -- the last real game speed
 
 local function positive(n)
 	return type(n) == "number" and n == n and n > 0 and n < math.huge
@@ -28,35 +28,47 @@ end
 
 local function setGameSpeed(speed)
 	local stopped = not positive(speed)
-	if stopped ~= paused and type(guarded.onReset) == "function" then guarded.onReset() end
+	if stopped ~= paused and type(guarded.onReset) == "function" then
+		guarded.onReset()
+	end
 	paused = stopped
-	if not stopped then lastSpeed = speed end
+	if not stopped then
+		lastSpeed = speed
+	end
 	originals.setGameSpeed(lastSpeed)
 end
 
 -- updateGFX(dt) / onPhysicsStep(dt): nothing to do while paused or on a frame without time
 local function skipWhilePaused(original)
 	return function(dt, ...)
-		if paused or not positive(dt) then return end
+		if paused or not positive(dt) then
+			return
+		end
 		return original(dt, ...)
 	end
 end
 
 -- own vehicle: while paused it reports standing still, as BeamMP intends
 local function getVehicleRotation(...)
-	if not paused then return originals.getVehicleRotation(...) end
+	if not paused then
+		return originals.getVehicleRotation(...)
+	end
 	originals.setGameSpeed(0)
 	local ok, err = pcall(originals.getVehicleRotation, ...)
 	originals.setGameSpeed(lastSpeed)
-	if not ok then error(err, 0) end
+	if not ok then
+		error(err, 0)
+	end
 end
 
 local function install()
 	local target = rawget(_G, "positionVE")
-	if type(target) ~= "table" or target == guarded or type(target.setGameSpeed) ~= "function" then return end
-	guarded, originals, paused = target, {setGameSpeed = target.setGameSpeed}, false
+	if type(target) ~= "table" or target == guarded or type(target.setGameSpeed) ~= "function" then
+		return
+	end
+	guarded, originals, paused = target, { setGameSpeed = target.setGameSpeed }, false
 	target.setGameSpeed = setGameSpeed
-	for _, name in ipairs({"updateGFX", "onPhysicsStep"}) do
+	for _, name in ipairs({ "updateGFX", "onPhysicsStep" }) do
 		if type(target[name]) == "function" then
 			originals[name] = target[name]
 			target[name] = skipWhilePaused(target[name])

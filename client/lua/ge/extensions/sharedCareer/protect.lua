@@ -24,25 +24,31 @@ local PROTECTION_MAX_SECONDS = 60
 local GUARD_MAX_SECONDS = 120
 
 local protection = nil -- {remote = {[gameId]=true}, since, originals...}
-local guard = nil      -- {since, wrapped = {[module] = {original, wrapper}}}
+local guard = nil -- {since, wrapped = {[module] = {original, wrapper}}}
 
 --== remote vehicles ===========================================================
 
 local function remoteVehicleIds()
 	local remote = {}
 	local mp = rawget(_G, "MPVehicleGE")
-	if type(mp) ~= "table" or type(mp.getVehicles) ~= "function" then return remote end
+	if type(mp) ~= "table" or type(mp.getVehicles) ~= "function" then
+		return remote
+	end
 	for _, vehicle in pairs(mp.getVehicles() or {}) do
 		local id = vehicle.gameVehicleID
-		if id and id ~= -1 and not mp.isOwn(id) then remote[id] = true end
+		if id and id ~= -1 and not mp.isOwn(id) then
+			remote[id] = true
+		end
 	end
 	return remote
 end
 
 local function installProtection()
-	if protection then return end
+	if protection then
+		return
+	end
 	local remote = remoteVehicleIds()
-	protection = {remote = remote, since = os.clockhp()}
+	protection = { remote = remote, since = os.clockhp() }
 
 	if gameplay_traffic and type(gameplay_traffic.getTrafficList) == "function" then
 		local original = gameplay_traffic.getTrafficList
@@ -53,9 +59,13 @@ local function installProtection()
 			local safe = {}
 			local list = original(...)
 			if type(list) == "table" then
-				for _, id in ipairs(list) do table.insert(safe, id) end
+				for _, id in ipairs(list) do
+					table.insert(safe, id)
+				end
 			end
-			for id in pairs(remote) do table.insert(safe, id) end
+			for id in pairs(remote) do
+				table.insert(safe, id)
+			end
 			return safe
 		end
 	end
@@ -68,19 +78,27 @@ local function installProtection()
 				local obj = be:getObject(i)
 				local id = obj and obj:getID()
 				if id then
-					if remote[id] then spared = spared + 1 else obj:delete() end
+					if remote[id] then
+						spared = spared + 1
+					else
+						obj:delete()
+					end
 				end
 			end
 			U.log("I", "protect", "career start: spared " .. spared .. " vehicle(s) of other players")
 		end
 	end
 	local n = 0
-	for _ in pairs(remote) do n = n + 1 end
+	for _ in pairs(remote) do
+		n = n + 1
+	end
 	U.log("D", "protect", "protection active for " .. n .. " vehicle(s) of other players")
 end
 
 local function removeProtection()
-	if not protection then return end
+	if not protection then
+		return
+	end
 	if protection.getTrafficList and gameplay_traffic then
 		gameplay_traffic.getTrafficList = protection.getTrafficList
 	end
@@ -96,7 +114,9 @@ local failures = {}
 
 local function wrapHandlers()
 	local ext = extensions
-	if type(ext) ~= "table" or type(ext.getLoadedExtensionsNames) ~= "function" then return end
+	if type(ext) ~= "table" or type(ext.getLoadedExtensionsNames) ~= "function" then
+		return
+	end
 	for _, name in ipairs(ext.getLoadedExtensionsNames() or {}) do
 		local m = rawget(ext, name) or rawget(_G, name)
 		local original = type(m) == "table" and rawget(m, "onCareerActive")
@@ -105,21 +125,31 @@ local function wrapHandlers()
 				local ok, err = xpcall(original, debug.traceback, ...)
 				if not ok then
 					table.insert(failures, name)
-					U.log("E", "protect", name .. ".onCareerActive failed (the other handlers still run): " .. tostring(err))
+					U.log(
+						"E",
+						"protect",
+						name .. ".onCareerActive failed (the other handlers still run): " .. tostring(err)
+					)
 				end
 			end
-			guard.wrapped[m] = {original = original, wrapper = wrapper}
+			guard.wrapped[m] = { original = original, wrapper = wrapper }
 			m.onCareerActive = wrapper
 		end
 	end
 	-- The hook cache has to be rebuilt, otherwise it keeps calling the old functions.
-	if type(ext.hookUpdate) == "function" then ext.hookUpdate("onCareerActive") end
+	if type(ext.hookUpdate) == "function" then
+		ext.hookUpdate("onCareerActive")
+	end
 end
 
 local function unwrapHandlers()
-	if not guard then return end
+	if not guard then
+		return
+	end
 	for m, entry in pairs(guard.wrapped) do
-		if rawget(m, "onCareerActive") == entry.wrapper then m.onCareerActive = entry.original end
+		if rawget(m, "onCareerActive") == entry.wrapper then
+			m.onCareerActive = entry.original
+		end
 	end
 	guard.wrapped = {}
 	if type(extensions) == "table" and type(extensions.hookUpdate) == "function" then
@@ -130,10 +160,14 @@ end
 -- extensions.hook is replaced for the duration of the start: exactly when "onCareerActive"
 -- is sent out, all career modules are loaded – that's when they get wrapped.
 local function installGuard()
-	if guard then return end
+	if guard then
+		return
+	end
 	local ext = extensions
-	if type(ext) ~= "table" or type(ext.hook) ~= "function" then return end
-	guard = {since = os.clockhp(), wrapped = {}, originalHook = ext.hook}
+	if type(ext) ~= "table" or type(ext.hook) ~= "function" then
+		return
+	end
+	guard = { since = os.clockhp(), wrapped = {}, originalHook = ext.hook }
 	local current = guard
 	guard.hook = function(funcName, ...)
 		if funcName ~= "onCareerActive" or guard ~= current then
@@ -147,16 +181,22 @@ local function installGuard()
 end
 
 local function removeGuard()
-	if not guard then return end
+	if not guard then
+		return
+	end
 	unwrapHandlers()
-	if extensions.hook == guard.hook then extensions.hook = guard.originalHook end
+	if extensions.hook == guard.hook then
+		extensions.hook = guard.originalHook
+	end
 	guard = nil
 end
 
 --== Hooks =====================================================================
 
 function M.onBeforeCareerActivate()
-	if not U.isMP() then return end
+	if not U.isMP() then
+		return
+	end
 	installProtection()
 	installGuard()
 end
@@ -165,7 +205,9 @@ end
 function M.onCareerActive(active)
 	removeProtection()
 	-- Remove only in the next frame: we are in the middle of the hook loop right now.
-	if guard then guard.removeNextFrame = true end
+	if guard then
+		guard.removeNextFrame = true
+	end
 end
 
 --- Runs fn with the protection active. Returns (true, results...) or (false, error).
@@ -173,7 +215,9 @@ function M.run(fn, ...)
 	installProtection()
 	installGuard()
 	local args = U.pack(...)
-	local results = U.pack(xpcall(function() return fn(U.unpack(args, 1, args.n)) end, debug.traceback))
+	local results = U.pack(xpcall(function()
+		return fn(U.unpack(args, 1, args.n))
+	end, debug.traceback))
 	-- On a level change onCareerActive only comes later; the protection then stays until
 	-- then (or until the timeout). On an error it is removed immediately.
 	if not results[1] then
@@ -185,18 +229,24 @@ end
 
 function M.getFailures()
 	local out = {}
-	for i, name in ipairs(failures) do out[i] = name end
+	for i, name in ipairs(failures) do
+		out[i] = name
+	end
 	return out
 end
 
 function M.onUpdate()
-	if guard and guard.removeNextFrame then removeGuard() end
+	if guard and guard.removeNextFrame then
+		removeGuard()
+	end
 	local t = os.clockhp()
 	if protection and t - protection.since > PROTECTION_MAX_SECONDS then
 		U.log("W", "protect", "protection removed after timeout")
 		removeProtection()
 	end
-	if guard and t - guard.since > GUARD_MAX_SECONDS then removeGuard() end
+	if guard and t - guard.since > GUARD_MAX_SECONDS then
+		removeGuard()
+	end
 end
 
 function M.onExtensionLoaded()
@@ -208,6 +258,8 @@ function M.onExtensionUnloaded()
 	removeGuard()
 end
 
-M.onInit = function() setExtensionUnloadMode(M, 'manual') end
+M.onInit = function()
+	setExtensionUnloadMode(M, "manual")
+end
 
 return M

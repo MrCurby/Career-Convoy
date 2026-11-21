@@ -49,7 +49,9 @@ local function lengthFor(msg, hour)
 	local day, night = tonumber(msg.dayLengthDay), tonumber(msg.dayLengthNight)
 	local dayStart, nightStart = tonumber(msg.dayStart), tonumber(msg.nightStart)
 	if day and night and dayStart and nightStart then
-		if hour >= dayStart and hour < nightStart then return day end
+		if hour >= dayStart and hour < nightStart then
+			return day
+		end
 		return night
 	end
 	return tonumber(msg.dayLength) or 0
@@ -60,10 +62,16 @@ local lastMsg = nil
 
 local function setTod(tod, changes)
 	local newTod = {}
-	for k, v in pairs(tod) do newTod[k] = v end
-	for k, v in pairs(changes) do newTod[k] = v end
+	for k, v in pairs(tod) do
+		newTod[k] = v
+	end
+	for k, v in pairs(changes) do
+		newTod[k] = v
+	end
 	local ok, err = pcall(core_environment.setTimeOfDay, newTod)
-	if not ok then U.log("E", "env", "setting the time of day failed: " .. tostring(err)) end
+	if not ok then
+		U.log("E", "env", "setting the time of day failed: " .. tostring(err))
+	end
 	return ok
 end
 
@@ -73,7 +81,9 @@ local function getTod()
 		return nil
 	end
 	local ok, tod = pcall(env.getTimeOfDay)
-	if ok and type(tod) == "table" then return tod end
+	if ok and type(tod) == "table" then
+		return tod
+	end
 	return nil
 end
 
@@ -83,10 +93,14 @@ local function syncEnabled()
 end
 
 function M.applyTime(msg)
-	if not syncEnabled() then return false end
+	if not syncEnabled() then
+		return false
+	end
 	local hour = tonumber(msg.hour)
 	local tod = getTod()
-	if not hour or not tod then return false end
+	if not hour or not tod then
+		return false
+	end
 	lastMsg = msg
 	local length = lengthFor(msg, hour)
 	local play = msg.play == true and length > 0
@@ -94,39 +108,58 @@ function M.applyTime(msg)
 	local current = tonumber(tod.time) and M.fromGame(tod.time) or nil
 	local needsTime = current == nil or hourDistance(current, hour) > MAX_DRIFT_HOURS
 	local needsPace = (tod.play == true) ~= play or (play and tonumber(tod.dayLength) ~= length)
-	if not needsTime and not needsPace then return false end
+	if not needsTime and not needsPace then
+		return false
+	end
 
-	local changes = {play = play}
-	if needsTime then changes.time = M.toGame(hour) end
-	if play then changes.dayLength, changes.dayScale, changes.nightScale = length, 1, 1 end
+	local changes = { play = play }
+	if needsTime then
+		changes.time = M.toGame(hour)
+	end
+	if play then
+		changes.dayLength, changes.dayScale, changes.nightScale = length, 1, 1
+	end
 	return setTod(tod, changes)
 end
 
 -- Every second: if day <-> night switches here, change to the other speed immediately,
 -- without touching the time.
 function M.updatePace()
-	if not lastMsg or lastMsg.play ~= true or not syncEnabled() then return false end
+	if not lastMsg or lastMsg.play ~= true or not syncEnabled() then
+		return false
+	end
 	local tod = getTod()
-	if not tod or tod.play ~= true or not tonumber(tod.time) then return false end
+	if not tod or tod.play ~= true or not tonumber(tod.time) then
+		return false
+	end
 	local length = lengthFor(lastMsg, M.fromGame(tod.time))
-	if length <= 0 or tonumber(tod.dayLength) == length then return false end
-	return setTod(tod, {dayLength = length, dayScale = 1, nightScale = 1})
+	if length <= 0 or tonumber(tod.dayLength) == length then
+		return false
+	end
+	return setTod(tod, { dayLength = length, dayScale = 1, nightScale = 1 })
 end
 
 local function rxTime(data)
 	local msg = U.decode(data)
-	if not msg or not U.careerActive() then return end
+	if not msg or not U.careerActive() then
+		return
+	end
 	M.applyTime(msg)
 	lastMsg = msg -- even if applyTime had nothing to change (for the menu window)
 	local menu = U.ext("sharedCareer_menu")
-	if menu then menu.push() end
+	if menu then
+		menu.push()
+	end
 end
 
 --== Locking the pause menu ====================================================
 
 local PAUSE_ENVIRONMENT = "ui_pause_providers_routeData_environment"
 local ENVIRONMENT_PAGES = {
-	"getEnvironmentData", "getEnvironmentWeatherData", "getEnvironmentSimulationData", "getEnvironmentTrafficData",
+	"getEnvironmentData",
+	"getEnvironmentWeatherData",
+	"getEnvironmentSimulationData",
+	"getEnvironmentTrafficData",
 }
 
 local function lockActive()
@@ -143,21 +176,29 @@ local function makeRestricted(original)
 		end
 		local getValue = store.getValue
 		store.getValue = function(key, ...)
-			if key == "restrictScenarios" then return true end
+			if key == "restrictScenarios" then
+				return true
+			end
 			return getValue(key, ...)
 		end
 		local results = U.pack(pcall(original, ...))
 		store.getValue = getValue
-		if not results[1] then error(results[2], 0) end
+		if not results[1] then
+			error(results[2], 0)
+		end
 		return U.unpack(results, 2, results.n)
 	end
 end
 
 local function makeReadOnlyTraffic(original)
 	return function(payload, ...)
-		if not lockActive() or type(payload) ~= "table" then return original(payload, ...) end
+		if not lockActive() or type(payload) ~= "table" then
+			return original(payload, ...)
+		end
 		local copy = {}
-		for k, v in pairs(payload) do copy[k] = v end
+		for k, v in pairs(payload) do
+			copy[k] = v
+		end
 		copy.editable = false
 		return original(copy, ...)
 	end
@@ -165,7 +206,9 @@ end
 
 function M.ensurePauseLock()
 	local pause = rawget(_G, PAUSE_ENVIRONMENT)
-	if type(pause) ~= "table" then return end -- page not loaded yet; next second
+	if type(pause) ~= "table" then
+		return
+	end -- page not loaded yet; next second
 	for _, name in ipairs(ENVIRONMENT_PAGES) do
 		U.replace(pause, name, makeRestricted)
 	end
@@ -201,45 +244,55 @@ function M.timeState()
 			local boundary = state.isDay and nightStart or dayStart
 			local hoursLeft = (boundary - hour) % 24
 			local length = lengthFor(lastMsg, hour)
-			if state.running and length > 0 then state.secondsToSwitch = hoursLeft * length / 24 end
+			if state.running and length > 0 then
+				state.secondsToSwitch = hoursLeft * length / 24
+			end
 		end
 	end
 	return state
 end
 
 local function control(payload)
-	if not (U.isMP() and U.careerActive()) then return end
+	if not (U.isMP() and U.careerActive()) then
+		return
+	end
 	U.send("sc_timeControl", payload)
 end
 
 function M.uiSetHour(hour)
 	hour = tonumber(hour)
-	if not hour then return end
-	control({action = "set", hour = hour % 24})
+	if not hour then
+		return
+	end
+	control({ action = "set", hour = hour % 24 })
 end
 
 -- Relative to the current time (e.g. +1 / -1 hour).
 function M.uiShiftHour(delta)
 	local state = M.timeState()
 	delta = tonumber(delta)
-	if not state.hour or not delta then return end
+	if not state.hour or not delta then
+		return
+	end
 	M.uiSetHour((state.hour + delta) % 24)
 end
 
 -- Pause the clock (true) or let it run (false) – for everyone. Pausing also ends real time.
 function M.uiSetPaused(paused)
-	control({action = "pause", paused = paused == true})
+	control({ action = "pause", paused = paused == true })
 end
 
 -- Real time (true): the time follows the real clock (server.realtimeZone) – for everyone.
 function M.uiSetRealtime(on)
-	control({action = "realtime", on = on == true})
+	control({ action = "realtime", on = on == true })
 end
 
 function M.uiSetLengths(dayMinutes, nightMinutes)
 	dayMinutes, nightMinutes = tonumber(dayMinutes), tonumber(nightMinutes)
-	if not dayMinutes or not nightMinutes then return end
-	control({action = "lengths", dayMinutes = dayMinutes, nightMinutes = nightMinutes})
+	if not dayMinutes or not nightMinutes then
+		return
+	end
+	control({ action = "lengths", dayMinutes = dayMinutes, nightMinutes = nightMinutes })
 end
 
 --== Hooks =====================================================================
@@ -248,11 +301,15 @@ local since = 1
 
 function M.onUpdate(dtReal)
 	since = since + (tonumber(dtReal) or 0)
-	if since < 1 then return end
+	if since < 1 then
+		return
+	end
 	since = 0
 	if U.isMP() then
 		M.ensurePauseLock()
-		if U.careerActive() then M.updatePace() end
+		if U.careerActive() then
+			M.updatePace()
+		end
 	end
 end
 
@@ -265,6 +322,8 @@ function M.onExtensionLoaded()
 	U.on("sc_time", rxTime)
 end
 
-M.onInit = function() setExtensionUnloadMode(M, 'manual') end
+M.onInit = function()
+	setExtensionUnloadMode(M, "manual")
+end
 
 return M
