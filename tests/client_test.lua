@@ -4005,7 +4005,16 @@ check(
 	_G.getCurrentLevelIdentifier = function()
 		return "west_coast_usa"
 	end
-	_G.castRayStatic = nil
+	-- the world: flat ground at z = 10; walls along the road, by side (y = +1 / -1): their distance
+	-- from the middle of the road
+	local walls = {}
+	_G.castRayStatic = function(from, dir, range)
+		if dir.z < 0 then
+			return from.z - 10
+		end
+		local wall = dir.y ~= 0 and walls[dir.y > 0 and 1 or -1]
+		return wall and math.min(range, wall - math.abs(from.y)) or range
+	end
 	local paths = {}
 	_G.core_groundMarkers = {
 		setPath = function(p)
@@ -4240,6 +4249,27 @@ check(
 		"places: always beside the road (5.8 m from its middle), never near a vehicle or on a dirt track; a shop away from it"
 	)
 	check(lengthOk, "the length of the tow: the way by road to the shop")
+	-- a tunnel: a wall right of the road (as you drive along x): the car stands on the left, facing
+	-- the other way; walls on both sides: no place there; no ground beside the road: none either
+	walls[-1] = 6
+	local leftOk = true
+	for _ = 1, 20 do
+		local job = tow.generate(1)
+		if not (job and job.pos.y == 5.8 and job.pos.z == 10 and job.data.dir.x == -1) then
+			leftOk = false
+		end
+	end
+	check(leftOk, "a wall on the right: the car stands on the left side, facing the other way")
+	walls[1] = 6
+	local none, why = tow.generate(1)
+	check(none == nil and why == "no free place found", "walls on both sides (a tunnel): no place there")
+	walls = {}
+	local cast = _G.castRayStatic
+	_G.castRayStatic = function(from, dir, range)
+		return dir.z < 0 and range or cast(from, dir, range)
+	end
+	check(tow.generate(1) == nil, "no ground beside the road: no place there")
+	_G.castRayStatic = cast
 	local getPath = map.getPointToPointPath
 	map.getPointToPointPath = function()
 		return {}
@@ -4900,6 +4930,7 @@ check(
 	)
 	_G.map, _G.freeroam_facilities, _G.jsonReadFile, _G.util_configListGenerator, _G.core_groundMarkers =
 		nil, nil, nil, nil, nil
+	_G.castRayStatic = nil
 end)();
 
 -- the vehicle side: breaking down and reporting the damage
