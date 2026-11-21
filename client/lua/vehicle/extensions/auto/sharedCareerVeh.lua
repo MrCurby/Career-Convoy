@@ -912,6 +912,16 @@ end
 -- can release it to tow or roll it), ignition on and hazard lights on, optionally a flat tire,
 -- and what `faults` says is broken ({engine = true, ...}):
 --   engine      engines off and disabled (they don't start again; a crash always has this one)
+--   clutch      the clutch no longer grips (CLUTCH_GRIP of its torque); a car without a friction
+--               clutch (automatic, DCT) gets a broken gearbox instead
+--   gearbox     the gearboxes break (the game's own break: no gear drives any more)
+--   radiator    the radiator leaks its coolant (RADIATOR_DAMAGE, the game's radiator damage) and
+--               steams: the game lets a broken radiator steam while the coolant is hot (heavy above
+--               95 degrees C), so the engine is kept at STEAM_TEMP at least until the player is
+--               there (jobCoolDown); then it cools down on its own and the steam fades. All of the
+--               engine, not just the coolant: the coolant passes its heat on to the block within seconds
+--   oilpan      the oil pan leaks its oil (OILPAN_DAMAGE, the game's oil pan damage); driving it
+--               without oil ruins the engine
 --   windshield  the windshield breaks
 --   taillights  the tail lights break
 -- Reports sharedCareer_towJobs.onJobBrokenDown(id, damage) with the damage so far (beamstate.damage),
@@ -924,11 +934,17 @@ end
 
 -- the deform groups a fault breaks, by parts of their names
 local FAULT_PARTS = { windshield = { "windshield" }, taillights = { "tailgatelight", "taillight" } }
+local CLUTCH_GRIP = 0.02 -- share of its torque a broken clutch still passes on
+local RADIATOR_DAMAGE = 0.05 -- the game's radiator damage: it leaks above 0.015, steams more the higher
+local STEAM_TEMP = 100 -- degrees C an engine with a broken radiator is kept at least
+local ENGINE_TEMPS = { "coolantTemperature", "engineBlockTemperature", "cylinderWallTemperature", "oilTemperature" }
+local OILPAN_DAMAGE = 0.01 -- the game's oil pan damage: about 0.1 kg of oil a second
 
 local HAZARD_HOLD = 10 -- s the ignition and hazard lights are kept on
 
 local jobCar = false -- this vehicle broke down for a towing job
 local hazardHold = 0 -- s left to keep the ignition and hazard lights on
+local hotEngines = {} -- the thermals of engines with a broken radiator (kept at STEAM_TEMP)
 
 local function damageNow()
 	return tonumber(beamstate and beamstate.damage) or 0
@@ -956,7 +972,20 @@ local function keepHazards(dt)
 	end)
 end
 
+-- warms every engine with a broken radiator up to STEAM_TEMP (never cools one down)
+local function keepSteaming()
+	for thermals in pairs(hotEngines) do
+		for _, name in ipairs(ENGINE_TEMPS) do
+			if (tonumber(thermals[name]) or STEAM_TEMP) < STEAM_TEMP then
+				thermals[name] = STEAM_TEMP
+			end
+		end
+	end
+end
+
+-- a reset repairs the radiator (the job breaks it again)
 jobAfterReset = function()
+	hotEngines = {}
 	if jobCar then
 		hazardHold = HAZARD_HOLD
 	end
@@ -985,19 +1014,91 @@ local function breakPart(name)
 	end
 end
 
+-- The powertrain devices `test` picks.
+local function devicesWhere(test)
+	local found = {}
+	pcall(function()
+		for _, device in pairs(powertrain.getDevices()) do
+			if test(device) then
+				table.insert(found, device)
+			end
+		end
+	end)
+	return found
+end
+
+local function isEngine(device)
+	return device.type == "combustionEngine" or device.type == "electricMotor"
+end
+
+local function isClutch(device)
+	return device.type == "frictionClutch"
+end
+
+local function isGearbox(device)
+	return type(device.type) == "string" and device.type:find("Gearbox$") ~= nil
+end
+
+-- the cooling and oil of a combustion engine (none for an electric motor)
+local function thermalsOf(device)
+	return device.type == "combustionEngine" and type(device.thermals) == "table" and device.thermals or nil
+end
+
+-- shows the device as broken in the game's damage display
+local function markBroken(device)
+	pcall(function()
+		damageTracker.setDamage("powertrain", device.name, true)
+	end)
+end
+
+local function breakGearboxes()
+	for _, device in ipairs(devicesWhere(isGearbox)) do
+		if type(device.onBreak) == "function" and pcall(device.onBreak, device) then
+			markBroken(device)
+		end
+	end
+end
+
+-- what each powertrain fault does
+local POWERTRAIN_FAULTS = {
+	engine = function()
+		for _, device in ipairs(devicesWhere(isEngine)) do
+			if type(device.disable) == "function" then
+				pcall(device.disable, device)
+			end
+		end
+	end,
+	clutch = function()
+		local clutches = devicesWhere(isClutch)
+		if #clutches == 0 then
+			breakGearboxes()
+		end
+		for _, device in ipairs(clutches) do
+			device.damageLockTorqueCoef, device.clutchPermanentlyDamaged = CLUTCH_GRIP, true
+			markBroken(device)
+		end
+	end,
+	gearbox = breakGearboxes,
+	radiator = function()
+		for _, device in ipairs(devicesWhere(thermalsOf)) do
+			if pcall(device.thermals.applyDeformGroupDamageRadiator, RADIATOR_DAMAGE) then
+				hotEngines[device.thermals] = true
+			end
+		end
+	end,
+	oilpan = function()
+		for _, device in ipairs(devicesWhere(thermalsOf)) do
+			pcall(device.thermals.applyDeformGroupDamageOilpan, OILPAN_DAMAGE)
+		end
+	end,
+}
+
 function M.jobBreakDown(flatTire, faults)
 	faults = type(faults) == "table" and faults or {}
-	if faults.engine then
-		pcall(function()
-			for _, device in pairs(powertrain.getDevices()) do
-				if
-					(device.type == "combustionEngine" or device.type == "electricMotor")
-					and type(device.disable) == "function"
-				then
-					device:disable()
-				end
-			end
-		end)
+	for kind, apply in pairs(POWERTRAIN_FAULTS) do
+		if faults[kind] then
+			apply()
+		end
 	end
 	pcall(function()
 		controller.mainController.shiftToGearIndex(0)
@@ -1023,6 +1124,10 @@ function M.jobBreakDown(flatTire, faults)
 		end
 	end
 	reportToJobs("onJobBrokenDown", damageNow())
+end
+
+function M.jobCoolDown()
+	hotEngines = {}
 end
 
 function M.jobReportDamage()
@@ -1120,6 +1225,7 @@ function M.updateGFX(dt)
 		return
 	end
 	keepHazards(dt)
+	keepSteaming()
 	if next(anchors) then
 		if not physicsStep then
 			anchorStep(math.min(dt, ROPE_MAX_DT), true)

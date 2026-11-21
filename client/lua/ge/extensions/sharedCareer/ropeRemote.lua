@@ -20,7 +20,7 @@
 
 local M = {}
 
-local R
+local R, U
 
 local NUDGE_SPEED = 1 -- m/s the end moves while a button is held
 M.FINE = 0.25 -- fine mode: speed factor
@@ -128,18 +128,9 @@ local function groundBelow(p)
 	if c and math.abs(c.x - p.x) < 0.01 and math.abs(c.y - p.y) < 0.01 and math.abs(c.z - p.z) < 0.01 then
 		return c.ground
 	end
-	local ground = nil
-	local ok, cast = pcall(function()
-		return castRayStatic
-	end)
-	if ok and type(cast) == "function" then
-		local from = p.z + 0.05
-		local hitOk, hit = pcall(cast, vec3(p.x, p.y, from), vec3(0, 0, -1), GROUND_RANGE)
-		hit = hitOk and tonumber(hit)
-		if hit and hit >= 0 and hit < GROUND_RANGE then
-			ground = from - hit
-		end
-	end
+	local from = p.z + 0.05
+	local hit = U.castRay(vec3(p.x, p.y, from), vec3(0, 0, -1), GROUND_RANGE)
+	local ground = hit and from - hit
 	groundCache = { x = p.x, y = p.y, z = p.z, ground = ground }
 	return ground
 end
@@ -194,7 +185,7 @@ end
 --== Hooks =========================================================================
 
 function M.onExtensionLoaded()
-	R = extensions.sharedCareer_rope
+	R, U = extensions.sharedCareer_rope, extensions.sharedCareer_util
 end
 
 M.onInit = function()

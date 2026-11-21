@@ -4005,7 +4005,16 @@ check(
 	_G.getCurrentLevelIdentifier = function()
 		return "west_coast_usa"
 	end
-	_G.castRayStatic = nil
+	-- the world: flat ground at z = 10; walls along the road, by side (y = +1 / -1): their distance
+	-- from the middle of the road
+	local walls = {}
+	_G.castRayStatic = function(from, dir, range)
+		if dir.z < 0 then
+			return from.z - 10
+		end
+		local wall = dir.y ~= 0 and walls[dir.y > 0 and 1 or -1]
+		return wall and math.min(range, wall - math.abs(from.y)) or range
+	end
 	local paths = {}
 	_G.core_groundMarkers = {
 		setPath = function(p)
@@ -4240,6 +4249,27 @@ check(
 		"places: always beside the road (5.8 m from its middle), never near a vehicle or on a dirt track; a shop away from it"
 	)
 	check(lengthOk, "the length of the tow: the way by road to the shop")
+	-- a tunnel: a wall right of the road (as you drive along x): the car stands on the left, facing
+	-- the other way; walls on both sides: no place there; no ground beside the road: none either
+	walls[-1] = 6
+	local leftOk = true
+	for _ = 1, 20 do
+		local job = tow.generate(1)
+		if not (job and job.pos.y == 5.8 and job.pos.z == 10 and job.data.dir.x == -1) then
+			leftOk = false
+		end
+	end
+	check(leftOk, "a wall on the right: the car stands on the left side, facing the other way")
+	walls[1] = 6
+	local none, why = tow.generate(1)
+	check(none == nil and why == "no free place found", "walls on both sides (a tunnel): no place there")
+	walls = {}
+	local cast = _G.castRayStatic
+	_G.castRayStatic = function(from, dir, range)
+		return dir.z < 0 and range or cast(from, dir, range)
+	end
+	check(tow.generate(1) == nil, "no ground beside the road: no place there")
+	_G.castRayStatic = cast
 	local getPath = map.getPointToPointPath
 	map.getPointToPointPath = function()
 		return {}
@@ -4310,8 +4340,15 @@ check(
 		end
 	end
 	check(
-		faultsOk and seen.engine and seen.windshield and seen.taillights,
-		"faults: always at least one; engine, windshield and tail lights all come up"
+		faultsOk
+			and seen.engine
+			and seen.clutch
+			and seen.gearbox
+			and seen.radiator
+			and seen.oilpan
+			and seen.windshield
+			and seen.taillights,
+		"faults: always at least one; every kind comes up"
 	)
 	check(crashEngineOk, "a crash always has a broken engine, nothing else")
 	local tags = tow.tags({ data = { faults = { "windshield", "taillights" }, heavy = true } })
@@ -4323,6 +4360,16 @@ check(
 		"each fault shows as its own tag, in order"
 	)
 	check(#tow.tags({ data = { faults = { "engine", "nonsense" } } }) == 1, "an unknown fault shows no tag")
+	tags = tow.tags({ data = { faults = { "clutch", "gearbox", "radiator", "oilpan" } } })
+	check(
+		#tags == 4
+			and tags[1].text == "Broken clutch"
+			and tags[2].text == "Broken gearbox"
+			and tags[3].text == "Broken radiator"
+			and tags[4].text == "Oil leak"
+			and tags[4].kind == "oilpan",
+		"clutch, gearbox, radiator and oil pan show as tags"
+	)
 	check(
 		tow.payFor(1000, false, 2) == 350 and tow.payFor(1000, false, 4) == 590,
 		"a higher tier pays more (x1.3, x2.2)"
@@ -4532,12 +4579,14 @@ check(
 		update(0.1)
 	end
 	check(paths[#paths].x == 4000 and jobs.appState().active.step == 1, "near the vehicle: route to the repair shop")
+	check(lastCmd(spawnedVeh):find("jobCoolDown%(%)"), "near the vehicle: its engine may cool down")
 	-- a reset repairs it: broken down again
 	cmds = #spawnedVeh.lua
 	extensions.hook("onVehicleResetted", 80)
 	check(
-		#spawnedVeh.lua == cmds + 1 and lastCmd(spawnedVeh):find("jobBreakDown%(true, {engine = true}%)"),
-		"reset (R): broken down again"
+		#spawnedVeh.lua == cmds + 1
+			and lastCmd(spawnedVeh):find("jobBreakDown%(true, {engine = true}%); sharedCareerVeh.jobCoolDown%(%)"),
+		"reset (R): broken down again; the player is there, so the engine isn't kept hot"
 	)
 	tow.onJobBrokenDown(80, 100)
 	-- at the shop: someone inside doesn't count; standing still and empty for 3 s does
@@ -4881,6 +4930,7 @@ check(
 	)
 	_G.map, _G.freeroam_facilities, _G.jsonReadFile, _G.util_configListGenerator, _G.core_groundMarkers =
 		nil, nil, nil, nil, nil
+	_G.castRayStatic = nil
 end)();
 
 -- the vehicle side: breaking down and reporting the damage
@@ -4998,6 +5048,87 @@ end)();
 	broken = {}
 	veh.jobBreakDown(false, { taillights = true })
 	check(#broken == 1 and broken[1] == 2, "broken tail lights: only the tail lights break")
+	-- powertrain faults: clutch, gearbox, radiator, oil pan
+	local tracked, leaks = {}, {}
+	env.damageTracker = {
+		setDamage = function(group, name, value)
+			tracked[group .. "." .. name] = value
+		end,
+	}
+	local engine = {
+		type = "combustionEngine",
+		name = "mainEngine",
+		disable = function()
+			table.insert(calls, "engine off")
+		end,
+		thermals = {
+			applyDeformGroupDamageRadiator = function(x)
+				leaks.radiator = x
+			end,
+			applyDeformGroupDamageOilpan = function(x)
+				leaks.oilpan = x
+			end,
+		},
+	}
+	local clutch = { type = "frictionClutch", name = "clutch", damageLockTorqueCoef = 1 }
+	local gearbox = {
+		type = "manualGearbox",
+		name = "gearbox",
+		onBreak = function(self)
+			self.isBroken = true
+		end,
+	}
+	local devices = { engine, clutch, gearbox, { type = "electricMotor", name = "rearMotor" } }
+	env.powertrain = {
+		getDevices = function()
+			return devices
+		end,
+	}
+	calls = {}
+	veh.jobBreakDown(false, { clutch = true })
+	check(
+		clutch.damageLockTorqueCoef < 0.1
+			and clutch.clutchPermanentlyDamaged
+			and not gearbox.isBroken
+			and tracked["powertrain.clutch"]
+			and not table.concat(calls, ", "):find("engine off"),
+		"broken clutch: it no longer grips, the gearbox and engine stay whole"
+	)
+	veh.jobBreakDown(false, { gearbox = true })
+	check(gearbox.isBroken and tracked["powertrain.gearbox"], "broken gearbox: the game's own break")
+	gearbox.isBroken, devices = false, { engine, gearbox }
+	veh.jobBreakDown(false, { clutch = true })
+	check(gearbox.isBroken, "no friction clutch (automatic): the gearbox breaks instead")
+	local thermals = engine.thermals
+	thermals.coolantTemperature, thermals.engineBlockTemperature = 60, 60
+	thermals.cylinderWallTemperature, thermals.oilTemperature = 60, 130
+	veh.updateGFX(0.1)
+	check(thermals.coolantTemperature == 60, "a whole radiator: the engine isn't warmed")
+	veh.jobBreakDown(false, { radiator = true })
+	check(leaks.radiator and leaks.radiator > 0 and not leaks.oilpan, "broken radiator: only the coolant leaks")
+	veh.updateGFX(0.1)
+	check(
+		thermals.coolantTemperature >= 95
+			and thermals.engineBlockTemperature == thermals.coolantTemperature
+			and thermals.cylinderWallTemperature == thermals.coolantTemperature
+			and thermals.oilTemperature == 130,
+		"broken radiator: the engine is kept hot so it steams (never cooled down)"
+	)
+	veh.jobCoolDown()
+	thermals.coolantTemperature = 60
+	veh.updateGFX(0.1)
+	check(thermals.coolantTemperature == 60, "the player is there: the engine cools down")
+	veh.jobBreakDown(false, { radiator = true })
+	veh.onReset()
+	thermals.coolantTemperature = 60
+	veh.updateGFX(0.1)
+	check(thermals.coolantTemperature == 60, "after a reset: no longer kept hot")
+	veh.jobBreakDown(false, { oilpan = true })
+	check(
+		leaks.oilpan and leaks.oilpan > 0 and not table.concat(calls, ", "):find("engine off"),
+		"oil leak: the oil leaks, the engine keeps running"
+	)
+	env.damageTracker = nil
 	env.beamstate.onBeamDeformed, env.v = nil, nil
 	env.powertrain, env.controller, env.electrics = nil, nil, nil
 	calls = {}
