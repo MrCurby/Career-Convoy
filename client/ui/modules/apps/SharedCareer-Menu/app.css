@@ -115,6 +115,9 @@
 .scMenu .scm-dialog-muted { opacity: 0.75; }
 .scMenu .scm-dialog-list { margin: 6px 0; padding-left: 20px; }
 .scMenu .scm-dialog-list li { margin: 4px 0; }
+.scMenu .scm-dialog-rows { list-style: none; padding-left: 0; }
+.scMenu .scm-dialog-rows li { display: flex; align-items: center; gap: 8px; }
+.scMenu .scm-owned { color: #5fd38a; }
 .scMenu .scm-dialog-buttons { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 .scMenu .scm-dialog-btn { height: auto; font-size: 13px; padding: 6px 14px; line-height: 1.2; }
 
