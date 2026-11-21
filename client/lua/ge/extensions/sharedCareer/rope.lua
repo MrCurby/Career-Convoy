@@ -14,6 +14,12 @@
 -- position and speed go to the roped vehicle every frame, the rope's pull comes back (onRopePull)
 -- and goes on to the anchor vehicle (anchorPull), so it feels the load. Nothing hooks on by
 -- itself: the app asks where it would hook on and the player decides.
+--   straps        a strap is short and stiff and holds its load all the time, and its pull reaches
+--                 the anchor vehicle a few frames late (through the GE side). Passed on as it is,
+--                 that late pull rocks a trailer, and with four straps it rocks itself up. So for a
+--                 strap the anchor's speed (STRAP_VEL_SMOOTH) and the pull passed on
+--                 (STRAP_PULL_SMOOTH) are smoothed: the steady load gets through, the late shaking
+--                 doesn't. A tow rope passes both on as they are
 --   hook points   for a loose end (wantHookPoints): a few times per second your vehicles near it
 --                 are asked (anchorNear) for their tow hitches (shown as rings) and the point
 --                 where it would hook on – a tow hitch within 0.7 m, otherwise the nearest sturdy
@@ -73,6 +79,8 @@ local HOOK_KEEP = 0.6      -- s an answer counts without a new one
 local HOOK_REACH = 1       -- m: an answer whose point is farther from the anchor is old
 local MESSAGE_AGAIN = 1    -- s: the same message again within this time is not shown twice
 local ANCHOR_TELEPORT = 10 -- m/s: an anchor node faster than its vehicle by this much jumped
+local STRAP_VEL_SMOOTH = 0.15  -- s: a strap's anchor speed is smoothed over about this long
+local STRAP_PULL_SMOOTH = 0.25 -- s: a strap's pull on its anchor vehicle is smoothed over about this long
 
 -- what the vehicle reports with onRopeLost(id, rid, reason), per kind
 local LOST_MESSAGES = {
@@ -385,17 +393,29 @@ end
 
 --== One rope, every frame ===========================================================
 
+-- `v` moved towards `to` by the share of `dt` in `time` (smoothing over about `time` s)
+local function smooth(v, to, dt, time)
+	if not v then return to end
+	local k = math.max(0, math.min(1, dt / time))
+	return {x = v.x + (to.x - v.x) * k, y = v.y + (to.y - v.y) * k, z = v.z + (to.z - v.z) * k}
+end
+
 -- The anchor node's speed: from its movement since the last frame (it includes the vehicle's
 -- turning, which matters for a short strap), the vehicle's own speed when there is no last frame
--- or the node jumped.
+-- or the node jumped. A strap's is smoothed (see "straps" at the top).
 local function anchorVelocity(r, av, p, dtSim)
+	local a = r.anchorVeh
 	local vehVel = type(av.getVelocity) == "function" and vecOf(av:getVelocity()) or {x = 0, y = 0, z = 0}
-	local prev = r.anchorVeh.prev
-	r.anchorVeh.prev = p
-	if not prev or dtSim <= 0 then return vehVel end
-	local v = {x = (p.x - prev.x) / dtSim, y = (p.y - prev.y) / dtSim, z = (p.z - prev.z) / dtSim}
-	if M.distance(v, vehVel) > ANCHOR_TELEPORT then return vehVel end
-	return v
+	local prev = a.prev
+	a.prev = p
+	local v = vehVel
+	if prev and dtSim > 0 then
+		local moved = {x = (p.x - prev.x) / dtSim, y = (p.y - prev.y) / dtSim, z = (p.z - prev.z) / dtSim}
+		if M.distance(moved, vehVel) <= ANCHOR_TELEPORT then v = moved end
+	end
+	if r.kind ~= M.STRAP then return v end
+	a.vel = smooth(a.vel, v, dtSim, STRAP_VEL_SMOOTH)
+	return a.vel
 end
 
 local function step(r, dt, dtSim)
@@ -491,12 +511,19 @@ function M.onRopeLost(id, rid, reason)
 	M.release(r, LOST_MESSAGES[r.kind][tonumber(reason)] or LOST_MESSAGES[r.kind].silent)
 end
 
---- The roped vehicle reports the rope's pull on the anchor (N): on to the anchor vehicle.
+--- The roped vehicle reports the rope's pull on the anchor (N): on to the anchor vehicle (a
+--- strap's smoothed, see "straps" at the top).
 function M.onRopePull(id, rid, fx, fy, fz)
 	local r = ropes[rid]
 	if not r or r.veh ~= id or not r.anchorVeh then return end
-	sendToVehicle(r.anchorVeh.id, string.format("sharedCareerVeh.anchorPull(%d, %.1f, %.1f, %.1f)",
-		rid, tonumber(fx) or 0, tonumber(fy) or 0, tonumber(fz) or 0))
+	local f = {x = tonumber(fx) or 0, y = tonumber(fy) or 0, z = tonumber(fz) or 0}
+	if r.kind == M.STRAP then
+		local a = r.anchorVeh
+		a.pull = smooth(a.pull, f, clock - (a.pullAt or clock), STRAP_PULL_SMOOTH)
+		a.pullAt = clock
+		f = a.pull
+	end
+	sendToVehicle(r.anchorVeh.id, string.format("sharedCareerVeh.anchorPull(%d, %.1f, %.1f, %.1f)", rid, f.x, f.y, f.z))
 end
 
 --- A vehicle near a loose end: its tow hitches ("cid,cid,...") and its hook point (cid, -1 = none).
