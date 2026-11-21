@@ -142,7 +142,6 @@ In BeamMP every car belongs to one player: only that player's PC really drives i
 
 - **Hidden and shown cars:** the game keeps swapping traffic cars in and out, and the career hides cars in the garage. Every player reports what is hidden every second, so nobody bumps into a car only they can see.
 - **Spawning:** your traffic and parked cars keep about 40 m away from other players, so they don't appear on top of them or vanish right next to them.
-- **Damage:** a crashed car takes its driver's shape on your screen once it stands still for a moment, including dents, broken glass and lights. If you saw a crash the driver didn't (a car only you could see), the car is straightened again. Traffic keeps the damage your own PC works out. Server owners can turn this off (`client.syncDamage`).
 - **Trailers and dollies** stay coupled for everyone, also for players who join later.
 - **Pausing:** opening a menu, the big map or a garage computer pauses your game. Other players' cars no longer blow up because of that.
 
