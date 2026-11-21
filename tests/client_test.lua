@@ -4549,12 +4549,14 @@ check(
 		update(0.1)
 	end
 	check(paths[#paths].x == 4000 and jobs.appState().active.step == 1, "near the vehicle: route to the repair shop")
+	check(lastCmd(spawnedVeh):find("jobCoolDown%(%)"), "near the vehicle: its engine may cool down")
 	-- a reset repairs it: broken down again
 	cmds = #spawnedVeh.lua
 	extensions.hook("onVehicleResetted", 80)
 	check(
-		#spawnedVeh.lua == cmds + 1 and lastCmd(spawnedVeh):find("jobBreakDown%(true, {engine = true}%)"),
-		"reset (R): broken down again"
+		#spawnedVeh.lua == cmds + 1
+			and lastCmd(spawnedVeh):find("jobBreakDown%(true, {engine = true}%); sharedCareerVeh.jobCoolDown%(%)"),
+		"reset (R): broken down again; the player is there, so the engine isn't kept hot"
 	)
 	tow.onJobBrokenDown(80, 100)
 	-- at the shop: someone inside doesn't count; standing still and empty for 3 s does
@@ -5081,6 +5083,11 @@ end)();
 			and thermals.oilTemperature == 130,
 		"broken radiator: the engine is kept hot so it steams (never cooled down)"
 	)
+	veh.jobCoolDown()
+	thermals.coolantTemperature = 60
+	veh.updateGFX(0.1)
+	check(thermals.coolantTemperature == 60, "the player is there: the engine cools down")
+	veh.jobBreakDown(false, { radiator = true })
 	veh.onReset()
 	thermals.coolantTemperature = 60
 	veh.updateGFX(0.1)

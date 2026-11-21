@@ -29,7 +29,8 @@
 --        everyone). The vehicle breaks down: neutral, parking brake on, hazard lights on, a flat
 --        tire and its faults if the job says so (sharedCareerVeh.jobBreakDown). A reset
 --        (R) repairs it, so the job breaks it down again
---     2. near the vehicle the route switches to the repair shop
+--     2. near the vehicle the route switches to the repair shop, and a broken radiator's engine
+--        that was kept hot so it steams from afar may cool down (sharedCareerVeh.jobCoolDown)
 --     3. standing still in the drop-off zone (DROP_RADIUS m around the shop's doors) for
 --        DROP_STILL s, nobody inside: handed over (jobs.handOver). New damage since the breakdown
 --        costs up to PENALTY_MAX of the pay (DAMAGE_FOR_MAX damage points cost all of it)
@@ -566,14 +567,15 @@ local function breakDown(a)
 		end
 	end
 
-	J.sendToVehicle(
-		a.vehId,
-		string.format(
-			"sharedCareerVeh.jobBreakDown(%s, {%s})",
-			tostring(data(a).flatTire == true),
-			table.concat(faults, ", ")
-		)
+	local cmd = string.format(
+		"sharedCareerVeh.jobBreakDown(%s, {%s})",
+		tostring(data(a).flatTire == true),
+		table.concat(faults, ", ")
 	)
+	if a.phase == "toDestination" then
+		cmd = cmd .. "; sharedCareerVeh.jobCoolDown()" -- the player is there already
+	end
+	J.sendToVehicle(a.vehId, cmd)
 end
 
 -- The way the car faces: forward along the road, tilted for a crash (pitch: nose down, roll: to
@@ -733,6 +735,7 @@ function M.step(a, dt)
 	local p = J.vecOf(veh:getPosition())
 	if a.phase == "toVehicle" and me and p and J.dist2D(me, p) <= NEAR_VEHICLE then
 		a.phase = "toDestination"
+		J.sendToVehicle(a.vehId, "sharedCareerVeh.jobCoolDown()")
 		U.toast("info", "Route set: tow it to " .. job.dest.name, 6)
 	end
 	local speed = 0

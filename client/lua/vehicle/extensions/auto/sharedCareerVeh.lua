@@ -917,8 +917,9 @@ end
 --   gearbox     the gearboxes break (the game's own break: no gear drives any more)
 --   radiator    the radiator leaks its coolant (RADIATOR_DAMAGE, the game's radiator damage) and
 --               steams: the game lets a broken radiator steam while the coolant is hot (heavy above
---               95 degrees C), so the engine is kept at STEAM_TEMP at least. All of it, not just the
---               coolant: the coolant passes its heat on to the engine block within seconds
+--               95 degrees C), so the engine is kept at STEAM_TEMP at least until the player is
+--               there (jobCoolDown); then it cools down on its own and the steam fades. All of the
+--               engine, not just the coolant: the coolant passes its heat on to the block within seconds
 --   oilpan      the oil pan leaks its oil (OILPAN_DAMAGE, the game's oil pan damage); driving it
 --               without oil ruins the engine
 --   windshield  the windshield breaks
@@ -1123,6 +1124,10 @@ function M.jobBreakDown(flatTire, faults)
 		end
 	end
 	reportToJobs("onJobBrokenDown", damageNow())
+end
+
+function M.jobCoolDown()
+	hotEngines = {}
 end
 
 function M.jobReportDamage()
