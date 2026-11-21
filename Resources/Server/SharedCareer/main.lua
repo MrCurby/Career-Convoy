@@ -168,6 +168,10 @@ local DEFAULTS = {
 		-- Mod vehicles in the traffic. Off: a mod car other players don't have is missing on
 		-- their PCs, so they drive through it while its owner sees them crash into it.
 		trafficAllowMods = false,
+		-- BeamMP's spawn queue: other players' new or rebuilt cars are only built once you slow
+		-- down. Off: they are built at once, so their new traffic isn't missing while you drive
+		-- (it can stutter for a moment when many come at once).
+		enableSpawnQueue = false,
 		-- Aggression of the traffic AI, 0.05 (very careful) to 1 (very aggressive).
 		-- Lower = brakes earlier, keeps more distance. 0 = game default, don't change.
 		-- The police are excluded. Can be changed live: sc set client.trafficAggression 0.15

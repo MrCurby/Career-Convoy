@@ -104,6 +104,9 @@ local function resetWorld()
 		isOwn = function(id)
 			return world.own[id] == true
 		end,
+		applyQueuedEvents = function()
+			world.queueApplied = (world.queueApplied or 0) + 1
+		end,
 		getServerVehicleID = function(id)
 			for sid, e in pairs(world.mp) do
 				if e.gameVehicleID == id then
@@ -197,7 +200,12 @@ local function resetWorld()
 		end,
 	}
 	_G.worldReadyState = 0
-	local store = { trafficSimpleVehicles = false, simplifyRemoteVehicles = false, trafficAllowMods = true }
+	local store = {
+		trafficSimpleVehicles = false,
+		simplifyRemoteVehicles = false,
+		trafficAllowMods = true,
+		enableSpawnQueue = true,
+	}
 	_G.settings = {
 		getValue = function(k)
 			return store[k]
@@ -334,6 +342,7 @@ local config = {
 	trafficSimpleVehicles = true,
 	simplifyRemoteVehicles = true,
 	trafficAllowMods = false,
+	enableSpawnQueue = false,
 }
 
 --== 1. Join: career starts, remote cars survive ================================
@@ -357,6 +366,8 @@ check(world.trafficSetup[2].simpleVehs == true, "traffic spawns as simple vehicl
 check(settings.getValue("trafficSimpleVehicles") == true, "game setting trafficSimpleVehicles set")
 check(settings.getValue("simplifyRemoteVehicles") == true, "BeamMP setting simplifyRemoteVehicles set")
 check(settings.getValue("trafficAllowMods") == false, "no mod cars in the traffic")
+check(settings.getValue("enableSpawnQueue") == false, "BeamMP's spawn queue off")
+check((world.queueApplied or 0) >= 1, "spawn queue off: what waits in it is built at once")
 update()
 check(world.activeRoad == 4, "server traffic overrides the career setting afterwards")
 check(lastSent("sc_careerResult") and lastSent("sc_careerResult").ok == true, "success reported to the server")
@@ -3981,7 +3992,8 @@ check(sharedCareer_core.getConfig() == nil and not sharedCareer_core.isStarted()
 check(
 	settings.getValue("trafficSimpleVehicles") == false
 		and settings.getValue("simplifyRemoteVehicles") == false
-		and settings.getValue("trafficAllowMods") == true,
+		and settings.getValue("trafficAllowMods") == true
+		and settings.getValue("enableSpawnQueue") == true,
 	"the player's own settings restored"
 );
 
