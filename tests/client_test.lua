@@ -3974,6 +3974,28 @@ end)()
 	check(straps.appState().step == 0 and #straps.appState().straps == 1, "hooked on: done, the strap is in the list")
 	frames(1)
 	check(#calls(car, "ropeUpdate") > updatesBefore and last(car, "ropeUpdate").nums[5] == 0, "hooked on: the car feels it, no winch")
+	-- a strap's pull on the truck comes late (through the GE side): passed on smoothed, so it can't
+	-- rock the trailer; the steady load gets through
+	for _ = 1, 60 do
+		sharedCareer_rope.onRopePull(70, strapId, 0, 0, -3000)
+		extensions.hook("onUpdate", 1 / 60, 1 / 60)
+	end
+	check(math.abs(last(truck, "anchorPull").nums[4] + 3000) < 1, "a steady strap pull reaches the truck in full")
+	sharedCareer_rope.onRopePull(70, strapId, 0, 0, -9000)
+	local jolt = last(truck, "anchorPull").nums[4]
+	check(jolt < -3000 and jolt > -3600, string.format("a sudden jolt reaches it only a little in one frame (%.0f N)", jolt))
+	-- the truck's speed for the strap is smoothed too: a shake of the deck doesn't come through
+	for _ = 1, 60 do
+		truck.p = {x = 0, y = truck.p.y + 2 / 60, z = 0.5}
+		frames(1)
+	end
+	check(math.abs(last(car, "ropeUpdate").nums[10] - 2) < 0.05, "the truck drives at 2 m/s: the strap's anchor too")
+	truck.p = {x = 0, y = truck.p.y + 2 / 60, z = 0.55}
+	frames(1)
+	local vz = last(car, "ropeUpdate").nums[11]
+	check(vz > 0.2 and vz < 1.0, string.format("the deck jumps 5 cm in a frame (3 m/s): the anchor follows smoothed (%.2f m/s)", vz))
+	truck.p = {x = 0, y = truck.p.y, z = 0.5}
+	frames(60)
 	-- Tighten: the straps haul in like a very weak winch until they are tight
 	check(straps.uiTighten() and straps.appState().tightening, "Tighten")
 	extensions.hook("onUpdate", 1 / 60, 1 / 60)
