@@ -57,7 +57,6 @@ The file is `Resources/Server/SharedCareer/config/config.json`. It is created on
 | `client.parkedTraffic` | `8` | Parked cars per player |
 | `client.trafficReserve` | `4` | Extra hidden cars per player, so the menu can raise the amount live |
 | `client.trafficSimpleVehicles` | `true` | Traffic as simplified vehicles (`simple_traffic`) for all players |
-| `client.enableSpawnQueue` | `false` | BeamMP's spawn queue: other players' new cars wait until you slow down. Off, so their new traffic is never missing while you drive (a short stutter when many come at once) |
 | `client.trafficAllowMods` | `false` | Mod vehicles in the traffic. Off, because other players without the mod don't see such a car and drive through it |
 | `client.trafficAggression` | `0.2` | Traffic AI aggression, from 0.05 (careful) to 1 (aggressive). 0 = game default. Lower means more distance and earlier braking. Police are not affected. |
 | `client.trafficGrip` | `0.85` | How much tire grip the traffic AI thinks it has (0.5–0.95, game default 0.95). Lower means it brakes earlier and more gently at intersections and traffic lights, and takes corners more slowly. 0 = game default. Police are not affected. |

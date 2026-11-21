@@ -92,13 +92,9 @@ end
 --   trafficAllowMods       (BeamNG) mod vehicles in our own traffic. Off: a mod car the
 --                          others don't have would be missing on their PCs (they drive
 --                          through it, its owner sees them crash into it).
---   enableSpawnQueue       (BeamMP) other players' new or rebuilt cars wait until you slow
---                          down (under 2 m/s for 3 s). Off: they are built at once, so
---                          new traffic isn't missing while you drive (a short stutter
---                          instead). Turning it off builds what is waiting right away.
 -- The player's own values are remembered and restored when leaving.
 
-local GAME_SETTINGS = { "trafficSimpleVehicles", "simplifyRemoteVehicles", "trafficAllowMods", "enableSpawnQueue" }
+local GAME_SETTINGS = { "trafficSimpleVehicles", "simplifyRemoteVehicles", "trafficAllowMods" }
 local userSettings = nil
 
 local function applyGameSettings()
@@ -114,14 +110,6 @@ local function applyGameSettings()
 	for _, key in ipairs(GAME_SETTINGS) do
 		if type(config[key]) == "boolean" and settings.getValue(key) ~= config[key] then
 			settings.setValue(key, config[key])
-		end
-	end
-	-- the queue is off: build what still waits in it now, not once you slow down
-	local mp = rawget(_G, "MPVehicleGE")
-	if config.enableSpawnQueue == false and type(mp) == "table" and type(mp.applyQueuedEvents) == "function" then
-		local ok, err = pcall(mp.applyQueuedEvents)
-		if not ok then
-			U.log("E", "core", "building the queued vehicles failed: " .. tostring(err))
 		end
 	end
 end
