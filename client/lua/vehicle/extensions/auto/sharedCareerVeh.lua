@@ -911,7 +911,8 @@ end
 --== Towing jobs: the broken-down vehicle ========================================
 -- jobBreakDown(flatTire, faults): neutral, parking brake on (so it doesn't roll away; the player
 -- can release it to tow or roll it), hazard lights on, optionally a flat tire, and what `faults` says is broken ({engine = true, ...}):
---   engine      engines off and disabled (they don't start again)
+--   engine      engines off and disabled (they don't start again), ignition on so the hazard
+--               lights work (a crash always has this one)
 --   windshield  the windshield breaks
 --   taillights  the tail lights break
 -- Reports sharedCareer_towJobs.onJobBrokenDown(id, damage) with the damage so far (beamstate.damage),
@@ -960,6 +961,10 @@ function M.jobBreakDown(flatTire, faults)
 					device:disable()
 				end
 			end
+		end)
+		-- ignition on (level 2), so the hazard lights have power without a running engine
+		pcall(function()
+			electrics.setIgnitionLevel(2)
 		end)
 	end
 	pcall(function()

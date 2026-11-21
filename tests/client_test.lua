@@ -4944,6 +4944,7 @@ check(
 	local opt = world.spawned[2]
 	check(
 		opt.cling == false
+			and opt.safeSpawn == false
 			and opt.pos.z > 10 + 3 + 1.2
 			and opt.pos.z < 10 + 3 + 1.4
 			and opt.rot.dir.z
@@ -4981,6 +4982,7 @@ check(
 		rolled.deleted
 			and spawnedVeh ~= rolled
 			and world.spawned[2].cling == true
+			and world.spawned[2].safeSpawn == true
 			and lastCmd(spawnedVeh):find("jobBreakDown"),
 		"landed too far away: removed, spawned again at once as a breakdown on the ground"
 	)
@@ -5195,8 +5197,8 @@ end)();
 	veh.jobBreakDown(true, { engine = true })
 	local all = table.concat(calls, ", ")
 	check(
-		all == "engine off, gear 0, parkingbrake 1, hazard true, flat",
-		"breakdown: engine off, neutral, parking brake on, hazard lights, flat tire (" .. all .. ")"
+		all == "engine off, ignition 2, gear 0, parkingbrake 1, hazard true, flat",
+		"breakdown: engine off, ignition on, neutral, parking brake on, hazard lights, flat tire (" .. all .. ")"
 	)
 	check(ge[#ge]:find("sharedCareer_towJobs.onJobBrokenDown%(80, 1234%.5%)"), "reports the damage so far")
 	veh.jobReportDamage()
