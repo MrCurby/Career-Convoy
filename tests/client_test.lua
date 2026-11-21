@@ -4930,6 +4930,7 @@ end)();
 			end,
 		},
 		electrics = {
+			values = { ignitionLevel = 0, hazard_enabled = 0 },
 			set_warn_signal = function(on)
 				table.insert(calls, "hazard " .. tostring(on))
 			end,
@@ -4958,7 +4959,7 @@ end)();
 	veh.jobBreakDown(true, { engine = true })
 	local all = table.concat(calls, ", ")
 	check(
-		all == "engine off, ignition 2, gear 0, parkingbrake 1, hazard true, flat",
+		all == "engine off, gear 0, parkingbrake 1, ignition 2, hazard true, flat",
 		"breakdown: engine off, ignition on, neutral, parking brake on, hazard lights, flat tire (" .. all .. ")"
 	)
 	check(ge[#ge]:find("sharedCareer_towJobs.onJobBrokenDown%(80, 1234%.5%)"), "reports the damage so far")
@@ -4983,9 +4984,29 @@ end)();
 	veh.jobBreakDown(false, { windshield = true })
 	all = table.concat(calls, ", ")
 	check(
-		all == "gear 0, parkingbrake 1, hazard true" and #broken == 1 and broken[1] == 1,
-		"broken windshield: the engine keeps running, only the windshield breaks (" .. all .. ")"
+		all == "gear 0, parkingbrake 1, ignition 2, hazard true" and #broken == 1 and broken[1] == 1,
+		"broken windshield: the engine keeps running, only the windshield breaks; ignition and hazard lights on ("
+			.. all
+			.. ")"
 	)
+	-- the game turns the ignition off right after the spawn: ignition and hazard lights on again
+	local values = env.electrics.values
+	values.ignitionLevel, values.hazard_enabled = 2, 1
+	calls = {}
+	veh.updateGFX(0.1)
+	check(#calls == 0, "ignition and hazard lights on: left alone (the blinking isn't restarted)")
+	values.ignitionLevel, values.hazard_enabled = 0, 0
+	veh.updateGFX(0.1)
+	check(table.concat(calls, ", ") == "ignition 2, hazard true", "turned off by the game: on again")
+	for _ = 1, 110 do
+		veh.updateGFX(0.1)
+	end
+	calls = {}
+	veh.updateGFX(0.1)
+	check(#calls == 0, "after 10 s: the player may turn them off")
+	veh.onReset()
+	veh.updateGFX(0.1)
+	check(table.concat(calls, ", ") == "ignition 2, hazard true", "after a reset: on again")
 	broken = {}
 	veh.jobBreakDown(false, { taillights = true })
 	check(#broken == 1 and broken[1] == 2, "broken tail lights: only the tail lights break")

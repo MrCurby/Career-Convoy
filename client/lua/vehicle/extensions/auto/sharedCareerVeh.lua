@@ -542,10 +542,16 @@ function M.ropeInfo(rid)
 end
 
 -- the vehicle was reset (R, recovery, a new config): no rope must pull it back
+-- forward declaration: the towing jobs section below fills it in
+local jobAfterReset
+
+-- the vehicle was reset (R, recovery, a new config): no rope must pull it back; a broken-down
+-- car of a towing job turns its hazard lights on again
 function M.onReset()
 	for rid in pairs(ropes) do
 		lose(rid, LOST_RESET)
 	end
+	jobAfterReset()
 end
 
 -- the grip's speed (mass-weighted over its heaviest nodes)
@@ -903,20 +909,57 @@ end
 
 --== Towing jobs: the broken-down vehicle ========================================
 -- jobBreakDown(flatTire, faults): neutral, parking brake on (so it doesn't roll away; the player
--- can release it to tow or roll it), hazard lights on, optionally a flat tire, and what `faults` says is broken ({engine = true, ...}):
---   engine      engines off and disabled (they don't start again), ignition on so the hazard
---               lights work (a crash always has this one)
+-- can release it to tow or roll it), ignition on and hazard lights on, optionally a flat tire,
+-- and what `faults` says is broken ({engine = true, ...}):
+--   engine      engines off and disabled (they don't start again; a crash always has this one)
 --   windshield  the windshield breaks
 --   taillights  the tail lights break
 -- Reports sharedCareer_towJobs.onJobBrokenDown(id, damage) with the damage so far (beamstate.damage),
 -- so the job can tell new damage at the drop-off (jobReportDamage -> onJobDamage). Every step is
 -- optional: a vehicle without one of them breaks down without it.
+-- Ignition and hazard lights: with the ignition off (level 0) the game clears the hazard lights
+-- every frame, and it can set the ignition back on its own right after a spawn or a reset. So for
+-- HAZARD_HOLD s after the breakdown (and after every reset) the car turns the ignition back to
+-- level 2 (on, the engine doesn't start) and the hazard lights back on whenever they went off.
 
 -- the deform groups a fault breaks, by parts of their names
 local FAULT_PARTS = { windshield = { "windshield" }, taillights = { "tailgatelight", "taillight" } }
 
+local HAZARD_HOLD = 10 -- s the ignition and hazard lights are kept on
+
+local jobCar = false -- this vehicle broke down for a towing job
+local hazardHold = 0 -- s left to keep the ignition and hazard lights on
+
 local function damageNow()
 	return tonumber(beamstate and beamstate.damage) or 0
+end
+
+-- ignition on (level 2) if it is lower
+local function ignitionOn()
+	if (tonumber((electrics.values or {}).ignitionLevel) or 0) < 2 then
+		electrics.setIgnitionLevel(2)
+	end
+end
+
+-- the hazard lights are set again only once they are known to be off (setting them again
+-- restarts the blinking)
+local function keepHazards(dt)
+	if hazardHold <= 0 then
+		return
+	end
+	hazardHold = hazardHold - dt
+	pcall(function()
+		ignitionOn()
+		if electrics.values.hazard_enabled == 0 then
+			electrics.set_warn_signal(true)
+		end
+	end)
+end
+
+jobAfterReset = function()
+	if jobCar then
+		hazardHold = HAZARD_HOLD
+	end
 end
 
 local function reportToJobs(fn, value)
@@ -955,10 +998,6 @@ function M.jobBreakDown(flatTire, faults)
 				end
 			end
 		end)
-		-- ignition on (level 2), so the hazard lights have power without a running engine
-		pcall(function()
-			electrics.setIgnitionLevel(2)
-		end)
 	end
 	pcall(function()
 		controller.mainController.shiftToGearIndex(0)
@@ -967,8 +1006,10 @@ function M.jobBreakDown(flatTire, faults)
 		input.event("parkingbrake", 1, FILTER_DIRECT)
 	end)
 	pcall(function()
+		ignitionOn()
 		electrics.set_warn_signal(true)
 	end)
+	jobCar, hazardHold = true, HAZARD_HOLD
 	if flatTire then
 		pcall(function()
 			beamstate.deflateRandomTire()
@@ -1078,6 +1119,7 @@ function M.updateGFX(dt)
 	if not dt or dt <= 0 then
 		return
 	end
+	keepHazards(dt)
 	if next(anchors) then
 		if not physicsStep then
 			anchorStep(math.min(dt, ROPE_MAX_DT), true)
