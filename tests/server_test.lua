@@ -187,32 +187,6 @@ check(countTo(2, "sc_vehStates") == before, "an unchanged report is not distribu
 sc_vehReport(0, "broken{")
 check(true, "broken JSON is ignored")
 
---== Damage: passed on, kept for later players ==
-onVehicleSpawn(1, 7, "")
-sc_damage(1, json.encode({ id = "1-7", damage = { n = 3, d = { 1, 0.5 }, b = { 2 } } }))
-check(lastTo(0, "sc_damage") and lastTo(0, "sc_damage").id == "1-7", "damage goes to the other players")
-check(countTo(1, "sc_damage") == 0, "not back to the owner")
-local damageBefore = countTo(0, "sc_damage")
-sc_damage(2, json.encode({ id = "1-7", damage = { n = 3, d = {}, b = {} } }))
-check(countTo(0, "sc_damage") == damageBefore, "only the owner may send a vehicle's damage")
-sc_damageRequest(0, json.encode({ id = "1-7" }))
-check(lastTo(1, "sc_damageRequest") and lastTo(1, "sc_damageRequest").id == "1-7", "a request goes to the owner")
-join(5, "Fynn")
-check(lastTo(5, "sc_damage") and lastTo(5, "sc_damage").damage.b[1] == 2, "a player who joins later gets the damage")
-connected[5] = false
-onPlayerDisconnect(5)
-onVehicleEdited(1, 7, "")
-check(
-	lastTo(0, "sc_damage").cleared == true and lastTo(0, "sc_damage").id == "1-7",
-	"rebuilt: the others forget the old damage"
-)
-join(6, "Gina")
-check(lastTo(6, "sc_damage") == nil, "a rebuilt vehicle is undamaged")
-connected[6] = false
-onPlayerDisconnect(6)
-sc_damage(1, "broken{")
-check(true, "broken JSON is ignored")
-
 --== Couplings: passed on, kept for later players ==
 sc_couplings(
 	1,

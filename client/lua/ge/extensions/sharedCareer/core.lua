@@ -89,9 +89,12 @@ end
 --   simplifyRemoteVehicles (BeamMP) other players' cars are built locally as a simple
 --                          model (only for 17 standard models). Saves performance,
 --                          but looks plainer.
+--   trafficAllowMods       (BeamNG) mod vehicles in our own traffic. Off: a mod car the
+--                          others don't have would be missing on their PCs (they drive
+--                          through it, its owner sees them crash into it).
 -- The player's own values are remembered and restored when leaving.
 
-local GAME_SETTINGS = { "trafficSimpleVehicles", "simplifyRemoteVehicles" }
+local GAME_SETTINGS = { "trafficSimpleVehicles", "simplifyRemoteVehicles", "trafficAllowMods" }
 local userSettings = nil
 
 local function applyGameSettings()

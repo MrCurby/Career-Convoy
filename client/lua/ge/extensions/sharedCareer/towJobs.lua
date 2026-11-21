@@ -40,7 +40,7 @@
 --     the ground. Only once it lies still (CRASH_STILL s) does it break down, so the crash doesn't
 --     count as new damage against the pay. If it landed too far away (rolled down a slope, fell
 --     through the ground), it is removed and comes back as a plain breakdown. BeamMP shows the fall
---     to the others; once it lies still they also get its damage (damage.lua).
+--     to the others.
 --     When the job ends (paid, given up, taken away), the vehicle is removed. A vehicle that
 --     vanished (deleted, reloaded, or refused by the server's vehicle limit) appears again at its
 --     place when you come near, at most every SPAWN_RETRY s.

@@ -109,11 +109,12 @@ One line per problem. Each file starts with a comment that explains the details.
 | Your traffic and parked cars appear on top of other players, or vanish right next to them | Other players' own vehicles (not their traffic) get the game's `trafficClearRadius` (40 m): traffic spawn points, traffic respawns and parking spots keep that distance | `vehicles.lua` |
 | Other players' vehicles blow up after someone pauses ("Instability detected") and wreck cars next to them | On a pause BeamMP sets the game speed to 0, and `positionVE` divides by it. The guard keeps the last real speed and skips `positionVE` while paused | `sharedCareerPauseGuard.lua` |
 | A trailer or dolly follows the truck but hangs uncoupled on other PCs | BeamMP sends a coupling only once. Every client reports its own couplings (`sc_couplings`), and the others retry missing ones with BeamMP's `couplerVE.toggleCouplerState` until they hold | `couplings.lua`, server |
-| Every PC works out the deformation itself (BeamMP only syncs parts that break off), so a crash seen on one PC only looks different everywhere | The owner sends its damage once a crash is over (`sc_damage`). The others load it like `beamstate.load` (reset, node positions, beams, `commitLoad`) while their copy stands still. Player vehicles only | `damage.lua`, `sharedCareerVeh.lua`, server |
 | **Duplicate cars** when tuning, changing parts or painting | BeamMP rebuilds the wrong car, so `getPlayerVehicle(0)` points at the right one for that call | `garage.lua` |
 | Other players on foot are invisible | A visible BeamMP unicycle variant | `garage.lua` |
 | You have to stand exactly in front of a garage computer | Enlarged computer zones on West Coast USA (generated from the original level file), plus a range boost while playing on other maps | `levels/…`, `tools/zones/`, `garage.lua` |
 | Traffic costs a lot of performance on every PC | Traffic spawns as simplified vehicles, and BeamMP sends that model to everyone | `core.lua`, `traffic.lua` |
+| A mission start deletes all your traffic and parked cars and spawns them again at its end. BeamMP builds other players' new cars only once you slow down (its spawn queue), so while you drive their new traffic is missing on your PC, and on its owner's PC you crash into it | On a server the cars are hidden for the mission instead (`gameplay_traffic.freezeState` / `unfreezeState` with `despawnVehicles` / `respawnVehicles` off) and shown again at its end; the visibility sync hides them for everyone | `traffic.lua`, `vehicles.lua` |
+| A mod car in someone's traffic is missing for players without the mod | The server turns off mod cars in the traffic (`trafficAllowMods`) | `core.lua`, server |
 | Too much traffic with many players | The server splits a total limit across all players | `traffic.lua`, server |
 | Traffic AI drives too close and rams players | Lower aggression and grip estimate, larger safety gap and sight range (set inside `ai.lua` through upvalues, no game files edited). Police excluded | `traffic.lua`, `sharedCareerVeh.lua` |
 | Everybody has a different time of day | The server runs the clock, and the pause-menu environment controls are locked | `env.lua`, server |
@@ -208,7 +209,7 @@ The mod ships a modified copy of a West Coast USA level file (`career_garage/gar
 ## Known limitations
 
 - The game interfaces the mod hooks into (`career_career`, `core_vehicles`, BeamMP's `MPVehicleGE`, …) come from BeamNG 0.39/0.40. If BeamNG changes them, the mod needs an update. Errors show up in `beamng.log` under `sharedCareer.*`.
-- BeamMP itself only syncs parts that break off; SharedCareer syncs the deformation of player vehicles (`damage.lua`) once a crash is over and the car stands still on the other PCs, so while it drives on after a crash it can look different there. Traffic and parked cars keep the damage each PC works out itself. Per-part paint, races and drag strips are not part of SharedCareer.
+- BeamMP itself only syncs parts that break off, so how a crashed car is bent can look different on each PC. Per-part paint, races and drag strips are not part of SharedCareer.
 - Coupling sync (`couplings.lua`) uses BeamMP's own coupling and leaves couplings that involve one of your own vehicles to your physics.
 - Missions run per player. Others don't see your mission props and cones.
 - Money lives in the local save. Someone who edits their save can cheat. The server only checks transfers.

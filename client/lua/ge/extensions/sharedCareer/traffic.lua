@@ -13,6 +13,7 @@
 --   * simple vehicles (client.trafficSimpleVehicles): traffic spawns as the simple model
 --     "simple_traffic" – less load for everyone, because BeamMP sends exactly this model
 --   * more careful AI (client.trafficAggression): see "More careful AI" below
+--   * missions hide the traffic instead of deleting it: see "Missions" below
 --
 -- Live changes (menu, players joining/leaving): setActiveAmount shows or hides cars from the
 -- pool spawned at the start. Pool = share + client.trafficReserve. Less always works live,
@@ -256,6 +257,118 @@ function M.onVehicleResetted(gameId)
 	aiApplied[gameId] = nil
 end
 
+--== Missions: traffic hidden, not deleted =====================================
+-- A mission start (gameplay/missions/missionManager.lua) stashes the traffic with
+--   gameplay_traffic.freezeState({despawnVehicles = true, exceptVehicleId = <player's car>})
+-- which deletes every traffic, police and parked car but the player's, and spawns them all
+-- again at the end with unfreezeState(..., {respawnVehicles = true}). On a server each of them
+-- is a new vehicle for everyone else, and BeamMP builds other players' new vehicles only once
+-- you slow down (its spawn queue): while you drive, that traffic isn't there on your PC, but
+-- on its owner's PC you crash into it. So on a server the cars are hidden for the mission
+-- instead (vehicles.lua hides them for everyone) and shown again at its end. Cars the game's
+-- pool keeps hidden already stay as they are; the pool shows them itself.
+
+-- game ids of the cars a mission start hid, nil while no mission hid any
+local hiddenForMission = nil
+
+local function copyWith(options, key, value)
+	local copy = {}
+	for k, v in pairs(type(options) == "table" and options or {}) do
+		copy[k] = v
+	end
+	copy[key] = value
+	return copy
+end
+
+-- the cars the game's freeze would delete that are shown now (sorted, so the log is stable)
+local function missionCars(exceptId)
+	local ids, seen = {}, {}
+	local function add(id)
+		local veh = id ~= exceptId and not seen[id] and be:getObjectByID(id)
+		if veh and veh:getActive() then
+			seen[id] = true
+			table.insert(ids, id)
+		end
+	end
+	local trafficIds = {}
+	local data = type(gameplay_traffic.getTrafficData) == "function" and gameplay_traffic.getTrafficData() or {}
+	for id, entry in pairs(data) do
+		local veh = be:getObjectByID(id)
+		if type(entry) == "table" and (entry.isAi == true or (veh and veh.isTraffic == "true")) then
+			table.insert(trafficIds, id)
+		end
+	end
+	table.sort(trafficIds)
+	for _, id in ipairs(trafficIds) do
+		add(id)
+	end
+	if gameplay_parking and type(gameplay_parking.getParkedCarsList) == "function" then
+		for _, id in ipairs(gameplay_parking.getParkedCarsList(true) or {}) do
+			add(id)
+		end
+	end
+	return ids
+end
+
+-- shows the cars a mission start hid; returns how many of how many, or nil if none were hidden
+local function showMissionCars()
+	local ids = hiddenForMission
+	hiddenForMission = nil
+	if not ids then
+		return nil
+	end
+	local shown = 0
+	for _, id in ipairs(ids) do
+		local veh = be:getObjectByID(id)
+		if veh then
+			veh:setActive(1)
+			shown = shown + 1
+		end
+	end
+	return shown, #ids
+end
+M.showMissionCars = showMissionCars
+
+local function makeFreezeState(original)
+	return function(options, ...)
+		if not U.isMP() or type(options) ~= "table" or options.despawnVehicles ~= true then
+			return original(options, ...)
+		end
+		local ok, ids = pcall(missionCars, options.exceptVehicleId)
+		if not ok then
+			U.log("E", "traffic", "hiding traffic for the mission failed, the game deletes it: " .. tostring(ids))
+			return original(options, ...)
+		end
+		local results = U.pack(original(copyWith(options, "despawnVehicles", false), ...))
+		hiddenForMission = hiddenForMission or {}
+		for _, id in ipairs(ids) do
+			local veh = be:getObjectByID(id)
+			if veh then
+				veh:setActive(0)
+				table.insert(hiddenForMission, id)
+			end
+		end
+		U.log("I", "traffic", string.format("mission start: %d traffic and parked cars hidden, not deleted", #ids))
+		return U.unpack(results, 1, results.n)
+	end
+end
+
+local function makeUnfreezeState(original)
+	return function(trafficData, policeData, parkingData, options, ...)
+		local shown, total = showMissionCars()
+		if not shown then
+			return original(trafficData, policeData, parkingData, options, ...)
+		end
+		U.log("I", "traffic", string.format("mission end: %d of %d hidden cars shown again", shown, total))
+		return original(trafficData, policeData, parkingData, copyWith(options, "respawnVehicles", false), ...)
+	end
+end
+
+local function ensureMissionPatches()
+	U.replace(gameplay_traffic, "freezeState", makeFreezeState)
+	U.replace(gameplay_traffic, "unfreezeState", makeUnfreezeState)
+end
+
 function M.onVehicleSpawned(gameId)
 	aiApplied[gameId] = nil
 end
@@ -271,6 +384,9 @@ function M.onUpdate(dtReal)
 			end
 		end
 	end
+	if U.isMP() then
+		ensureMissionPatches()
+	end
 	if M.pending then
 		local p = M.pending
 		M.pending = nil
@@ -284,6 +400,7 @@ end
 
 function M.onBeamMPServerLeave()
 	disarm()
+	showMissionCars()
 	M.pool, M.active = nil, nil
 	aiApplied = {}
 end
