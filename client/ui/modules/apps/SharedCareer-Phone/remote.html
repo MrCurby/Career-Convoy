@@ -3,14 +3,36 @@
      it where you look. The buttons go to the open app's Lua (nudge, nudgeStop, remoteToView in app.js). -->
 <div class="scp-remote">
 	<div class="scp-pad">
-		<span></span><button class="scp-pad-key" title="Away from me (hold)" ng-mousedown="nudge(1,0,0)" ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()"><span class="scp-ic"><svg aria-hidden="true"><use href="#sc-icon-chevron-up"/></svg></span></button><span></span>
-		<button class="scp-pad-key" title="Left (hold)" ng-mousedown="nudge(0,-1,0)" ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()"><span class="scp-ic"><svg aria-hidden="true"><use href="#sc-icon-chevron-left"/></svg></span></button>
-		<button class="scp-pad-key scp-pad-center" title="To the middle of my view" ng-click="remoteToView()"><span class="scp-ic"><svg aria-hidden="true"><use href="#sc-icon-aim"/></svg></span></button>
-		<button class="scp-pad-key" title="Right (hold)" ng-mousedown="nudge(0,1,0)" ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()"><span class="scp-ic"><svg aria-hidden="true"><use href="#sc-icon-chevron-right"/></svg></span></button>
-		<span></span><button class="scp-pad-key" title="Towards me (hold)" ng-mousedown="nudge(-1,0,0)" ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()"><span class="scp-ic"><svg aria-hidden="true"><use href="#sc-icon-chevron-down"/></svg></span></button><span></span>
+		<span></span><button class="scp-pad-key" title="Away from me (hold)"
+			ng-mousedown="nudge(1,0,0)" ng-mouseup="nudgeStop()"
+			ng-mouseleave="nudgeStop()"><span class="scp-ic"><svg aria-hidden="true"><use
+						href="#sc-icon-chevron-up" /></svg></span></button><span></span>
+		<button class="scp-pad-key" title="Left (hold)" ng-mousedown="nudge(0,-1,0)"
+			ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()"><span
+				class="scp-ic"><svg aria-hidden="true"><use
+						href="#sc-icon-chevron-left" /></svg></span></button>
+		<button class="scp-pad-key scp-pad-center" title="To the middle of my view"
+			ng-click="remoteToView()"><span class="scp-ic"><svg aria-hidden="true"><use
+						href="#sc-icon-aim" /></svg></span></button>
+		<button class="scp-pad-key" title="Right (hold)" ng-mousedown="nudge(0,1,0)"
+			ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()"><span
+				class="scp-ic"><svg aria-hidden="true"><use
+						href="#sc-icon-chevron-right" /></svg></span></button>
+		<span></span><button class="scp-pad-key" title="Towards me (hold)"
+			ng-mousedown="nudge(-1,0,0)" ng-mouseup="nudgeStop()"
+			ng-mouseleave="nudgeStop()"><span class="scp-ic"><svg aria-hidden="true"><use
+						href="#sc-icon-chevron-down" /></svg></span></button><span></span>
 	</div>
 	<div class="scp-lift">
-		<button class="scp-pad-key" title="Up (hold)" ng-mousedown="nudge(0,0,1)" ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()"><span class="scp-ic"><svg aria-hidden="true"><use href="#sc-icon-arrow-up"/></svg></span><span class="scp-pad-label">Up</span></button>
-		<button class="scp-pad-key" title="Down (hold)" ng-mousedown="nudge(0,0,-1)" ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()"><span class="scp-ic"><svg aria-hidden="true"><use href="#sc-icon-arrow-down"/></svg></span><span class="scp-pad-label">Down</span></button>
+		<button class="scp-pad-key" title="Up (hold)" ng-mousedown="nudge(0,0,1)"
+			ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()"><span
+				class="scp-ic"><svg aria-hidden="true"><use
+						href="#sc-icon-arrow-up" /></svg></span><span
+				class="scp-pad-label">Up</span></button>
+		<button class="scp-pad-key" title="Down (hold)" ng-mousedown="nudge(0,0,-1)"
+			ng-mouseup="nudgeStop()" ng-mouseleave="nudgeStop()"><span
+				class="scp-ic"><svg aria-hidden="true"><use
+						href="#sc-icon-arrow-down" /></svg></span><span
+				class="scp-pad-label">Down</span></button>
 	</div>
 </div>
