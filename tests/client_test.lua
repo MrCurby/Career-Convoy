@@ -3973,6 +3973,76 @@ end)();
 	extensions.hook("onBeamMPServerLeave")
 end)();
 
+--== 7j3. Parked cars and far traffic send their position less often ============
+(function()
+	resetWorld()
+	installCareer()
+	extensions.hook("onWorldReadyState", 2)
+	handlers.sc_config(json.encode(config))
+	local function at(v, x, speed)
+		v.getPosition = function()
+			return { x = x, y = 0, z = 0 }
+		end
+		v.getVelocity = function()
+			return { x = speed or 0, y = 0, z = 0 }
+		end
+	end
+	local mine = addVehicle(90, "0-1", true, "hopper")
+	at(mine, 0, 20)
+	local parked = addVehicle(91, "0-2", true, "simple_traffic")
+	parked.isParked = "true"
+	at(parked, 10)
+	local nearTraffic = addVehicle(92, "0-3", true, "simple_traffic")
+	nearTraffic.isTraffic = "true"
+	at(nearTraffic, 100, 15)
+	local farTraffic = addVehicle(93, "0-4", true, "simple_traffic")
+	farTraffic.isTraffic = "true"
+	at(farTraffic, 2000, 15)
+	local hidden = addVehicle(94, "0-5", true, "simple_traffic")
+	hidden.isTraffic = "true"
+	hidden.active = false
+	at(hidden, 3000)
+	local theirs = addVehicle(95, "1-1", false, "pickup")
+	at(theirs, 150)
+	world.playerVeh = 90
+	local sent = {}
+	_G.positionGE = {
+		sendVehiclePosRot = function(data, id)
+			sent[id] = (sent[id] or 0) + 1
+		end,
+	}
+	update(1.1)
+	-- BeamMP asks every car 50 times a second for 2 seconds
+	for _ = 1, 100 do
+		clock = clock + 0.02
+		for _, id in ipairs({ 90, 91, 92, 93, 94 }) do
+			positionGE.sendVehiclePosRot("{}", id)
+		end
+	end
+	check(sent[90] == 100, "the car you drive sends every position")
+	check(sent[92] == 100, "traffic near another player sends every position")
+	check(sent[91] and sent[91] <= 3, "a still parked car: about once a second (" .. tostring(sent[91]) .. ")")
+	check(sent[93] and sent[93] >= 3 and sent[93] <= 5, "far traffic: twice a second (" .. tostring(sent[93]) .. ")")
+	check(sent[94] == nil, "a hidden car sends no position")
+	-- a parked car that is hit sends every position at once
+	at(parked, 10, 3)
+	update(0.3)
+	sent[91] = 0
+	for _ = 1, 10 do
+		clock = clock + 0.02
+		positionGE.sendVehiclePosRot("{}", 91)
+	end
+	check(sent[91] == 10, "a parked car that moves sends every position")
+	-- a hidden car shown again sends at once
+	hidden.active = true
+	update(0.3)
+	sent[94] = 0
+	positionGE.sendVehiclePosRot("{}", 94)
+	check(sent[94] == 1, "a hidden car shown again sends at once")
+	_G.positionGE = nil
+	extensions.hook("onBeamMPServerLeave")
+end)();
+
 --== 7k. Trailers stay coupled on every PC =====================================
 (function()
 	resetWorld()
