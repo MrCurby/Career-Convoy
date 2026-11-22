@@ -131,27 +131,36 @@ local function rxStates(data)
 	end
 end
 
-local function isTrafficCar(gameId, veh)
+--- What one of your vehicles is: "parked" (a parked car), "traffic" (driving AI traffic) or nil
+--- (a car someone drives, also the one you sit in).
+function M.trafficKind(gameId, veh)
 	if gameId == be:getPlayerVehicleID(0) then
-		return false
+		return nil
 	end
-	if veh.isTraffic == "true" or veh.isParked == "true" then
-		return true
-	end
-	if gameplay_traffic and type(gameplay_traffic.getTrafficData) == "function" then
-		local data = (gameplay_traffic.getTrafficData() or {})[gameId]
-		if type(data) == "table" and data.isAi == true then
-			return true
-		end
+	if veh.isParked == "true" then
+		return "parked"
 	end
 	if gameplay_parking and type(gameplay_parking.getParkedCarsList) == "function" then
 		for _, id in ipairs(gameplay_parking.getParkedCarsList(true) or {}) do
 			if id == gameId then
-				return true
+				return "parked"
 			end
 		end
 	end
-	return false
+	if veh.isTraffic == "true" then
+		return "traffic"
+	end
+	if gameplay_traffic and type(gameplay_traffic.getTrafficData) == "function" then
+		local data = (gameplay_traffic.getTrafficData() or {})[gameId]
+		if type(data) == "table" and data.isAi == true then
+			return "traffic"
+		end
+	end
+	return nil
+end
+
+local function isTrafficCar(gameId, veh)
+	return M.trafficKind(gameId, veh) ~= nil
 end
 
 local function reportOwn(all)

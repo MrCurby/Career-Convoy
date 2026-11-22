@@ -3786,7 +3786,7 @@ check(
 )
 _G.MPGameNetwork = nil
 
---== 7j. Other players' vehicles survive a pause (BeamMP positionVE) ==============
+--== 7j. Other players' vehicles survive a pause and invalid sync values ==========
 (function()
 	local calls = {}
 	local speed = 1
@@ -3814,7 +3814,7 @@ _G.MPGameNetwork = nil
 			refreshed[name] = true
 		end,
 	}
-	local guard = assert(loadfile("client/lua/vehicle/extensions/auto/sharedCareerPauseGuard.lua"))()
+	local guard = assert(loadfile("client/lua/vehicle/extensions/auto/sharedCareerSyncGuard.lua"))()
 	guard.onExtensionLoaded()
 	check(refreshed.updateGFX and refreshed.onPhysicsStep, "hook lists refreshed after wrapping")
 	positionVE.updateGFX(0.016)
@@ -3839,9 +3839,208 @@ _G.MPGameNetwork = nil
 	local wrapped = positionVE.updateGFX
 	guard.updateGFX(0.016)
 	check(positionVE.updateGFX == wrapped, "installed only once")
-	_G.positionVE, _G.extensions = nil, savedExt
+	-- velocityVE: corrections with invalid values never reach the physics
+	local applied = {}
+	_G.velocityVE = {}
+	for _, name in ipairs({ "addVelocity", "setVelocity", "addAngularVelocity", "setAngularVelocity" }) do
+		velocityVE[name] = function(...)
+			table.insert(applied, { name, ... })
+		end
+	end
+	local logged = {}
+	local savedLog = _G.log
+	_G.log = function(_, tag, msg)
+		table.insert(logged, tag .. ": " .. msg)
+	end
+	guard.updateGFX(0.016)
+	velocityVE.addAngularVelocity(1, 2, 3, 0.1, 0.2, 0.3)
+	velocityVE.setAngularVelocity(1, 2, 3, 0.1, 0.2, 0.3, 1, 0)
+	check(#applied == 2, "valid corrections pass")
+	applied = {}
+	local nan, inf = 0 / 0, math.huge
+	velocityVE.setAngularVelocity(nan, nan, nan, 0.03, 0.05, 0.08, 1, 0)
+	velocityVE.addVelocity(1, -inf, 0)
+	velocityVE.setVelocity(1, 2, inf)
+	velocityVE.addAngularVelocity(1, 2, 3, nan, 0, 0)
+	check(#applied == 0, "corrections with NaN or infinite values are dropped")
+	guard.updateGFX(1.1)
+	check(#logged == 1 and logged[1]:find("dropped 4"), "dropped corrections are logged once: " .. tostring(logged[1]))
+	guard.updateGFX(1.1)
+	check(#logged == 1, "nothing dropped: no log line")
+	local wrappedVel = velocityVE.addVelocity
+	guard.updateGFX(0.016)
+	check(velocityVE.addVelocity == wrappedVel, "velocity guard installed only once")
+	_G.log = savedLog
+	_G.positionVE, _G.velocityVE, _G.extensions = nil, nil, savedExt
 	local ok = pcall(guard.updateGFX, 0.016)
 	check(ok, "without BeamMP: nothing happens")
+end)();
+
+--== 7j2. Physics glitches: invalid placements blocked, a glitch is shown ==========
+(function()
+	resetWorld()
+	installCareer()
+	extensions.hook("onWorldReadyState", 2)
+	handlers.sc_config(json.encode(config))
+	local function vec(x, y, z)
+		return { x = x, y = y, z = z }
+	end
+	local function place(v, speed)
+		v.getDirectionVector = function()
+			return vec(0, 1, 0)
+		end
+		v.getDirectionVectorUp = function()
+			return vec(0, 0, 1)
+		end
+		v.getVelocity = function()
+			return vec(speed or 0, 0, 0)
+		end
+	end
+	addVehicle(70, "0-1", true, "hopper")
+	local parked = addVehicle(71, "0-2", true, "simple_traffic")
+	parked.isParked = "true"
+	local theirs = addVehicle(80, "1-1", false, "simple_traffic")
+	place(theirs)
+	world.mp["1-1"].ownerName = "Borian"
+	world.playerVeh = 70
+	update(1.1)
+	-- a glitch: your car, your parked car and Borian's car at once
+	toasts = {}
+	local beammp = { instabilityHandled = true } -- BeamMP handles it; SharedCareer leaves it so
+	extensions.hook("onInstabilityDetected", 80, {})
+	extensions.hook("onInstabilityDetected", 70, beammp)
+	extensions.hook("onInstabilityDetected", 70, {})
+	extensions.hook("onInstabilityDetected", 71, {})
+	check(beammp.instabilityHandled == true, "BeamMP's handling is left as it is")
+	check(#toasts == 0, "no toast before the glitch is over")
+	clock = clock + 0.6
+	update(0.1)
+	check(
+		#toasts == 1 and toasts[1].msg == "Physics glitch (also Borian)",
+		"one toast per glitch: " .. tostring(toasts[1] and toasts[1].msg)
+	)
+	-- only traffic and other players' cars hit: no toast
+	toasts = {}
+	world.playerVeh = nil
+	clock = clock + 5
+	extensions.hook("onInstabilityDetected", 80, {})
+	extensions.hook("onInstabilityDetected", 71, {})
+	clock = clock + 0.6
+	update(0.1)
+	check(#toasts == 0, "only traffic and other players' cars: no toast")
+
+	-- BeamMP sets another player's car in place: only with valid values
+	local placed = {}
+	_G.positionGE = {
+		setPositionRotationVelocity = function(id, d)
+			table.insert(placed, id)
+		end,
+	}
+	update(1.1)
+	local function data(changes)
+		local d = {
+			pos = vec(1, 2, 3),
+			vel = vec(4, 0, 0),
+			rvel = vec(0, 0, 0.1),
+			vehVel = vec(4, 0, 0),
+			rot = { x = 0, y = 0, z = 0, w = 1 },
+		}
+		for k, v in pairs(changes or {}) do
+			d[k] = v
+		end
+		return d
+	end
+	positionGE.setPositionRotationVelocity(80, data())
+	check(#placed == 1, "a valid placement passes")
+	positionGE.setPositionRotationVelocity(80, data({ vel = vec(0 / 0, 0, 0) }))
+	positionGE.setPositionRotationVelocity(80, data({ rot = { x = 0, y = 0, z = 0, w = 0 } }))
+	place(theirs, math.huge)
+	positionGE.setPositionRotationVelocity(80, data())
+	check(#placed == 1, "invalid values, a broken rotation or an already broken car: dropped")
+	local logged = {}
+	local realLog = sharedCareer_util.log
+	sharedCareer_util.log = function(_, tag, msg)
+		table.insert(logged, msg)
+	end
+	clock = clock + 11
+	update(1.1)
+	sharedCareer_util.log = realLog
+	check(
+		logged[1] and logged[1]:find("blocked 3 placement") and logged[1]:find("Borian"),
+		"dropped placements logged: " .. tostring(logged[1])
+	)
+	_G.positionGE = nil
+	extensions.hook("onBeamMPServerLeave")
+end)();
+
+--== 7j3. Parked cars and far traffic send their position less often ============
+(function()
+	resetWorld()
+	installCareer()
+	extensions.hook("onWorldReadyState", 2)
+	handlers.sc_config(json.encode(config))
+	local function at(v, x, speed)
+		v.getPosition = function()
+			return { x = x, y = 0, z = 0 }
+		end
+		v.getVelocity = function()
+			return { x = speed or 0, y = 0, z = 0 }
+		end
+	end
+	local mine = addVehicle(90, "0-1", true, "hopper")
+	at(mine, 0, 20)
+	local parked = addVehicle(91, "0-2", true, "simple_traffic")
+	parked.isParked = "true"
+	at(parked, 10)
+	local nearTraffic = addVehicle(92, "0-3", true, "simple_traffic")
+	nearTraffic.isTraffic = "true"
+	at(nearTraffic, 100, 15)
+	local farTraffic = addVehicle(93, "0-4", true, "simple_traffic")
+	farTraffic.isTraffic = "true"
+	at(farTraffic, 2000, 15)
+	local hidden = addVehicle(94, "0-5", true, "simple_traffic")
+	hidden.isTraffic = "true"
+	hidden.active = false
+	at(hidden, 3000)
+	local theirs = addVehicle(95, "1-1", false, "pickup")
+	at(theirs, 150)
+	world.playerVeh = 90
+	local sent = {}
+	_G.positionGE = {
+		sendVehiclePosRot = function(data, id)
+			sent[id] = (sent[id] or 0) + 1
+		end,
+	}
+	update(1.1)
+	-- BeamMP asks every car 50 times a second for 2 seconds
+	for _ = 1, 100 do
+		clock = clock + 0.02
+		for _, id in ipairs({ 90, 91, 92, 93, 94 }) do
+			positionGE.sendVehiclePosRot("{}", id)
+		end
+	end
+	check(sent[90] == 100, "the car you drive sends every position")
+	check(sent[92] == 100, "traffic near another player sends every position")
+	check(sent[91] and sent[91] <= 3, "a still parked car: about once a second (" .. tostring(sent[91]) .. ")")
+	check(sent[93] and sent[93] >= 3 and sent[93] <= 5, "far traffic: twice a second (" .. tostring(sent[93]) .. ")")
+	check(sent[94] == nil, "a hidden car sends no position")
+	-- a parked car that is hit sends every position at once
+	at(parked, 10, 3)
+	update(0.3)
+	sent[91] = 0
+	for _ = 1, 10 do
+		clock = clock + 0.02
+		positionGE.sendVehiclePosRot("{}", 91)
+	end
+	check(sent[91] == 10, "a parked car that moves sends every position")
+	-- a hidden car shown again sends at once
+	hidden.active = true
+	update(0.3)
+	sent[94] = 0
+	positionGE.sendVehiclePosRot("{}", 94)
+	check(sent[94] == 1, "a hidden car shown again sends at once")
+	_G.positionGE = nil
+	extensions.hook("onBeamMPServerLeave")
 end)();
 
 --== 7k. Trailers stay coupled on every PC =====================================
