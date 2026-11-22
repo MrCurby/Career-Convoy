@@ -15,7 +15,7 @@ local U
 
 -- the license office per map: where the circle lies
 local OFFICES = {
-	west_coast_usa = { x = -500.092, y = 566.508, z = 93.910 },
+	west_coast_usa = { x = -500.092, y = 566.508, z = 93.279 },
 }
 local RADIUS = 2 -- m: the circle
 local DRAW_RANGE = 80 -- m: the circle is drawn this close
