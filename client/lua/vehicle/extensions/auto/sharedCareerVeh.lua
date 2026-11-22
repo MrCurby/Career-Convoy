@@ -11,8 +11,6 @@
 --                                  "Anchor on a vehicle" below
 --   jobBreakDown / jobReportDamage the broken-down vehicle of a towing job (jobs.lua), see
 --                                  "Towing jobs" below
---   damageSnapshot / damageLoad    other players see the owner's damage (damage.lua), see
---                                  "Damage" below
 --
 -- AI tuning: two values inside the game's lua/vehicle/ai.lua that have no official setter.
 --   ego.race_time_gap      safety gap in seconds that the AI keeps to a vehicle on its path
@@ -543,16 +541,17 @@ function M.ropeInfo(rid)
 	return ropes[rid]
 end
 
--- forward declaration: the damage section below fills it in
-local damageAfterReset
+-- the vehicle was reset (R, recovery, a new config): no rope must pull it back
+-- forward declaration: the towing jobs section below fills it in
+local jobAfterReset
 
--- the vehicle was reset (R, recovery, a new config): no rope must pull it back; a damage waiting
--- for this reset is loaded on the next frame
+-- the vehicle was reset (R, recovery, a new config): no rope must pull it back; a broken-down
+-- car of a towing job turns its hazard lights on again
 function M.onReset()
 	for rid in pairs(ropes) do
 		lose(rid, LOST_RESET)
 	end
-	damageAfterReset()
+	jobAfterReset()
 end
 
 -- the grip's speed (mass-weighted over its heaviest nodes)
@@ -910,20 +909,86 @@ end
 
 --== Towing jobs: the broken-down vehicle ========================================
 -- jobBreakDown(flatTire, faults): neutral, parking brake on (so it doesn't roll away; the player
--- can release it to tow or roll it), hazard lights on, optionally a flat tire, and what `faults` says is broken ({engine = true, ...}):
---   engine      engines off and disabled (they don't start again), ignition on so the hazard
---               lights work (a crash always has this one)
+-- can release it to tow or roll it), ignition on and hazard lights on, optionally a flat tire,
+-- and what `faults` says is broken ({engine = true, ...}):
+--   engine      engines off and disabled (they don't start again; a crash always has this one)
+--   clutch      the clutch no longer grips (CLUTCH_GRIP of its torque); a car without a friction
+--               clutch (automatic, DCT) gets a broken gearbox instead
+--   gearbox     the gearboxes break (the game's own break: no gear drives any more)
+--   radiator    the radiator leaks its coolant (RADIATOR_DAMAGE, the game's radiator damage) and
+--               steams: the game lets a broken radiator steam while the coolant is hot (heavy above
+--               95 degrees C), so the engine is kept at STEAM_TEMP at least until the player is
+--               there (jobCoolDown); then it cools down on its own and the steam fades. All of the
+--               engine, not just the coolant: the coolant passes its heat on to the block within seconds
+--   oilpan      the oil pan leaks its oil (OILPAN_DAMAGE, the game's oil pan damage); driving it
+--               without oil ruins the engine
 --   windshield  the windshield breaks
 --   taillights  the tail lights break
 -- Reports sharedCareer_towJobs.onJobBrokenDown(id, damage) with the damage so far (beamstate.damage),
 -- so the job can tell new damage at the drop-off (jobReportDamage -> onJobDamage). Every step is
 -- optional: a vehicle without one of them breaks down without it.
+-- Ignition and hazard lights: with the ignition off (level 0) the game clears the hazard lights
+-- every frame, and it can set the ignition back on its own right after a spawn or a reset. So for
+-- HAZARD_HOLD s after the breakdown (and after every reset) the car turns the ignition back to
+-- level 2 (on, the engine doesn't start) and the hazard lights back on whenever they went off.
 
 -- the deform groups a fault breaks, by parts of their names
 local FAULT_PARTS = { windshield = { "windshield" }, taillights = { "tailgatelight", "taillight" } }
+local CLUTCH_GRIP = 0.02 -- share of its torque a broken clutch still passes on
+local RADIATOR_DAMAGE = 0.05 -- the game's radiator damage: it leaks above 0.015, steams more the higher
+local STEAM_TEMP = 100 -- degrees C an engine with a broken radiator is kept at least
+local ENGINE_TEMPS = { "coolantTemperature", "engineBlockTemperature", "cylinderWallTemperature", "oilTemperature" }
+local OILPAN_DAMAGE = 0.01 -- the game's oil pan damage: about 0.1 kg of oil a second
+
+local HAZARD_HOLD = 10 -- s the ignition and hazard lights are kept on
+
+local jobCar = false -- this vehicle broke down for a towing job
+local hazardHold = 0 -- s left to keep the ignition and hazard lights on
+local hotEngines = {} -- the thermals of engines with a broken radiator (kept at STEAM_TEMP)
 
 local function damageNow()
 	return tonumber(beamstate and beamstate.damage) or 0
+end
+
+-- ignition on (level 2) if it is lower
+local function ignitionOn()
+	if (tonumber((electrics.values or {}).ignitionLevel) or 0) < 2 then
+		electrics.setIgnitionLevel(2)
+	end
+end
+
+-- the hazard lights are set again only once they are known to be off (setting them again
+-- restarts the blinking)
+local function keepHazards(dt)
+	if hazardHold <= 0 then
+		return
+	end
+	hazardHold = hazardHold - dt
+	pcall(function()
+		ignitionOn()
+		if electrics.values.hazard_enabled == 0 then
+			electrics.set_warn_signal(true)
+		end
+	end)
+end
+
+-- warms every engine with a broken radiator up to STEAM_TEMP (never cools one down)
+local function keepSteaming()
+	for thermals in pairs(hotEngines) do
+		for _, name in ipairs(ENGINE_TEMPS) do
+			if (tonumber(thermals[name]) or STEAM_TEMP) < STEAM_TEMP then
+				thermals[name] = STEAM_TEMP
+			end
+		end
+	end
+end
+
+-- a reset repairs the radiator (the job breaks it again)
+jobAfterReset = function()
+	hotEngines = {}
+	if jobCar then
+		hazardHold = HAZARD_HOLD
+	end
 end
 
 local function reportToJobs(fn, value)
@@ -949,23 +1014,91 @@ local function breakPart(name)
 	end
 end
 
+-- The powertrain devices `test` picks.
+local function devicesWhere(test)
+	local found = {}
+	pcall(function()
+		for _, device in pairs(powertrain.getDevices()) do
+			if test(device) then
+				table.insert(found, device)
+			end
+		end
+	end)
+	return found
+end
+
+local function isEngine(device)
+	return device.type == "combustionEngine" or device.type == "electricMotor"
+end
+
+local function isClutch(device)
+	return device.type == "frictionClutch"
+end
+
+local function isGearbox(device)
+	return type(device.type) == "string" and device.type:find("Gearbox$") ~= nil
+end
+
+-- the cooling and oil of a combustion engine (none for an electric motor)
+local function thermalsOf(device)
+	return device.type == "combustionEngine" and type(device.thermals) == "table" and device.thermals or nil
+end
+
+-- shows the device as broken in the game's damage display
+local function markBroken(device)
+	pcall(function()
+		damageTracker.setDamage("powertrain", device.name, true)
+	end)
+end
+
+local function breakGearboxes()
+	for _, device in ipairs(devicesWhere(isGearbox)) do
+		if type(device.onBreak) == "function" and pcall(device.onBreak, device) then
+			markBroken(device)
+		end
+	end
+end
+
+-- what each powertrain fault does
+local POWERTRAIN_FAULTS = {
+	engine = function()
+		for _, device in ipairs(devicesWhere(isEngine)) do
+			if type(device.disable) == "function" then
+				pcall(device.disable, device)
+			end
+		end
+	end,
+	clutch = function()
+		local clutches = devicesWhere(isClutch)
+		if #clutches == 0 then
+			breakGearboxes()
+		end
+		for _, device in ipairs(clutches) do
+			device.damageLockTorqueCoef, device.clutchPermanentlyDamaged = CLUTCH_GRIP, true
+			markBroken(device)
+		end
+	end,
+	gearbox = breakGearboxes,
+	radiator = function()
+		for _, device in ipairs(devicesWhere(thermalsOf)) do
+			if pcall(device.thermals.applyDeformGroupDamageRadiator, RADIATOR_DAMAGE) then
+				hotEngines[device.thermals] = true
+			end
+		end
+	end,
+	oilpan = function()
+		for _, device in ipairs(devicesWhere(thermalsOf)) do
+			pcall(device.thermals.applyDeformGroupDamageOilpan, OILPAN_DAMAGE)
+		end
+	end,
+}
+
 function M.jobBreakDown(flatTire, faults)
 	faults = type(faults) == "table" and faults or {}
-	if faults.engine then
-		pcall(function()
-			for _, device in pairs(powertrain.getDevices()) do
-				if
-					(device.type == "combustionEngine" or device.type == "electricMotor")
-					and type(device.disable) == "function"
-				then
-					device:disable()
-				end
-			end
-		end)
-		-- ignition on (level 2), so the hazard lights have power without a running engine
-		pcall(function()
-			electrics.setIgnitionLevel(2)
-		end)
+	for kind, apply in pairs(POWERTRAIN_FAULTS) do
+		if faults[kind] then
+			apply()
+		end
 	end
 	pcall(function()
 		controller.mainController.shiftToGearIndex(0)
@@ -974,8 +1107,10 @@ function M.jobBreakDown(flatTire, faults)
 		input.event("parkingbrake", 1, FILTER_DIRECT)
 	end)
 	pcall(function()
+		ignitionOn()
 		electrics.set_warn_signal(true)
 	end)
+	jobCar, hazardHold = true, HAZARD_HOLD
 	if flatTire then
 		pcall(function()
 			beamstate.deflateRandomTire()
@@ -991,202 +1126,12 @@ function M.jobBreakDown(flatTire, faults)
 	reportToJobs("onJobBrokenDown", damageNow())
 end
 
+function M.jobCoolDown()
+	hotEngines = {}
+end
+
 function M.jobReportDamage()
 	reportToJobs("onJobDamage", damageNow())
-end
-
---== Damage: other players see the owner's damage ==================================
--- BeamMP only syncs parts that break off (break groups). How a body bends is worked out by every
--- PC on its own, so a car that hit something only one PC sees looks different everywhere. The
--- owner therefore sends its damage (damage.lua), and the others load it the way the game loads a
--- saved vehicle (beamstate.load): node positions, beam rest lengths, broken beams, commitLoad.
--- Changing beams of a moving car instead makes its physics blow up.
---   damageSnapshot()  owner: every node's position in the vehicle's own frame (right, forward,
---                     up from the reference node; all of them, or neighbouring parts tear apart on
---                     loading), every bent body beam {cid, rest length, recorded deformation} and
---                     every broken beam -> sharedCareer_damage.onSnapshot(id, json)
---   damageLoad(data)  other PCs, only while the car stands still: keeps the damage and asks to be
---                     reset in place (sharedCareer_damage.onReadyToLoad); on the first frame after
---                     that reset the undamaged car takes the owner's shape (loadDamage)
--- obj:getNodePosition is relative to the reference node in world axes, so positions are turned
--- into the vehicle's frame and back with its direction vectors. A damage of a vehicle with other
--- node or beam counts (other parts) is ignored.
--- A bent beam is a body beam (no wheel, pressured or other moving beam) whose rest length differs
--- from the undamaged one by more than BENT: obj:getBeamDeformation reads 0 even on a crashed car,
--- and a healthy car settles by up to about 2.5 mm. The undamaged rest lengths are read on the
--- first frame after the vehicle spawned or was reset. The deformation the game recorded for a
--- beam (beamstate.deformedBeams, e.g. broken glass and lights) is replayed with
--- beamstate.onBeamDeformed.
-
-local BENT = 0.003 -- m: a body beam whose rest length changed more than this is bent
-local undamagedLengths = nil -- cid -> rest length of the undamaged beam
-local pendingDamage = nil -- the damage to load after the next reset: {data, armed, age}
-local PENDING_FOR = 2 -- s: a damage whose reset doesn't come is dropped (never loaded on a later one)
-
--- beam types that hold the body together (normal, anisotropic); the others move by design
-local BODY_BEAM = { [0] = true, [1] = true }
-
-local function isBodyBeam(beam)
-	return beam.wheelID == nil and (beam.beamType == nil or BODY_BEAM[beam.beamType] == true)
-end
-
-local function count(list)
-	local n = 0
-	for _ in pairs(type(list) == "table" and list or {}) do
-		n = n + 1
-	end
-	return n
-end
-
-local function vehicleData(key)
-	return type(v) == "table" and type(v.data) == "table" and type(v.data[key]) == "table" and v.data[key] or {}
-end
-
-local function round4(x)
-	return math.floor(x * 10000 + 0.5) / 10000
-end
-
--- the vehicle's frame: right, forward, up (unit vectors in world axes)
-local function frame()
-	local fwd, up = obj:getDirectionVector(), obj:getDirectionVectorUp()
-	return fwd:cross(up), fwd, up
-end
-
-local function reportToDamage(fn, arg)
-	if type(obj.queueGameEngineLua) ~= "function" then
-		return
-	end
-	obj:queueGameEngineLua(
-		string.format(
-			"if sharedCareer_damage then sharedCareer_damage.%s(%d%s) end",
-			fn,
-			obj:getId(),
-			arg and (", " .. string.format("%q", arg)) or ""
-		)
-	)
-end
-
-function M.damageSnapshot()
-	local right, fwd, up = frame()
-	local nodes, nodeCount = {}, 0
-	for _, node in pairs(vehicleData("nodes")) do
-		nodeCount = nodeCount + 1
-		local p = obj:getNodePosition(node.cid)
-		local i = #nodes
-		nodes[i + 1], nodes[i + 2], nodes[i + 3], nodes[i + 4] =
-			node.cid, round4(p:dot(right)), round4(p:dot(fwd)), round4(p:dot(up))
-	end
-	local recorded = beamstate and type(beamstate.deformedBeams) == "table" and beamstate.deformedBeams or {}
-	local deformed, broken, beamCount = {}, {}, 0
-	for _, beam in pairs(vehicleData("beams")) do
-		beamCount = beamCount + 1
-		local cid = beam.cid
-		local undamaged = undamagedLengths and undamagedLengths[cid]
-		if obj:beamIsBroken(cid) then
-			broken[#broken + 1] = cid
-		elseif undamaged and isBodyBeam(beam) then
-			local length = obj:getBeamRestLength(cid)
-			local ratio = tonumber(recorded[cid]) or 0
-			if math.abs(length - undamaged) > BENT or ratio ~= 0 then
-				local i = #deformed
-				deformed[i + 1], deformed[i + 2], deformed[i + 3] = cid, length, ratio
-			end
-		end
-	end
-	log(
-		"I",
-		"sharedCareer.damage",
-		string.format("damage sent: %d bent, %d broken of %d beams", #deformed / 3, #broken, beamCount)
-	)
-	reportToDamage("onSnapshot", jsonEncode({ nn = nodeCount, bn = beamCount, n = nodes, d = deformed, b = broken }))
-end
-
-function M.damageLoad(data)
-	if type(data) ~= "table" or type(data.n) ~= "table" or type(data.d) ~= "table" or type(data.b) ~= "table" then
-		return
-	end
-	local nodeCount, beamCount = count(vehicleData("nodes")), count(vehicleData("beams"))
-	if data.nn ~= nodeCount or data.bn ~= beamCount then
-		log(
-			"W",
-			"sharedCareer.damage",
-			string.format(
-				"damage not loaded: %d nodes / %d beams here, %s / %s at the owner",
-				nodeCount,
-				beamCount,
-				tostring(data.nn),
-				tostring(data.bn)
-			)
-		)
-		return
-	end
-	pendingDamage = { data = data, age = 0 }
-	reportToDamage("onReadyToLoad")
-end
-
--- the undamaged vehicle (right after its reset) takes the owner's shape
-local function loadDamage(data)
-	local right, fwd, up = frame()
-	local n = data.n
-	for i = 1, #n - 3, 4 do
-		obj:setNodePosition(n[i], right * n[i + 1] + fwd * n[i + 2] + up * n[i + 3])
-	end
-	local d = data.d
-	local replay = beamstate and type(beamstate.onBeamDeformed) == "function" and beamstate.onBeamDeformed
-	for i = 1, #d - 2, 3 do
-		if d[i + 1] > 0 then
-			obj:setBeamLength(d[i], d[i + 1])
-		end
-		if replay and d[i + 2] ~= 0 then
-			pcall(replay, d[i], d[i + 2])
-		end
-	end
-	for _, cid in ipairs(data.b) do
-		obj:breakBeam(cid)
-	end
-	obj:commitLoad()
-	log(
-		"I",
-		"sharedCareer.damage",
-		string.format("damage loaded: %d nodes, %d bent, %d broken beams", #n / 4, #d / 3, #data.b)
-	)
-end
-
-damageAfterReset = function()
-	undamagedLengths = nil
-	if pendingDamage then
-		pendingDamage.armed = true
-	end
-end
-
--- the vehicle is undamaged (just spawned or reset): remember its rest lengths
-local function readUndamagedLengths()
-	if undamagedLengths then
-		return
-	end
-	undamagedLengths = {}
-	for _, beam in pairs(vehicleData("beams")) do
-		undamagedLengths[beam.cid] = obj:getBeamRestLength(beam.cid)
-	end
-end
-
-local function loadPendingDamage(dt)
-	if not pendingDamage then
-		return
-	end
-	if not pendingDamage.armed then
-		pendingDamage.age = pendingDamage.age + dt
-		if pendingDamage.age > PENDING_FOR then
-			pendingDamage = nil
-		end
-		return
-	end
-	local data = pendingDamage.data
-	pendingDamage = nil
-	local ok, err = pcall(loadDamage, data)
-	if not ok then
-		log("E", "sharedCareer.damage", "loading the damage failed: " .. tostring(err))
-	end
 end
 
 function M.onPhysicsStep(dt)
@@ -1279,8 +1224,8 @@ function M.updateGFX(dt)
 	if not dt or dt <= 0 then
 		return
 	end
-	readUndamagedLengths()
-	loadPendingDamage(dt)
+	keepHazards(dt)
+	keepSteaming()
 	if next(anchors) then
 		if not physicsStep then
 			anchorStep(math.min(dt, ROPE_MAX_DT), true)

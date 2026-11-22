@@ -4,7 +4,11 @@
 -- brings what a towing job is about:
 --   making one up (generate), by tier (TIERS: the higher, the harder and the better paid)
 --     a place     a random road node far from every vehicle, moved off the road onto the
---                 roadside (ROADSIDE m beyond the road's edge), standing along the road
+--                 roadside (ROADSIDE m beyond the road's edge, the side that is free), standing
+--                 along the road. A side is free when nothing stands between the road and the spot
+--                 (a tunnel wall, a rock: a ray at car height) and there is ground at about the
+--                 road's height (GROUND_STEP); a node without a free side isn't used. Without that
+--                 check a spot in a tunnel wall made the game put the car under the tunnel
 --     a vehicle   by the tier's heavy share a heavy vehicle (HEAVY_MODELS), else an old one from
 --                 the career's own delivery filter (gameplay/delivery/vehicles.deliveryVehicles.json,
 --                 JUNKER_FILTER) via util_configListGenerator; a pickup, van, bus or truck from it is
@@ -15,8 +19,8 @@
 --     the pay     (PAY_BASE + PAY_PER_KM per km of the tow (by road: jobs.driveDistance; the
 --                 straight line x ROAD_FACTOR where there is no way by road)) x the
 --                 tier's pay, x PAY_FLAT with a flat tire, x client.jobPay
---     faults     what is broken (FAULTS: engine, windshield, tail lights), each by its chance, at
---                least one; a crash always has a broken engine
+--     faults     what is broken (FAULTS: engine, clutch, gearbox, radiator, oil pan, windshield,
+--                tail lights), each by its chance, at least one; a crash always has a broken engine
 --     a crash    from tier 2 on, some jobs are crashes (the tier's crash chance) instead of a
 --                breakdown: the car is wrecked (see "Crashes" below)
 --     its kind    car, suv, pickup, van, bus or truck (KINDS, from the game's "Body Style", else its
@@ -29,7 +33,8 @@
 --        everyone). The vehicle breaks down: neutral, parking brake on, hazard lights on, a flat
 --        tire and its faults if the job says so (sharedCareerVeh.jobBreakDown). A reset
 --        (R) repairs it, so the job breaks it down again
---     2. near the vehicle the route switches to the repair shop
+--     2. near the vehicle the route switches to the repair shop, and a broken radiator's engine
+--        that was kept hot so it steams from afar may cool down (sharedCareerVeh.jobCoolDown)
 --     3. standing still in the drop-off zone (DROP_RADIUS m around the shop's doors) for
 --        DROP_STILL s, nobody inside: handed over (jobs.handOver). New damage since the breakdown
 --        costs up to PENALTY_MAX of the pay (DAMAGE_FOR_MAX damage points cost all of it)
@@ -40,7 +45,7 @@
 --     the ground. Only once it lies still (CRASH_STILL s) does it break down, so the crash doesn't
 --     count as new damage against the pay. If it landed too far away (rolled down a slope, fell
 --     through the ground), it is removed and comes back as a plain breakdown. BeamMP shows the fall
---     to the others; once it lies still they also get its damage (damage.lua).
+--     to the others.
 --     When the job ends (paid, given up, taken away), the vehicle is removed. A vehicle that
 --     vanished (deleted, reloaded, or refused by the server's vehicle limit) appears again at its
 --     place when you come near, at most every SPAWN_RETRY s.
@@ -57,6 +62,9 @@ local DEST_NEAREST = 400 -- m: a shop at least this far away when none fits the 
 local MIN_ROAD_RADIUS = 2.5 -- m: half the width of a road the place may be on
 local MIN_DRIVABILITY = 0.6 -- the road must be a normal road (not a dirt track)
 local ROADSIDE = 1.8 -- m beyond the road's edge
+local SIDE_CLEAR = 1.2 -- m free beyond the spot (half a car's width)
+local GROUND_STEP = 1.5 -- m the roadside's ground may be above or below the road
+local RAY_HEIGHT = 1 -- m above the road the rays start (above curbs, below a tunnel's roof)
 local PLACE_TRIES = 40
 local NEAR_VEHICLE = 30 -- m: close enough to the vehicle, the route goes to the shop
 local DROP_RADIUS = 14 -- m around the middle of the shop's doors
@@ -115,6 +123,10 @@ local CRASHES = {
 -- what can be broken on a broken-down car (not a crash): how often, and its tag; at least one always is
 local FAULTS = {
 	{ kind = "engine", chance = 0.1, tag = "Engine failure" },
+	{ kind = "clutch", chance = 0.15, tag = "Broken clutch" },
+	{ kind = "gearbox", chance = 0.15, tag = "Broken gearbox" },
+	{ kind = "radiator", chance = 0.15, tag = "Broken radiator" },
+	{ kind = "oilpan", chance = 0.2, tag = "Oil leak" },
 	{ kind = "windshield", chance = 0.7, tag = "Broken windshield" },
 	{ kind = "taillights", chance = 0.3, tag = "Broken taillights" },
 }
@@ -189,22 +201,24 @@ local function candidateNodes(nodes)
 	return names
 end
 
--- The ground below a point, or the point's own height.
-local function groundAt(p)
-	local ok, cast = pcall(function()
-		return castRayStatic
-	end)
-	if ok and type(cast) == "function" then
-		local hitOk, hit = pcall(cast, vec3(p.x, p.y, p.z + 4), vec3(0, 0, -1), 20)
-		hit = hitOk and tonumber(hit)
-		if hit and hit >= 0 and hit < 20 then
-			return p.z + 4 - hit
-		end
+-- The spot `side` m from the road point `p` towards `out` (x, y, length 1) with its ground, or nil
+-- when something stands in the way or there is no ground at about the road's height.
+local function freeSpot(p, out, side)
+	local from = vec3(p.x, p.y, p.z + RAY_HEIGHT)
+	if U.castRay(from, vec3(out.x, out.y, 0), side + SIDE_CLEAR) then
+		return nil
 	end
-	return p.z
+	local pos = { x = p.x + out.x * side, y = p.y + out.y * side, z = p.z }
+	local hit = U.castRay(vec3(pos.x, pos.y, p.z + RAY_HEIGHT), vec3(0, 0, -1), RAY_HEIGHT + GROUND_STEP)
+	if not hit then
+		return nil
+	end
+	pos.z = p.z + RAY_HEIGHT - hit
+	return pos
 end
 
--- Where on the roadside of this node a car can stand: {pos, dir} or nil.
+-- Where on the roadside of this node a car can stand: {pos, dir} or nil. The right side of the
+-- road first, else the left.
 local function roadside(nodes, name)
 	local n = nodes[name]
 	local p = n and U.vecOf(n.pos)
@@ -222,9 +236,13 @@ local function roadside(nodes, name)
 			if len > 1 then
 				dx, dy = dx / len, dy / len
 				local side = tonumber(n.radius) + ROADSIDE
-				local pos = { x = p.x + dy * side, y = p.y - dx * side, z = p.z }
-				pos.z = groundAt(pos)
-				return { pos = pos, dir = { x = dx, y = dy } }
+				for _, s in ipairs({ 1, -1 }) do
+					local pos = freeSpot(p, { x = dy * s, y = -dx * s }, side)
+					if pos then
+						return { pos = pos, dir = { x = dx * s, y = dy * s } }
+					end
+				end
+				return nil
 			end
 		end
 	end
@@ -414,7 +432,7 @@ local function faultOf(kind)
 	return nil
 end
 
--- What is broken on a broken-down car: each fault by its chance, at least one ({"engine", ...}).
+-- What is broken on a broken-down car: each fault by its chance, at least one ({"clutch", ...}).
 local function pickFaults()
 	local faults = {}
 	for _, f in ipairs(FAULTS) do
@@ -562,14 +580,15 @@ local function breakDown(a)
 		end
 	end
 
-	J.sendToVehicle(
-		a.vehId,
-		string.format(
-			"sharedCareerVeh.jobBreakDown(%s, {%s})",
-			tostring(data(a).flatTire == true),
-			table.concat(faults, ", ")
-		)
+	local cmd = string.format(
+		"sharedCareerVeh.jobBreakDown(%s, {%s})",
+		tostring(data(a).flatTire == true),
+		table.concat(faults, ", ")
 	)
+	if a.phase == "toDestination" then
+		cmd = cmd .. "; sharedCareerVeh.jobCoolDown()" -- the player is there already
+	end
+	J.sendToVehicle(a.vehId, cmd)
 end
 
 -- The way the car faces: forward along the road, tilted for a crash (pitch: nose down, roll: to
@@ -729,6 +748,7 @@ function M.step(a, dt)
 	local p = U.vecOf(veh:getPosition())
 	if a.phase == "toVehicle" and me and p and J.dist2D(me, p) <= NEAR_VEHICLE then
 		a.phase = "toDestination"
+		J.sendToVehicle(a.vehId, "sharedCareerVeh.jobCoolDown()")
 		U.toast("info", "Route set: tow it to " .. job.dest.name, 6)
 	end
 	local speed = 0

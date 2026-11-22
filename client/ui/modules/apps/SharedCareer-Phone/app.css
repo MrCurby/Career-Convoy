@@ -149,9 +149,17 @@
 .scp-myjob-title { font-size: 17px; font-weight: 700; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .scp-chips { display: flex; gap: 5px; margin-top: 6px; flex-wrap: wrap; }
 .scp-chip-tag { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 7px; }
-.scp-tag-engine { background: rgba(255, 90, 80, 0.22); color: #ffb3ad; }
+.scp-tag-engine,
+.scp-tag-clutch,
+.scp-tag-gearbox,
+.scp-tag-radiator,
+.scp-tag-oilpan { background: rgba(255, 90, 80, 0.22); color: #ffb3ad; }
 .scp-tag-tire { background: rgba(255, 190, 60, 0.22); color: #ffd98a; }
-.scp-myjob .scp-tag-engine { background: rgba(255, 255, 255, 0.16); color: #fff; }
+.scp-myjob .scp-tag-engine,
+.scp-myjob .scp-tag-clutch,
+.scp-myjob .scp-tag-gearbox,
+.scp-myjob .scp-tag-radiator,
+.scp-myjob .scp-tag-oilpan { background: rgba(255, 255, 255, 0.16); color: #fff; }
 .scp-myjob .scp-tag-tire { background: rgba(255, 210, 90, 0.3); color: #fff2c9; }
 .scp-steps { display: flex; margin: 12px 0 2px; }
 .scp-step { flex: 1; position: relative; text-align: center; font-size: 10px; opacity: 0.6; }

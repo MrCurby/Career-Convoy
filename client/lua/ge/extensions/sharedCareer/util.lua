@@ -208,6 +208,22 @@ function M.clearRoute(owner)
 	end
 end
 
+--== The world =====================================================================
+
+--- How far from `from` along `dir` (vec3, length 1) the first static obstacle is (objects and
+--- terrain: castRayStatic), or nil when there is none within `range` m.
+function M.castRay(from, dir, range)
+	local ok, cast = pcall(function()
+		return castRayStatic
+	end)
+	if not ok or type(cast) ~= "function" then
+		return nil
+	end
+	local hitOk, hit = pcall(cast, from, dir, range)
+	hit = hitOk and tonumber(hit)
+	return hit and hit >= 0 and hit < range and hit or nil
+end
+
 --== Game texts and map facilities ==============================================
 
 --- A game text key (e.g. a facility name) in the player's language, nil without a text for it.
