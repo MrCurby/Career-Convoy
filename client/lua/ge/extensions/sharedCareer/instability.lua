@@ -2,9 +2,12 @@
 --
 -- Now and then the physics of a vehicle blows up ("Instability detected": its nodes get invalid
 -- values, NaN). With BeamMP this happens more often, also to several vehicles in the same moment,
--- and it tears parts off (wheels, bumpers). Without a handler the game puts such a vehicle back
--- where it was spawned: in the career that is the garage, often far away, and the torn-off parts
--- are gone. It looks as if the car was teleported to the garage and robbed.
+-- and it tears parts off (wheels, bumpers).
+-- BeamMP handles every glitch itself (beammp/multiplayer.lua, onInstabilityDetected): it only
+-- resets the vehicle's physics (obj:requestReset(RESET_PHYSICS)). The vehicle's position is
+-- invalid at that moment, so it lands where it was spawned: in the career that is the garage,
+-- often far away. The parts counted as broken stay hidden. It looks as if the car was teleported
+-- to the garage and robbed.
 --
 -- 1. Blocking the cause: BeamMP sets another player's vehicle in place when it is too far off
 --    (positionGE.setPositionRotationVelocity: position, rotation and velocity straight into the
@@ -12,17 +15,16 @@
 --    number, or if the vehicle itself already is (its velocity or direction). The forces BeamMP
 --    uses otherwise are guarded inside the vehicle (sharedCareerSyncGuard.lua).
 --
--- 2. Putting your vehicles back:
--- The game sends the hook onInstabilityDetected(vehicleId, returnData) to all extensions first;
--- returnData.instabilityHandled = true keeps it from doing its own thing
--- (core/vehicles.lua does the same when the setting "pause on instability" is on).
---
--- Here, for your own vehicles (BeamMP: isOwn):
+-- 2. Putting your vehicles back: the game sends the hook onInstabilityDetected(vehicleId,
+--    returnData) to every extension, BeamMP's included, in no fixed order. BeamMP's reset is left
+--    in place (it also counts glitches and parks a vehicle that keeps blowing up), but for your
+--    own vehicles (BeamMP: isOwn), whether or not BeamMP already marked the glitch as handled:
 --   * once per second the last safe spot of each one is kept: position and heading, only while
 --     both are valid numbers and the vehicle is slower than SAFE_SPEED (not flying away)
---   * on a glitch the vehicle is set back onto that spot upright and reset
---     (spawn.safeTeleport with reset): the invalid physics is gone, the parts are on again.
---     Without a safe spot (just spawned) the game handles it as before.
+--   * on a glitch the vehicle is set back onto that spot upright and fully reset
+--     (spawn.safeTeleport with reset): the invalid physics is gone, the parts are on again, and
+--     BeamMP's physics reset then happens right there instead of at the garage.
+--     Without a safe spot (just spawned) BeamMP handles it alone.
 -- Other players' vehicles are left to their owner; they are only counted.
 --
 -- In the game: one toast per glitch (all reports within BURST seconds belong to one), only if one
@@ -290,7 +292,7 @@ function M.onInstabilityDetected(vid, returnData)
 			)
 		)
 	end
-	if not own or (returnData and returnData.instabilityHandled) then
+	if not own then
 		return
 	end
 	-- the game reports the same glitch again a moment later: it is already handled

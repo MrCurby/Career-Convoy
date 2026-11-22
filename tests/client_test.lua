@@ -3922,7 +3922,8 @@ end)();
 	update(1.1)
 	-- a glitch: your car, your parked car and Borian's car at once
 	toasts = {}
-	local data = {}
+	-- BeamMP's own handler may run first and mark the glitch as handled: put back anyway
+	local data = { instabilityHandled = true }
 	extensions.hook("onInstabilityDetected", 80, {})
 	place(car, 0 / 0, 0 / 0)
 	extensions.hook("onInstabilityDetected", 70, data)
@@ -3931,7 +3932,7 @@ end)();
 		"your car is put back on its last safe spot"
 	)
 	check(teleported[1].reset == true and teleported[1].rot.dir.y == 1, "reset and upright, same heading")
-	check(data.instabilityHandled == true, "the game does not move it to the garage")
+	check(data.instabilityHandled == true, "still marked as handled")
 	local again = {}
 	extensions.hook("onInstabilityDetected", 70, again)
 	check(#teleported == 1 and again.instabilityHandled == true, "the same glitch reported again: handled once")
@@ -3957,10 +3958,10 @@ end)();
 	update(0.1)
 	check(#toasts == 0, "only traffic and other players' cars: no toast")
 	-- without a safe spot the game handles it as before
-	local fresh = addVehicle(72, "0-3", true, "pickup")
-	local freshData = {}
-	extensions.hook("onInstabilityDetected", 72, freshData)
-	check(not freshData.instabilityHandled, "no safe spot yet: left to the game")
+	addVehicle(72, "0-3", true, "pickup")
+	local before = #teleported
+	extensions.hook("onInstabilityDetected", 72, {})
+	check(#teleported == before, "no safe spot yet: left to BeamMP")
 	-- a spot while flying away is not kept
 	place(car, 10, 20)
 	update(1.1)
