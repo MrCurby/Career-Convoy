@@ -1,8 +1,10 @@
 -- SharedCareer :: licenses: the license office and the licenses you own
 --
--- At the license office (OFFICES: a point per map) a circle lies on the ground. Walk into it and a
--- hint says to press F (KEY, rebindable under Options → Controls → BeamMP); F opens the license
--- shop, a dialog of the SharedCareer menu window (shown by welcome.lua).
+--   licenses  the license office: a career marker (map, big map); its card opens the license shop
+-- (gameplay_rawPois), so it looks and works like the career's own spots: a dot and ring on the
+-- ground with a floating icon, an entry on the big map and the minimap, and the game's card with
+-- a "Buy licenses" button when you walk in. The button opens the license shop, a dialog of the
+-- SharedCareer menu window (shown by welcome.lua).
 -- The server keeps the licenses, their prices and who owns which (main.lua "Licenses"):
 --   sc_licensesRequest        -> sc_licenses {list = [{id, name, price, owned, buying}], message}
 --   sc_licenseBuy {license}   -> sc_licenseCharge {id, license, name, price}
@@ -13,30 +15,18 @@ local M = {}
 
 local U
 
--- the license office per map: where the circle lies
+-- the license office per map
 local OFFICES = {
 	west_coast_usa = { x = -500.092, y = 566.508, z = 93.279 },
 }
-local RADIUS = 2 -- m: the circle
-local DRAW_RANGE = 80 -- m: the circle is drawn this close
-local KEY_ACTION = "sharedCareerLicenses"
-local KEY = "f"
+local POI = "sharedCareerLicenseOffice" -- id and type of the point of interest
+local ICON = "poi_entrance_round" -- marker and big map pin (the game's icon atlas)
+local LIST_ICON = "doorIn" -- big map list (the UI's icon font, other names than the atlas)
+local NAME = "License Office"
 local SHOP = "licenses" -- the dialog's kind
 
 local list = nil -- the shop from the server (sc_licenses), nil until it arrived
-local inside = false
-local keyRegistered = false
 local charged = {} -- purchase id -> true: a charge that arrives twice is only confirmed
-
-local function office()
-	local level = type(getCurrentLevelIdentifier) == "function" and getCurrentLevelIdentifier() or nil
-	return level and OFFICES[level] or nil
-end
-
-local function walking()
-	local walk = rawget(_G, "gameplay_walk")
-	return walk ~= nil and type(walk.isWalking) == "function" and walk.isWalking() == true
-end
 
 local function welcome()
 	return U.ext("sharedCareer_welcome")
@@ -77,7 +67,7 @@ function M.shopDialog()
 	end
 	return {
 		kind = SHOP,
-		title = "License Office",
+		title = NAME,
 		intro = list == nil and "Loading…" or nil,
 		items = items,
 		buttons = { { label = "Close", action = "ok", primary = true } },
@@ -150,77 +140,66 @@ local function rxCharge(data)
 	U.send("sc_licenseChargeResult", { id = msg.id, ok = true })
 end
 
---== The circle ====================================================================
+--== The marker ====================================================================
 
-local function draw(p)
-	if not (debugDrawer and ColorF and vec3) then
-		return
-	end
-	local r, g, b = 1, 0.6, 0.1
-	if inside then
-		r, g, b = 0.3, 0.9, 0.45
-	end
-	debugDrawer:drawCylinder(vec3(p.x, p.y, p.z + 0.02), vec3(p.x, p.y, p.z + 0.08), RADIUS, ColorF(r, g, b, 0.25))
-	local label = "License Office"
-	debugDrawer:drawTextAdvanced(
-		vec3(p.x, p.y, p.z + 2.2),
-		String and String(label) or label,
-		ColorF(1, 1, 1, 1),
-		true,
-		false,
-		ColorI(20, 20, 24, 190)
-	)
-end
-
-function M.onUpdate()
-	if not U.isMP() or not U.careerActive() then
-		inside = false
-		return
-	end
-	local p, me = office(), U.myPosition()
-	if not p or not me then
-		inside = false
-		return
-	end
-	local dx, dy = me.x - p.x, me.y - p.y
-	local d = math.sqrt(dx * dx + dy * dy)
-	local now = walking() and d <= RADIUS and math.abs(me.z - p.z) < 3
-	if now and not inside then
-		U.toast("info", "Press F to buy licenses")
-	end
-	inside = now
-	if d <= DRAW_RANGE then
-		draw(p)
+-- The game caches its points of interest; clearing makes it ask again (shows or hides ours).
+local function refreshPois()
+	local pois = rawget(_G, "gameplay_rawPois")
+	if pois and type(pois.clear) == "function" then
+		pois.clear()
 	end
 end
 
---== Key ===========================================================================
-
-local function registerKey()
-	if keyRegistered then
+-- The game collects the points of interest of a map (markers, big map, minimap).
+function M.onGetRawPoiListForLevel(level, elements)
+	local p = OFFICES[level]
+	if not p or not U.isMP() or not U.careerActive() then
 		return
 	end
-	keyRegistered = true
-	U.addKey("licenses", KEY_ACTION, {
-		title = "SharedCareer: license office",
-		desc = "Opens the license shop at the license office",
-		default = KEY,
-		onDown = function()
-			if inside then
-				M.openShop()
-			end
-		end,
+	local pos = vec3(p.x, p.y, p.z)
+	table.insert(elements, {
+		id = POI,
+		clusterType = "missionMarker",
+		data = { type = POI, id = POI, date = 0 },
+		markerInfo = {
+			missionMarker = { pos = pos, rot = quat(0, 0, 0, 1), icon = ICON },
+			bigmapMarker = {
+				pos = pos,
+				icon = ICON,
+				cardIcon = LIST_ICON,
+				name = NAME,
+				description = "Buy licenses here.",
+				previews = {},
+			},
+		},
 	})
 end
 
-function M.onCareerActive(active)
-	if active and U.isMP() and U.config() then
-		registerKey()
+-- You stand in the marker: the game's card with a button.
+function M.onActivityAcceptGatherData(elemData, activityData)
+	for _, elem in ipairs(elemData) do
+		if elem.type == POI then
+			table.insert(activityData, {
+				icon = ICON,
+				heading = NAME,
+				preheadings = { "Licenses" },
+				sorting = { type = POI, id = POI },
+				buttonLabel = "Buy licenses",
+				buttonFun = M.openShop,
+			})
+		end
 	end
 end
 
+--== Lifecycle =====================================================================
+
+function M.onCareerActive()
+	refreshPois()
+end
+
 function M.onBeamMPServerLeave()
-	list, inside, keyRegistered = nil, false, false
+	list = nil
+	refreshPois()
 end
 
 function M.onExtensionLoaded()
