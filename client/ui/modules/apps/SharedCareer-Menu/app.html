@@ -143,8 +143,13 @@
 		<div class="scm-dialog" ng-class="{'scm-dialog-warn': dialog.warning}">
 			<div class="scm-dialog-title" ng-bind="dialog.title"></div>
 			<div class="scm-dialog-text" ng-if="dialog.intro" ng-bind="dialog.intro"></div>
-			<ul class="scm-dialog-list" ng-if="dialog.items && dialog.items.length">
-				<li ng-repeat="it in dialog.items"><b ng-bind="it.head"></b> <span ng-bind="it.text"></span></li>
+			<ul class="scm-dialog-list" ng-class="{'scm-dialog-rows': dialog.kind === 'licenses'}"
+				ng-if="dialog.items && dialog.items.length">
+				<li ng-repeat="it in dialog.items">
+					<b ng-bind="it.head"></b> <span ng-class="{'scm-owned': it.owned}" ng-bind="it.text"></span>
+					<button class="scm-btn scm-dialog-btn scm-end" ng-if="it.buy" ng-disabled="it.disabled"
+						ng-click="buy(it)">Buy</button>
+				</li>
 			</ul>
 			<div class="scm-dialog-text scm-dialog-muted" ng-if="dialog.outro" ng-bind="dialog.outro"></div>
 			<div class="scm-dialog-buttons">

@@ -118,6 +118,12 @@ sharedCareerMenuApp.controller('SharedCareerMenu', ['$scope', '$element', functi
 			JSON.stringify(String(d.kind || "")) + ', ' + JSON.stringify(String(b.action || "")) + ') end');
 	};
 
+	// license shop (licenses.lua): "Buy" next to a license; the dialog stays open and Lua updates it
+	$scope.buy = function (it) {
+		bngApi.engineLua('if sharedCareer_licenses then sharedCareer_licenses.uiBuy(' +
+			JSON.stringify(String(it.buy)) + ') end');
+	};
+
 	// click on the steering-wheel logo: show the welcome dialog again
 	$scope.showWelcome = function () {
 		bngApi.engineLua('if sharedCareer_welcome then sharedCareer_welcome.show(true) end');

@@ -70,6 +70,16 @@ function M.show(force)
 	return openDialog(M.content())
 end
 
+--- Shows a dialog of another extension (e.g. the license shop).
+function M.open(dialog)
+	return openDialog(dialog)
+end
+
+--- Whether a dialog of this kind is open right now.
+function M.isOpen(kind)
+	return pending ~= nil and pending.kind == kind
+end
+
 --- From the window: a button in the dialog was pressed.
 function M.uiDialogButton(kind, action)
 	pending = nil
