@@ -1,51 +1,36 @@
--- SharedCareer :: physics glitches: invalid sync values are blocked, your vehicles are put back
+-- SharedCareer :: physics glitches: invalid sync values are blocked, a glitch is shown
 --
 -- Now and then the physics of a vehicle blows up ("Instability detected": its nodes get invalid
 -- values, NaN). With BeamMP this happens more often, also to several vehicles in the same moment,
--- and it tears parts off (wheels, bumpers).
--- BeamMP handles every glitch itself (beammp/multiplayer.lua, onInstabilityDetected): it only
--- resets the vehicle's physics (obj:requestReset(RESET_PHYSICS)). The vehicle's position is
--- invalid at that moment, so it lands where it was spawned: in the career that is the garage,
--- often far away. The parts counted as broken stay hidden. It looks as if the car was teleported
--- to the garage and robbed.
+-- and it tears parts off (wheels, bumpers). BeamMP cleans up after it (beammp/multiplayer.lua,
+-- onInstabilityDetected): it resets the vehicle's physics, which puts a car of yours back where it
+-- was spawned (in the career: the garage), and parks or deletes a vehicle that keeps blowing up.
+-- That is left as it is. Here:
 --
--- 1. Blocking the cause: BeamMP sets another player's vehicle in place when it is too far off
+-- 1. Blocking a cause: BeamMP sets another player's vehicle in place when it is too far off
 --    (positionGE.setPositionRotationVelocity: position, rotation and velocity straight into the
---    physics) and never checks the numbers. Here that call is dropped if a value is not a finite
+--    physics) and never checks the numbers. That call is dropped if a value is not a finite
 --    number, or if the vehicle itself already is (its velocity or direction). The forces BeamMP
---    uses otherwise are guarded inside the vehicle (sharedCareerSyncGuard.lua).
+--    uses otherwise are guarded inside the vehicle (sharedCareerSyncGuard.lua). Dropped calls are
+--    summed up in the log every LOG_DROPS_EVERY seconds.
 --
--- 2. Putting your vehicles back: the game sends the hook onInstabilityDetected(vehicleId,
---    returnData) to every extension, BeamMP's included, in no fixed order. BeamMP's reset is left
---    in place (it also counts glitches and parks a vehicle that keeps blowing up), but for your
---    own vehicles (BeamMP: isOwn), whether or not BeamMP already marked the glitch as handled:
---   * once per second the last safe spot of each one is kept: position and heading, only while
---     both are valid numbers and the vehicle is slower than SAFE_SPEED (not flying away)
---   * on a glitch the vehicle is set back onto that spot upright and fully reset
---     (spawn.safeTeleport with reset): the invalid physics is gone, the parts are on again, and
---     BeamMP's physics reset then happens right there instead of at the garage.
---     Without a safe spot (just spawned) BeamMP handles it alone.
--- Other players' vehicles are left to their owner; they are only counted.
---
--- In the game: one toast per glitch (all reports within BURST seconds belong to one), only if one
--- of your own vehicles that is not traffic was hit. It says whether it was put back and names the
--- other players whose vehicles blew up in the same moment. The log has the details of each
--- vehicle (id, model, owner, position).
+-- 2. Showing a glitch: all reports of onInstabilityDetected within BURST seconds belong to one
+--    glitch. If one of your own vehicles that is not traffic was hit, one toast says so and names
+--    the other players whose vehicles blew up in the same moment. The log has every vehicle (id,
+--    model, owner) and a summary, also for glitches without a toast.
 
 local M = {}
 
 local U
 
-local SAMPLE_EVERY = 1 -- s between two looks at the safe spots
-local SAFE_SPEED = 60 -- m/s: faster than this, the spot isn't kept (the vehicle may be flying away)
+local CHECK_EVERY = 1 -- s between two checks of the BeamMP patch
+local LOG_DROPS_EVERY = 10 -- s: dropped placements are summed up in one log line
 local BURST = 0.5 -- s: reports within this time belong to one glitch
-local HANDLED_FOR = 2 -- s: the game reports a glitch more than once; repeats count as handled
 local TOAST_SECONDS = 8
 
-local sinceSample = SAMPLE_EVERY
-local safeSpots = {} -- game id -> {pos = {x, y, z}, dir = {x, y, z}}
-local putBackAt = {} -- game id -> clock of the last put-back
-local burst = nil -- {since, hits = {[game id] = hit}}
+local sinceCheck = CHECK_EVERY
+local drops = { count = 0, since = 0, owners = {} }
+local burst = nil -- {since, hits = {[game id] = {own, owner, playerVehicle}}}
 
 local function clock()
 	return os.clockhp()
@@ -90,10 +75,6 @@ local function entryOf(m, gameId)
 end
 
 --== 1. Blocking invalid sync values ============================================
-
-local LOG_DROPS_EVERY = 10 -- s: dropped placements are summed up in one log line
-
-local drops = { count = 0, since = 0, owners = {} }
 
 local function finiteQuat(q)
 	local ok, x, y, z, w = pcall(function()
@@ -155,56 +136,7 @@ function M.ensurePatches()
 	U.replace(rawget(_G, "positionGE"), "setPositionRotationVelocity", makeSetPositionRotationVelocity)
 end
 
---== 2. Safe spots ==============================================================
-
-local function sampleSpots()
-	local m = mp()
-	if not m then
-		return
-	end
-	local seen = {}
-	for _, entry in pairs(m.getVehicles() or {}) do
-		local id = entry.gameVehicleID
-		local veh = id and id ~= -1 and m.isOwn(id) and be:getObjectByID(id)
-		if veh then
-			seen[id] = true
-			local pos, dir = finiteVec(call(veh, "getPosition")), finiteVec(call(veh, "getDirectionVector"))
-			local vel = finiteVec(call(veh, "getVelocity"))
-			local speed = vel and math.sqrt(vel.x * vel.x + vel.y * vel.y + vel.z * vel.z)
-			if pos and dir and (dir.x ~= 0 or dir.y ~= 0) and speed and speed < SAFE_SPEED then
-				safeSpots[id] = { pos = pos, dir = dir }
-			end
-		end
-	end
-	for id in pairs(safeSpots) do
-		if not seen[id] then
-			safeSpots[id] = nil
-		end
-	end
-end
-
---== Putting a vehicle back =====================================================
-
--- Sets the vehicle upright onto its safe spot and resets it. Returns true if that worked.
-local function putBack(veh, id)
-	local spot = safeSpots[id]
-	if not spot or not (spawn and type(spawn.safeTeleport) == "function") then
-		return false
-	end
-	local p, d = spot.pos, spot.dir
-	local ok, err = pcall(function()
-		local rot = quatFromDir(vec3(d.x, d.y, 0), vec3(0, 0, 1))
-		spawn.safeTeleport(veh, vec3(p.x, p.y, p.z), rot, nil, nil, nil, nil, true)
-	end)
-	if not ok then
-		U.log("E", "instability", "putting vehicle " .. tostring(id) .. " back failed: " .. tostring(err))
-		return false
-	end
-	pcall(call, veh, "resetBrokenFlexMesh")
-	return true
-end
-
---== The toast ==================================================================
+--== 2. Showing a glitch ========================================================
 
 -- "Borian" / "Borian, Max" / "Borian and 2 more"
 local function names(list)
@@ -217,17 +149,11 @@ end
 local function finishBurst()
 	local hits = burst.hits
 	burst = nil
-	local mine, putBackCount, others, seenOwner = false, 0, {}, {}
-	local total = 0
+	local mine, total, others, seenOwner = false, 0, {}, {}
 	for _, hit in pairs(hits) do
 		total = total + 1
 		if hit.own then
-			if hit.playerVehicle then
-				mine = true
-			end
-			if hit.putBack then
-				putBackCount = putBackCount + 1
-			end
+			mine = mine or hit.playerVehicle
 		elseif hit.owner and not seenOwner[hit.owner] then
 			seenOwner[hit.owner] = true
 			table.insert(others, hit.owner)
@@ -238,16 +164,16 @@ local function finishBurst()
 		"W",
 		"instability",
 		string.format(
-			"physics glitch: %d vehicle(s), %d of yours put back, other players: %s",
+			"physics glitch: %d vehicle(s), one of your cars: %s, other players: %s",
 			total,
-			putBackCount,
+			tostring(mine),
 			#others > 0 and table.concat(others, ", ") or "none"
 		)
 	)
 	if not mine then
 		return
 	end
-	local msg = putBackCount > 0 and "Physics glitch – car put back" or "Physics glitch"
+	local msg = "Physics glitch"
 	if #others > 0 then
 		msg = msg .. " (also " .. names(others) .. ")"
 	end
@@ -256,7 +182,7 @@ end
 
 --== Hooks ======================================================================
 
-function M.onInstabilityDetected(vid, returnData)
+function M.onInstabilityDetected(vid)
 	if not U.isMP() then
 		return
 	end
@@ -265,71 +191,49 @@ function M.onInstabilityDetected(vid, returnData)
 	if not veh then
 		return
 	end
-	local now = clock()
-	burst = burst or { since = now, hits = {} }
+	burst = burst or { since = clock(), hits = {} }
+	if burst.hits[vid] then
+		return -- the game reports the same glitch more than once
+	end
 	local own = m.isOwn(vid) == true
 	local serverId, entry = entryOf(m, vid)
-	local hit = burst.hits[vid]
-	if not hit then
-		local vehicles = U.ext("sharedCareer_vehicles")
-		hit = {
-			own = own,
-			owner = not own and entry and entry.ownerName or nil,
-			playerVehicle = vid == be:getPlayerVehicleID(0)
-				or (serverId ~= nil and vehicles ~= nil and vehicles.isPlayerVehicle(serverId)),
-		}
-		burst.hits[vid] = hit
-		local spot = safeSpots[vid]
-		U.log(
-			"W",
-			"instability",
-			string.format(
-				"vehicle %d (%s, %s) blew up; last safe spot %s",
-				vid,
-				tostring(veh.JBeam),
-				own and "yours" or ("of " .. tostring(hit.owner or "unknown")),
-				spot and string.format("%.1f, %.1f, %.1f", spot.pos.x, spot.pos.y, spot.pos.z) or "unknown"
-			)
+	local vehicles = U.ext("sharedCareer_vehicles")
+	local hit = {
+		own = own,
+		owner = not own and entry and entry.ownerName or nil,
+		playerVehicle = vid == be:getPlayerVehicleID(0)
+			or (serverId ~= nil and vehicles ~= nil and vehicles.isPlayerVehicle(serverId)),
+	}
+	burst.hits[vid] = hit
+	U.log(
+		"W",
+		"instability",
+		string.format(
+			"vehicle %d (%s, %s) blew up",
+			vid,
+			tostring(veh.JBeam),
+			own and "yours" or ("of " .. tostring(hit.owner or "unknown"))
 		)
-	end
-	if not own then
-		return
-	end
-	-- the game reports the same glitch again a moment later: it is already handled
-	local recently = putBackAt[vid] and now - putBackAt[vid] < HANDLED_FOR
-	if recently or putBack(veh, vid) then
-		if not recently then
-			putBackAt[vid] = now
-		end
-		hit.putBack = true
-		if returnData then
-			returnData.instabilityHandled = true
-		end
-	end
+	)
 end
 
 function M.onUpdate(dtReal)
 	if burst and clock() - burst.since >= BURST then
 		finishBurst()
 	end
-	sinceSample = sinceSample + (tonumber(dtReal) or 0)
-	if sinceSample < SAMPLE_EVERY then
+	sinceCheck = sinceCheck + (tonumber(dtReal) or 0)
+	if sinceCheck < CHECK_EVERY then
 		return
 	end
-	sinceSample = 0
+	sinceCheck = 0
 	if U.isMP() then
 		M.ensurePatches()
-		sampleSpots()
 		logDrops(clock())
 	end
 end
 
-function M.onVehicleDestroyed(id)
-	safeSpots[id], putBackAt[id] = nil, nil
-end
-
 function M.onBeamMPServerLeave()
-	safeSpots, putBackAt, burst, sinceSample = {}, {}, nil, SAMPLE_EVERY
+	burst, sinceCheck = nil, CHECK_EVERY
 	drops = { count = 0, since = 0, owners = {} }
 end
 

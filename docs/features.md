@@ -144,7 +144,7 @@ In BeamMP every car belongs to one player: only that player's PC really drives i
 - **Spawning:** your traffic and parked cars keep about 40 m away from other players, so they don't appear on top of them or vanish right next to them.
 - **Trailers and dollies** stay coupled for everyone, also for players who join later.
 - **Pausing:** opening a menu, the big map or a garage computer pauses your game. Other players' cars no longer blow up because of that.
-- **Physics glitches:** a car can suddenly blow up ("Instability detected"), often with a loud bang. SharedCareer blocks broken sync data from other players that causes this. If one of your cars blows up anyway, it is put back where it just was, repaired, instead of landing in the garage without wheels. A short message says so and names the other players whose cars blew up at the same moment.
+- **Physics glitches:** a car can suddenly blow up ("Instability detected"), often with a loud bang. SharedCareer blocks broken sync data from other players that causes this. If one of your cars blows up anyway, BeamMP puts it back (in the career: in the garage), and a short message says so and names the other players whose cars blew up at the same moment.
 
 ## Time of day
 

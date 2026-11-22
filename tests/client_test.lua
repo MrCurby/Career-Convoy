@@ -3876,7 +3876,7 @@ _G.MPGameNetwork = nil
 	check(ok, "without BeamMP: nothing happens")
 end)();
 
---== 7j2. Physics glitches: invalid placements blocked, your vehicles put back ======
+--== 7j2. Physics glitches: invalid placements blocked, a glitch is shown ==========
 (function()
 	resetWorld()
 	installCareer()
@@ -3885,20 +3885,7 @@ end)();
 	local function vec(x, y, z)
 		return { x = x, y = y, z = z }
 	end
-	_G.vec3 = vec
-	_G.quatFromDir = function(d, up)
-		return { dir = d, up = up }
-	end
-	local teleported = {}
-	_G.spawn = {
-		safeTeleport = function(veh, pos, rot, a1, a2, a3, a4, resetVehicle)
-			table.insert(teleported, { id = veh.id, pos = pos, rot = rot, reset = resetVehicle })
-		end,
-	}
-	local function place(v, x, y, speed)
-		v.getPosition = function()
-			return vec(x, y, 0)
-		end
+	local function place(v, speed)
 		v.getDirectionVector = function()
 			return vec(0, 1, 0)
 		end
@@ -3909,44 +3896,28 @@ end)();
 			return vec(speed or 0, 0, 0)
 		end
 	end
-	local car = addVehicle(70, "0-1", true, "hopper")
-	place(car, 10, 20)
+	addVehicle(70, "0-1", true, "hopper")
 	local parked = addVehicle(71, "0-2", true, "simple_traffic")
-	place(parked, 50, 60)
 	parked.isParked = "true"
 	local theirs = addVehicle(80, "1-1", false, "simple_traffic")
-	place(theirs, 12, 22)
+	place(theirs)
 	world.mp["1-1"].ownerName = "Borian"
 	world.playerVeh = 70
-	local inst = sharedCareer_instability
 	update(1.1)
 	-- a glitch: your car, your parked car and Borian's car at once
 	toasts = {}
-	-- BeamMP's own handler may run first and mark the glitch as handled: put back anyway
-	local data = { instabilityHandled = true }
+	local beammp = { instabilityHandled = true } -- BeamMP handles it; SharedCareer leaves it so
 	extensions.hook("onInstabilityDetected", 80, {})
-	place(car, 0 / 0, 0 / 0)
-	extensions.hook("onInstabilityDetected", 70, data)
-	check(
-		#teleported == 1 and teleported[1].id == 70 and teleported[1].pos.x == 10 and teleported[1].pos.y == 20,
-		"your car is put back on its last safe spot"
-	)
-	check(teleported[1].reset == true and teleported[1].rot.dir.y == 1, "reset and upright, same heading")
-	check(data.instabilityHandled == true, "still marked as handled")
-	local again = {}
-	extensions.hook("onInstabilityDetected", 70, again)
-	check(#teleported == 1 and again.instabilityHandled == true, "the same glitch reported again: handled once")
-	local theirData = {}
-	extensions.hook("onInstabilityDetected", 80, theirData)
-	check(#teleported == 1 and not theirData.instabilityHandled, "another player's car is left to its owner")
+	extensions.hook("onInstabilityDetected", 70, beammp)
+	extensions.hook("onInstabilityDetected", 70, {})
 	extensions.hook("onInstabilityDetected", 71, {})
-	check(#teleported == 2 and teleported[2].id == 71, "your parked car is put back too")
+	check(beammp.instabilityHandled == true, "BeamMP's handling is left as it is")
 	check(#toasts == 0, "no toast before the glitch is over")
 	clock = clock + 0.6
 	update(0.1)
 	check(
-		#toasts == 1 and toasts[1].msg == "Physics glitch – car put back (also Borian)",
-		"one toast: " .. tostring(toasts[1] and toasts[1].msg)
+		#toasts == 1 and toasts[1].msg == "Physics glitch (also Borian)",
+		"one toast per glitch: " .. tostring(toasts[1] and toasts[1].msg)
 	)
 	-- only traffic and other players' cars hit: no toast
 	toasts = {}
@@ -3957,22 +3928,6 @@ end)();
 	clock = clock + 0.6
 	update(0.1)
 	check(#toasts == 0, "only traffic and other players' cars: no toast")
-	-- without a safe spot the game handles it as before
-	addVehicle(72, "0-3", true, "pickup")
-	local before = #teleported
-	extensions.hook("onInstabilityDetected", 72, {})
-	check(#teleported == before, "no safe spot yet: left to BeamMP")
-	-- a spot while flying away is not kept
-	place(car, 10, 20)
-	update(1.1)
-	place(car, 500, 500, 90)
-	update(1.1)
-	teleported = {}
-	clock = clock + 5
-	extensions.hook("onInstabilityDetected", 70, {})
-	check(teleported[1] and teleported[1].pos.x == 10, "a spot at a flying speed is not kept")
-	clock = clock + 0.6
-	update(0.1)
 
 	-- BeamMP sets another player's car in place: only with valid values
 	local placed = {}
@@ -3982,33 +3937,25 @@ end)();
 		end,
 	}
 	update(1.1)
-	local good = {
-		pos = vec(1, 2, 3),
-		vel = vec(4, 0, 0),
-		rvel = vec(0, 0, 0.1),
-		vehVel = vec(4, 0, 0),
-		rot = { x = 0, y = 0, z = 0, w = 1 },
-	}
-	positionGE.setPositionRotationVelocity(80, good)
+	local function data(changes)
+		local d = {
+			pos = vec(1, 2, 3),
+			vel = vec(4, 0, 0),
+			rvel = vec(0, 0, 0.1),
+			vehVel = vec(4, 0, 0),
+			rot = { x = 0, y = 0, z = 0, w = 1 },
+		}
+		for k, v in pairs(changes or {}) do
+			d[k] = v
+		end
+		return d
+	end
+	positionGE.setPositionRotationVelocity(80, data())
 	check(#placed == 1, "a valid placement passes")
-	local bad = {
-		pos = vec(1, 2, 3),
-		vel = vec(0 / 0, 0, 0),
-		rvel = vec(0, 0, 0),
-		vehVel = vec(0, 0, 0),
-		rot = { x = 0, y = 0, z = 0, w = 1 },
-	}
-	positionGE.setPositionRotationVelocity(80, bad)
-	local zeroRot = {
-		pos = vec(1, 2, 3),
-		vel = vec(0, 0, 0),
-		rvel = vec(0, 0, 0),
-		vehVel = vec(0, 0, 0),
-		rot = { x = 0, y = 0, z = 0, w = 0 },
-	}
-	positionGE.setPositionRotationVelocity(80, zeroRot)
-	place(theirs, 12, 22, math.huge)
-	positionGE.setPositionRotationVelocity(80, good)
+	positionGE.setPositionRotationVelocity(80, data({ vel = vec(0 / 0, 0, 0) }))
+	positionGE.setPositionRotationVelocity(80, data({ rot = { x = 0, y = 0, z = 0, w = 0 } }))
+	place(theirs, math.huge)
+	positionGE.setPositionRotationVelocity(80, data())
 	check(#placed == 1, "invalid values, a broken rotation or an already broken car: dropped")
 	local logged = {}
 	local realLog = sharedCareer_util.log
@@ -4022,7 +3969,7 @@ end)();
 		logged[1] and logged[1]:find("blocked 3 placement") and logged[1]:find("Borian"),
 		"dropped placements logged: " .. tostring(logged[1])
 	)
-	_G.spawn, _G.positionGE, _G.vec3, _G.quatFromDir = nil, nil, nil, nil
+	_G.positionGE = nil
 	extensions.hook("onBeamMPServerLeave")
 end)();
 

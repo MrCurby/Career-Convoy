@@ -8,7 +8,7 @@
 --   traffic   traffic amount from the server, simple vehicles, more careful AI
 --   garage    garage: no duplicate cars, visible player on foot, computers from a distance
 --   vehicles  other players' cars: visibility, name tags, collision (ghost)
---   instability  physics glitches: invalid sync values blocked, your vehicles put back
+--   instability  physics glitches: invalid sync values blocked, a glitch shown
 --   couplings trailers and dollies stay coupled on every PC
 --   money     money transfers between players (/pay)
 --   env       time of day from the server, environment locked in the pause menu
