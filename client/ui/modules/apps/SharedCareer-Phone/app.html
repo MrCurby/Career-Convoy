@@ -89,8 +89,19 @@
 						<div class="scp-hint" ng-if="!jobs.enabled">Jobs are off on this
 							server.</div>
 
+						<div class="scp-job-tabs" role="tablist">
+							<button ng-repeat="tab in jobTabs() track by tab.id"
+								ng-class="{'scp-job-tab-on': jobsTab === tab.id}"
+								ng-click="setJobsTab(tab.id)" role="tab"
+								aria-selected="{{ jobsTab === tab.id }}">
+								<span class="scp-job-tab-icon"><svg aria-hidden="true"><use
+									ng-attr-href="{{ '#sc-icon-' + tab.icon }}" /></svg></span>
+								<span ng-bind="tab.name"></span>
+							</button>
+						</div>
+
 						<!-- your job -->
-						<div class="scp-myjob" ng-if="jobs.active">
+						<div class="scp-myjob" ng-if="jobsActiveInTab()">
 							<div class="scp-myjob-top">
 								<span class="scp-myjob-label">Your job</span>
 								<span class="scp-reward">
@@ -127,14 +138,15 @@
 							</div>
 						</div>
 						<div class="scp-hint"
-							ng-if="jobs.active && jobs.active.hint && !jobPaid()"
+							ng-if="jobsActiveInTab() && jobs.active.hint && !jobPaid()"
 							ng-bind="jobs.active.hint"></div>
 
 						<!-- a section per job type: your level in it (a ring that fills up to the next level), then
 					     its jobs by the level they need – yours first (the hardest at the top), then the ones
 					     you can't take yet, with a lock -->
 						<div class="scp-jobsection"
-							ng-repeat="sec in jobs.sections track by sec.type" ng-if="jobs.enabled">
+							ng-repeat="sec in jobs.sections track by sec.type"
+							ng-if="jobs.enabled && sec.type === jobsTab && jobsTab !== 'taxi'">
 							<div class="scp-level">
 								<span class="scp-level-ring"
 									ng-style="{'background': levelRing(sec.level)}"><span
@@ -190,8 +202,14 @@
 								</div>
 							</div>
 						</div>
+						<div class="scp-jobs-placeholder" ng-if="jobsTab === 'taxi'">
+							<span class="scp-jobs-empty-icon"><svg aria-hidden="true"><use
+										href="#sc-icon-car" /></svg></span>
+							<div class="scp-empty-title">Taxi</div>
+							<div class="scp-empty-text">Coming soon.</div>
+						</div>
 						<div class="scp-jobs-empty"
-							ng-if="jobs.enabled && !jobs.open && !jobs.active">
+							ng-if="jobs.enabled && jobsTab !== 'taxi' && !jobsTabOpen() && !jobsActiveInTab()">
 							<span class="scp-jobs-empty-icon"><svg aria-hidden="true"><use
 										href="#sc-icon-jobs" /></svg></span>
 							<div class="scp-empty-title">No jobs right now</div>

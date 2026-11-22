@@ -592,6 +592,7 @@ function M.appState()
 		local steps = active.type.steps or {}
 		state.active = {
 			id = job.id,
+			type = active.type.id,
 			icon = iconOf(job),
 			title = job.title,
 			tags = tagsOf(job),

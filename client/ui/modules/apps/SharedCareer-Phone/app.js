@@ -215,6 +215,32 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 	// What a job shows (icon, tags, steps, the texts of what to do now) comes from its job type
 	// (towJobs.lua: towing jobs); this window only lays it out.
 	$scope.jobs = {enabled: false, sections: [], open: 0, active: null};
+	$scope.jobsTab = 'tow';
+	$scope.jobTabs = function () {
+		var tabs = [{id: 'tow', name: 'Towing', icon: 'tow'}];
+		var added = {tow: true};
+		for (var i = 0; i < $scope.jobs.sections.length; i++) {
+			var sec = $scope.jobs.sections[i];
+			if (!sec.type || sec.type === 'tow' || sec.type === 'taxi' || added[sec.type]) continue;
+			tabs.push({id: sec.type, name: sec.name || sec.type, icon: sec.icon || 'jobs'});
+			added[sec.type] = true;
+		}
+		tabs.push({id: 'taxi', name: 'Taxi', icon: 'car', placeholder: true});
+		return tabs;
+	};
+	$scope.setJobsTab = function (id) { $scope.jobsTab = id; };
+	$scope.jobsActiveInTab = function () {
+		var active = $scope.jobs.active;
+		return !!active && (active.type || 'tow') === $scope.jobsTab;
+	};
+	$scope.jobsTabOpen = function () {
+		var open = 0;
+		for (var i = 0; i < $scope.jobs.sections.length; i++) {
+			var sec = $scope.jobs.sections[i];
+			if (sec.type === $scope.jobsTab) open += Number(sec.open) || 0;
+		}
+		return open;
+	};
 	$scope.jobsCall = function (cmd) {
 		bngApi.engineLua('if sharedCareer_jobs then sharedCareer_jobs.' + cmd + ' end');
 	};
@@ -272,6 +298,7 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 			if (active) {
 				if (!Array.isArray(active.steps)) active.steps = [];
 				if (!Array.isArray(active.tags)) active.tags = [];
+				if (typeof active.type === 'string') $scope.jobsTab = active.type;
 			}
 			var sections = Array.isArray(data.sections) ? data.sections : [];
 			sections.forEach(function (sec) {

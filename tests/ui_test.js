@@ -254,7 +254,16 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 		'the XP of a job in words, nothing without any');
 	check(phone.levelText(sec.level) === 'Level 4 · 200 XP to level 5' && phone.levelText({level: 10}) === 'Level 10 · top level'
 		&& phone.levelText(null) === '', 'your level in words');
-	phone.emit('SharedCareerJobs', {enabled: true, sections: [{type: 'x'}]});
+	const jobTabs = phone.jobTabs();
+	check(jobTabs[0].id === 'tow' && jobTabs[1].id === 'taxi' && jobTabs[1].placeholder,
+		'job tabs: towing first, taxi as the placeholder');
+	phone.setJobsTab('taxi');
+	check(phone.jobsTab === 'taxi', 'the taxi placeholder tab can be selected');
+	phone.setJobsTab('tow');
+	phone.emit('SharedCareerJobs', {enabled: true, sections: [{type: 'x', open: 1}]});
+	const futureTabs = phone.jobTabs();
+	check(futureTabs.some(function (tab) { return tab.id === 'x' && tab.name === 'x'; })
+		&& phone.jobsTabOpen() === 0, 'new job types are added as tabs');
 	check(phone.jobs.sections[0].groups.length === 0 && phone.jobs.open === 0, 'nothing sent: empty lists');
 	const active = function (more) {
 		return Object.assign({id: 3, icon: 'tow', title: 'Gavril D-Series', dest: 'Belasco Auto', pay: 820,
