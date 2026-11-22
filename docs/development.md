@@ -15,7 +15,8 @@
 client/                          client mod (packed into Resources/Client/SharedCareer.zip)
   lua/ge/extensions/sharedCareer/  game-engine Lua, one file per area (see below)
   lua/vehicle/extensions/auto/     vehicle Lua (sharedCareerVeh: ghost, AI, ropes, towing jobs, damage;
-                                   sharedCareerPauseGuard: BeamMP's position sync during a pause)
+                                   sharedCareerSyncGuard: BeamMP's position sync during a pause and
+                                   with invalid values)
   scripts/sharedCareer/            mod entry point (loads the extensions)
   ui/modules/apps/                 the two UI apps: SharedCareer-Menu (the menu with the steering
                                    wheel) and SharedCareer-Phone (phone with the Jobs, Tow, Straps
@@ -107,7 +108,9 @@ One line per problem. Each file starts with a comment that explains the details.
 | Your name tag above every one of your traffic cars | Traffic and parked cars are marked and their name tags hidden | `vehicles.lua` |
 | Your police or traffic "takes over" other players | Remote cars get `ignoreTraffic` | `vehicles.lua` |
 | Your traffic and parked cars appear on top of other players, or vanish right next to them | Other players' own vehicles (not their traffic) get the game's `trafficClearRadius` (40 m): traffic spawn points, traffic respawns and parking spots keep that distance | `vehicles.lua` |
-| Other players' vehicles blow up after someone pauses ("Instability detected") and wreck cars next to them | On a pause BeamMP sets the game speed to 0, and `positionVE` divides by it. The guard keeps the last real speed and skips `positionVE` while paused | `sharedCareerPauseGuard.lua` |
+| Other players' vehicles blow up after someone pauses ("Instability detected") and wreck cars next to them | On a pause BeamMP sets the game speed to 0, and `positionVE` divides by it. The guard keeps the last real speed and skips `positionVE` while paused | `sharedCareerSyncGuard.lua` |
+| BeamMP's sync pushes invalid values (NaN, infinite) into other players' vehicles; they blow up and wreck the cars next to them | Nothing of BeamMP checks the numbers. `velocityVE`'s corrections and `positionGE.setPositionRotationVelocity` (setting a car in place) drop a call with a value that is not a finite number, or for a car that is already broken | `sharedCareerSyncGuard.lua`, `instability.lua` |
+| After a physics glitch your car **jumps to the garage without wheels or bumpers** | Without a handler the game puts an unstable vehicle back where it was spawned (in the career: the garage), and torn-off parts stay off. For your own vehicles `onInstabilityDetected` puts it back on its last safe spot (kept every second), upright and reset, and tells the game it is handled. One toast per glitch, naming the other players whose cars blew up in the same moment | `instability.lua` |
 | A trailer or dolly follows the truck but hangs uncoupled on other PCs | BeamMP sends a coupling only once. Every client reports its own couplings (`sc_couplings`), and the others retry missing ones with BeamMP's `couplerVE.toggleCouplerState` until they hold | `couplings.lua`, server |
 | **Duplicate cars** when tuning, changing parts or painting | BeamMP rebuilds the wrong car, so `getPlayerVehicle(0)` points at the right one for that call | `garage.lua` |
 | Other players on foot are invisible | A visible BeamMP unicycle variant | `garage.lua` |

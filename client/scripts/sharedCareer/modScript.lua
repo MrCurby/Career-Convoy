@@ -8,6 +8,7 @@
 --   traffic   traffic amount from the server, simple vehicles, more careful AI
 --   garage    garage: no duplicate cars, visible player on foot, computers from a distance
 --   vehicles  other players' cars: visibility, name tags, collision (ghost)
+--   instability  physics glitches: invalid sync values blocked, your vehicles put back
 --   couplings trailers and dollies stay coupled on every PC
 --   money     money transfers between players (/pay)
 --   env       time of day from the server, environment locked in the pause menu
@@ -52,6 +53,7 @@ loadPersistent("sharedCareer/protect")
 loadPersistent("sharedCareer/traffic")
 loadPersistent("sharedCareer/garage")
 loadPersistent("sharedCareer/vehicles")
+loadPersistent("sharedCareer/instability")
 loadPersistent("sharedCareer/couplings")
 loadPersistent("sharedCareer/money")
 loadPersistent("sharedCareer/env")
