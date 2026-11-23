@@ -233,9 +233,9 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 	phone.emit('SharedCareerTow', {allowed: true, attached: true, slack: true, winch: 0, strain: 0.3, ropeLoad: 0});
 	check(!phone.segStyle(0).background && phone.winchText() === 'Locked' && phone.ropeState().text === 'Slack',
 		'winch stopped: "Locked", empty segments; rope "Slack"');
-	// Jobs app (beta): list, your job, the steps; the strip above the Tow and Straps apps opens it. What a job shows
+	// Jobs app: list, your job, the steps; the strip above the Tow and Straps apps opens it. What a job shows
 	// comes from its job type (jobs.lua appState); the window only lays it out.
-	phone.emit('SharedCareerPhone', {enabled: true, apps: [{id: 'jobs', title: 'Jobs', beta: true}, {id: 'tow'}, {id: 'fuel'}]});
+	phone.emit('SharedCareerPhone', {enabled: true, apps: [{id: 'jobs', title: 'Jobs'}, {id: 'tow'}, {id: 'fuel'}]});
 	phone.emit('SharedCareerJobs', {enabled: true, open: 1, sections: [{type: 'tow', name: 'Towing', icon: 'tow', open: 1,
 		level: {level: 4, share: 0.25, toGo: 200}, groups: [
 			{minLevel: 3, locked: false, open: 1, jobs: [{id: 1, icon: 'tow', title: 'Gavril Grand Marshal',
@@ -254,7 +254,18 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 		'the XP of a job in words, nothing without any');
 	check(phone.levelText(sec.level) === 'Level 4 · 200 XP to level 5' && phone.levelText({level: 10}) === 'Level 10 · top level'
 		&& phone.levelText(null) === '', 'your level in words');
-	phone.emit('SharedCareerJobs', {enabled: true, sections: [{type: 'x'}]});
+	const jobTabs = phone.jobTabs;
+	check(jobTabs[0].id === 'tow' && jobTabs[1].id === 'taxi' && jobTabs[1].placeholder,
+		'job tabs: towing first, taxi as the placeholder');
+	check(phone.jobTabs === jobTabs && phone.fuelSorts.map(o => o.id).join() === 'gasoline,diesel,distance',
+		'the tab rows get the same arrays until Lua sends new jobs (a new array each time never settles)');
+	phone.setJobsTab('taxi');
+	check(phone.jobsTab === 'taxi', 'the taxi placeholder tab can be selected');
+	phone.setJobsTab('tow');
+	phone.emit('SharedCareerJobs', {enabled: true, sections: [{type: 'x', open: 1}]});
+	const futureTabs = phone.jobTabs;
+	check(futureTabs.some(function (tab) { return tab.id === 'x' && tab.name === 'x'; })
+		&& phone.jobsTabOpen() === 0, 'new job types are added as tabs');
 	check(phone.jobs.sections[0].groups.length === 0 && phone.jobs.open === 0, 'nothing sent: empty lists');
 	const active = function (more) {
 		return Object.assign({id: 3, icon: 'tow', title: 'Gavril D-Series', dest: 'Belasco Auto', pay: 820,
@@ -276,7 +287,7 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 	phone.emit('SharedCareerJobs', {enabled: true, jobs: [], active: active({phase: 'paid', step: 2})});
 	check(phone.jobStep() === 2 && phone.jobPaid() && phone.jobText().indexOf('Done') === 0, 'step 3: paid');
 	phone.openJobs();
-	check(phone.currentApp && phone.currentApp.id === 'jobs' && phone.currentApp.beta === true, 'the job strip opens the Jobs app (beta)');
+	check(phone.currentApp && phone.currentApp.id === 'jobs' && !phone.currentApp.beta, 'the job strip opens the Jobs app without a beta marker');
 	phone.goHome();
 	phone.destroy();
 	check(last(env, 'phone') === false && last(env, 'fuel') === false, 'phone window removed: not visible');
@@ -357,20 +368,41 @@ if (process.argv[2]) {
 	const icons = [...sprite.matchAll(/<symbol id="sc-icon-([a-z-]+)" viewBox="0 0 24 24">/g)].map(m => m[1]);
 	check(icons.length === (sprite.match(/<symbol/g) || []).length && new Set(icons).size === icons.length,
 		'icons.svg: every symbol named sc-icon-<name> in a 24x24 box, each name once');
-	const pages = ['Menu', 'Phone'].map(a => read('client/ui/modules/apps/SharedCareer-' + a + '/app.html'));
+	const pages = [
+		read('client/ui/modules/apps/SharedCareer-Menu/app.html'),
+		read('client/ui/modules/apps/SharedCareer-Phone/phone.html'),
+	];
 	check(pages.every(h => h.includes('ng-include="\'/ui/sharedCareer/icons.svg\'"')), 'both apps load icons.svg');
-	// the phone's remote (remote.html), in the Tow and Straps apps
-	const remote = read('client/ui/modules/apps/SharedCareer-Phone/remote.html');
-	check((pages[1].match(/ng-include="'\/ui\/modules\/apps\/SharedCareer-Phone\/remote.html'"/g) || []).length === 2
-		&& !pages[1].includes('scp-pad-key'), 'the Tow and Straps apps share one remote (remote.html)');
-	pages.push(remote);
+	// replace: true needs exactly one root element: nothing (not even a comment) before or after it
+	check(pages.every(h => /^<div\b/.test(h) && /<\/div>\s*$/.test(h)),
+		'menu and phone templates are one root <div>, nothing before or after it');
+	// every app screen is loaded into a .scp-appscreen slot, else it is not given a height and cannot scroll
+	const slots = [...pages[1].matchAll(/<div([^>]*)ng-include="'\/ui\/modules\/apps\/SharedCareer-Phone\/apps\//g)];
+	check(slots.length === 4 && slots.every(m => m[1].includes('class="scp-appscreen"')),
+		'phone.html: each app screen sits in a .scp-appscreen slot (so it scrolls)');
+	// the phone's remote (remote.html), in the Tow and Straps app templates
+	const phoneDir = 'client/ui/modules/apps/SharedCareer-Phone/';
+	const appTemplates = ['jobs', 'tow', 'straps', 'fuel'].map(name => read(phoneDir + 'apps/' + name + '.html'));
+	const phoneScript = read(phoneDir + 'app.js');
+	const remote = read(phoneDir + 'remote.html');
+	const segmentSelect = read(phoneDir + 'shared/segment-select.html');
+	check((appTemplates.join('').match(/ng-include="'\/ui\/modules\/apps\/SharedCareer-Phone\/remote.html'"/g) || []).length === 2
+		&& !appTemplates.join('').includes('scp-pad-key'), 'the Tow and Straps apps share one remote (remote.html)');
+	check(appTemplates[0].includes('<scp-segment-select options="jobTabs" selected="jobsTab"')
+		&& appTemplates[3].includes('<scp-segment-select options="fuelSorts" selected="fuelSort"')
+		&& phoneScript.includes("directive('scpSegmentSelect'")
+		&& phoneScript.includes('shared/segment-select.html')
+		&& segmentSelect.includes('ng-repeat="option in options track by option.id"')
+		&& !appTemplates.join('').includes('scp-seg-'),
+		'Fuel and Jobs pass only their options to the shared segment select; it draws the buttons');
+	pages.push(remote, segmentSelect, ...appTemplates);
 	const used = pages.flatMap(h => [...h.matchAll(/href="#sc-icon-([a-z-]+)"/g)].map(m => m[1]));
 	const missing = used.filter(n => !icons.includes(n));
 	check(used.length > 30 && missing.length === 0, 'every icon the apps use is in icons.svg ' + missing.join(','));
 	// no icon drawn inline in an app: an <svg> there only holds a <use> (the rope is a drawing, not an icon)
 	const inline = pages.flatMap(h => [...h.matchAll(/<svg[^>]*>([\s\S]*?)<\/svg>/g)].map(m => m[1]))
-		.filter(b => !/^<use [^>]*\/>$/.test(b.trim()) && !b.includes('scp-rope-path'));
-	check(inline.length === 0, 'no icon drawn inline in app.html (' + inline.length + ')');
+		.filter(b => !/^<use(?:\s[^>]*)?\/>$/.test(b.trim()) && !b.includes('scp-rope-path'));
+	check(inline.length === 0, 'no icon drawn inline in phone or app templates (' + inline.length + ')');
 	// the icon names Lua sends: the apps on the phone, the job types, the kinds of vehicle of a towing job
 	const lua = ['jobs', 'tow', 'straps', 'fuel', 'towJobs'].map(f => read('client/lua/ge/extensions/sharedCareer/' + f + '.lua'));
 	const kinds = lua[4].match(/local KINDS = \{([\s\S]*?)\n\}/)[1];

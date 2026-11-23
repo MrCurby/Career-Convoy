@@ -108,7 +108,7 @@ The file is `Resources/Server/SharedCareer/config/config.json`. It is created on
 | `server.fuelMaxDiscount` | `30` | Maximum discount in % |
 | `server.fuelRecoveryPercent` / `server.fuelRecoveryMinutes` | `1` / `5` | The discount drops by 1 percentage point every 5 minutes |
 
-### Jobs (beta)
+### Jobs
 
 | Setting | Default | Meaning |
 |---|---|---|

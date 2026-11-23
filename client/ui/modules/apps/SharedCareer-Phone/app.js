@@ -1,7 +1,7 @@
 // SharedCareer Phone: a tab at the right screen edge (key F4) that takes the phone out.
 // The phone shows the server time, the number of players, the connection and the apps that
 // SharedCareer extensions registered (lua/ge/extensions/sharedCareer/phone.lua). Built-in app
-// screens: Jobs (beta, jobs.lua with its job types, for now towJobs.lua), Tow (rope and winch, tow.lua), Straps (ratchet straps,
+// screens: Jobs (jobs.lua with its job types, for now towJobs.lua), Tow (rope and winch, tow.lua), Straps (ratchet straps,
 // straps.lua) and Fuel (gas station prices, fuel.lua). Apps marked beta get a "BETA" badge on the icon and in the title bar.
 // The home screen has, below the clock, how long until day or night (with a bar for the part
 // of it that is over), and the app icons.
@@ -16,6 +16,11 @@
 // Opening the phone collapses the menu and the other way round (window event
 // "sharedCareerPanelOpen").
 //
+// Files: app.json registers the BeamNG UI app; phone.html is the template (the phone's shell),
+// apps/<name>.html the screens of the built-in apps, shared/ the parts they share (segment-select.html:
+// the row to switch views, directive scpSegmentSelect below), remote.html the rope remote, app.css the styles.
+// phone.html must have exactly one root element (replace: true below), with nothing before it.
+//
 // Note: only var/function at the top level – the game evaluates app.js again in the same
 // scope when the apps are reloaded.
 
@@ -23,10 +28,29 @@ var sharedCareerPhoneApp = angular.module('beamng.apps');
 
 sharedCareerPhoneApp.directive('sharedCareerPhone', [function () {
 	return {
-		templateUrl: '/ui/modules/apps/SharedCareer-Phone/app.html',
+		templateUrl: '/ui/modules/apps/SharedCareer-Phone/phone.html',
 		replace: true,
 		restrict: 'EA',
 		scope: true
+	};
+}]);
+
+// A row of buttons to switch between views of an app (Fuel: sort, Jobs: job type); the chosen
+// one is highlighted. <scp-segment-select options="list" selected="id" on-select="set(id)">
+//   options    [{id, name, icon?}] – keep it the same array between updates (a new array on every
+//              call makes AngularJS check again and again until it gives up)
+//   selected   the id of the chosen option
+//   on-select  called with the id of the button that was clicked
+sharedCareerPhoneApp.directive('scpSegmentSelect', [function () {
+	return {
+		restrict: 'E',
+		replace: true,
+		templateUrl: '/ui/modules/apps/SharedCareer-Phone/shared/segment-select.html',
+		scope: {
+			options: '=',
+			selected: '=',
+			onSelect: '&'
+		}
 	};
 }]);
 
@@ -183,6 +207,7 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 	//== Fuel app (lua/ge/extensions/sharedCareer/fuel.lua, data with "SharedCareerState") ==
 	var SORT_KEY = "sharedCareerFuelSort";
 	$scope.fuel = null;
+	$scope.fuelSorts = [{id: 'gasoline', name: 'Gasoline'}, {id: 'diesel', name: 'Diesel'}, {id: 'distance', name: 'Nearest'}];
 	$scope.fuelSort = "gasoline";
 	try { $scope.fuelSort = window.localStorage.getItem(SORT_KEY) || "gasoline"; } catch (e) {}
 	$scope.setFuelSort = function (s) {
@@ -215,10 +240,39 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 	// What a job shows (icon, tags, steps, the texts of what to do now) comes from its job type
 	// (towJobs.lua: towing jobs); this window only lays it out.
 	$scope.jobs = {enabled: false, sections: [], open: 0, active: null};
+	// the job types as tabs: towing first, a tab for every other job type, taxi (coming soon) last.
+	// Built once per update from Lua, not on every call (the tab row needs the same array, see scpSegmentSelect).
+	function jobTabsOf(sections) {
+		var tabs = [{id: 'tow', name: 'Towing', icon: 'tow'}];
+		var added = {tow: true};
+		for (var i = 0; i < sections.length; i++) {
+			var sec = sections[i];
+			if (!sec.type || sec.type === 'tow' || sec.type === 'taxi' || added[sec.type]) continue;
+			tabs.push({id: sec.type, name: sec.name || sec.type, icon: sec.icon || 'jobs'});
+			added[sec.type] = true;
+		}
+		tabs.push({id: 'taxi', name: 'Taxi', icon: 'car', placeholder: true});
+		return tabs;
+	}
+	$scope.jobsTab = 'tow';
+	$scope.jobTabs = jobTabsOf([]);
+	$scope.setJobsTab = function (id) { $scope.jobsTab = id; };
+	$scope.jobsActiveInTab = function () {
+		var active = $scope.jobs.active;
+		return !!active && (active.type || 'tow') === $scope.jobsTab;
+	};
+	$scope.jobsTabOpen = function () {
+		var open = 0;
+		for (var i = 0; i < $scope.jobs.sections.length; i++) {
+			var sec = $scope.jobs.sections[i];
+			if (sec.type === $scope.jobsTab) open += Number(sec.open) || 0;
+		}
+		return open;
+	};
 	$scope.jobsCall = function (cmd) {
 		bngApi.engineLua('if sharedCareer_jobs then sharedCareer_jobs.' + cmd + ' end');
 	};
-	// whether icons.svg (ui/sharedCareer/, loaded into the page by app.html) has this icon; else the
+	// whether icons.svg (ui/sharedCareer/, loaded into the page by phone.html) has this icon; else the
 	// name is shown as text (an app that registered a letter, e.g. "T")
 	$scope.hasIcon = function (name) {
 		return typeof name === 'string' && name !== '' && !!document.getElementById('sc-icon-' + name);
@@ -272,6 +326,7 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 			if (active) {
 				if (!Array.isArray(active.steps)) active.steps = [];
 				if (!Array.isArray(active.tags)) active.tags = [];
+				if (typeof active.type === 'string') $scope.jobsTab = active.type;
 			}
 			var sections = Array.isArray(data.sections) ? data.sections : [];
 			sections.forEach(function (sec) {
@@ -279,6 +334,7 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 				sec.groups.forEach(function (g) { if (!Array.isArray(g.jobs)) g.jobs = []; });
 			});
 			$scope.jobs = {enabled: data.enabled === true, sections: sections, open: Number(data.open) || 0, active: active};
+			$scope.jobTabs = jobTabsOf(sections);
 		});
 	});
 

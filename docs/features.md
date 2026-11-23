@@ -14,7 +14,7 @@ Everything players see and use in the game. All texts in the game are in English
 - [Node grabber](#node-grabber)
 - [Moving your vehicles by hand (rope and winch)](#moving-your-vehicles-by-hand-rope-and-winch)
 - [Strapping a car down (straps)](#strapping-a-car-down-straps)
-- [Towing jobs (beta)](#towing-jobs-beta)
+- [Towing jobs](#towing-jobs)
 - [Phone](#phone)
 - [Sending money](#sending-money)
 
@@ -227,7 +227,7 @@ Good to know:
 - Your own vehicles only, like the rope. You can have the rope and straps at the same time, for example to winch a car onto a flatbed and then strap it down.
 - Server admins switch straps on and off together with the rope (`client.allowRopes`).
 
-## Towing jobs (beta)
+## Towing jobs
 
 <img src="images/phone-jobs.png" width="240" alt="Jobs app: your job and the open jobs">
 

@@ -4184,7 +4184,7 @@ check(
 	"the player's own settings restored"
 );
 
---== 10. Jobs (beta): towing jobs, and a job type of the tests ===================
+--== 10. Jobs: towing jobs, and a job type of the tests =======================
 -- (in a function of its own: the main chunk is at Lua's limit of 200 local variables)
 (function()
 	resetWorld()
@@ -4590,7 +4590,7 @@ check(
 	check(#sentToServer == sentBefore, "no repair shops on the map: no job")
 	freeroam_facilities.getFacilities = realFacilities
 
-	-- the list arrives: the Jobs app (beta) is on the phone
+	-- the list arrives: the Jobs app is on the phone
 	local job = {
 		id = 7,
 		type = "tow",
@@ -4620,7 +4620,10 @@ check(
 			jobsApp = app
 		end
 	end
-	check(jobsApp and jobsApp.beta == true and jobsApp.title == "Jobs", "the Jobs app is on the phone, marked as beta")
+	check(
+		jobsApp and not jobsApp.beta and jobsApp.title == "Jobs",
+		"the Jobs app is on the phone without a beta marker"
+	)
 	local st = jobs.appState()
 	local first = st.sections[1] and st.sections[1].groups[1].jobs[1]
 	check(

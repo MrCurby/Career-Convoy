@@ -2,7 +2,7 @@
 --
 -- A phone in the game, the home for SharedCareer apps. The home screen shows the server time,
 -- how long until day or night (with a bar), the number of players and the app grid. Apps so far:
--- Jobs (jobs.lua, beta), Tow (tow.lua), Straps (straps.lua) and Fuel (fuel.lua).
+-- Jobs (jobs.lua), Tow (tow.lua), Straps (straps.lua) and Fuel (fuel.lua).
 --
 -- The UI is the app ui/modules/apps/SharedCareer-Phone/: a small tab with a phone icon at the
 -- right screen edge (below the menu); the phone itself opens above it. Key: F4 by default
@@ -17,7 +17,7 @@
 -- The phone shows every registered app on the home screen; a tap calls uiOpenApp(id), which
 -- calls the app's onOpen; leaving the app (home, putting the phone away) calls uiCloseApp(id) ->
 -- onClose. Apps are only listed while client.phone is on. Tow, Straps and Fuel have their own screens
--- in the phone window (app.html).
+-- in the phone window (phone.html).
 --
 -- icon: the name of an icon in ui/sharedCareer/icons.svg ("jobs", "tow", ...), else a short text (letter).
 --
