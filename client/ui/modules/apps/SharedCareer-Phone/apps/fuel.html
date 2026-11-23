@@ -1,12 +1,6 @@
 <div class="scp-appbody scp-tow scp-fuel">
-	<scp-segment-select>
-		<button ng-class="{'scp-seg-on scp-seg-in': fuelSort === 'gasoline'}"
-			ng-click="setFuelSort('gasoline')">Gasoline</button>
-		<button ng-class="{'scp-seg-on scp-seg-in': fuelSort === 'diesel'}"
-			ng-click="setFuelSort('diesel')">Diesel</button>
-		<button ng-class="{'scp-seg-on scp-seg-in': fuelSort === 'distance'}"
-			ng-click="setFuelSort('distance')">Nearest</button>
-	</scp-segment-select>
+	<scp-segment-select options="fuelSorts" selected="fuelSort"
+		on-select="setFuelSort(id)"></scp-segment-select>
 	<div class="scp-station" ng-repeat="st in stations() track by st.id"
 		ng-class="{'scp-cheapest': $first && fuelSort !== 'distance'}">
 		<div class="scp-station-top">

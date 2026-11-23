@@ -254,14 +254,16 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 		'the XP of a job in words, nothing without any');
 	check(phone.levelText(sec.level) === 'Level 4 · 200 XP to level 5' && phone.levelText({level: 10}) === 'Level 10 · top level'
 		&& phone.levelText(null) === '', 'your level in words');
-	const jobTabs = phone.jobTabs();
+	const jobTabs = phone.jobTabs;
 	check(jobTabs[0].id === 'tow' && jobTabs[1].id === 'taxi' && jobTabs[1].placeholder,
 		'job tabs: towing first, taxi as the placeholder');
+	check(phone.jobTabs === jobTabs && phone.fuelSorts.map(o => o.id).join() === 'gasoline,diesel,distance',
+		'the tab rows get the same arrays until Lua sends new jobs (a new array each time never settles)');
 	phone.setJobsTab('taxi');
 	check(phone.jobsTab === 'taxi', 'the taxi placeholder tab can be selected');
 	phone.setJobsTab('tow');
 	phone.emit('SharedCareerJobs', {enabled: true, sections: [{type: 'x', open: 1}]});
-	const futureTabs = phone.jobTabs();
+	const futureTabs = phone.jobTabs;
 	check(futureTabs.some(function (tab) { return tab.id === 'x' && tab.name === 'x'; })
 		&& phone.jobsTabOpen() === 0, 'new job types are added as tabs');
 	check(phone.jobs.sections[0].groups.length === 0 && phone.jobs.open === 0, 'nothing sent: empty lists');
@@ -386,13 +388,13 @@ if (process.argv[2]) {
 	const segmentSelect = read(phoneDir + 'shared/segment-select.html');
 	check((appTemplates.join('').match(/ng-include="'\/ui\/modules\/apps\/SharedCareer-Phone\/remote.html'"/g) || []).length === 2
 		&& !appTemplates.join('').includes('scp-pad-key'), 'the Tow and Straps apps share one remote (remote.html)');
-	check(appTemplates[0].includes('<scp-segment-select layout="wrap" role="tablist">')
-		&& appTemplates[3].includes('<scp-segment-select>')
+	check(appTemplates[0].includes('<scp-segment-select options="jobTabs" selected="jobsTab"')
+		&& appTemplates[3].includes('<scp-segment-select options="fuelSorts" selected="fuelSort"')
 		&& phoneScript.includes("directive('scpSegmentSelect'")
 		&& phoneScript.includes('shared/segment-select.html')
-		&& phoneScript.includes('transclude: true')
-		&& segmentSelect.includes('ng-transclude'),
-		'Fuel and Jobs provide their own content to the shared segment select');
+		&& segmentSelect.includes('ng-repeat="option in options track by option.id"')
+		&& !appTemplates.join('').includes('scp-seg-'),
+		'Fuel and Jobs pass only their options to the shared segment select; it draws the buttons');
 	pages.push(remote, segmentSelect, ...appTemplates);
 	const used = pages.flatMap(h => [...h.matchAll(/href="#sc-icon-([a-z-]+)"/g)].map(m => m[1]));
 	const missing = used.filter(n => !icons.includes(n));

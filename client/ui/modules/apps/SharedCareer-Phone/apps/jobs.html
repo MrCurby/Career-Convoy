@@ -2,16 +2,8 @@
 	<div class="scp-hint" ng-if="!jobs.enabled">Jobs are off on this
 		server.</div>
 
-	<scp-segment-select layout="wrap" role="tablist">
-		<button ng-repeat="tab in jobTabs() track by tab.id"
-			ng-class="{'scp-seg-on scp-seg-in': jobsTab === tab.id}"
-			ng-click="setJobsTab(tab.id)" role="tab"
-			aria-selected="{{ jobsTab === tab.id }}">
-			<span class="scp-seg-icon"><svg aria-hidden="true"><use
-				ng-attr-href="{{ '#sc-icon-' + tab.icon }}" /></svg></span>
-			<span ng-bind="tab.name"></span>
-		</button>
-	</scp-segment-select>
+	<scp-segment-select options="jobTabs" selected="jobsTab"
+		on-select="setJobsTab(id)"></scp-segment-select>
 
 	<!-- your job -->
 	<div class="scp-myjob" ng-if="jobsActiveInTab()">

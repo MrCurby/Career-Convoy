@@ -101,14 +101,16 @@
 .scp-wide { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; border-radius: 12px; border: none; font-size: 14px; font-weight: 600; color: #fff; cursor: pointer; font-family: inherit; margin-top: 4px; }
 .scp-row-right { opacity: 0.7; white-space: nowrap; flex: none; margin-left: 8px; }
 .scp-row-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; min-width: 0; }
-.scp-seg { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; background: rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 4px; }
-.scp-seg button { border: none; border-radius: 9px; padding: 8px 0; background: none; color: #fff; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
+/* the row to switch views (shared/segment-select.html): one equal button per option, the chosen one orange */
+.scp-seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; margin-bottom: 10px; background: rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 4px; }
+.scp-seg button { min-width: 0; display: flex; align-items: center; justify-content: center; gap: 5px; border: none; border-radius: 9px; padding: 8px 4px; background: none; color: #fff; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
 .scp-seg button:hover { background: rgba(255, 255, 255, 0.1); }
-.scp-seg .scp-seg-on { background: rgba(255, 255, 255, 0.22); }
-.scp-seg .scp-seg-in { background: #e8730c; }
+.scp-seg .scp-seg-on, .scp-seg .scp-seg-on:hover { background: #e8730c; }
+.scp-seg-icon { display: inline-flex; flex: none; }
+.scp-seg-icon svg { width: 15px; height: 15px; }
+.scp-seg-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Fuel app */
-.scp-fuel .scp-seg { margin-bottom: 10px; }
 .scp-station { background: rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 8px 10px; margin-bottom: 6px; }
 .scp-cheapest { background: rgba(42, 157, 85, 0.3); }
 .scp-station-top { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; }
@@ -136,13 +138,7 @@
 	color: #2b1d00; background: linear-gradient(135deg, #ffd34d, #ffa41b);
 }
 
-/* Jobs app: keep its selectable job types in a compact, wrapping segment row. */
-.scp-jobs .scp-seg { margin-bottom: 10px; }
-.scp-seg-wrap { grid-template-columns: repeat(auto-fit, minmax(68px, 1fr)); }
-.scp-seg-wrap button { min-width: 0; display: flex; align-items: center; justify-content: center; gap: 5px; }
-.scp-seg-wrap button span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.scp-seg-icon { display: inline-flex; flex: none; }
-.scp-seg-icon svg { width: 15px; height: 15px; }
+/* Jobs app: a job type that is not there yet (Taxi) */
 .scp-jobs-placeholder {
 	text-align: center;
 	padding: 34px 10px;

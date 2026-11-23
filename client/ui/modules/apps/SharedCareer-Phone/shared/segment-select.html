@@ -1,2 +1,10 @@
-<div class="scp-seg" ng-class="{'scp-seg-wrap': layout === 'wrap'}"
-	ng-attr-role="{{ role || 'group' }}" ng-transclude></div>
+<div class="scp-seg" role="tablist">
+	<button ng-repeat="option in options track by option.id"
+		ng-class="{'scp-seg-on': option.id === selected}"
+		ng-click="onSelect({id: option.id})" role="tab"
+		aria-selected="{{ option.id === selected }}">
+		<span class="scp-seg-icon" ng-if="option.icon"><svg aria-hidden="true"><use
+			ng-attr-href="{{ '#sc-icon-' + option.icon }}" /></svg></span>
+		<span class="scp-seg-name" ng-bind="option.name"></span>
+	</button>
+</div>
