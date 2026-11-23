@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="docs/images/logo.svg" width="72" height="72" alt="SharedCareer logo">
+<img src="docs/images/logo.svg" width="200" alt="Career-Convoy logo">
 
-# SharedCareer
+# Career-Convoy
 
 **Play the BeamNG.drive career together on a BeamMP server.**
 
@@ -19,20 +19,20 @@ One shared world (same traffic, same time of day, same traffic lights), while ev
 
 ---
 
-## What is SharedCareer?
+## What is Career-Convoy?
 
 The BeamNG career is made for playing alone. If you try it on a multiplayer server, lots of things go wrong: loading your career deletes your friends' cars, everyone has a different time of day, your traffic shows up with your name on it, and so on.
 
-**SharedCareer fixes all of that.** It's a small mod for BeamMP servers that lets you play the normal BeamNG career together with your friends:
+**Career-Convoy fixes all of that.** It's a small mod for BeamMP servers that lets you play the normal BeamNG career together with your friends:
 
 - Join the server and your career **starts by itself**. No menus, nothing to set up.
 - Play the career like you always do: buy cars, do deliveries and missions, use your garage.
 - Everyone drives in the **same world**, and the mod keeps it the same for everyone.
 - **Your progress stays yours**: your money, cars and missions are saved on your own PC, just like in single player.
 
-**Made for small groups of friends.** SharedCareer is built for a few friends who just want to hang out on a BeamMP server and enjoy the career together, without stress and without things breaking. It's not made for big public servers.
+**Made for small groups of friends.** Career-Convoy is built for a few friends who just want to hang out on a BeamMP server and enjoy the career together, without stress and without things breaking. It's not made for big public servers.
 
-**How it's built.** At its heart, SharedCareer is the normal BeamNG career, made to work with more than one player. Those fixes always run. On top of that come **extras for playing together**, like shared fuel prices, finding your friends or a rope and winch to move vehicles that can't drive. Each extra is listed separately below and can be switched off by the server.
+**How it's built.** At its heart, Career-Convoy is the normal BeamNG career, made to work with more than one player. Those fixes always run. On top of that come **extras for playing together**, like shared fuel prices, finding your friends or a rope and winch to move vehicles that can't drive. Each extra is listed separately below and can be switched off by the server.
 
 Players **don't need to install anything**. BeamMP downloads the mod for them when they join.
 
@@ -49,7 +49,7 @@ Without these, the career breaks or behaves strangely on a multiplayer server.
 | <img src="docs/icons/traffic-light.svg" width="20" height="20" alt=""> **Same world for everyone** | Same time of day and same traffic light cycle for everyone. Cars that the career or the traffic hides or shows are hidden or shown for everyone too, so nobody drives through a car only the other one sees. | Time and traffic lights: yes |
 | <img src="docs/icons/car.svg" width="20" height="20" alt=""> **Cars look the same for everyone** | Trailers and dollies stay coupled for everyone. Your traffic doesn't appear on top of other players, and other players' cars no longer blow up when someone opens a menu. | No |
 | <img src="docs/icons/car.svg" width="20" height="20" alt=""> **Traffic that doesn't overload the server** | The server splits a total traffic limit across all players, and traffic uses simplified cars that are cheap to sync. Your traffic no longer carries your name tag. | Limit and simple cars: yes |
-| <img src="docs/icons/fuel.svg" width="20" height="20" alt=""> **Same fuel price for everyone** | Normally every player rolls their own random price at the same station. With SharedCareer everyone pays the same. | Yes (together with the fuel extra below) |
+| <img src="docs/icons/fuel.svg" width="20" height="20" alt=""> **Same fuel price for everyone** | Normally every player rolls their own random price at the same station. With Career-Convoy everyone pays the same. | Yes (together with the fuel extra below) |
 
 ### Extras: more things to do together
 
@@ -59,7 +59,7 @@ These go beyond the normal career. They are on by default unless noted, and each
 |---|---|---|
 | <img src="docs/icons/day-night.svg" width="20" height="20" alt=""> **Long days, short nights** | Default: 50 min day, 5 min night, instead of the game's own day length. Anyone can pause the clock, jump to a time or switch on real time. | Yes, lengths are adjustable, or each player keeps their own time |
 | <img src="docs/icons/car.svg" width="20" height="20" alt=""> **More careful traffic AI** | The AI notices slow or standing vehicles earlier (for example your truck while you maneuver), keeps more distance and brakes earlier at intersections and traffic lights. It doesn't drive slower. The police are not affected. | Yes (back to the game's AI) |
-| <img src="docs/icons/sliders.svg" width="20" height="20" alt=""> **SharedCareer menu** | An in-game window (key **F7**) for time, traffic, options and players. Every change applies to everyone. | Changing things can be limited to the server console |
+| <img src="docs/icons/sliders.svg" width="20" height="20" alt=""> **Career-Convoy menu** | An in-game window (key **F7**) for time, traffic, options and players. Every change applies to everyone. | Changing things can be limited to the server console |
 | <img src="docs/icons/users.svg" width="20" height="20" alt=""> **Find your friends** | Navigate to a player or watch them, and see what others are doing on their name tags (*Mission*, *On foot*, *Loading*). Teleporting to a player is **off** by default. | Name tag status and teleport: yes |
 | <img src="docs/icons/fuel.svg" width="20" height="20" alt=""> **Cheaper fuel through deliveries** | Deliver gasoline or diesel to a station and it gets cheaper there for everyone for a while. The **Fuel** app on the phone shows the cheapest station. | Yes |
 | <img src="docs/icons/monitor.svg" width="20" height="20" alt=""> **Garage computers from a distance** | Use the garage computer from anywhere in the room instead of standing right in front of it. | On other maps: yes. On West Coast USA it comes from a map file in the mod, so it's always on |
@@ -74,27 +74,27 @@ How to switch things off: [Settings & commands](docs/configuration.md).
 
 ### Good to know: what the mod changes on your PC
 
-The mod only runs while you are on a SharedCareer server (BeamMP only loads it there). While it runs:
+The mod only runs while you are on a Career-Convoy server (BeamMP only loads it there). While it runs:
 
 - **Console and world editor are locked**, and time, weather and traffic in the pause menu are display-only. This keeps the shared world the same for everyone. The server can allow both.
 - **Two game settings are set by the server** (simplified traffic cars, optionally simplified cars of other players). Your own values come back when you leave.
-- **Your UI layout gets the SharedCareer menu and the phone tab**, once. If you remove them, they don't come back.
-- **If you played on a server with the Mileage mod before**, its apps are still in your UI layout and show up as red "Unknown app" boxes once Mileage is gone. SharedCareer removes those boxes, after a backup of the layout file.
+- **Your UI layout gets the Career-Convoy menu and the phone tab**, once. If you remove them, they don't come back.
+- **If you played on a server with the Mileage mod before**, its apps are still in your UI layout and show up as red "Unknown app" boxes once Mileage is gone. Career-Convoy removes those boxes, after a backup of the layout file.
 - **On West Coast USA, the garage computer zones are bigger** (the mod ships a changed copy of that map file).
 
 These changes stay after you leave:
 
 - **Your save** is a normal career save in your BeamNG user folder, named after your BeamMP account.
-- **Your UI layout** keeps the two SharedCareer apps (you can remove them). If old Mileage boxes were removed, they stay removed.
+- **Your UI layout** keeps the two Career-Convoy apps (you can remove them). If old Mileage boxes were removed, they stay removed.
 - **A small file** `settings/sharedCareer/state.json` remembers choices like "Don't show again".
 
 For server owners: settings move to new defaults automatically on updates, and `./server.sh update` installs the newest release. See [Server setup](docs/server-setup.md).
 
 ## Screenshots
 
-**The SharedCareer menu**: time of day, traffic, options and players. It collapses into a small steering-wheel tab at the right screen edge.
+**The Career-Convoy menu**: time of day, traffic, options and players. It collapses into a small steering-wheel tab at the right screen edge.
 
-![SharedCareer menu with the Time, Traffic, Options and Players tabs](docs/images/menu.png)
+![Career-Convoy menu with the Time, Traffic, Options and Players tabs](docs/images/menu.png)
 
 <table>
 <tr>
@@ -126,7 +126,7 @@ For server owners: settings move to new defaults automatically on updates, and `
 
 ### For players
 
-1. Join a server that runs SharedCareer.
+1. Join a server that runs Career-Convoy.
 2. Wait for the career to load. You land in the world in your own career save.
 3. Open the menu with the **steering-wheel tab** at the right screen edge, or press **F7**.
 
@@ -163,15 +163,15 @@ The full guide, including manual installation, backups, rollback and switching f
 
 ## Status and known limits
 
-SharedCareer is under active development and was tested with **BeamNG.drive 0.40.5**, **BeamMP 4.23.1** and **BeamMP-Server 3.9.3** on Linux. Joining, the career start, traffic, buying cars, the shared time of day and the garage computers have been tested with real players.
+Career-Convoy is under active development and was tested with **BeamNG.drive 0.40.5**, **BeamMP 4.23.1** and **BeamMP-Server 3.9.3** on Linux. Joining, the career start, traffic, buying cars, the shared time of day and the garage computers have been tested with real players.
 
 Good to know before you play:
 
-- **West Coast USA** is the map SharedCareer is made for. Other maps work, with smaller garage-computer zones.
+- **West Coast USA** is the map Career-Convoy is made for. Other maps work, with smaller garage-computer zones.
 - **A crashed car takes its driver's shape on your screen once it stands still for a moment.** While it drives on, it can look a bit different for you.
 - **Missions run per player.** Others don't see your mission props and cones.
 - **Money lives in your own save.** The server only checks money transfers.
-- **A BeamNG or BeamMP update can break things** until SharedCareer is updated. The log then names what is missing.
+- **A BeamNG or BeamMP update can break things** until Career-Convoy is updated. The log then names what is missing.
 
 More details: [Known limitations](docs/development.md#known-limitations).
 
@@ -179,10 +179,10 @@ More details: [Known limitations](docs/development.md#known-limitations).
 
 Search the [existing issues](https://github.com/MrCurby/SharedCareer/issues) first, then [open a new one](https://github.com/MrCurby/SharedCareer/issues/new). Please include:
 
-- The SharedCareer version (`beamng.log` shows it as `SharedCareer <version> loaded`) and your BeamNG.drive and BeamMP versions
+- The Career-Convoy version (`beamng.log` shows it as `SharedCareer <version> loaded`) and your BeamNG.drive and BeamMP versions
 - What you did, what you expected and what happened, ideally with a screenshot
 - Whether it happened to one player or to everyone
-- The SharedCareer lines from `beamng.log` of the affected session. The game overwrites this file on the next start, so copy it before you restart.
+- The Career-Convoy lines from `beamng.log` of the affected session. The game overwrites this file on the next start, so copy it before you restart.
 
 Where to find `beamng.log`:
 
@@ -201,4 +201,4 @@ Logs can contain your user name and folder paths. Check them before you post.
 
 ## Credits
 
-SharedCareer is a community mod and is not affiliated with BeamNG GmbH or the BeamMP team.
+Career-Convoy is a community mod and is not affiliated with BeamNG GmbH or the BeamMP team.
