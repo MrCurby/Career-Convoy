@@ -1422,6 +1422,183 @@ local function addGivenUp(player_id, kind)
 	saveProgress()
 end
 
+--== Licenses ====================================================================
+-- Players buy licenses at the license office (licenses.lua on the client). The server keeps the
+-- licenses for sale and their prices (LICENSES) and who owns which (config/licenses.json, per
+-- profile like progress.json), so a client can't make up a license or pay less.
+-- Money lives in the buyer's save, so a purchase runs like /pay: the server asks the buyer's
+-- client to debit the price (sc_licenseCharge); once it answers ok (sc_licenseChargeResult),
+-- the license is theirs. No answer within PURCHASE_TIMEOUT s: the purchase is dropped.
+-- A license with a jobType is needed to take jobs of that type (sc_jobTake); the Jobs app shows
+-- which one is missing.
+-- licenses[profile][id] = {at (os.time() of the purchase), price}
+local LICENSES_FILE = CONFIG_DIR .. "/licenses.json"
+-- the licenses for sale, in the order of the shop; price in $; jobType: the jobs it allows
+local LICENSES = {
+	{ id = "towing", name = "Towing License", price = 5000, jobType = "tow" },
+	{ id = "taxi", name = "Taxi License", price = 5000, jobType = "taxi" },
+}
+local PURCHASE_TIMEOUT = 30
+local licenses = {}
+local purchases = {} -- purchase id -> {id, player, license, createdAt}
+local purchaseSeq = 0
+
+local function licenseById(id)
+	for _, l in ipairs(LICENSES) do
+		if l.id == id then
+			return l
+		end
+	end
+	return nil
+end
+
+local function saveLicenses()
+	writeJson(LICENSES_FILE, { version = 1, profiles = licenses })
+end
+
+local function loadLicenses()
+	local raw = readFile(LICENSES_FILE)
+	if not raw then
+		return
+	end
+	local ok, value = pcall(Util.JsonDecode, raw)
+	if not ok or type(value) ~= "table" or type(value.profiles) ~= "table" then
+		local f = io.open(LICENSES_FILE .. ".broken", "w")
+		if f then
+			f:write(raw)
+			f:close()
+		end
+		log("licenses.json is not valid JSON – saved as licenses.json.broken, nobody owns a license now")
+		return
+	end
+	licenses = {}
+	for profile, owned in pairs(value.profiles) do
+		if type(profile) == "string" and type(owned) == "table" then
+			for id, l in pairs(owned) do
+				if type(id) == "string" and type(l) == "table" then
+					licenses[profile] = licenses[profile] or {}
+					licenses[profile][id] = { at = tonumber(l.at) or 0, price = tonumber(l.price) or 0 }
+				end
+			end
+		end
+	end
+end
+
+local function owns(profile, id)
+	return profile ~= nil and licenses[profile] ~= nil and licenses[profile][id] ~= nil
+end
+
+-- The license a player is missing for jobs of this type, or nil (owned, or none needed).
+local function missingLicense(player_id, jobType)
+	for _, l in ipairs(LICENSES) do
+		if l.jobType == jobType and not owns(profileOf(player_id), l.id) then
+			return l
+		end
+	end
+	return nil
+end
+
+local function pendingPurchase(player_id)
+	for _, p in pairs(purchases) do
+		if p.player == player_id then
+			return p
+		end
+	end
+	return nil
+end
+
+-- The shop for this player: {list = [{id, name, price, jobType, owned, buying}], message}
+local function sendLicenses(player_id, message)
+	local profile, pending = profileOf(player_id), pendingPurchase(player_id)
+	local list = {}
+	for _, l in ipairs(LICENSES) do
+		table.insert(list, {
+			id = l.id,
+			name = l.name,
+			price = l.price,
+			jobType = l.jobType,
+			owned = owns(profile, l.id),
+			buying = pending ~= nil and pending.license == l.id,
+		})
+	end
+	send(player_id, "sc_licenses", { list = list, message = message })
+end
+
+function sc_licensesRequest(player_id)
+	if players[player_id] then
+		sendLicenses(player_id)
+	end
+end
+
+-- The player wants a license: {license}
+function sc_licenseBuy(player_id, data)
+	local entry = players[player_id]
+	local msg = decodeTable(data)
+	local l = msg and licenseById(msg.license)
+	if not entry or not l then
+		return
+	end
+	if not entry.careerActive then
+		sendLicenses(player_id, "Your career is not running yet.")
+		return
+	end
+	if owns(profileOf(player_id), l.id) then
+		sendLicenses(player_id)
+		return
+	end
+	if pendingPurchase(player_id) then
+		sendLicenses(player_id, "Your last purchase is still going.")
+		return
+	end
+	purchaseSeq = purchaseSeq + 1
+	local id = string.format("%d-%d", math.floor(now() * 1000), purchaseSeq)
+	purchases[id] = { id = id, player = player_id, license = l.id, createdAt = now() }
+	send(player_id, "sc_licenseCharge", { id = id, license = l.id, name = l.name, price = l.price })
+	sendLicenses(player_id)
+end
+
+-- The client debited the price (or not): {id, ok, reason}
+function sc_licenseChargeResult(player_id, data)
+	local msg = decodeTable(data)
+	local p = msg and type(msg.id) == "string" and purchases[msg.id]
+	if not p or p.player ~= player_id then
+		return
+	end
+	purchases[p.id] = nil
+	local l = licenseById(p.license)
+	if msg.ok ~= true then
+		sendLicenses(player_id, tostring(msg.reason or "Not enough money."))
+		return
+	end
+	local profile = profileOf(player_id)
+	licenses[profile] = licenses[profile] or {}
+	licenses[profile][l.id] = { at = os.time(), price = l.price }
+	saveLicenses()
+	log(string.format("%s bought the %s for $%d", playerName(player_id), l.name, l.price))
+	sendLicenses(player_id)
+	notify(player_id, l.name .. " bought!", "check")
+end
+
+-- Every second: purchases without an answer are dropped (nothing was debited, or the player is gone).
+local function licensesTick()
+	for id, p in pairs(purchases) do
+		if now() - p.createdAt > PURCHASE_TIMEOUT then
+			purchases[id] = nil
+			if isConnected(p.player) then
+				sendLicenses(p.player, "Purchase failed. Try again.")
+			end
+		end
+	end
+end
+
+local function licensesLeave(player_id)
+	for id, p in pairs(purchases) do
+		if p.player == player_id then
+			purchases[id] = nil
+		end
+	end
+end
+
 --== Jobs (continued) ==============================================================
 
 local function vecOf(v, withZ)
@@ -1648,6 +1825,12 @@ function sc_jobTake(player_id, data)
 			sendJobs(player_id)
 			return
 		end
+	end
+	local license = missingLicense(player_id, job.type)
+	if license then
+		notify(player_id, "Needs the " .. license.name, "warning")
+		sendJobs(player_id)
+		return
 	end
 	local minLevel = tierLevel(job.type, job.tier) or 1
 	if levelFor(player_id, job.type) < minLevel then
@@ -1885,169 +2068,6 @@ local function jobsLeave(player_id)
 	end
 	if changed then
 		sendJobsToAll()
-	end
-end
-
---== Licenses ====================================================================
--- Players buy licenses at the license office (licenses.lua on the client). The server keeps the
--- licenses for sale and their prices (LICENSES) and who owns which (config/licenses.json, per
--- profile like progress.json), so a client can't make up a license or pay less.
--- Money lives in the buyer's save, so a purchase runs like /pay: the server asks the buyer's
--- client to debit the price (sc_licenseCharge); once it answers ok (sc_licenseChargeResult),
--- the license is theirs. No answer within PURCHASE_TIMEOUT s: the purchase is dropped.
--- licenses[profile][id] = {at (os.time() of the purchase), price}
-local LICENSES_FILE = CONFIG_DIR .. "/licenses.json"
--- the licenses for sale, in the order of the shop; price in $
-local LICENSES = {
-	{ id = "towing", name = "Towing License", price = 5000 },
-}
-local PURCHASE_TIMEOUT = 30
-local licenses = {}
-local purchases = {} -- purchase id -> {id, player, license, createdAt}
-local purchaseSeq = 0
-
-local function licenseById(id)
-	for _, l in ipairs(LICENSES) do
-		if l.id == id then
-			return l
-		end
-	end
-	return nil
-end
-
-local function saveLicenses()
-	writeJson(LICENSES_FILE, { version = 1, profiles = licenses })
-end
-
-local function loadLicenses()
-	local raw = readFile(LICENSES_FILE)
-	if not raw then
-		return
-	end
-	local ok, value = pcall(Util.JsonDecode, raw)
-	if not ok or type(value) ~= "table" or type(value.profiles) ~= "table" then
-		local f = io.open(LICENSES_FILE .. ".broken", "w")
-		if f then
-			f:write(raw)
-			f:close()
-		end
-		log("licenses.json is not valid JSON – saved as licenses.json.broken, nobody owns a license now")
-		return
-	end
-	licenses = {}
-	for profile, owned in pairs(value.profiles) do
-		if type(profile) == "string" and type(owned) == "table" then
-			for id, l in pairs(owned) do
-				if type(id) == "string" and type(l) == "table" then
-					licenses[profile] = licenses[profile] or {}
-					licenses[profile][id] = { at = tonumber(l.at) or 0, price = tonumber(l.price) or 0 }
-				end
-			end
-		end
-	end
-end
-
-local function owns(profile, id)
-	return profile ~= nil and licenses[profile] ~= nil and licenses[profile][id] ~= nil
-end
-
-local function pendingPurchase(player_id)
-	for _, p in pairs(purchases) do
-		if p.player == player_id then
-			return p
-		end
-	end
-	return nil
-end
-
--- The shop for this player: {list = [{id, name, price, owned, buying}], message}
-local function sendLicenses(player_id, message)
-	local profile, pending = profileOf(player_id), pendingPurchase(player_id)
-	local list = {}
-	for _, l in ipairs(LICENSES) do
-		table.insert(list, {
-			id = l.id,
-			name = l.name,
-			price = l.price,
-			owned = owns(profile, l.id),
-			buying = pending ~= nil and pending.license == l.id,
-		})
-	end
-	send(player_id, "sc_licenses", { list = list, message = message })
-end
-
-function sc_licensesRequest(player_id)
-	if players[player_id] then
-		sendLicenses(player_id)
-	end
-end
-
--- The player wants a license: {license}
-function sc_licenseBuy(player_id, data)
-	local entry = players[player_id]
-	local msg = decodeTable(data)
-	local l = msg and licenseById(msg.license)
-	if not entry or not l then
-		return
-	end
-	if not entry.careerActive then
-		sendLicenses(player_id, "Your career is not running yet.")
-		return
-	end
-	if owns(profileOf(player_id), l.id) then
-		sendLicenses(player_id)
-		return
-	end
-	if pendingPurchase(player_id) then
-		sendLicenses(player_id, "Your last purchase is still going.")
-		return
-	end
-	purchaseSeq = purchaseSeq + 1
-	local id = string.format("%d-%d", math.floor(now() * 1000), purchaseSeq)
-	purchases[id] = { id = id, player = player_id, license = l.id, createdAt = now() }
-	send(player_id, "sc_licenseCharge", { id = id, license = l.id, name = l.name, price = l.price })
-	sendLicenses(player_id)
-end
-
--- The client debited the price (or not): {id, ok, reason}
-function sc_licenseChargeResult(player_id, data)
-	local msg = decodeTable(data)
-	local p = msg and type(msg.id) == "string" and purchases[msg.id]
-	if not p or p.player ~= player_id then
-		return
-	end
-	purchases[p.id] = nil
-	local l = licenseById(p.license)
-	if msg.ok ~= true then
-		sendLicenses(player_id, tostring(msg.reason or "Not enough money."))
-		return
-	end
-	local profile = profileOf(player_id)
-	licenses[profile] = licenses[profile] or {}
-	licenses[profile][l.id] = { at = os.time(), price = l.price }
-	saveLicenses()
-	log(string.format("%s bought the %s for $%d", playerName(player_id), l.name, l.price))
-	sendLicenses(player_id)
-	notify(player_id, l.name .. " bought!", "check")
-end
-
--- Every second: purchases without an answer are dropped (nothing was debited, or the player is gone).
-local function licensesTick()
-	for id, p in pairs(purchases) do
-		if now() - p.createdAt > PURCHASE_TIMEOUT then
-			purchases[id] = nil
-			if isConnected(p.player) then
-				sendLicenses(p.player, "Purchase failed. Try again.")
-			end
-		end
-	end
-end
-
-local function licensesLeave(player_id)
-	for id, p in pairs(purchases) do
-		if p.player == player_id then
-			purchases[id] = nil
-		end
 	end
 end
 

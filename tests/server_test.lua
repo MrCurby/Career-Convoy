@@ -16,6 +16,8 @@ local tmpPayouts = os.tmpname()
 os.remove(tmpPayouts)
 local tmpProgress = os.tmpname()
 os.remove(tmpProgress)
+local tmpLicenses = os.tmpname()
+os.remove(tmpLicenses)
 
 local sent = {} -- {to, event, data}
 local chats = {} -- {to, msg}
@@ -96,6 +98,10 @@ source = source:gsub(
 	'local PROGRESS_FILE = "' .. tmpProgress .. '"'
 )
 -- a job type of the tests with its own level rules (two tiers, more XP)
+source = source:gsub(
+	'local LICENSES_FILE = CONFIG_DIR %.%. "/licenses%.json"',
+	'local LICENSES_FILE = "' .. tmpLicenses .. '"'
+)
 source = source:gsub(
 	"local LEVEL_RULES_BY_TYPE = {}",
 	"local LEVEL_RULES_BY_TYPE = {short = {tierLevel = {1, 2}, tierXp = {100, 200}}}"
@@ -709,6 +715,35 @@ sc_fuelDelivered(1, json.encode({ station = "apex", fuel = "gasoline", amount = 
 check(countTo(0, "sc_fuelPrices") == fpCount, "switched off: deliveries change nothing")
 onConsoleInput("sc set server.fuelEconomy true")
 
+--== Licenses ==
+-- buying one: the server asks the client to pay, the client says ok
+local function giveLicense(id, license)
+	sc_licenseBuy(id, json.encode({ license = license }))
+	local charge = lastTo(id, "sc_licenseCharge")
+	sc_licenseChargeResult(id, json.encode({ id = charge.id, ok = true }))
+end
+do
+	sc_licensesRequest(1)
+	local shop = {}
+	for _, l in ipairs(lastTo(1, "sc_licenses").list) do
+		shop[l.id] = l
+	end
+	check(
+		shop.towing and shop.towing.jobType == "tow" and shop.towing.price == 5000 and not shop.towing.owned,
+		"the shop: a Towing License for tow jobs, $5,000"
+	)
+	check(
+		shop.taxi and shop.taxi.jobType == "taxi" and shop.taxi.price == 5000 and shop.taxi.name == "Taxi License",
+		"the shop: a Taxi License for taxi jobs, $5,000"
+	)
+	giveLicense(1, "taxi")
+	local owned = {}
+	for _, l in ipairs(lastTo(1, "sc_licenses").list) do
+		owned[l.id] = l.owned
+	end
+	check(owned.taxi == true and owned.towing == false, "Ben buys the Taxi License: only that one is his")
+end
+
 --== Jobs ==
 do
 	local function offer(from, pay, tier)
@@ -811,6 +846,14 @@ do
 	onConsoleInput("sc jobs reset")
 	offer(0)
 	id = jobsOf(0).jobs[1].id
+	-- a tow job needs the Towing License
+	sc_jobTake(1, json.encode({ id = id }))
+	check(
+		jobsOf(1).jobs[1].state == "open" and lastChat(1):find("Needs the Towing License") ~= nil,
+		"without the Towing License: Ben can't take a tow job and hears why"
+	)
+	giveLicense(0, "towing")
+	giveLicense(1, "towing")
 	-- taking: the first one gets it, the others see it as taken
 	sc_jobTake(1, json.encode({ id = id }))
 	check(
@@ -920,6 +963,7 @@ do
 	check(#jobsOf(0).jobs == 0, "switched off: no new jobs")
 	onConsoleInput("sc set server.jobs true")
 	join(5, "Eve")
+	giveLicense(5, "towing")
 	check(jobsOf(5) and jobsOf(5).enabled == true, "a player who joins gets the jobs")
 	sc_jobTake(5, json.encode({ id = second }))
 	connected[5] = false

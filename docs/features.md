@@ -231,9 +231,11 @@ Good to know:
 
 <img src="images/phone-jobs.png" width="240" alt="Jobs app: your job and the open jobs">
 
-> **Experimental.** Towing jobs are new; pay, places and rules may still change. The Jobs app is marked **BETA** on the phone.
+> **Experimental.** Towing jobs are new; pay, places and rules may still change.
 
 Cars break down at the roadside, and somebody has to tow them to a repair shop. There is **one list for everyone** on the server: whoever takes a job first gets it.
+
+**License needed:** towing jobs need the **Towing License** ($5,000). Buy it at the **License Office** (a marker on the map). Without it, the Jobs app shows the jobs grey, with a bar on top: **Route** there leads you to the office. The **Taxi License** ($5,000) is for the taxi jobs that are coming; it is on sale already.
 
 1. **Find a job:** phone (**F4**) → **Jobs**. Every job shows the vehicle (its icon tells the kind: car, SUV, pickup, van, bus or truck), what's wrong (engine failure, broken clutch or gearbox, broken radiator, oil leak, broken windshield or taillights, sometimes a flat tire), how far you have to drive to it, the repair shop, the length of the tow (both by road), your pay and the XP you get under it. The jobs are sorted by the level they need, see [Levels](#levels).
 2. **Take it:** the route leads you to the breakdown. A marker floats above the car when you are close. It's yours now: the others see the job as taken.

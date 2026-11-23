@@ -4635,6 +4635,33 @@ check(
 			and first.xp == 70,
 		"the app lists the job with its distance by road from you (20 m to the road, 2 km along it, 5.8 m off it), its pay and XP"
 	)
+	-- licenses: the app greys out the job types you have no license for, "Route" leads to the office
+	check(next(st.licenses) == nil, "no licenses from the server yet: nothing greyed out")
+	local trigger, pushed = guihooks.trigger, false
+	guihooks.trigger = function(name)
+		pushed = pushed or name == "SharedCareerJobs"
+	end
+	handlers.sc_licenses(json.encode({
+		list = {
+			{ id = "towing", name = "Towing License", price = 5000, jobType = "tow", owned = false },
+			{ id = "taxi", name = "Taxi License", price = 5000, jobType = "taxi", owned = true },
+		},
+	}))
+	guihooks.trigger = trigger
+	st = jobs.appState()
+	check(
+		st.licenses.tow.name == "Towing License"
+			and st.licenses.tow.owned == false
+			and st.licenses.taxi.owned == true
+			and pushed,
+		"the Jobs app learns which licenses its job types need and which you own, at once"
+	)
+	sharedCareer_licenses.uiRoute()
+	check(paths[#paths] and math.abs(paths[#paths].x + 500.092) < 0.01, '"Route" leads to the license office')
+	handlers.sc_licenses(json.encode({
+		list = { { id = "towing", name = "Towing License", price = 5000, jobType = "tow", owned = true } },
+	}))
+	check(jobs.appState().licenses.tow.owned == true, "license bought: the jobs are no longer greyed out")
 	local searches = pathSearches
 	me.p = { x = 30, y = -20, z = 10 }
 	local near = jobs.appState().sections[1].groups[1].jobs[1].distance
