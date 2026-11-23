@@ -35,7 +35,7 @@ sharedCareerPhoneApp.directive('sharedCareerPhone', [function () {
 	};
 }]);
 
-// A row of buttons to switch between views of an app (Fuel: sort, Jobs: job type); the chosen
+// A row of buttons to switch between views of an app (Fuel: sort); the chosen
 // one is highlighted. <scp-segment-select options="list" selected="id" on-select="set(id)">
 //   options    [{id, name, icon?}] – keep it the same array between updates (a new array on every
 //              call makes AngularJS check again and again until it gives up)
@@ -97,6 +97,7 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 	function closeApp() {
 		if ($scope.currentApp) lua('uiCloseApp(' + JSON.stringify(String($scope.currentApp.id)) + ')');
 		$scope.currentApp = null;
+		$scope.jobsType = null;
 		reportView('fuel', false);
 	}
 	function setOpen(value) {
@@ -121,6 +122,16 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 		if (fuelOpen()) reportView('fuel', true);
 	};
 	$scope.goHome = function () { closeApp(); };
+	// the back button in the app bar: from a page inside an app (a job type in Jobs) back to the
+	// app's start page, else to the home screen
+	$scope.canGoBackInApp = function () { return !!$scope.currentApp && $scope.currentApp.id === 'jobs' && !!$scope.jobsType; };
+	$scope.goBack = function () {
+		if ($scope.canGoBackInApp()) $scope.jobsType = null; else closeApp();
+	};
+	$scope.appTitle = function () {
+		if (!$scope.currentApp) return '';
+		return $scope.canGoBackInApp() ? $scope.jobTypeName() : $scope.currentApp.title;
+	};
 	$scope.homeBar = function () {
 		if ($scope.currentApp) closeApp(); else setOpen(false);
 	};
@@ -240,39 +251,64 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 	// What a job shows (icon, tags, steps, the texts of what to do now) comes from its job type
 	// (towJobs.lua: towing jobs); this window only lays it out.
 	$scope.jobs = {enabled: false, sections: [], open: 0, active: null, licenses: {}};
-	// the job types as tabs: towing first, a tab for every other job type, taxi (coming soon) last.
-	// Built once per update from Lua, not on every call (the tab row needs the same array, see scpSegmentSelect).
-	function jobTabsOf(sections) {
-		var tabs = [{id: 'tow', name: 'Towing', icon: 'tow'}];
+	// The app has two pages: its start page, a grid with a button per job type, and the page of one
+	// job type (its jobs). jobsType is the open job type, null on the start page; the back button
+	// in the app bar leads from a job type back to the start page (goBack).
+	// The buttons: towing first, one for every other job type, the ones still to come (TYPES_SOON,
+	// greyed out, not clickable) last. A new job type gets its button as soon as Lua sends it.
+	// Built once per update from Lua, not on every call (ng-repeat).
+	var TYPES_SOON = [{id: 'taxi', name: 'Taxi', icon: 'car'}];
+	function jobTypesOf(sections) {
+		var list = [{id: 'tow', name: 'Towing', icon: 'tow'}];
 		var added = {tow: true};
 		for (var i = 0; i < sections.length; i++) {
 			var sec = sections[i];
-			if (!sec.type || sec.type === 'tow' || sec.type === 'taxi' || added[sec.type]) continue;
-			tabs.push({id: sec.type, name: sec.name || sec.type, icon: sec.icon || 'jobs'});
+			if (!sec.type || added[sec.type]) continue;
+			if (sec.type === 'tow') { list[0].name = sec.name || list[0].name; continue; }
+			list.push({id: sec.type, name: sec.name || sec.type, icon: sec.icon || 'jobs'});
 			added[sec.type] = true;
 		}
-		tabs.push({id: 'taxi', name: 'Taxi', icon: 'car', placeholder: true});
-		return tabs;
+		TYPES_SOON.forEach(function (t) {
+			if (!added[t.id]) list.push({id: t.id, name: t.name, icon: t.icon, soon: true});
+		});
+		return list;
 	}
-	$scope.jobsTab = 'tow';
-	$scope.jobTabs = jobTabsOf([]);
-	$scope.setJobsTab = function (id) { $scope.jobsTab = id; };
-	$scope.jobsActiveInTab = function () {
-		var active = $scope.jobs.active;
-		return !!active && (active.type || 'tow') === $scope.jobsTab;
+	$scope.jobsType = null;
+	$scope.jobTypes = jobTypesOf([]);
+	$scope.openJobType = function (t) { if (t && !t.soon) $scope.jobsType = t.id; };
+	$scope.jobTypeName = function () {
+		for (var i = 0; i < $scope.jobTypes.length; i++) {
+			if ($scope.jobTypes[i].id === $scope.jobsType) return $scope.jobTypes[i].name;
+		}
+		return $scope.jobsType || '';
 	};
-	$scope.jobsTabOpen = function () {
+	// whether your job is of this job type (default: the open one)
+	$scope.jobsActiveIn = function (type) {
+		var active = $scope.jobs.active;
+		return !!active && (active.type || 'tow') === (type || $scope.jobsType);
+	};
+	// the open jobs of a job type (default: the open one)
+	$scope.jobsOpenIn = function (type) {
+		type = type || $scope.jobsType;
 		var open = 0;
 		for (var i = 0; i < $scope.jobs.sections.length; i++) {
 			var sec = $scope.jobs.sections[i];
-			if (sec.type === $scope.jobsTab) open += Number(sec.open) || 0;
+			if (sec.type === type) open += Number(sec.open) || 0;
 		}
 		return open;
 	};
-	// the license the open tab's jobs need ({name, owned}), or null when they need none
-	$scope.jobLicense = function () { return $scope.jobs.licenses[$scope.jobsTab] || null; };
-	// without it the tab's jobs are greyed out and can't be taken (the server refuses them too)
-	$scope.jobLicenseMissing = function () { var l = $scope.jobLicense(); return !!l && !l.owned; };
+	// the line under a job type's button: "Your job", "3 open", "Soon"
+	$scope.jobTypeText = function (t) {
+		if (t.soon) return 'Soon';
+		if ($scope.jobsActiveIn(t.id)) return 'Your job';
+		if ($scope.jobLicenseMissing(t.id)) return 'License needed';
+		var open = $scope.jobsOpenIn(t.id);
+		return open ? open + ' open' : 'No jobs';
+	};
+	// the license a job type's jobs need ({name, owned}), or null when they need none (default: the open one)
+	$scope.jobLicense = function (type) { return $scope.jobs.licenses[type || $scope.jobsType] || null; };
+	// without it the job type's jobs are greyed out and can't be taken (the server refuses them too)
+	$scope.jobLicenseMissing = function (type) { var l = $scope.jobLicense(type); return !!l && !l.owned; };
 	$scope.licenseRoute = function () {
 		bngApi.engineLua('if sharedCareer_licenses then sharedCareer_licenses.uiRoute() end');
 	};
@@ -325,7 +361,13 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 		var id = $scope.currentApp && $scope.currentApp.id;
 		return (id === 'tow' || id === 'straps') && !!$scope.jobs.active && !$scope.jobPaid();
 	};
-	$scope.openJobs = function () { var app = appById('jobs'); if (app) $scope.openApp(app); };
+	// the job strip leads to the page of your job's type
+	$scope.openJobs = function () {
+		var app = appById('jobs');
+		if (!app) return;
+		$scope.openApp(app);
+		if ($scope.jobs.active) $scope.jobsType = $scope.jobs.active.type || 'tow';
+	};
 	$scope.$on('SharedCareerJobs', function (event, data) {
 		$scope.$evalAsync(function () {
 			if (!data) return;
@@ -333,7 +375,6 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 			if (active) {
 				if (!Array.isArray(active.steps)) active.steps = [];
 				if (!Array.isArray(active.tags)) active.tags = [];
-				if (typeof active.type === 'string') $scope.jobsTab = active.type;
 			}
 			var sections = Array.isArray(data.sections) ? data.sections : [];
 			sections.forEach(function (sec) {
@@ -344,7 +385,7 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 			var licenses = data.licenses && typeof data.licenses === 'object' && !Array.isArray(data.licenses) ? data.licenses : {};
 			$scope.jobs = {enabled: data.enabled === true, sections: sections, open: Number(data.open) || 0, active: active,
 				licenses: licenses};
-			$scope.jobTabs = jobTabsOf(sections);
+			$scope.jobTypes = jobTypesOf(sections);
 		});
 	});
 

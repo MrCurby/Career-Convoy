@@ -70,8 +70,10 @@
 				<!-- an open app (apps bring their own content later) -->
 				<div class="scp-appview" ng-if="currentApp">
 					<div class="scp-appbar">
-						<button class="scp-back" ng-click="goHome()">&#8249; Home</button>
-						<span class="scp-appbar-title" ng-bind="currentApp.title"></span>
+						<!-- back: inside an app (a job type in Jobs) to its start page, else to the home screen -->
+						<button class="scp-back" ng-click="goBack()"
+							ng-bind="canGoBackInApp() ? '&#8249; ' + currentApp.title : '&#8249; Home'"></button>
+						<span class="scp-appbar-title" ng-bind="appTitle()"></span>
 						<span class="scp-beta-pill" ng-if="currentApp.beta"
 							title="Experimental: this app is new and may still change">BETA</span>
 					</div>
@@ -85,7 +87,8 @@
 								ng-bind="formatDistance(jobs.active.distance)"></span>
 						</button>
 					</div>
-					<!-- Jobs: jobs for everyone on the server (jobs.lua). What a job shows (icon, tags, steps,
+					<!-- Jobs: jobs for everyone on the server (jobs.lua). Its start page is a button per job type;
+				     a button opens that job type's page with its jobs. What a job shows (icon, tags, steps,
 				     what to do now) comes from its job type (towJobs.lua: towing jobs, the icon by the kind of
 				     vehicle: car, suv, pickup, van, bus, truck – icons.svg). -->
 					<div class="scp-appscreen" ng-if="currentApp.id === 'jobs'"
