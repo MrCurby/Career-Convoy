@@ -5,7 +5,8 @@
 #   tools/bump.sh patch      0.8.4 -> 0.8.5   (bug fix)
 #   tools/bump.sh minor      0.8.4 -> 0.9.0   (new feature)
 #
-# Then commit and push to main -> GitHub builds the release v<version> automatically.
+# Used by the "Prepare release" workflow (.github/workflows/prepare-release.yml), which opens the
+# release pull request; merging it publishes release v<version>.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -24,5 +25,3 @@ sed -i "s/^M.VERSION = \".*\"/M.VERSION = \"$NEW\"/" "$CLIENT"
 sed -i "s/^local VERSION = \".*\"/local VERSION = \"$NEW\"/" "$SERVER"
 echo "Version: $OLD -> $NEW"
 tools/test.sh >/dev/null && echo "Tests passed."
-echo "Now commit and push, for example:"
-echo "  git commit -am \"SharedCareer $NEW\" && git push"

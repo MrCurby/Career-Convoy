@@ -1,13 +1,12 @@
-# SharedCareer :: automatic release
+# SharedCareer :: publish a release
 #
-# On every push to main (and by hand via "Run workflow"):
+# On every push to main:
 #   1. run all tests (tools/test.sh)
 #   2. build the package (tools/package.sh -> SharedCareer-<version>.zip)
 #   3. if there is no release "v<version>" yet, it is created and the zip attached.
 #      If the version already exists, nothing happens. So a new release is created exactly
-#      when the version (util.lua + main.lua) was raised.
-#      Its notes are the text of the pull requests merged since the last release
-#      (tools/release_notes.sh).
+#      when the version (util.lua + main.lua) was raised: when the release pull request of
+#      prepare-release.yml is merged. Its text is the notes (tools/release_notes.sh).
 #   4. post the new release with its notes to Discord (tools/discord_release.sh), if the
 #      repository secret DISCORD_RELEASE_WEBHOOK holds a webhook of the releases channel.
 #
@@ -18,7 +17,6 @@ name: Release
 on:
   push:
     branches: [main]
-  workflow_dispatch:
 
 permissions:
   contents: write
@@ -52,7 +50,7 @@ jobs:
         run: |
           if gh release view "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "Release v${{ steps.version.outputs.version }} exists already - no new release (raise the version for an update)."
+            echo "Release v${{ steps.version.outputs.version }} exists already - no new release (the \"Prepare release\" workflow raises the version)."
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
