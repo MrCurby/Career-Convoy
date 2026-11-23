@@ -371,6 +371,9 @@ if (process.argv[2]) {
 		read('client/ui/modules/apps/SharedCareer-Phone/phone.html'),
 	];
 	check(pages.every(h => h.includes('ng-include="\'/ui/sharedCareer/icons.svg\'"')), 'both apps load icons.svg');
+	// replace: true needs exactly one root element: nothing (not even a comment) before or after it
+	check(pages.every(h => /^<div\b/.test(h) && /<\/div>\s*$/.test(h)),
+		'menu and phone templates are one root <div>, nothing before or after it');
 	// the phone's remote (remote.html), in the Tow and Straps app templates
 	const phoneDir = 'client/ui/modules/apps/SharedCareer-Phone/';
 	const appTemplates = ['jobs', 'tow', 'straps', 'fuel'].map(name => read(phoneDir + 'apps/' + name + '.html'));

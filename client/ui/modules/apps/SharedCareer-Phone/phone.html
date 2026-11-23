@@ -1,10 +1,7 @@
-<!-- SharedCareer Phone template
-	 This is the shell for the phone: status, home screen, app bar and app switching.
-	 app.json registers the BeamNG UI app and app.js loads this template.
-	 app.css contains the styles for the whole app package.
-	 Each phone app with its own screen lives in apps/<name>.html.
-	 HTML files named app.html are not required here; phone.html names this shell clearly. -->
 <div ng-controller="SharedCareerPhone" class="scMenu scPhone" ng-show="enabled">
+	<!-- The phone's shell: status bar, home screen, app bar; each app with its own screen is in
+	     apps/<name>.html. Nothing may stand before this <div> (not even a comment): the directive
+	     uses replace: true, which needs exactly one root element (see app.js). -->
 	<!-- Style of the SharedCareer menu (tab) + the phone's own -->
 	<link rel="stylesheet" type="text/css"
 		href="/ui/modules/apps/SharedCareer-Menu/app.css">
