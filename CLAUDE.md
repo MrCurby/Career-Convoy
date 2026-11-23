@@ -56,6 +56,9 @@ The maintainer puts a lot of weight on tidy code. Keep it that way with every ch
   checks run the tests and `tools/version_check.sh` (a change of the mod needs a new version).
   Merging → GitHub Actions builds `SharedCareer-<version>.zip` and creates release `v<version>`.
   Servers install it with `./server.sh update`.
+- Pull request text becomes the release notes (GitHub and Discord): follow
+  `.github/pull_request_template.md` – short bullet points for players and server owners, no file
+  names, commits, tests or code details.
 - See `docs/development.md` for the layout of the code and how the mod works inside.
 
 ## Branch names

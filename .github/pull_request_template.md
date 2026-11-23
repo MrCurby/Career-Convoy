@@ -1,17 +1,17 @@
 <!--
-This text becomes the release notes on GitHub and in the Discord releases channel.
-Write it for players and server owners: what changes for them, in short, simple English.
-Hints like this one are left out of the release. Delete a section that has nothing to say.
+This text becomes the release notes on GitHub and Discord.
+Bullet points only, one short line each. No file names, commits or code.
+Delete a section that has nothing in it.
 -->
 
 ## What's new
-<!-- What players see or can do now, one line each. E.g. "Tow app: pick a job by type." -->
+<!-- E.g. "Jobs app: tabs for each job type" -->
 - 
 
 ## Fixed
-<!-- Bugs that are gone. E.g. "Traffic no longer lags with many players." -->
+<!-- E.g. "Traffic no longer lags" -->
 - 
 
 ## For server owners
-<!-- Changed or new settings, anything to do after "./server.sh update". -->
+<!-- E.g. "New setting: fuelMaxDiscount" -->
 - 
