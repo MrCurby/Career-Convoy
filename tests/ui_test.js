@@ -254,18 +254,33 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 		'the XP of a job in words, nothing without any');
 	check(phone.levelText(sec.level) === 'Level 4 · 200 XP to level 5' && phone.levelText({level: 10}) === 'Level 10 · top level'
 		&& phone.levelText(null) === '', 'your level in words');
-	const jobTabs = phone.jobTabs;
-	check(jobTabs[0].id === 'tow' && jobTabs[1].id === 'taxi' && jobTabs[1].placeholder,
-		'job tabs: towing first, taxi as the placeholder');
-	check(phone.jobTabs === jobTabs && phone.fuelSorts.map(o => o.id).join() === 'gasoline,diesel,distance',
-		'the tab rows get the same arrays until Lua sends new jobs (a new array each time never settles)');
-	phone.setJobsTab('taxi');
-	check(phone.jobsTab === 'taxi', 'the taxi placeholder tab can be selected');
-	phone.setJobsTab('tow');
+	const jobTypes = phone.jobTypes;
+	check(jobTypes[0].id === 'tow' && !jobTypes[0].soon && jobTypes[1].id === 'taxi' && jobTypes[1].soon,
+		'start page: a card for towing first, taxi greyed out as coming soon');
+	check(phone.jobTypes === jobTypes && phone.fuelSorts.map(o => o.id).join() === 'gasoline,diesel,distance',
+		'the lists get the same arrays until Lua sends new jobs (a new array each time never settles)');
+	check(phone.jobTypeText(jobTypes[0]) === '1 open' && phone.jobTypeText(jobTypes[1]) === 'Soon',
+		'on the cards: the open jobs, "Soon"');
+	check(phone.jobTypeLevel('tow').level === 4 && phone.jobTypeLevel('taxi') === null, 'on the cards: your level, none without it');
+	phone.openApp({id: 'jobs', title: 'Jobs'});
+	check(phone.jobsType === null && !phone.canGoBackInApp() && phone.appTitle() === 'Jobs', 'the Jobs app opens on its start page');
+	phone.openJobType(jobTypes[1]);
+	check(phone.jobsType === null, 'taxi (coming soon) does not open');
+	phone.openJobType(jobTypes[0]);
+	check(phone.jobsType === 'tow' && phone.canGoBackInApp() && phone.appTitle() === 'Towing' && phone.jobsOpenIn() === 1,
+		'a card opens the page of its job type, the app bar shows its name');
+	phone.goBack();
+	check(phone.jobsType === null && phone.currentApp && phone.currentApp.id === 'jobs', 'back: to the start page of the app');
+	phone.goBack();
+	check(phone.currentApp === null, 'back on the start page: to the home screen');
+	phone.openApp({id: 'jobs', title: 'Jobs'});
+	phone.openJobType(jobTypes[0]);
+	phone.goHome();
+	phone.openApp({id: 'jobs', title: 'Jobs'});
+	check(phone.jobsType === null, 'opened again: the start page');
 	phone.emit('SharedCareerJobs', {enabled: true, sections: [{type: 'x', open: 1}]});
-	const futureTabs = phone.jobTabs;
-	check(futureTabs.some(function (tab) { return tab.id === 'x' && tab.name === 'x'; })
-		&& phone.jobsTabOpen() === 0, 'new job types are added as tabs');
+	check(phone.jobTypes.some(function (t) { return t.id === 'x' && t.name === 'x' && !t.soon; })
+		&& phone.jobsOpenIn('tow') === 0, 'new job types get a card');
 	check(phone.jobs.sections[0].groups.length === 0 && phone.jobs.open === 0, 'nothing sent: empty lists');
 	check(!phone.jobLicenseMissing() && phone.jobs.licenses && !Array.isArray(phone.jobs.licenses),
 		'no licenses sent: nothing greyed out');
@@ -273,13 +288,13 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 	check(!phone.jobLicenseMissing(), 'an empty Lua table ([]) counts as no licenses');
 	phone.emit('SharedCareerJobs', {enabled: true, sections: [],
 		licenses: {tow: {name: 'Towing License', owned: true}, taxi: {name: 'Taxi License', owned: false}}});
+	phone.openJobType({id: 'tow'});
 	check(!phone.jobLicenseMissing() && phone.jobLicense().name === 'Towing License', 'towing license owned: jobs can be taken');
-	phone.setJobsTab('taxi');
-	check(phone.jobLicenseMissing() && phone.jobLicense().name === 'Taxi License', 'taxi license missing: its tab is greyed out');
+	check(phone.jobLicenseMissing('taxi') && phone.jobLicense('taxi').name === 'Taxi License',
+		'taxi license missing: its jobs are greyed out');
 	env.calls.length = 0;
 	phone.licenseRoute();
 	check(env.calls.some(c => c.indexOf('sharedCareer_licenses.uiRoute()') >= 0), '"Route" leads to the license office');
-	phone.setJobsTab('tow');
 	const active = function (more) {
 		return Object.assign({id: 3, icon: 'tow', title: 'Gavril D-Series', dest: 'Belasco Auto', pay: 820,
 			steps: ['Pick up', 'Tow', 'Paid']}, more);
@@ -294,6 +309,8 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 	const inStraps = phone.jobStripShown();
 	phone.openApp({id: 'fuel'});
 	check(inStraps && !phone.jobStripShown(), 'the job strip: above the Tow and Straps apps, not in Fuel');
+	phone.openJobs();
+	check(phone.currentApp.id === 'jobs' && phone.jobsType === 'tow', 'the job strip opens the page of your job\'s type');
 	phone.goHome();
 	phone.emit('SharedCareerJobs', {enabled: true, jobs: [], active: active({phase: 'checking', step: 1})});
 	check(phone.jobText() === 'Handing over…', 'handed over: waiting for the server');
@@ -401,13 +418,13 @@ if (process.argv[2]) {
 	const segmentSelect = read(phoneDir + 'shared/segment-select.html');
 	check((appTemplates.join('').match(/ng-include="'\/ui\/modules\/apps\/SharedCareer-Phone\/remote.html'"/g) || []).length === 2
 		&& !appTemplates.join('').includes('scp-pad-key'), 'the Tow and Straps apps share one remote (remote.html)');
-	check(appTemplates[0].includes('<scp-segment-select options="jobTabs" selected="jobsTab"')
+	check(!appTemplates[0].includes('<scp-segment-select')
 		&& appTemplates[3].includes('<scp-segment-select options="fuelSorts" selected="fuelSort"')
 		&& phoneScript.includes("directive('scpSegmentSelect'")
 		&& phoneScript.includes('shared/segment-select.html')
 		&& segmentSelect.includes('ng-repeat="option in options track by option.id"')
 		&& !appTemplates.join('').includes('scp-seg-'),
-		'Fuel and Jobs pass only their options to the shared segment select; it draws the buttons');
+		'Fuel passes only its options to the shared segment select; it draws the buttons (Jobs has a start page instead)');
 	check(appTemplates[0].includes('ng-if="jobs.enabled && jobLicenseMissing()"')
 		&& appTemplates[0].includes("'scp-jobsection-nolicense': jobLicenseMissing()")
 		&& appTemplates[0].includes("!jobs.active && !jobLicenseMissing()\"")

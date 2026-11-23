@@ -138,13 +138,68 @@
 	color: #2b1d00; background: linear-gradient(135deg, #ffd34d, #ffa41b);
 }
 
-/* Jobs app: a job type that is not there yet (Taxi) */
-.scp-jobs-placeholder {
-	text-align: center;
-	padding: 34px 10px;
-	border-radius: 14px;
-	background: rgba(255, 255, 255, 0.05);
+/* Jobs app, start page: a card per job type, one per row, painted in its vehicle's livery
+   (towing: amber with hazard chevrons, taxi: yellow with checkers; a new job type: blue). Its
+   icon is drawn large behind the text. The ones still to come are dark and can't be opened. */
+.scp-jobtypes { display: flex; flex-direction: column; gap: 10px; animation: scp-from-left 0.18s ease-out; }
+.scp-jobtype {
+	--livery: #3f6fe0; --livery-deep: #2b4fb8; --ink: #fff; --band: none;
+	position: relative; overflow: hidden; flex: none;
+	display: flex; align-items: center; gap: 12px; min-height: 92px; padding: 14px 12px 18px 14px;
+	border: none; border-radius: 20px; text-align: left; font-family: inherit; cursor: pointer;
+	color: var(--ink); background: linear-gradient(135deg, var(--livery) 0%, var(--livery-deep) 100%);
+	box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
+/* the livery band along the bottom edge */
+.scp-jobtype::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 8px; background: var(--band); }
+.scp-jobtype:hover { filter: brightness(1.08); }
+.scp-jobtype:active { transform: scale(0.98); }
+.scp-jobtype:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.scp-jobtype-tow {
+	--livery: #ffb020; --livery-deep: #e8730c; --ink: #241503;
+	--band: repeating-linear-gradient(-45deg, #241503 0 8px, #ffb020 8px 16px);
+}
+.scp-jobtype-taxi {
+	--livery: #ffd21f; --livery-deep: #f0b400; --ink: #221a00;
+	--band: repeating-conic-gradient(#221a00 0 25%, #ffd21f 0 50%) 0 0 / 8px 8px;
+}
+/* the icon, large and faint, cut off by the card's right edge */
+.scp-jobtype-art { position: absolute; right: -14px; top: 50%; transform: translateY(-50%) rotate(-8deg); opacity: 0.16; color: var(--ink); pointer-events: none; }
+.scp-jobtype-art svg { width: 112px; height: 112px; }
+.scp-jobtype-icon {
+	position: relative; flex: none; width: 50px; height: 50px; border-radius: 15px;
+	display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 700;
+	background: var(--ink); color: var(--livery);
+}
+.scp-jobtype-icon svg { width: 32px; height: 32px; }
+.scp-jobtype-body { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.scp-jobtype-name { font-size: 20px; font-weight: 800; letter-spacing: -0.2px; line-height: 1.1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scp-jobtype-pills { display: flex; flex-wrap: wrap; gap: 5px; }
+.scp-jobtype-pill {
+	display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 999px;
+	font-size: 11px; font-weight: 700; background: rgba(0, 0, 0, 0.16);
+}
+.scp-jobtype-pill-lock { background: var(--ink); color: var(--livery); }
+.scp-jobtype-go { position: relative; flex: none; display: flex; opacity: 0.7; }
+.scp-jobtype-go svg { width: 22px; height: 22px; }
+/* your job is of this type: a white ring, its first pill white */
+.scp-jobtype-mine { box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35), inset 0 0 0 3px #fff; }
+.scp-jobtype-mine .scp-jobtype-pill:first-child { background: #fff; color: #1f4fd8; }
+.scp-jobtype-soon, .scp-jobtype-soon:hover, .scp-jobtype-soon:active {
+	cursor: default; filter: none; transform: none; min-height: 74px; color: rgba(255, 255, 255, 0.55);
+	background: rgba(255, 255, 255, 0.05); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+.scp-jobtype-soon::after { opacity: 0.25; }
+.scp-jobtype-soon .scp-jobtype-art { color: #fff; opacity: 0.05; }
+.scp-jobtype-soon .scp-jobtype-icon { width: 42px; height: 42px; background: rgba(255, 255, 255, 0.1); color: rgba(255, 255, 255, 0.6); }
+.scp-jobtype-soon .scp-jobtype-icon svg { width: 26px; height: 26px; }
+.scp-jobtype-soon .scp-jobtype-name { font-size: 16px; }
+.scp-jobtype-soon .scp-jobtype-pill { background: rgba(255, 255, 255, 0.08); }
+/* the page of a job type slides in from the right; back to the start page, it slides in from the left */
+.scp-jobpage { animation: scp-from-right 0.18s ease-out; }
+@keyframes scp-from-right { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+@keyframes scp-from-left { from { opacity: 0; transform: translateX(-24px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .scp-jobtypes, .scp-jobpage { animation: none; } }
 
 /* Jobs app: your job */
 .scp-myjob {
