@@ -72,7 +72,7 @@ StyLua puts only one space before a comment at the end of a line, so comments ar
 A release is made by hand, when enough has collected on `main` (or right away for an urgent fix). Everything runs on GitHub, so it works from any computer, Windows too:
 
 1. On GitHub: **Actions → Prepare release → Run workflow**, pick **patch** (fixes) or **minor** (new features).
-2. The workflow (`.github/workflows/prepare-release.yml`) raises the version with `tools/bump.sh`, which runs the tests, and opens the pull request **"SharedCareer <version>"** from the branch `release/v<version>`. It stops if the mod is unchanged since the last release.
+2. The workflow (`.github/workflows/prepare-release.yml`) raises the version with `tools/bump.sh`, which runs the tests, and opens the pull request **"SharedCareer <version>"** from the branch `release/v<version>`. If the mod is unchanged since the last release, it only leaves a note and opens nothing.
 3. The text of that pull request is the release notes: title and text of every pull request merged since the last release (`tools/release_notes.sh`). Edit them there if needed.
 4. Merge it. `.github/workflows/release.yml` runs all tests, builds `SharedCareer-<version>.zip` and creates release `v<version>` with the notes. The same notes are posted to the Discord releases channel (`tools/discord_release.sh`).
 
