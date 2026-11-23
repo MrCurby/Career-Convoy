@@ -48,14 +48,15 @@ The maintainer puts a lot of weight on tidy code. Keep it that way with every ch
 
 - `tools/test.sh` – syntax check, all tests, Lua formatting, language check. Run it before every commit.
 - Lua is formatted with StyLua (`stylua.toml`); run `stylua .` before committing Lua changes.
-- `tools/bump.sh patch|minor|x.y.z` – raise the version (client `util.lua` + server `main.lua`).
 - Each change in its own branch; never push to `main`. Every push to a branch builds a dev build
   (`SharedCareer-<version>-dev.<commit>.zip`, GitHub pre-release `build-<branch>`) without a version
   bump; a test server installs it with `./server.sh update --dev` (or `--dev=<branch>`).
-- Once it works in the game: `tools/bump.sh` in the branch, then a pull request into `main`. Its
-  checks run the tests and `tools/version_check.sh` (a change of the mod needs a new version).
-  Merging → GitHub Actions builds `SharedCareer-<version>.zip` and creates release `v<version>`.
-  Servers install it with `./server.sh update`.
+- Once it works in the game: a pull request into `main`, **without** raising the version. Its
+  checks run the tests and `tools/version_check.sh` (only release pull requests change the version).
+- Releases: on GitHub, Actions → "Prepare release" → Run workflow (patch or minor). It raises the
+  version and opens the pull request "SharedCareer <version>" with the notes of all pull requests
+  since the last release. Merging it → release `v<version>` with
+  `SharedCareer-<version>.zip`, posted to Discord. Servers install it with `./server.sh update`.
 - Pull request text becomes the release notes (GitHub and Discord): follow
   `.github/pull_request_template.md` – short bullet points for players and server owners, no file
   names, commits, tests or code details.

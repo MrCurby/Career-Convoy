@@ -1,9 +1,11 @@
 # SharedCareer :: checks of a pull request into main
 #
 #   tests          all tests and the Lua formatting (tools/test.sh)
-#   version        a pull request that changes the mod must raise the version
-#                  (tools/version_check.sh), so merging builds a release
+#   version        only a release pull request raises the version; tools/server.sh changes
+#                  raise its SCRIPT_REVISION (tools/version_check.sh)
 #
+# "Run workflow" (workflow_dispatch) is used by prepare-release.yml: the release pull request it
+# opens doesn't start these checks by itself.
 # Make both required in the repository's ruleset for main ("Require status checks to pass").
 
 name: Checks
@@ -11,6 +13,7 @@ name: Checks
 on:
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -39,4 +42,4 @@ jobs:
           fetch-depth: 0
 
       - name: Check the version
-        run: tools/version_check.sh "origin/${{ github.base_ref }}"
+        run: tools/version_check.sh "origin/${{ github.base_ref || 'main' }}" "${{ github.head_ref || github.ref_name }}"
