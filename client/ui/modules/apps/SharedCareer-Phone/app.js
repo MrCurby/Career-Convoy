@@ -239,7 +239,7 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 	//== Jobs app (lua/ge/extensions/sharedCareer/jobs.lua) ==
 	// What a job shows (icon, tags, steps, the texts of what to do now) comes from its job type
 	// (towJobs.lua: towing jobs); this window only lays it out.
-	$scope.jobs = {enabled: false, sections: [], open: 0, active: null};
+	$scope.jobs = {enabled: false, sections: [], open: 0, active: null, licenses: {}};
 	// the job types as tabs: towing first, a tab for every other job type, taxi (coming soon) last.
 	// Built once per update from Lua, not on every call (the tab row needs the same array, see scpSegmentSelect).
 	function jobTabsOf(sections) {
@@ -268,6 +268,13 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 			if (sec.type === $scope.jobsTab) open += Number(sec.open) || 0;
 		}
 		return open;
+	};
+	// the license the open tab's jobs need ({name, owned}), or null when they need none
+	$scope.jobLicense = function () { return $scope.jobs.licenses[$scope.jobsTab] || null; };
+	// without it the tab's jobs are greyed out and can't be taken (the server refuses them too)
+	$scope.jobLicenseMissing = function () { var l = $scope.jobLicense(); return !!l && !l.owned; };
+	$scope.licenseRoute = function () {
+		bngApi.engineLua('if sharedCareer_licenses then sharedCareer_licenses.uiRoute() end');
 	};
 	$scope.jobsCall = function (cmd) {
 		bngApi.engineLua('if sharedCareer_jobs then sharedCareer_jobs.' + cmd + ' end');
@@ -333,7 +340,10 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 				if (!Array.isArray(sec.groups)) sec.groups = [];
 				sec.groups.forEach(function (g) { if (!Array.isArray(g.jobs)) g.jobs = []; });
 			});
-			$scope.jobs = {enabled: data.enabled === true, sections: sections, open: Number(data.open) || 0, active: active};
+			// licenses by job type; an empty Lua table arrives as []
+			var licenses = data.licenses && typeof data.licenses === 'object' && !Array.isArray(data.licenses) ? data.licenses : {};
+			$scope.jobs = {enabled: data.enabled === true, sections: sections, open: Number(data.open) || 0, active: active,
+				licenses: licenses};
 			$scope.jobTabs = jobTabsOf(sections);
 		});
 	});

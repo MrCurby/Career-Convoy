@@ -5,6 +5,19 @@
 	<scp-segment-select options="jobTabs" selected="jobsTab"
 		on-select="setJobsTab(id)"></scp-segment-select>
 
+	<!-- the tab's jobs need a license you don't have: they are greyed out below -->
+	<div class="scp-license" ng-if="jobs.enabled && jobLicenseMissing()">
+		<span class="scp-license-icon"><svg aria-hidden="true"><use
+					href="#sc-icon-lock" /></svg></span>
+		<span class="scp-license-text">
+			<b ng-bind="jobLicense().name + ' needed'"></b>
+			<span>Buy it at the License Office.</span>
+		</span>
+		<button class="scp-license-btn" ng-click="licenseRoute()"><span
+				class="scp-btn-svg"><svg aria-hidden="true"><use
+						href="#sc-icon-route" /></svg></span>Route</button>
+	</div>
+
 	<!-- your job -->
 	<div class="scp-myjob" ng-if="jobsActiveInTab()">
 		<div class="scp-myjob-top">
@@ -51,7 +64,8 @@
 	     you can't take yet, with a lock -->
 	<div class="scp-jobsection"
 		ng-repeat="sec in jobs.sections track by sec.type"
-		ng-if="jobs.enabled && sec.type === jobsTab && jobsTab !== 'taxi'">
+		ng-if="jobs.enabled && sec.type === jobsTab && jobsTab !== 'taxi'"
+		ng-class="{'scp-jobsection-nolicense': jobLicenseMissing()}">
 		<div class="scp-level">
 			<span class="scp-level-ring"
 				ng-style="{'background': levelRing(sec.level)}"><span
@@ -100,7 +114,7 @@
 							ng-bind="formatDistance(j.length)"></span></div>
 				</div>
 				<button class="scp-wide scp-job-take"
-					ng-if="j.state === 'open' && !j.locked && !jobs.active"
+					ng-if="j.state === 'open' && !j.locked && !jobs.active && !jobLicenseMissing()"
 					ng-click="jobsCall('uiTake(' + j.id + ')')">Take job</button>
 				<div class="scp-job-status" ng-if="j.state === 'taken'"
 					ng-bind="'Taken by ' + (j.takenBy || 'another player')"></div>

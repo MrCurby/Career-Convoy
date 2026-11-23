@@ -42,6 +42,9 @@
 --                  can't take yet at the bottom.
 --                  The last levels the server sent are kept in the career save (LEVELS_FILE), to
 --                  show them before the server's list has arrived
+--   licenses       a job type can need a license (main.lua "Licenses"): the server refuses its jobs
+--                  without it; the app greys them out and offers the route to the license office
+--                  (licenses.lua)
 --   taking         sc_jobTake, the server gives it to the first one; then the type's start() and
 --                  the route to its status target (updated whenever the target changes)
 --   giving up      sc_jobGiveUp; a job the server takes away (out of time, switched off) ends too
@@ -586,7 +589,13 @@ function M.appState()
 			routes[key] = nil
 		end
 	end
-	local state = { enabled = enabled and serverAllows(), sections = sections, open = open }
+	local lic = U.ext("sharedCareer_licenses")
+	local state = {
+		enabled = enabled and serverAllows(),
+		sections = sections,
+		open = open,
+		licenses = lic and lic.byJobType() or {},
+	}
 	if active then
 		local job, s = active.job, activeStatus
 		local steps = active.type.steps or {}
@@ -677,6 +686,11 @@ function M.uiNavigate()
 end
 
 function M.uiRequest()
+	pushApp()
+end
+
+--- Something the app shows changed elsewhere (licenses.lua: a license bought).
+function M.refreshApp()
 	pushApp()
 end
 

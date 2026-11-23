@@ -267,6 +267,19 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 	check(futureTabs.some(function (tab) { return tab.id === 'x' && tab.name === 'x'; })
 		&& phone.jobsTabOpen() === 0, 'new job types are added as tabs');
 	check(phone.jobs.sections[0].groups.length === 0 && phone.jobs.open === 0, 'nothing sent: empty lists');
+	check(!phone.jobLicenseMissing() && phone.jobs.licenses && !Array.isArray(phone.jobs.licenses),
+		'no licenses sent: nothing greyed out');
+	phone.emit('SharedCareerJobs', {enabled: true, sections: [], licenses: []});
+	check(!phone.jobLicenseMissing(), 'an empty Lua table ([]) counts as no licenses');
+	phone.emit('SharedCareerJobs', {enabled: true, sections: [],
+		licenses: {tow: {name: 'Towing License', owned: true}, taxi: {name: 'Taxi License', owned: false}}});
+	check(!phone.jobLicenseMissing() && phone.jobLicense().name === 'Towing License', 'towing license owned: jobs can be taken');
+	phone.setJobsTab('taxi');
+	check(phone.jobLicenseMissing() && phone.jobLicense().name === 'Taxi License', 'taxi license missing: its tab is greyed out');
+	env.calls.length = 0;
+	phone.licenseRoute();
+	check(env.calls.some(c => c.indexOf('sharedCareer_licenses.uiRoute()') >= 0), '"Route" leads to the license office');
+	phone.setJobsTab('tow');
 	const active = function (more) {
 		return Object.assign({id: 3, icon: 'tow', title: 'Gavril D-Series', dest: 'Belasco Auto', pay: 820,
 			steps: ['Pick up', 'Tow', 'Paid']}, more);
@@ -395,6 +408,11 @@ if (process.argv[2]) {
 		&& segmentSelect.includes('ng-repeat="option in options track by option.id"')
 		&& !appTemplates.join('').includes('scp-seg-'),
 		'Fuel and Jobs pass only their options to the shared segment select; it draws the buttons');
+	check(appTemplates[0].includes('ng-if="jobs.enabled && jobLicenseMissing()"')
+		&& appTemplates[0].includes("'scp-jobsection-nolicense': jobLicenseMissing()")
+		&& appTemplates[0].includes("!jobs.active && !jobLicenseMissing()\"")
+		&& appTemplates[0].includes('ng-click="licenseRoute()"'),
+		'Jobs app without the license: a bar with the route, the jobs greyed out, no "Take job"');
 	pages.push(remote, segmentSelect, ...appTemplates);
 	const used = pages.flatMap(h => [...h.matchAll(/href="#sc-icon-([a-z-]+)"/g)].map(m => m[1]));
 	const missing = used.filter(n => !icons.includes(n));

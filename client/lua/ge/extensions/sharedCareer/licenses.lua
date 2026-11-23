@@ -6,10 +6,13 @@
 -- a "Buy licenses" button when you walk in. The button opens the license shop, a dialog of the
 -- SharedCareer menu window (shown by welcome.lua).
 -- The server keeps the licenses, their prices and who owns which (main.lua "Licenses"):
---   sc_licensesRequest        -> sc_licenses {list = [{id, name, price, owned, buying}], message}
+--   sc_licensesRequest        -> sc_licenses {list = [{id, name, price, jobType, owned, buying}], message}
+--                                (also sent when your career starts)
 --   sc_licenseBuy {license}   -> sc_licenseCharge {id, license, name, price}
 --   debit the price, save     -> sc_licenseChargeResult {id, ok, reason}
--- has(id): whether you own a license (for features that need one).
+-- has(id): whether you own a license. byJobType(): the licenses jobs need, for the Jobs app (a job
+-- type with a license you don't own is greyed out there; the server refuses its jobs).
+-- uiRoute(): the route to the license office.
 
 local M = {}
 
@@ -40,6 +43,26 @@ function M.has(id)
 		end
 	end
 	return false
+end
+
+--- The licenses jobs need, by job type: {[jobType] = {name, owned}}; empty until the server sent them.
+function M.byJobType()
+	local out = {}
+	for _, l in ipairs(list or {}) do
+		if type(l.jobType) == "string" then
+			out[l.jobType] = { name = l.name, owned = l.owned == true }
+		end
+	end
+	return out
+end
+
+--- From the Jobs app: the route to the license office of this map.
+function M.uiRoute()
+	local level = type(getCurrentLevelIdentifier) == "function" and getCurrentLevelIdentifier() or nil
+	local p = level and OFFICES[level]
+	if p then
+		U.setRoute("licenses", p)
+	end
 end
 
 --== The shop ======================================================================
@@ -99,6 +122,10 @@ local function rxLicenses(data)
 		return
 	end
 	list = msg.list
+	local jobs = U.ext("sharedCareer_jobs")
+	if jobs then
+		jobs.refreshApp()
+	end
 	local w = welcome()
 	if w and w.isOpen(SHOP) then
 		showShop()
