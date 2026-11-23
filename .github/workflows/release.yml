@@ -1,22 +1,42 @@
-# SharedCareer :: publish a release
+# SharedCareer :: releases (the "Run workflow" button) and their Discord post
 #
-# On every push to main:
-#   1. run all tests (tools/test.sh)
-#   2. build the package (tools/package.sh -> SharedCareer-<version>.zip)
-#   3. if there is no release "v<version>" yet, it is created and the zip attached.
-#      If the version already exists, nothing happens. So a new release is created exactly
-#      when the version (util.lua + main.lua) was raised: when the release pull request of
-#      prepare-release.yml is merged. Its text is the notes (tools/release_notes.sh).
-#   4. post the new release with its notes to Discord (tools/discord_release.sh), if the
-#      repository secret DISCORD_RELEASE_WEBHOOK holds a webhook of the releases channel.
+# Actions → Release → Run workflow (step by step: docs/releasing.md):
+#   step      patch (fixes), minor (new features) or major (a big update): the next version after
+#             the last release tag (tools/version.sh)
+#   version   optional, e.g. 1.0.0: exactly this version instead
+#   review    optional: a draft first. Edit its text on GitHub (Releases), then "Publish
+#             release" – only that posts it to Discord and lets servers install it.
+# The run: stops with a note if the mod is unchanged since the last release; otherwise runs all
+# tests, builds SharedCareer-<version>.zip with the version stamped in (tools/package.sh) and
+# creates release v<version> with the notes of the pull requests since the last release
+# (tools/release_notes.sh), then posts it to Discord (tools/discord_release.sh, if the secret
+# DISCORD_RELEASE_WEBHOOK holds a webhook of the releases channel).
+# A release published by hand (a draft, or one made on GitHub) is posted by the job "discord".
+# A release this workflow publishes itself doesn't start that job (events of the workflow's own
+# token start no workflows), so nothing is posted twice.
 #
 # On the server, "./server.sh update" then fetches the newest release (see tools/server.sh).
 
 name: Release
 
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
+    inputs:
+      step:
+        description: 'patch = fixes, minor = new features, major = big update'
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+      version:
+        description: 'Exact version instead (optional, e.g. 1.0.0)'
+        type: string
+        required: false
+      review:
+        description: 'Review first: a draft to edit and publish by hand'
+        type: boolean
+        default: false
+  release:
+    types: [published]
 
 permissions:
   contents: write
@@ -27,55 +47,95 @@ concurrency:
 
 jobs:
   release:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
         with:
-          fetch-depth: 0   # with tags: tests/config_update_test.lua compares the settings with the last release
+          ref: main
+          fetch-depth: 0   # with tags: the version, the notes and the tests compare with the last release
 
-      - name: Install tools
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq luajit lua5.3 zip
-
-      - name: Read version
-        id: version
+      - name: Anything to release?
+        id: changes
         run: |
-          v=$(sed -n 's/^local VERSION = "\(.*\)"/\1/p' Resources/Server/SharedCareer/main.lua)
-          echo "version=$v" >> "$GITHUB_OUTPUT"
-          echo "Version: $v"
-
-      - name: Does the release exist already?
-        id: exists
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if gh release view "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "Release v${{ steps.version.outputs.version }} exists already - no new release (the \"Prepare release\" workflow raises the version)."
+          last=$(git describe --tags --abbrev=0 --match 'v[0-9]*' HEAD)
+          if [ -z "$(git diff --name-only "$last" HEAD -- client Resources tools/server.sh)" ]; then
+            echo "::notice::Nothing to release: the mod is unchanged since $last."
+            echo "release=false" >> "$GITHUB_OUTPUT"
           else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "release=true" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Version
+        id: version
+        if: steps.changes.outputs.release == 'true'
+        env:
+          STEP: ${{ inputs.step }}
+          EXACT: ${{ inputs.version }}
+        run: |
+          v=$(tools/version.sh "${EXACT:-$STEP}")
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "Version: $(tools/version.sh) -> $v"
+
+      - name: Install tools
+        if: steps.changes.outputs.release == 'true'
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq luajit lua5.3 zip
+
       - name: Run tests and build the package
+        if: steps.changes.outputs.release == 'true'
         run: |
           tools/test.sh
-          tools/package.sh
+          tools/package.sh "${{ steps.version.outputs.version }}"
 
-      - name: Create release
-        if: steps.exists.outputs.exists == 'false'
+      - name: Create the release
+        if: steps.changes.outputs.release == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          REVIEW: ${{ inputs.review }}
         run: |
           v="${{ steps.version.outputs.version }}"
-          tools/release_notes.sh > release_notes.md
-          gh release create "v$v" "SharedCareer-$v.zip" \
+          tools/release_notes.sh > "$RUNNER_TEMP/notes.md"
+          # an unpublished draft of this version from an earlier run is replaced
+          if [ "$(gh release view "v$v" --json isDraft --jq .isDraft 2>/dev/null)" = "true" ]; then
+            gh release delete "v$v" --yes
+          fi
+          draft=()
+          if [ "$REVIEW" = "true" ]; then draft=(--draft); fi
+          gh release create "v$v" "SharedCareer-$v.zip" "${draft[@]}" \
+            --target "$(git rev-parse HEAD)" \
             --title "SharedCareer $v" \
-            --notes-file release_notes.md
+            --notes-file "$RUNNER_TEMP/notes.md"
+          url=$(gh release view "v$v" --json url --jq .url)
+          if [ "$REVIEW" = "true" ]; then
+            echo "Draft ready – edit the text, then \"Publish release\": $url" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Released: $url" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Post the release on Discord
-        if: steps.exists.outputs.exists == 'false'
+        if: steps.changes.outputs.release == 'true' && !inputs.review
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
         run: |
           v="${{ steps.version.outputs.version }}"
           tools/discord_release.sh "$v" \
-            "${{ github.server_url }}/${{ github.repository }}/releases/tag/v$v" release_notes.md
+            "${{ github.server_url }}/${{ github.repository }}/releases/tag/v$v" "$RUNNER_TEMP/notes.md"
+
+  # a release published by hand: a reviewed draft, or one made on GitHub
+  discord:
+    if: github.event_name == 'release' && !github.event.release.prerelease
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - name: Post the release on Discord
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
+          TAG: ${{ github.event.release.tag_name }}
+          URL: ${{ github.event.release.html_url }}
+          BODY: ${{ github.event.release.body }}
+        run: |
+          printf '%s\n' "$BODY" > "$RUNNER_TEMP/notes.md"
+          tools/discord_release.sh "${TAG#v}" "$URL" "$RUNNER_TEMP/notes.md"

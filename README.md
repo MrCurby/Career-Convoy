@@ -159,6 +159,7 @@ The full guide, including manual installation, backups, rollback and switching f
 | [In-game guide](docs/features.md) | The menu, welcome dialog, players tab, fuel economy, traffic, what everyone sees the same, garage computers, rope and winch, straps, towing jobs, phone |
 | [Settings & commands](docs/configuration.md) | Chat and console commands, every setting in `config.json` |
 | [Development](docs/development.md) | Building, tests, releases, how the mod works inside, known limitations, project status |
+| [Making a release](docs/releasing.md) | For maintainers: a new release in one click on GitHub, with your own version or text |
 
 ## Status and known limits
 

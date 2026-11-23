@@ -24,7 +24,8 @@
 
 local M = {}
 
-M.VERSION = "0.33.0"
+-- "dev" here; a release stamps its version in when packaging (tools/package.sh)
+M.VERSION = "dev"
 
 local unpack = table.unpack or unpack
 

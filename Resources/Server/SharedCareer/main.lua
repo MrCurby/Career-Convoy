@@ -75,7 +75,8 @@
 --   sc_jobPaidAck {payout}                           credit this (again until sc_jobPaidAck)
 --                       (from the SharedCareer menu window)
 
-local VERSION = "0.33.0"
+-- "dev" here; a release stamps its version in when packaging (tools/package.sh)
+local VERSION = "dev"
 local TAG = "[SharedCareer] "
 
 local CONFIG_DIR = "Resources/Server/SharedCareer/config"

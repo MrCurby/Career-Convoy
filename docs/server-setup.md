@@ -87,7 +87,7 @@ Without a `REPO`, `update` installs the newest `SharedCareer-*.zip` it finds in 
 
 ## Test server (dev builds)
 
-Every push to a branch other than `main` builds a **dev build**: the same package with a version like `0.16.0-dev.ab12cd3` (the last part is the commit). Each branch has its own GitHub pre-release `build-<branch>`, replaced on every push and removed when the branch is deleted. No version bump and no real release are needed for it, and normal servers never get it: `./server.sh update` only installs real releases.
+Every push to a branch other than `main` builds a **dev build**: the same package with a version like `0.34.0-dev.ab12cd3` (the last release, then the commit). Each branch has its own GitHub pre-release `build-<branch>`, replaced on every push and removed when the branch is deleted. No real release is needed for it, and normal servers never get it: `./server.sh update` only installs real releases.
 
 On a test server, install the newest dev build (of whichever branch was pushed last) with:
 

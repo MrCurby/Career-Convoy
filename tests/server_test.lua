@@ -3,7 +3,7 @@
 
 package.path = "./tests/?.lua;" .. package.path
 local json = require("json")
--- read the version from the code (only maintain util.lua/main.lua, see tools/bump.sh)
+-- the version in the code ("dev"; a release stamps its own in, see tools/package.sh)
 local VERSION = io.open("Resources/Server/SharedCareer/main.lua"):read("*a"):match('local VERSION = "(.-)"')
 
 local tmp = os.tmpname()
