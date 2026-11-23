@@ -2,7 +2,7 @@
 
 - [Repository layout](#repository-layout)
 - [Building and testing](#building-and-testing)
-- [Releasing a new version](#releasing-a-new-version)
+- [Releasing a new version](#releasing-a-new-version) (step by step: [Making a release](releasing.md))
 - [How it works](#how-it-works)
 - [Known limitations](#known-limitations)
 - [Project status](#project-status)
@@ -27,8 +27,7 @@ Resources/Server/SharedCareer/   server plugin (main.lua)
 tests/                           mock-based tests for client and server
 tools/                           build, test, package, release and server scripts
 docs/                            documentation
-.github/workflows/prepare-release.yml  the release button: raises the version, opens the release PR
-.github/workflows/release.yml    publishes a release when the version on main is new
+.github/workflows/release.yml    releases: the "Run workflow" button, and the Discord post
 .github/workflows/dev-build.yml  dev builds of every branch but main (pre-releases "build-<branch>")
 .github/workflows/tests.yml      checks of a pull request into main (tests, version)
 stylua.toml                      Lua formatting (StyLua)
@@ -42,10 +41,11 @@ You need `luajit`, `lua5.3`, `python3`, `node` and `zip`. On Fedora: `sudo dnf i
 ```bash
 tools/test.sh      # syntax check, all tests, Lua formatting and the English-only language check
 tools/build.sh     # build Resources/Client/SharedCareer.zip from client/
-tools/package.sh   # tests + build + release package SharedCareer-<version>.zip
-tools/package.sh --dev   # the same as a dev build, SharedCareer-<version>-dev.<commit>.zip
-tools/version_check.sh   # only a release pull request raises the version; a change of
-                         # tools/server.sh raises its SCRIPT_REVISION (PR check)
+tools/package.sh 0.35.0  # tests + build + release package SharedCareer-0.35.0.zip
+tools/package.sh --dev   # the same as a dev build, SharedCareer-<last release>-dev.<commit>.zip
+tools/version.sh         # the last release's version; "patch", "minor", "major": the next one
+tools/version_check.sh   # the version in the code stays "dev"; a change of tools/server.sh
+                         # raises its SCRIPT_REVISION (PR check)
 tools/release_notes.sh   # notes of the next release: the pull requests since the last one
 tools/discord_release.sh # post a release to the Discord releases channel (release workflow)
 ```
@@ -62,29 +62,21 @@ StyLua puts only one space before a comment at the end of a line, so comments ar
 
 ## Branches: a branch per change, then main
 
-- **Every change gets its own branch** (from `main`), named `<type>/<topic>`: `feat/`, `fix/`, `refactor/`, `docs/`, `ci/` or `chore/`, e.g. `fix/rope-after-reset` (see `CLAUDE.md`). Every push to a branch other than `main` runs `.github/workflows/dev-build.yml`: all tests, then `tools/package.sh --dev`, which stamps the version as `<version>-dev.<commit>` only inside the package (the files in the repository keep their version). The zip replaces the branch's GitHub pre-release `build-<branch>`. A test server installs the newest dev build with `./server.sh update --dev`, or one branch's with `./server.sh update --dev=<branch>` (see [Test server](server-setup.md#test-server-dev-builds)). No version bump is needed for this.
-- **`main`** collects the changes for the next release. Once a change works in the game, open a pull request into `main`, without raising the version. `.github/workflows/tests.yml` checks it: all tests, and `tools/version_check.sh` – only a release pull request (below) changes the version.
+- **Every change gets its own branch** (from `main`), named `<type>/<topic>`: `feat/`, `fix/`, `refactor/`, `docs/`, `ci/` or `chore/`, e.g. `fix/rope-after-reset` (see `CLAUDE.md`). Every push to a branch other than `main` runs `.github/workflows/dev-build.yml`: all tests, then `tools/package.sh --dev`, which stamps the version `<last release>-dev.<commit>` into the package (the code itself always says `"dev"`). The zip replaces the branch's GitHub pre-release `build-<branch>`. A test server installs the newest dev build with `./server.sh update --dev`, or one branch's with `./server.sh update --dev=<branch>` (see [Test server](server-setup.md#test-server-dev-builds)).
+- **`main`** collects the changes for the next release. Once a change works in the game, open a pull request into `main`. `.github/workflows/tests.yml` checks it: all tests, and `tools/version_check.sh` – the version in the code stays `"dev"`.
 - When a branch is deleted (after its pull request was merged), the workflow removes its dev build. Turn on "Automatically delete head branches" in the repository settings, so this happens by itself.
 - Nothing is pushed to `main` directly; a ruleset for `main` (require a pull request and the checks "tests" and "version", block force pushes) makes sure of it.
 
 ## Releasing a new version
 
-A release is made by hand, when enough has collected on `main` (or right away for an urgent fix). Everything runs on GitHub, so it works from any computer, Windows too:
+Step by step, for everyone: **[Making a release](releasing.md)**. In short: on GitHub, **Actions → Release → Run workflow**, pick patch, minor or major, run. How it works inside:
 
-1. On GitHub: **Actions → Prepare release → Run workflow**, pick **patch** (fixes) or **minor** (new features).
-2. The workflow (`.github/workflows/prepare-release.yml`) raises the version with `tools/bump.sh`, which runs the tests, and opens the pull request **"SharedCareer <version>"** from the branch `release/v<version>`. If the mod is unchanged since the last release, it only leaves a note and opens nothing.
-3. The text of that pull request is the release notes: title and text of every pull request merged since the last release (`tools/release_notes.sh`). Edit them there if needed.
-4. Merge it. `.github/workflows/release.yml` runs all tests, builds `SharedCareer-<version>.zip` and creates release `v<version>` with the notes. The same notes are posted to the Discord releases channel (`tools/discord_release.sh`).
-
-About a minute later, `./server.sh update` installs it on a server.
-
-- Write every pull request text for players and server owners: `.github/pull_request_template.md` gives the sections (short bullet points), and its hints (HTML comments) are left out of the release.
-- A pull request opened by a workflow doesn't start the checks by itself, so the workflow starts `tests.yml` for it ("Run workflow" of the checks).
-- Repository settings it needs: Settings → Actions → General → **Allow GitHub Actions to create and approve pull requests**. For Discord: create a webhook in the releases channel (Edit Channel → Integrations → Webhooks) and save its URL as the repository secret `DISCORD_RELEASE_WEBHOOK` (Settings → Secrets and variables → Actions). Without the secret, nothing is posted.
-- A push to `main` without a new version only builds and tests. No release is created.
-- If a test fails, no release is created and servers stay on the old version.
+- **Version:** the code says `VERSION = "dev"` (`util.lua`, `main.lua`); the releases are the tags `v<x.y.z>`. `tools/version.sh` gives the next version after the last tag (or checks an exact one), and `tools/package.sh <version>` stamps it into the package only. Client and server versions in a package always match; players with a mismatching cached mod see a dialog.
+- **The run** (`.github/workflows/release.yml`): stops with a note if `client/`, `Resources/` and `tools/server.sh` are unchanged since the last tag; otherwise runs all tests, builds `SharedCareer-<version>.zip` and creates release `v<version>` on the commit of `main`. If a test fails, nothing is released.
+- **Notes:** title and text of every pull request merged into `main` since the last release (`tools/release_notes.sh`). Write every pull request text for players and server owners: `.github/pull_request_template.md` gives the sections (short bullet points), and its hints (HTML comments) are left out.
+- **Discord:** the same notes are posted to the releases channel (`tools/discord_release.sh`), through the webhook in the repository secret `DISCORD_RELEASE_WEBHOOK` (Settings → Secrets and variables → Actions; the webhook comes from Edit Channel → Integrations → Webhooks). Without the secret, nothing is posted.
+- **Review first:** the release is created as a draft and not posted. Publishing it by hand fires the `release: published` event; the workflow's job `discord` then posts the release's text. A release the workflow publishes itself fires no event (events of the workflow's own token start no workflows), so nothing is posted twice.
 - `tests/config_update_test.lua` compares with the last release tag (`v*`); the `build-*` tags of dev builds don't count.
-- Client and server versions must match. `package.sh` refuses to build otherwise, and players with a mismatching cached mod see a dialog.
 
 **Changing a default:** just change it in `DEFAULTS` in `main.lua`. Existing servers pick up the new default automatically, unless someone changed that value (see [How settings survive updates](configuration.md#how-settings-survive-updates)).
 

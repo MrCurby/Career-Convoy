@@ -2,14 +2,14 @@
 #
 # On every push to a branch other than main (and by hand via "Run workflow"):
 #   1. run all tests and build the package as a dev build (tools/package.sh --dev ->
-#      SharedCareer-<version>-dev.<commit>.zip; the version in the repository stays as it is)
+#      SharedCareer-<last release>-dev.<commit>.zip, e.g. 0.34.0-dev.ab12cd3)
 #   2. replace the branch's GitHub pre-release "build-<branch>" with it
 # When a branch is deleted (e.g. after its pull request was merged), its pre-release goes too.
 #
-# No version bump and no real release: pre-releases are not "latest", so "./server.sh update"
+# No real release: pre-releases are not "latest", so "./server.sh update"
 # on normal servers ignores them. A test server installs the newest one with
 # "./server.sh update --dev", one branch's with "./server.sh update --dev=<branch>" (or
-# CHANNEL="dev" / BRANCH="..." in its server.conf). Releases come from main (release.yml).
+# CHANNEL="dev" / BRANCH="..." in its server.conf). Releases: release.yml (its "Run workflow" button).
 # Branch names become tags like server.sh's dev_tag: every character other than A-Z a-z 0-9 . _ -
 # is replaced by "-".
 

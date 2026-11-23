@@ -49,14 +49,14 @@ The maintainer puts a lot of weight on tidy code. Keep it that way with every ch
 - `tools/test.sh` – syntax check, all tests, Lua formatting, language check. Run it before every commit.
 - Lua is formatted with StyLua (`stylua.toml`); run `stylua .` before committing Lua changes.
 - Each change in its own branch; never push to `main`. Every push to a branch builds a dev build
-  (`SharedCareer-<version>-dev.<commit>.zip`, GitHub pre-release `build-<branch>`) without a version
-  bump; a test server installs it with `./server.sh update --dev` (or `--dev=<branch>`).
-- Once it works in the game: a pull request into `main`, **without** raising the version. Its
-  checks run the tests and `tools/version_check.sh` (only release pull requests change the version).
-- Releases: on GitHub, Actions → "Prepare release" → Run workflow (patch or minor). It raises the
-  version and opens the pull request "SharedCareer <version>" with the notes of all pull requests
-  since the last release. Merging it → release `v<version>` with
-  `SharedCareer-<version>.zip`, posted to Discord. Servers install it with `./server.sh update`.
+  (`SharedCareer-<last release>-dev.<commit>.zip`, GitHub pre-release `build-<branch>`); a test
+  server installs it with `./server.sh update --dev` (or `--dev=<branch>`).
+- Once it works in the game: a pull request into `main`. Its checks run the tests and
+  `tools/version_check.sh`. The version in the code always stays `"dev"`; never set it by hand.
+- Releases: on GitHub, Actions → Release → Run workflow (patch, minor, major or an exact version;
+  "Review first" makes a draft to edit). It builds `SharedCareer-<version>.zip`, creates release
+  `v<version>` with the notes of all pull requests since the last release and posts it to
+  Discord. Servers install it with `./server.sh update`. Step by step: `docs/releasing.md`.
 - Pull request text becomes the release notes (GitHub and Discord): follow
   `.github/pull_request_template.md` – short bullet points for players and server owners, no file
   names, commits, tests or code details.
