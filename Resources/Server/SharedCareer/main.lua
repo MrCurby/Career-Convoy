@@ -10,7 +10,7 @@
 --   * splits the traffic amount fairly across all players
 --   * runs the clock (time of day, day and night at different speeds) and the traffic light cycle
 --   * handles money transfers between players in two steps (debit first, then credit)
---   * keeps the shared list of jobs (beta): every job goes to one player, is paid once; and
+--   * keeps the shared list of jobs: every job goes to one player, is paid once; and
 --     every player's job levels (XP per job type), which unlock harder and better-paid jobs
 --
 -- Only the BeamMP server API (MP.*, Util.*, FS.*), no game code.
@@ -136,7 +136,7 @@ local DEFAULTS = {
 		-- then the limit is split evenly.
 		roadTrafficTotal = 20,
 		parkedTrafficTotal = 24,
-		-- Jobs (beta) in the Jobs app on the phone, for now towing jobs: broken-down cars at the
+		-- Jobs in the Jobs app on the phone, for now towing jobs: broken-down cars at the
 		-- roadside, towed to a repair shop. One list for everyone, every job goes to one player.
 		jobs = true,
 		jobsOpen = 3, -- open jobs per level group that players on the server have reached
@@ -1191,7 +1191,7 @@ local function fuelRecoveryTick(dt)
 	sendFuelToAll()
 end
 
---== Jobs (beta) ================================================================
+--== Jobs ======================================================================
 -- The server keeps one list for everyone; the clients make the jobs up (they know the map: road
 -- network, repair shops, vehicles) when the server asks one of them (sc_jobGenerate). A job goes
 -- to the first player who takes it, is paid once (a payout, see "Payouts of jobs") and is open

@@ -1,4 +1,4 @@
--- SharedCareer :: jobs (beta): the shared job list and the Jobs app, for every kind of job
+-- SharedCareer :: jobs: the shared job list and the Jobs app, for every kind of job
 --
 -- The server keeps one list of jobs for everyone (server.jobs, see main.lua "Jobs"). This file is
 -- what all jobs have in common. What a job is about comes from its job type, an extension that
@@ -635,7 +635,6 @@ function M.registerApp()
 			icon = "jobs",
 			color = "#2d6fd8",
 			order = 5,
-			beta = true,
 			onOpen = function()
 				M.setAppOpen(true)
 			end,

@@ -709,7 +709,7 @@ sc_fuelDelivered(1, json.encode({ station = "apex", fuel = "gasoline", amount = 
 check(countTo(0, "sc_fuelPrices") == fpCount, "switched off: deliveries change nothing")
 onConsoleInput("sc set server.fuelEconomy true")
 
---== Jobs (beta) ==
+--== Jobs ==
 do
 	local function offer(from, pay, tier)
 		sc_jobOffer(

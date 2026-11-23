@@ -26,7 +26,7 @@
 --   phone     the phone with its apps: Jobs (jobs.lua), Tow (tow.lua), Straps (straps.lua),
 --             Fuel (fuel.lua)
 --             (client.phone, key F4)
---   jobs      jobs (beta): the shared job list and the Jobs app, for every job type (server.jobs)
+--   jobs      jobs: the shared job list and the Jobs app, for every job type (server.jobs)
 --   towJobs   the towing jobs, the first job type: broken-down cars towed to a repair shop
 --
 -- Also in the mod: levels/west_coast_usa/.../garage_interactions/items.level.json –
