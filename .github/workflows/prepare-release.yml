@@ -8,6 +8,7 @@
 #      there if needed.
 #   3. start the checks (tests.yml) for it: a pull request opened by a workflow doesn't start them
 #      by itself.
+# If the mod is unchanged since the last release, it only leaves a note and opens nothing.
 # Merging that pull request publishes the release and posts it to Discord (release.yml).
 #
 # Needs: Settings → Actions → General → "Allow GitHub Actions to create and approve pull requests".
@@ -36,23 +37,28 @@ jobs:
   prepare:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: main
           fetch-depth: 0   # with tags: the notes and the tests compare with the last release
 
-      - name: Install tools
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq luajit lua5.3 zip
-
       - name: Anything to release?
+        id: changes
         run: |
           last=$(git describe --tags --abbrev=0 --match 'v[0-9]*' HEAD)
           if [ -z "$(git diff --name-only "$last" HEAD -- client Resources tools/server.sh)" ]; then
-            echo "::error::Nothing to release: the mod is unchanged since $last."
-            exit 1
+            echo "::notice::Nothing to release: the mod is unchanged since $last."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=true" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Install tools
+        if: steps.changes.outputs.release == 'true'
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq luajit lua5.3 zip
+
       - name: Open the release pull request
+        if: steps.changes.outputs.release == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
