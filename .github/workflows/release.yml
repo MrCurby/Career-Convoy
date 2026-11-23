@@ -6,6 +6,8 @@
 #   3. if there is no release "v<version>" yet, it is created and the zip attached.
 #      If the version already exists, nothing happens. So a new release is created exactly
 #      when the version (util.lua + main.lua) was raised.
+#      Its notes are the text of the pull requests merged since the last release
+#      (tools/release_notes.sh).
 #
 # On the server, "./server.sh update" then fetches the newest release (see tools/server.sh).
 
@@ -64,6 +66,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           v="${{ steps.version.outputs.version }}"
+          tools/release_notes.sh > release_notes.md
           gh release create "v$v" "SharedCareer-$v.zip" \
             --title "SharedCareer $v" \
-            --notes "Install on a server: \`./server.sh update\` (downloads this release automatically)."
+            --notes-file release_notes.md
