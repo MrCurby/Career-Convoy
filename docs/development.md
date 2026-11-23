@@ -46,6 +46,7 @@ tools/package.sh --dev   # the same as a dev build, SharedCareer-<version>-dev.<
 tools/version_check.sh   # a branch that changes the mod must raise the version, one that changes
                          # tools/server.sh its SCRIPT_REVISION (PR check)
 tools/release_notes.sh   # notes of the next release: the pull requests since the last one
+tools/discord_release.sh # post a release to the Discord releases channel (release workflow)
 ```
 
 The tests rebuild the BeamNG and BeamMP APIs as mocks and play through joining, career start, garage, visibility, traffic, time sync, the node grabber, rope and winch, straps, the phone, UI layout cleanup, fuel prices, payments, the menu and the welcome dialog. The menu and phone windows (`app.js`) run in node with stand-ins for AngularJS and `bngApi` (`tests/ui_mock.js`, `tests/ui_test.js`); a timeline of random clicks on them is then replayed against the real `menu.lua` (`tests/ui_replay.lua`). They check the logic, but **they don't replace testing in the real game**. UI changes were additionally checked by rendering the apps in a headless browser.
@@ -67,7 +68,7 @@ StyLua puts only one space before a comment at the end of a line, so comments ar
 
 ## Releasing a new version
 
-Releases are built by GitHub Actions (`.github/workflows/release.yml`). On every push to `main` the workflow runs all tests and builds the package. If no release exists for that version yet, it creates release `v<version>` with the zip attached. Its notes are title and text of every pull request merged into `main` since the last release (`tools/release_notes.sh`), so write the pull request text for players and server owners.
+Releases are built by GitHub Actions (`.github/workflows/release.yml`). On every push to `main` the workflow runs all tests and builds the package. If no release exists for that version yet, it creates release `v<version>` with the zip attached. Its notes are title and text of every pull request merged into `main` since the last release (`tools/release_notes.sh`), so write the pull request text for players and server owners. The same notes are posted to the Discord releases channel (`tools/discord_release.sh`). For this, create a webhook in the channel (Edit Channel → Integrations → Webhooks) and save its URL as the repository secret `DISCORD_RELEASE_WEBHOOK` (Settings → Secrets and variables → Actions). Without the secret, nothing is posted.
 
 ```bash
 tools/bump.sh patch      # 0.8.4 -> 0.8.5 (bug fixes)
