@@ -384,7 +384,7 @@ if (process.argv[2]) {
 	// no icon drawn inline in an app: an <svg> there only holds a <use> (the rope is a drawing, not an icon)
 	const inline = pages.flatMap(h => [...h.matchAll(/<svg[^>]*>([\s\S]*?)<\/svg>/g)].map(m => m[1]))
 		.filter(b => !/^<use(?:\s[^>]*)?\/>$/.test(b.trim()) && !b.includes('scp-rope-path'));
-	check(inline.length === 0, 'no icon drawn inline in app.html (' + inline.length + ')');
+	check(inline.length === 0, 'no icon drawn inline in phone or app templates (' + inline.length + ')');
 	// the icon names Lua sends: the apps on the phone, the job types, the kinds of vehicle of a towing job
 	const lua = ['jobs', 'tow', 'straps', 'fuel', 'towJobs'].map(f => read('client/lua/ge/extensions/sharedCareer/' + f + '.lua'));
 	const kinds = lua[4].match(/local KINDS = \{([\s\S]*?)\n\}/)[1];
