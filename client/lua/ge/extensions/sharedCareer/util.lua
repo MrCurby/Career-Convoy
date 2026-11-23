@@ -24,7 +24,7 @@
 
 local M = {}
 
-M.VERSION = "0.33.0"
+M.VERSION = "0.34.0"
 
 local unpack = table.unpack or unpack
 
