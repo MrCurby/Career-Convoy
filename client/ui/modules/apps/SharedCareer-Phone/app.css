@@ -79,6 +79,9 @@
 .scp-back { background: none; border: none; color: #ff8a3d; font-size: 14px; cursor: pointer; padding: 2px 4px; font-family: inherit; }
 .scp-appbar-title { font-weight: 600; font-size: 15px; }
 .scp-appbody { flex: 1; display: flex; align-items: center; justify-content: center; }
+/* the slot an app's own screen (apps/<name>.html) is loaded into: passes the height on, so the
+   app's .scp-appbody gets the rest of the phone and scrolls (min-height: 0) */
+.scp-appscreen { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .scp-app-icon-big { width: 72px; height: 72px; border-radius: 18px; font-size: 30px; }
 .scp-app-icon-big svg { width: 44px; height: 44px; }
 

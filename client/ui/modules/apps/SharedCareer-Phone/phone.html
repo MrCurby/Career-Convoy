@@ -88,23 +88,24 @@
 					<!-- Jobs: jobs for everyone on the server (jobs.lua). What a job shows (icon, tags, steps,
 				     what to do now) comes from its job type (towJobs.lua: towing jobs, the icon by the kind of
 				     vehicle: car, suv, pickup, van, bus, truck – icons.svg). -->
-					<div ng-if="currentApp.id === 'jobs'"
+					<div class="scp-appscreen" ng-if="currentApp.id === 'jobs'"
 						ng-include="'/ui/modules/apps/SharedCareer-Phone/apps/jobs.html'"></div>
 					<!-- Tow: rope and winch, as a remote control (tow.lua). Without a rope: attach it (where you
 				     look, or to a vehicle nearby). With a rope, all on one screen: the rope at a glance, the
 				     winch, and the anchor (the remote; near a vehicle, "Hook on" puts it where the ring shows). -->
-					<div ng-if="currentApp.id === 'tow'"
-						ng-include="'/ui/modules/apps/SharedCareer-Phone/apps/tow.html'"></div>					<!-- Straps: ratchet straps that hold a car on a trailer or truck (straps.lua). "Strap down"
+					<div class="scp-appscreen" ng-if="currentApp.id === 'tow'"
+						ng-include="'/ui/modules/apps/SharedCareer-Phone/apps/tow.html'"></div>
+					<!-- Straps: ratchet straps that hold a car on a trailer or truck (straps.lua). "Strap down"
 				     straps the car you look at at its four corners; "Add strap" adds one by hand in two
 				     steps (aim at the car, then move the strap's end with the remote to the truck and hook
 				     it on). Below: the straps, each with its load, "Tighten", and "Remove rope" while the
 				     tow rope is still on a strapped car. -->
-					<div ng-if="currentApp.id === 'straps'"
+					<div class="scp-appscreen" ng-if="currentApp.id === 'straps'"
 						ng-include="'/ui/modules/apps/SharedCareer-Phone/apps/straps.html'"></div>
 
 
 					<!-- Fuel: all gas stations, cheapest first (fuel.lua) -->
-					<div ng-if="currentApp.id === 'fuel'"
+					<div class="scp-appscreen" ng-if="currentApp.id === 'fuel'"
 						ng-include="'/ui/modules/apps/SharedCareer-Phone/apps/fuel.html'"></div>
 
 					<div class="scp-appbody"

@@ -374,6 +374,10 @@ if (process.argv[2]) {
 	// replace: true needs exactly one root element: nothing (not even a comment) before or after it
 	check(pages.every(h => /^<div\b/.test(h) && /<\/div>\s*$/.test(h)),
 		'menu and phone templates are one root <div>, nothing before or after it');
+	// every app screen is loaded into a .scp-appscreen slot, else it is not given a height and cannot scroll
+	const slots = [...pages[1].matchAll(/<div([^>]*)ng-include="'\/ui\/modules\/apps\/SharedCareer-Phone\/apps\//g)];
+	check(slots.length === 4 && slots.every(m => m[1].includes('class="scp-appscreen"')),
+		'phone.html: each app screen sits in a .scp-appscreen slot (so it scrolls)');
 	// the phone's remote (remote.html), in the Tow and Straps app templates
 	const phoneDir = 'client/ui/modules/apps/SharedCareer-Phone/';
 	const appTemplates = ['jobs', 'tow', 'straps', 'fuel'].map(name => read(phoneDir + 'apps/' + name + '.html'));
