@@ -23,7 +23,7 @@ var sharedCareerPhoneApp = angular.module('beamng.apps');
 
 sharedCareerPhoneApp.directive('sharedCareerPhone', [function () {
 	return {
-		templateUrl: '/ui/modules/apps/SharedCareer-Phone/app.html',
+		templateUrl: '/ui/modules/apps/SharedCareer-Phone/phone.html',
 		replace: true,
 		restrict: 'EA',
 		scope: true
@@ -244,7 +244,7 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 	$scope.jobsCall = function (cmd) {
 		bngApi.engineLua('if sharedCareer_jobs then sharedCareer_jobs.' + cmd + ' end');
 	};
-	// whether icons.svg (ui/sharedCareer/, loaded into the page by app.html) has this icon; else the
+	// whether icons.svg (ui/sharedCareer/, loaded into the page by phone.html) has this icon; else the
 	// name is shown as text (an app that registered a letter, e.g. "T")
 	$scope.hasIcon = function (name) {
 		return typeof name === 'string' && name !== '' && !!document.getElementById('sc-icon-' + name);

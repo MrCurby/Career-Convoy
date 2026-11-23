@@ -1,6 +1,6 @@
 <!-- SharedCareer :: every icon of the UI apps, in one place. Each one is a symbol "sc-icon-<name>"
      in a 24x24 box, drawn in currentColor (the color of the text around it). Both apps load this file
-     into their page (ng-include in app.html); an icon is then <svg><use href="#sc-icon-car"/></svg>, its
+     into their page (ng-include in phone.html); an icon is then <svg><use href="#sc-icon-car"/></svg>, its
      size set by the CSS of the place it is in. See docs/development.md, "Icons". -->
 <svg xmlns="http://www.w3.org/2000/svg" class="sc-icons" aria-hidden="true" style="position: absolute; width: 0; height: 0; overflow: hidden">
 	<!-- the SharedCareer logo, the phone -->

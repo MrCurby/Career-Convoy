@@ -366,13 +366,18 @@ if (process.argv[2]) {
 	const icons = [...sprite.matchAll(/<symbol id="sc-icon-([a-z-]+)" viewBox="0 0 24 24">/g)].map(m => m[1]);
 	check(icons.length === (sprite.match(/<symbol/g) || []).length && new Set(icons).size === icons.length,
 		'icons.svg: every symbol named sc-icon-<name> in a 24x24 box, each name once');
-	const pages = ['Menu', 'Phone'].map(a => read('client/ui/modules/apps/SharedCareer-' + a + '/app.html'));
+	const pages = [
+		read('client/ui/modules/apps/SharedCareer-Menu/app.html'),
+		read('client/ui/modules/apps/SharedCareer-Phone/phone.html'),
+	];
 	check(pages.every(h => h.includes('ng-include="\'/ui/sharedCareer/icons.svg\'"')), 'both apps load icons.svg');
-	// the phone's remote (remote.html), in the Tow and Straps apps
-	const remote = read('client/ui/modules/apps/SharedCareer-Phone/remote.html');
-	check((pages[1].match(/ng-include="'\/ui\/modules\/apps\/SharedCareer-Phone\/remote.html'"/g) || []).length === 2
-		&& !pages[1].includes('scp-pad-key'), 'the Tow and Straps apps share one remote (remote.html)');
-	pages.push(remote);
+	// the phone's remote (remote.html), in the Tow and Straps app templates
+	const phoneDir = 'client/ui/modules/apps/SharedCareer-Phone/';
+	const appTemplates = ['jobs', 'tow', 'straps', 'fuel'].map(name => read(phoneDir + 'apps/' + name + '.html'));
+	const remote = read(phoneDir + 'remote.html');
+	check((appTemplates.join('').match(/ng-include="'\/ui\/modules\/apps\/SharedCareer-Phone\/remote.html'"/g) || []).length === 2
+		&& !appTemplates.join('').includes('scp-pad-key'), 'the Tow and Straps apps share one remote (remote.html)');
+	pages.push(remote, ...appTemplates);
 	const used = pages.flatMap(h => [...h.matchAll(/href="#sc-icon-([a-z-]+)"/g)].map(m => m[1]));
 	const missing = used.filter(n => !icons.includes(n));
 	check(used.length > 30 && missing.length === 0, 'every icon the apps use is in icons.svg ' + missing.join(','));

@@ -17,7 +17,7 @@
 -- The phone shows every registered app on the home screen; a tap calls uiOpenApp(id), which
 -- calls the app's onOpen; leaving the app (home, putting the phone away) calls uiCloseApp(id) ->
 -- onClose. Apps are only listed while client.phone is on. Tow, Straps and Fuel have their own screens
--- in the phone window (app.html).
+-- in the phone window (phone.html).
 --
 -- icon: the name of an icon in ui/sharedCareer/icons.svg ("jobs", "tow", ...), else a short text (letter).
 --
