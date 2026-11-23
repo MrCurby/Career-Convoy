@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/images/logo.svg" width="200" alt="Career-Convoy logo">
+<img src="docs/images/logo.svg" width="600" alt="Career-Convoy banner">
 
 # Career-Convoy
 
