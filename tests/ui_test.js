@@ -381,10 +381,19 @@ if (process.argv[2]) {
 	// the phone's remote (remote.html), in the Tow and Straps app templates
 	const phoneDir = 'client/ui/modules/apps/SharedCareer-Phone/';
 	const appTemplates = ['jobs', 'tow', 'straps', 'fuel'].map(name => read(phoneDir + 'apps/' + name + '.html'));
+	const phoneScript = read(phoneDir + 'app.js');
 	const remote = read(phoneDir + 'remote.html');
+	const segmentSelect = read(phoneDir + 'shared/segment-select.html');
 	check((appTemplates.join('').match(/ng-include="'\/ui\/modules\/apps\/SharedCareer-Phone\/remote.html'"/g) || []).length === 2
 		&& !appTemplates.join('').includes('scp-pad-key'), 'the Tow and Straps apps share one remote (remote.html)');
-	pages.push(remote, ...appTemplates);
+	check(appTemplates[0].includes('<scp-segment-select layout="wrap" role="tablist">')
+		&& appTemplates[3].includes('<scp-segment-select>')
+		&& phoneScript.includes("directive('scpSegmentSelect'")
+		&& phoneScript.includes('shared/segment-select.html')
+		&& phoneScript.includes('transclude: true')
+		&& segmentSelect.includes('ng-transclude'),
+		'Fuel and Jobs provide their own content to the shared segment select');
+	pages.push(remote, segmentSelect, ...appTemplates);
 	const used = pages.flatMap(h => [...h.matchAll(/href="#sc-icon-([a-z-]+)"/g)].map(m => m[1]));
 	const missing = used.filter(n => !icons.includes(n));
 	check(used.length > 30 && missing.length === 0, 'every icon the apps use is in icons.svg ' + missing.join(','));

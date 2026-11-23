@@ -17,7 +17,7 @@
 // "sharedCareerPanelOpen").
 //
 // Files: app.json registers the BeamNG UI app; phone.html is the template (the phone's shell),
-// apps/<name>.html the screens of the built-in apps, remote.html the rope remote, app.css the styles.
+// apps/<name>.html the screens, shared/segment-select.html the shared selector, remote.html the rope remote, app.css the styles.
 // phone.html must have exactly one root element (replace: true below), with nothing before it.
 //
 // Note: only var/function at the top level – the game evaluates app.js again in the same
@@ -31,6 +31,19 @@ sharedCareerPhoneApp.directive('sharedCareerPhone', [function () {
 		replace: true,
 		restrict: 'EA',
 		scope: true
+	};
+}]);
+
+sharedCareerPhoneApp.directive('scpSegmentSelect', [function () {
+	return {
+		restrict: 'E',
+		replace: true,
+		transclude: true,
+		templateUrl: '/ui/modules/apps/SharedCareer-Phone/shared/segment-select.html',
+		scope: {
+			layout: '@?',
+			role: '@?'
+		}
 	};
 }]);
 
