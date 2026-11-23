@@ -251,11 +251,11 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 	// What a job shows (icon, tags, steps, the texts of what to do now) comes from its job type
 	// (towJobs.lua: towing jobs); this window only lays it out.
 	$scope.jobs = {enabled: false, sections: [], open: 0, active: null, licenses: {}};
-	// The app has two pages: its start page, a grid with a button per job type, and the page of one
+	// The app has two pages: its start page, a list with a card per job type, and the page of one
 	// job type (its jobs). jobsType is the open job type, null on the start page; the back button
 	// in the app bar leads from a job type back to the start page (goBack).
-	// The buttons: towing first, one for every other job type, the ones still to come (TYPES_SOON,
-	// greyed out, not clickable) last. A new job type gets its button as soon as Lua sends it.
+	// The cards: towing first, one for every other job type, the ones still to come (TYPES_SOON,
+	// greyed out, not clickable) last. A new job type gets its card as soon as Lua sends it.
 	// Built once per update from Lua, not on every call (ng-repeat).
 	var TYPES_SOON = [{id: 'taxi', name: 'Taxi', icon: 'car'}];
 	function jobTypesOf(sections) {
@@ -297,7 +297,15 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 		}
 		return open;
 	};
-	// the line under a job type's button: "Your job", "3 open", "Soon"
+	// your level in a job type ({level, share, toGo}), or null
+	$scope.jobTypeLevel = function (type) {
+		for (var i = 0; i < $scope.jobs.sections.length; i++) {
+			var sec = $scope.jobs.sections[i];
+			if (sec.type === type) return sec.level || null;
+		}
+		return null;
+	};
+	// the line on a job type's card: "Your job", "3 open", "Soon"
 	$scope.jobTypeText = function (t) {
 		if (t.soon) return 'Soon';
 		if ($scope.jobsActiveIn(t.id)) return 'Your job';

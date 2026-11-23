@@ -2,20 +2,32 @@
 	<div class="scp-hint" ng-if="!jobs.enabled">Jobs are off on this
 		server.</div>
 
-	<!-- start page: a button per job type (jobTypes in app.js) in its livery (app.css, scp-jobtype-<id>);
-	     the ones still to come are greyed out -->
+	<!-- start page: a card per job type (jobTypes in app.js) in its vehicle's livery (app.css,
+	     scp-jobtype-<id>): its name, how many jobs are open, your level in it; the ones still to come
+	     are greyed out -->
 	<div class="scp-jobtypes" ng-if="!jobsType">
 		<button class="scp-jobtype" ng-repeat="t in jobTypes track by t.id"
 			ng-click="openJobType(t)" ng-disabled="t.soon"
 			ng-class="['scp-jobtype-' + t.id, {'scp-jobtype-soon': t.soon, 'scp-jobtype-mine': jobsActiveIn(t.id)}]">
+			<span class="scp-jobtype-art" ng-if="hasIcon(t.icon)"><svg
+					aria-hidden="true"><use ng-attr-href="{{ '#sc-icon-' + t.icon }}" /></svg></span>
 			<span class="scp-jobtype-icon"><svg ng-if="hasIcon(t.icon)"
 					aria-hidden="true"><use
 						ng-attr-href="{{ '#sc-icon-' + t.icon }}" /></svg><span
-					ng-if="!hasIcon(t.icon)" ng-bind="t.icon"></span><span
-					class="scp-jobtype-lock" ng-if="!t.soon && jobLicenseMissing(t.id)"><svg
-						aria-hidden="true"><use href="#sc-icon-lock" /></svg></span></span>
-			<span class="scp-jobtype-name" ng-bind="t.name"></span>
-			<span class="scp-jobtype-text" ng-bind="jobTypeText(t)"></span>
+					ng-if="!hasIcon(t.icon)" ng-bind="t.icon"></span></span>
+			<span class="scp-jobtype-body">
+				<span class="scp-jobtype-name" ng-bind="t.name"></span>
+				<span class="scp-jobtype-pills">
+					<span class="scp-jobtype-pill" ng-class="{'scp-jobtype-pill-lock': !t.soon && jobLicenseMissing(t.id)}"><span
+							class="scp-ic scp-ic-tiny" ng-if="!t.soon && jobLicenseMissing(t.id)"><svg
+								aria-hidden="true"><use href="#sc-icon-lock" /></svg></span><span
+							ng-bind="jobTypeText(t)"></span></span>
+					<span class="scp-jobtype-pill" ng-if="jobTypeLevel(t.id)"
+						ng-bind="'Level ' + jobTypeLevel(t.id).level"></span>
+				</span>
+			</span>
+			<span class="scp-jobtype-go" ng-if="!t.soon"><svg aria-hidden="true"><use
+						href="#sc-icon-chevron-right" /></svg></span>
 		</button>
 	</div>
 
