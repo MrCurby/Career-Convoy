@@ -346,6 +346,22 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 		return a ? (a.step || 0) : 0;
 	};
 	$scope.jobPaid = function () { return !!$scope.jobs.active && $scope.jobs.active.phase === 'paid'; };
+	// the pay of your job as it is now (less after damage or a rough ride), if the job type says
+	$scope.jobPayNow = function () {
+		var a = $scope.jobs.active;
+		if (!a) return 0;
+		return typeof a.payNow === 'number' ? a.payNow : a.pay;
+	};
+	$scope.jobPayDropped = function () {
+		var a = $scope.jobs.active;
+		return !!a && typeof a.payNow === 'number' && a.payNow < a.pay;
+	};
+	// the rating of your job so far (1..5 stars), or null if its job type gives none
+	$scope.STAR_SLOTS = [1, 2, 3, 4, 5];
+	$scope.jobStars = function () {
+		var a = $scope.jobs.active;
+		return a && typeof a.stars === 'number' ? a.stars : null;
+	};
 	$scope.jobText = function () {
 		var a = $scope.jobs.active;
 		if (!a) return '';

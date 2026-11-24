@@ -5178,8 +5178,8 @@ check(
 	me.p = { x = 0, y = -20, z = 10 }
 	-- making one up: a passenger beside the road, a place of the map, the pay by the way by road
 	check(
-		taxi.payFor(1000, false, 1) == 200 and taxi.payFor(1000, true, 1) == 300 and taxi.payFor(1000, false, 4) == 440,
-		"taxi pay: $100 + $100 per km; a VIP pays 50 % more, a higher tier more"
+		taxi.payFor(1000, false, 1) == 140 and taxi.payFor(1000, true, 1) == 210 and taxi.payFor(1000, false, 4) == 210,
+		"taxi pay: $60 + $80 per km; a VIP pays 50 % more, tier 4 50 % more"
 	)
 	handlers.sc_jobGenerate(json.encode({ type = "taxi", tier = 2 }))
 	offer = lastSent("sc_jobOffer")
@@ -5279,6 +5279,11 @@ check(
 	update(0.3)
 	local active = jobs.getActive()
 	check(active.jolts == 1 and lastToastMsg() == "Drive smoother!", "a hard stop is one jolt")
+	st = jobs.appState()
+	check(
+		st.active.stars == 4 and st.active.payNow == 380 and st.active.pay == 400,
+		"the app shows it at once: 4 stars, the pay as it is now ($380 of $400)"
+	)
 	-- speeding: on the road (limit 20 m/s), more than 15 % over it for 2 s; again after 10 s more
 	me.p = { x = 2500, y = -2, z = 10 }
 	local function speedTo(v)
@@ -5320,8 +5325,21 @@ check(
 	end
 	local done = lastSent("sc_jobDone")
 	check(
-		done and done.id == 30 and math.abs(done.share - 0.8) < 1e-9,
-		"standing in the ring: handed over; a jolt, speeding twice and new damage cost 20 % of the pay"
+		done and done.id == 30 and math.abs(done.share - 0.8) < 1e-9 and done.tip == 0,
+		"standing in the ring: handed over; a jolt, speeding twice and new damage cost 20 % of the pay: 3 stars, no tip"
+	)
+	check(
+		taxi.starsFor(0) == 5
+			and taxi.starsFor(0.05) == 4
+			and taxi.starsFor(0.1) == 4
+			and taxi.starsFor(0.15) == 3
+			and taxi.starsFor(0.3) == 2
+			and taxi.starsFor(0.5) == 1,
+		"stars: 5 for a smooth ride, one less for about every 10 % it cost"
+	)
+	check(
+		taxi.tipFor(5) == 0.15 and taxi.tipFor(4) == 0.05 and taxi.tipFor(3) == 0 and taxi.tipFor(5, true) == 0.25,
+		"a tip: 15 % for 5 stars, 5 % for 4, none below; a VIP tips more"
 	)
 	handlers.sc_jobPaid(json.encode({
 		payout = "p-30",
@@ -5335,6 +5353,17 @@ check(
 		world.moneyLabel == "Taxi job: Passenger" and lastToastMsg():find("%$40 rough ride%)") ~= nil,
 		'taxi pay: the toast says "rough ride", not "damage"'
 	)
+	handlers.sc_jobPaid(json.encode({
+		payout = "p-31",
+		job = 31,
+		type = "taxi",
+		title = "VIP",
+		pay = 575,
+		deduction = 0,
+		tip = 75,
+		xp = 40,
+	}))
+	check(lastToastMsg() == "Job done: +$575 (with $75 tip) · +40 XP", "a tip shows in the toast")
 	check(
 		math.abs(taxi.penalty({ job = { data = { vip = true } }, jolts = 1, speeding = 1 }) - 0.2) < 1e-9
 			and taxi.penalty({ job = { data = {} }, rough = true }) == 0.5

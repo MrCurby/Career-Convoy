@@ -50,12 +50,20 @@
 			<div class="scp-myjob-top">
 				<span class="scp-myjob-label">Your job</span>
 				<span class="scp-reward">
-					<span class="scp-myjob-pay" ng-bind="money(jobs.active.pay)"></span>
+					<span class="scp-myjob-pay"><s class="scp-pay-was" ng-if="jobPayDropped()"
+							ng-bind="money(jobs.active.pay)"></s><span
+							ng-bind="money(jobPayNow())"></span></span>
 					<span class="scp-xp" ng-if="jobs.active.xp"
 						ng-bind="xpText(jobs.active.xp)"></span>
 				</span>
 			</div>
 			<div class="scp-myjob-title" ng-bind="jobs.active.title"></div>
+			<!-- the rating so far (taxi: the passenger's stars), if the job type gives one -->
+			<div class="scp-stars" ng-if="jobStars() !== null">
+				<span class="scp-star" ng-repeat="n in STAR_SLOTS track by n"
+					ng-class="{'scp-star-on': n <= jobStars()}"><svg aria-hidden="true"><use
+							href="#sc-icon-star" /></svg></span>
+			</div>
 			<div class="scp-chips">
 				<span class="scp-chip-tag"
 					ng-repeat="t in jobs.active.tags track by $index"

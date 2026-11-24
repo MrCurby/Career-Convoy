@@ -279,21 +279,23 @@ People wait at the roadside for a ride to a place on the map: a garage, a dealer
 2. **Pick them up:** the route leads you to the passenger, a yellow marker beside the road. Drive there in any vehicle (not on foot) and stop next to them for 2 seconds: they get in. That vehicle is your taxi now.
 3. **Drive them:** the route leads to the place. A ring on the ground there shows the drop-off zone. Stop in it for 2 seconds, sitting in your taxi. The pay goes to your account.
 
-- **Pay:** $100 plus $100 per km of the ride, more for longer rides and for your level. The server can change it (`client.jobPay`).
+- **Pay:** $60 plus $80 per km of the ride, more for longer rides and for your level. The server can change it (`client.jobPay`). A ride pays less than a tow of the same length: it is quicker and easier, and a smooth one earns a tip.
 - **Drive smoothly:** every jolt (hard braking, a crash, a hard landing) costs 5 % of the pay; *Drive smoother!* tells you.
 - **Keep to the speed limit:** more than 15 % over the road's speed limit for 2 seconds costs 5 % of the pay; *Too fast!* tells you. Staying too fast costs 5 % again every 10 seconds. Roads without a speed limit in the game don't count.
 - New damage to your taxi costs too, and resetting it (**R**) during the ride costs half. All together it never costs more than half.
-- **VIPs** pay 50 % more, but jolts and speeding cost twice as much.
+- **Stars:** the passenger rates the ride with 1 to 5 stars. Every jolt, speeding and damage costs stars. In the Jobs app your ride shows the stars and the pay as it is now (the full pay struck through once it drops).
+- **Tip:** 5 stars earn a tip of 15 % on top of the pay, 4 stars 5 %. Below that, no tip.
+- **VIPs** pay 50 % more and tip more (25 % for 5 stars, 10 % for 4), but jolts and speeding cost twice as much.
 - If you get out, the route leads back to your taxi. If the taxi disappears, the passenger waits at the pickup again.
 - Giving up, the 30 minutes and new jobs work as for towing jobs.
-- **Levels:** taxi jobs have their own level, by the same rules as towing (see [Levels](#levels)):
+- **Levels:** taxi jobs have their own level, by the same rules as towing (see [Levels](#levels)), but every level above 1 adds only 3 % to the pay (towing: 5 %):
 
   | From level | Rides |
   |---|---|
   | 1 | short rides (about 0.6–2 km) |
-  | 3 | longer rides, sometimes a VIP (pays 30 % more) |
-  | 5 | long rides, often a VIP (pays 70 % more) |
-  | 8 | the longest rides, every second passenger a VIP (pays 120 % more) |
+  | 3 | longer rides, sometimes a VIP (pays 15 % more) |
+  | 5 | long rides, often a VIP (pays 30 % more) |
+  | 8 | the longest rides, every second passenger a VIP (pays 50 % more) |
 
 ## Phone
 

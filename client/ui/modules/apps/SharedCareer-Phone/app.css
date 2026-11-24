@@ -204,6 +204,13 @@
 .scp-myjob-top { display: flex; align-items: center; justify-content: space-between; }
 .scp-myjob-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; opacity: 0.8; font-weight: 700; }
 .scp-myjob-pay { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
+/* the pay before it dropped (damage, a rough ride), struck through before the pay as it is now */
+.scp-pay-was { margin-right: 6px; font-size: 12px; font-weight: 700; opacity: 0.55; }
+/* the rating so far: five stars, the ones earned in gold */
+.scp-stars { display: flex; gap: 2px; margin-top: 4px; }
+.scp-star { display: flex; color: rgba(255, 255, 255, 0.25); transition: color 0.3s; }
+.scp-star svg { width: 16px; height: 16px; }
+.scp-star-on { color: #ffd21f; }
 .scp-myjob-title { font-size: 17px; font-weight: 700; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .scp-chips { display: flex; gap: 5px; margin-top: 6px; flex-wrap: wrap; }
 .scp-chip-tag { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 7px; }

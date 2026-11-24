@@ -306,6 +306,16 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 		&& phone.jobs.active.tags.length === 0 && !phone.jobPaid(), 'your job, step 1: the texts of its job type');
 	phone.emit('SharedCareerJobs', {enabled: true, jobs: [], active: active({phase: 'running', step: 1, short: 'In the ring – wait'})});
 	check(phone.jobStep() === 1 && phone.jobStepText() === 'In the ring – wait', 'step 2');
+	check(phone.jobPayNow() === 820 && !phone.jobPayDropped() && phone.jobStars() === null,
+		'a towing job: its pay, no stars');
+	phone.emit('SharedCareerJobs', {enabled: true, jobs: [], active: active({type: 'taxi', phase: 'running', step: 1,
+		payNow: 738, stars: 4})});
+	check(phone.jobPayNow() === 738 && phone.jobPayDropped() && phone.jobStars() === 4 && phone.STAR_SLOTS.length === 5,
+		'a rough taxi ride: the pay as it is now (the old one struck through), 4 of 5 stars');
+	phone.emit('SharedCareerJobs', {enabled: true, jobs: [], active: active({type: 'taxi', phase: 'running', step: 1,
+		payNow: 820, stars: 5})});
+	check(phone.jobPayNow() === 820 && !phone.jobPayDropped() && phone.jobStars() === 5, 'a smooth ride: full pay, 5 stars');
+	phone.emit('SharedCareerJobs', {enabled: true, jobs: [], active: active({phase: 'running', step: 1, short: 'In the ring – wait'})});
 	phone.openApp({id: 'straps'});
 	const inStraps = phone.jobStripShown();
 	phone.openApp({id: 'fuel'});

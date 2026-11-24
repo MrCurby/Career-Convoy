@@ -2,7 +2,8 @@
 --
 -- A job type of the Jobs app (jobs.lua: the shared list, taking, giving up, the pay). This file
 -- brings what a taxi job is about:
---   making one up (generate), by tier (TIERS: the higher, the longer the ride and the better paid)
+--   making one up (generate), by tier (TIERS: the higher, the longer the ride and the better paid;
+--   flatter than towing: a ride is easier than a tow, and a smooth one earns a tip)
 --     a pickup    beside a normal road (jobs.randomRoadside), far from every vehicle
 --     a place     a facility of the map (garage, dealership, gas station, ...: jobs.facilityPlaces,
 --                 the middle of its doors), as far away as the tier says in a straight line
@@ -23,8 +24,10 @@
 --        the one of the road's link in the game's road network (map.findClosestRoad, link.speedLimit
 --        in m/s); a road without one has no limit. The taxi gone (deleted): the passenger waits at
 --        the pickup again
+--        The passenger rates the ride: 1..5 stars by what it has cost so far (STARS), shown live in
+--        the Jobs app with the pay as it is now
 --     3. you in the taxi, standing still in the drop-off zone (DROP_RADIUS m around the place's
---        doors) for DROP_STILL s: handed over (jobs.handOver)
+--        doors) for DROP_STILL s: handed over (jobs.handOver), with a tip for 4 or 5 stars (TIPS)
 --   No vehicle is spawned: the passenger is a marker, nothing to clean up when the job ends.
 
 local M = {}
@@ -48,15 +51,20 @@ local SPEEDING_COST = 0.05 -- share of the pay speeding costs each time (twice t
 local ROAD_MARGIN = 3 -- m beyond a road's edge that still count as on it
 local PENALTY_MAX = 0.5 -- share of the pay a bumpy ride can cost at most
 local DAMAGE_FOR_MAX = 40000 -- damage points (beamstate.damage) that cost PENALTY_MAX
-local PAY_BASE, PAY_PER_KM = 100, 100
+local PAY_BASE, PAY_PER_KM = 60, 80
 local PAY_VIP = 1.5
+-- the stars: the most a ride may have cost (share of the pay) for each rating, the best first
+local STARS = { { 5, 0.01 }, { 4, 0.1 }, { 3, 0.2 }, { 2, 0.35 } } -- else 1 star
+-- the tip by stars, as a share of the pay; a VIP tips more
+local TIPS = { [5] = 0.15, [4] = 0.05 }
+local TIPS_VIP = { [5] = 0.25, [4] = 0.1 }
 local MARKER_COLOR = { 1, 0.82, 0.1 } -- taxi yellow
 -- the tiers: how far to the place (m), how often a VIP, the pay
 local TIERS = {
 	{ destMin = 600, destMax = 2000, vip = 0, pay = 1 },
-	{ destMin = 1200, destMax = 3500, vip = 0.15, pay = 1.3 },
-	{ destMin = 2000, destMax = 5000, vip = 0.3, pay = 1.7 },
-	{ destMin = 3000, destMax = 7000, vip = 0.5, pay = 2.2 },
+	{ destMin = 1200, destMax = 3500, vip = 0.15, pay = 1.15 },
+	{ destMin = 2000, destMax = 5000, vip = 0.3, pay = 1.3 },
+	{ destMin = 3000, destMax = 7000, vip = 0.5, pay = 1.5 },
 }
 
 M.id = "taxi"
@@ -156,6 +164,21 @@ function M.penalty(a)
 	return math.min(PENALTY_MAX, p)
 end
 
+--- The passenger's rating (1..5 stars) of a ride that has cost this share of the pay.
+function M.starsFor(penalty)
+	for _, s in ipairs(STARS) do
+		if penalty <= s[2] then
+			return s[1]
+		end
+	end
+	return 1
+end
+
+--- The tip (a share of the pay) for this many stars.
+function M.tipFor(stars, vip)
+	return (vip and TIPS_VIP or TIPS)[stars] or 0
+end
+
 -- The passenger gets into this vehicle: it is the taxi now.
 local function board(a, id)
 	a.phase, a.stillFor = "toDestination", 0
@@ -248,16 +271,18 @@ function M.step(a, dt)
 			"I",
 			"jobs",
 			string.format(
-				"job %s done: %d jolts, %d times speeding, damage %s -> %s, %d %% of the pay",
+				"job %s done: %d jolts, %d times speeding, damage %s -> %s, %d %% of the pay, %d stars",
 				tostring(job.id),
 				a.jolts,
 				a.speeding,
 				tostring(a.damageStart),
 				tostring(damageOf(a.taxiId)),
-				math.floor((1 - penalty) * 100 + 0.5)
+				math.floor((1 - penalty) * 100 + 0.5),
+				M.starsFor(penalty)
 			)
 		)
-		J.handOver(a, 1 - penalty)
+		local stars = M.starsFor(penalty)
+		J.handOver(a, 1 - penalty, M.tipFor(stars, isVip(a)))
 	end
 end
 
@@ -267,14 +292,24 @@ function M.status(a)
 		local taxi = a.taxiId and be:getObjectByID(a.taxiId)
 		local taxiPos = taxi and U.vecOf(taxi:getPosition()) or nil
 		local _, id = myVehicle()
+		local penalty = M.penalty(a)
 		if taxiPos and id ~= a.taxiId then
-			return { step = 1, target = taxiPos, text = "back to your taxi", short = "Back to your taxi" }
+			return {
+				step = 1,
+				target = taxiPos,
+				text = "back to your taxi",
+				short = "Back to your taxi",
+				share = 1 - penalty,
+				stars = M.starsFor(penalty),
+			}
 		end
 		return {
 			step = 1,
 			target = a.job.dest.pos,
 			from = taxiPos,
 			inZone = inZone,
+			share = 1 - penalty,
+			stars = M.starsFor(penalty),
 			text = inZone and "In the ring – wait" or ("to " .. a.job.dest.name),
 			short = inZone and "In the ring – wait" or ("Drive to " .. a.job.dest.name),
 			hint = "No bumps, no speeding.",

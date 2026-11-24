@@ -22,12 +22,15 @@
 --                    nil: the type's icon
 --   tags(job)        short labels for the job in the app: {{text, kind}} (kind picks the color)
 --   start(a)         the job is yours: a = {id, job}; the type keeps its own state in a
---   step(a, dt)      every CHECK_EVERY s until it is handed over; calls M.handOver(a, share) when
---                    the job is done (share: how much of the pay was earned, 0..1 – less after
---                    damage, for example; the server turns it into money and XP)
+--   step(a, dt)      every CHECK_EVERY s until it is handed over; calls M.handOver(a, share, tip)
+--                    when the job is done (share: how much of the pay was earned, 0..1 – less after
+--                    damage, for example; tip: optional, a tip on top as a share of the pay; the
+--                    server turns it into money and XP)
 --   status(a)        {step (0-based index into steps), text (Jobs app), short (the job strip),
 --                    target (pos: the route and the distance in the app), from (pos the distance
---                    is measured from; default: you), hint (optional), inZone (optional)}
+--                    is measured from; default: you), hint (optional), inZone (optional),
+--                    share (optional: the share of the pay earned so far, 0..1: the app shows the
+--                    pay as it is now), stars (optional: a rating, 1..5, shown as stars)}
 --   stop(a)          the job ends here (paid, given up, taken away, no answer): clean up
 --   draw(a)          optional, every frame: markers in the world
 --   vehicleReset(a, id)  optional: a vehicle was reset (R)
@@ -52,7 +55,7 @@
 --   taking         sc_jobTake, the server gives it to the first one; then the type's start() and
 --                  the route to its status target (updated whenever the target changes)
 --   giving up      sc_jobGiveUp; a job the server takes away (out of time, switched off) ends too
---   handing over   handOver -> sc_jobDone with the share; without the server's answer within
+--   handing over   handOver -> sc_jobDone with the share and tip; without the server's answer within
 --                  PAID_WAIT s the job ends here (a pay the server did book still arrives later)
 --   the pay        sc_jobPaid: credited to the career (playerAttributes), the career is saved and
 --                  the server gets sc_jobPaidAck; until then it sends the pay again (also after a
@@ -416,14 +419,19 @@ local function startActive(job)
 	navigate(active.route)
 end
 
---- The job type: the job is done, and this share of the pay was earned (0..1). Sends it to the
---- server once; the server works out your pay (with your level bonus) and the XP.
-function M.handOver(a, share)
+--- The job type: the job is done, and this share of the pay was earned (0..1), plus a tip (a share
+--- of the pay on top, default none). Sends it to the server once; the server works out your pay
+--- (with your level bonus), the tip and the XP.
+function M.handOver(a, share, tip)
 	if a ~= active or a.doneSent then
 		return
 	end
 	a.doneSent, a.doneAt = true, clock
-	U.send("sc_jobDone", { id = a.id, share = math.max(0, math.min(1, tonumber(share) or 1)) })
+	U.send("sc_jobDone", {
+		id = a.id,
+		share = math.max(0, math.min(1, tonumber(share) or 1)),
+		tip = math.max(0, tonumber(tip) or 0),
+	})
 end
 
 -- One check of your job (every CHECK_EVERY s).
@@ -501,7 +509,7 @@ local function rxGenerate(data)
 	end
 end
 
--- A payout for a finished job: {payout, job, type, title, pay, deduction, xp}. Credited and saved,
+-- A payout for a finished job: {payout, job, type, title, pay (with the tip), deduction, tip, xp}. Credited and saved,
 -- then confirmed (sc_jobPaidAck); without the confirmation the server sends it again (also after a
 -- reconnect). The XP also go to the career: BeamXP and the job type's branch, if the career has them.
 
@@ -578,9 +586,11 @@ local function rxPaid(data)
 	creditedPayouts[msg.payout] = true
 	U.send("sc_jobPaidAck", { payout = msg.payout })
 	local deduction = math.max(0, math.floor(tonumber(msg.deduction) or 0))
+	local tip = math.max(0, math.floor(tonumber(msg.tip) or 0))
 	U.toast(
 		"success",
 		string.format("Job done: +$%d", pay)
+			.. (tip > 0 and string.format(" (with $%d tip)", tip) or "")
 			.. (deduction > 0 and string.format(" (−$%d %s)", deduction, t and t.deduction or "damage") or "")
 			.. (xp > 0 and string.format(" · +%d XP", xp) or ""),
 		8
@@ -794,6 +804,8 @@ function M.appState()
 			hint = s.hint,
 			inZone = s.inZone == true,
 			distance = activeDistance,
+			payNow = tonumber(s.share) and math.floor(job.pay * math.max(0, math.min(1, s.share)) + 0.5) or nil,
+			stars = tonumber(s.stars) and math.max(0, math.min(5, math.floor(s.stars))) or nil,
 		}
 	end
 	return state

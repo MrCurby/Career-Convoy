@@ -70,8 +70,8 @@
 --   sc_jobsRequest {types}            sc_jobs        {enabled, jobs = [job, with state "open" |
 --   sc_jobOffer   {a new job}                         "taken" | "mine", takenBy (name), minLevel,
 --   sc_jobTake    {id}                                locked, pay and xp (yours)], levels = {type: level}}
---   sc_jobDone    {id, share}         sc_jobGenerate {type, tier}  please make up a new job
---   sc_jobGiveUp  {id}                sc_jobPaid     {payout, job, type, title, pay, deduction, xp}
+--   sc_jobDone    {id, share, tip}    sc_jobGenerate {type, tier}  please make up a new job
+--   sc_jobGiveUp  {id}                sc_jobPaid     {payout, job, type, title, pay, deduction, tip, xp}
 --   sc_jobPaidAck {payout}                           credit this (again until sc_jobPaidAck)
 --                       (from the SharedCareer menu window)
 
@@ -1248,7 +1248,10 @@ local LEVEL_RULES = {
 	lowTierXp = 0.5,
 }
 -- job type -> the rules that differ from LEVEL_RULES, e.g. delivery = {tierLevel = {1, 4, 7}, tierXp = {50, 90, 140}}
-local LEVEL_RULES_BY_TYPE = {}
+local LEVEL_RULES_BY_TYPE = {
+	-- a taxi ride is easier than a tow, and a smooth one earns a tip: a smaller level bonus
+	taxi = { bonus = 0.03 },
+}
 local HISTORY_MAX = 20
 -- job types seen (in progress.json, from a client or in an offer): everyone sees their level in them
 local knownTypes = {}
@@ -1899,10 +1902,11 @@ end
 -- and saved it (sc_jobPaidAck): every PAYOUT_RESEND s while they play, and at once on their next
 -- career start. So a crash, a lost connection or a loading screen never costs the pay; the
 -- client credits each payout id only once.
--- payout = {id (string, unique across server restarts), job (job id), type, title, pay, deduction, xp,
---           profile, sentAt}
+-- payout = {id (string, unique across server restarts), job (job id), type, title, pay (with the tip),
+--           deduction, tip, xp, profile, sentAt}
 local PAYOUTS_FILE = CONFIG_DIR .. "/payouts.json"
 local PAYOUT_RESEND = 10
+local TIP_MAX = 0.25 -- share of the pay a tip may be at most
 local payouts = {}
 local payoutSeq = 0
 
@@ -1915,6 +1919,7 @@ local function savePayouts()
 			title = p.title,
 			pay = p.pay,
 			deduction = p.deduction,
+			tip = p.tip,
 			xp = p.xp,
 			profile = p.profile,
 		}
@@ -1949,6 +1954,7 @@ local function loadPayouts()
 				title = text(p.title) or text(p.vehicle),
 				pay = pay,
 				deduction = tonumber(p.deduction) or 0,
+				tip = tonumber(p.tip) or 0,
 				xp = tonumber(p.xp) or 0,
 				profile = p.profile,
 			}
@@ -1958,11 +1964,16 @@ end
 
 local function sendPayout(player_id, p)
 	p.sentAt = now()
-	send(
-		player_id,
-		"sc_jobPaid",
-		{ payout = p.id, job = p.job, type = p.type, title = p.title, pay = p.pay, deduction = p.deduction, xp = p.xp }
-	)
+	send(player_id, "sc_jobPaid", {
+		payout = p.id,
+		job = p.job,
+		type = p.type,
+		title = p.title,
+		pay = p.pay,
+		deduction = p.deduction,
+		tip = p.tip,
+		xp = p.xp,
+	})
 end
 
 -- Sends this player every payout of their save that is still open.
@@ -2010,8 +2021,9 @@ function sc_jobPaidAck(player_id, data)
 	log(string.format("%s received $%d for job %s", playerName(player_id), p.pay, tostring(p.job)))
 end
 
--- The job is done: {id, share} (how much of the pay was earned, 0..1 – less after new damage).
--- Paid once: that share of the taker's pay (with the level bonus); the taker gets the XP.
+-- The job is done: {id, share, tip} (share: how much of the pay was earned, 0..1 – less after new
+-- damage; tip: a tip on top, as a share of the pay, at most TIP_MAX). Paid once: that share of the
+-- taker's pay (with the level bonus) and the tip; the taker gets the XP of the share.
 function sc_jobDone(player_id, data)
 	local entry = players[player_id]
 	local msg = decodeTable(data)
@@ -2021,9 +2033,13 @@ function sc_jobDone(player_id, data)
 	end
 	local share = tonumber(msg.share)
 	share = share and share == share and math.max(0, math.min(1, share)) or 1
+	local tip = tonumber(msg.tip)
+	tip = tip and tip == tip and math.max(0, math.min(TIP_MAX, tip)) or 0
 	local full = payAt(job, levelFor(player_id, job.type))
-	local pay = math.floor(full * share + 0.5)
-	local deduction = full - pay
+	local earned = math.floor(full * share + 0.5)
+	local deduction = full - earned
+	tip = math.floor(full * tip + 0.5)
+	local pay = earned + tip
 	jobs[job.id] = nil
 	local xp, level, levelUp, newTier = addJobXp(player_id, job, share, pay, deduction)
 	payoutSeq = payoutSeq + 1
@@ -2034,6 +2050,7 @@ function sc_jobDone(player_id, data)
 		title = job.title,
 		pay = pay,
 		deduction = deduction,
+		tip = tip,
 		xp = xp,
 		profile = profileOf(player_id),
 	}

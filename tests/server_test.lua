@@ -97,14 +97,14 @@ source = source:gsub(
 	'local PROGRESS_FILE = CONFIG_DIR %.%. "/progress%.json"',
 	'local PROGRESS_FILE = "' .. tmpProgress .. '"'
 )
--- a job type of the tests with its own level rules (two tiers, more XP)
 source = source:gsub(
 	'local LICENSES_FILE = CONFIG_DIR %.%. "/licenses%.json"',
 	'local LICENSES_FILE = "' .. tmpLicenses .. '"'
 )
+-- a job type of the tests with its own level rules (two tiers, more XP)
 source = source:gsub(
-	"local LEVEL_RULES_BY_TYPE = {}",
-	"local LEVEL_RULES_BY_TYPE = {short = {tierLevel = {1, 2}, tierXp = {100, 200}}}"
+	"local LEVEL_RULES_BY_TYPE = {\n",
+	"local LEVEL_RULES_BY_TYPE = {\n\tshort = {tierLevel = {1, 2}, tierXp = {100, 200}},\n"
 )
 assert(load(source, "main.lua"))()
 onInit()
@@ -1161,6 +1161,47 @@ do
 			.. others
 			.. ")"
 	)
+	-- taxi rides: a tip on top of the pay (at most 25 %), a smaller level bonus (3 % per level)
+	local function finishTaxi(share, tip)
+		onConsoleInput("sc jobs reset")
+		sc_jobOffer(
+			0,
+			json.encode({
+				type = "taxi",
+				tier = 1,
+				title = "Passenger",
+				pos = { x = 1, y = 2, z = 3 },
+				dest = { name = "Belasco Auto", pos = { x = 4, y = 5, z = 6 } },
+				length = 1000,
+				pay = 1000,
+			})
+		)
+		local ride
+		for _, tj in ipairs(jobsOf(1).jobs) do
+			if tj.type == "taxi" then
+				ride = tj
+			end
+		end
+		sc_jobTake(1, json.encode({ id = ride.id }))
+		sc_jobDone(1, json.encode({ id = ride.id, share = share, tip = tip }))
+		local taxiPaid = lastTo(1, "sc_jobPaid")
+		sc_jobPaidAck(1, json.encode({ payout = taxiPaid.payout }))
+		return taxiPaid
+	end
+	local taxiPaid = finishTaxi(0.9, 0.05)
+	check(
+		taxiPaid.pay == 950 and taxiPaid.deduction == 100 and taxiPaid.tip == 50 and taxiPaid.xp == 36,
+		"a taxi ride: 90 % of the pay earned plus a 5 % tip; the XP only from the 90 %"
+	)
+	taxiPaid = finishTaxi(1, 3)
+	check(taxiPaid.tip == 250 and taxiPaid.pay == 1250, "a tip is at most 25 % of the pay")
+	taxiPaid = finishTaxi(1)
+	check(
+		taxiPaid.tip == 0 and taxiPaid.pay == 1000 and jobsOf(1).levels.taxi.level == 2,
+		"no tip sent: none; taxi level 2"
+	)
+	taxiPaid = finishTaxi(1)
+	check(taxiPaid.pay == 1030, "taxi level 2: 3 % more pay (towing: 5 % per level)")
 	-- the levels survive a restart of the server
 	local f = assert(io.open(tmpProgress))
 	local stored = json.decode(f:read("*a"))
