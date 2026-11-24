@@ -779,8 +779,13 @@ do
 		countTo(0, "sc_jobGenerate") + countTo(1, "sc_jobGenerate") == asked,
 		"no client has told its job types yet: nobody is asked"
 	)
+	-- as in the game: a client tells its job types when its career starts, before it reports the
+	-- start (sc_careerResult); they count all the same
+	onPlayerDisconnect(0)
+	onPlayerJoin(0)
+	sc_hello(0, json.encode({ version = VERSION }))
 	sc_jobsRequest(0, json.encode({ types = { "tow" } }))
-	sc_jobsRequest(1, json.encode({ types = { "tow" } }))
+	sc_careerResult(0, json.encode({ ok = true }))
 	check(jobsOf(0).levels.tow.level == 1, "a job type a client has: everyone sees their level in it")
 	fakeTime = fakeTime + 100
 	sc_tick()

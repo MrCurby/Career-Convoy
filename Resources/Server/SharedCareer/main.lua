@@ -1765,24 +1765,30 @@ local function reopenJob(job, why)
 	end
 end
 
--- The Jobs app wants the list: {types = the job types this client can make up}.
+-- The Jobs app wants the list: {types = the job types this client can make up}. The client sends
+-- it when its career starts, before it reports the start (sc_careerResult): the types are kept
+-- even then, the list follows with the report.
 function sc_jobsRequest(player_id, data)
 	local entry = players[player_id]
-	if not entry or not entry.careerActive then
+	if not entry then
 		return
 	end
 	local msg = decodeTable(data)
 	if msg and type(msg.types) == "table" then
 		entry.jobTypes = {}
-		for i, v in ipairs(msg.types) do
+		local count = 0
+		for _, v in pairs(msg.types) do -- pairs: whatever the decoder numbers the list from
 			local kind = jobType(v)
-			if kind and i <= JOB_TYPES_MAX then
+			if kind and count < JOB_TYPES_MAX then
+				count = count + 1
 				entry.jobTypes[kind] = true
 				knownTypes[kind] = true
 			end
 		end
 	end
-	sendJobs(player_id)
+	if entry.careerActive then
+		sendJobs(player_id)
+	end
 end
 
 -- A client made up a job (after sc_jobGenerate).
