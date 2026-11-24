@@ -7,7 +7,7 @@
 --     a place     a facility of the map (garage, dealership, gas station, ...: jobs.facilityPlaces,
 --                 the middle of its doors), as far away as the tier says in a straight line
 --                 (jobs.pickDestination: the nearest fit if none is)
---     a VIP       by the tier's VIP share: pays PAY_VIP times more, a bumpy ride costs twice as much
+--     a VIP       by the tier's VIP share: pays PAY_VIP times more, jolts and speeding cost twice as much
 --     the pay     (PAY_BASE + PAY_PER_KM per km of the ride (jobs.roadLength)) x the tier's pay,
 --                 x PAY_VIP for a VIP, x client.jobPay
 --     job.data = {vip}; job.title = "Passenger" or "VIP"
@@ -16,9 +16,13 @@
 --        within PICKUP_RADIUS m of them for BOARD_STILL s: they get in. That vehicle is the taxi
 --     2. the route leads to the place. A smooth ride pays all: every jolt (the taxi's speed
 --        changes faster than JOLT_ACCEL m/s^2: hard braking, a crash, a hard landing; at most one
---        per JOLT_GAP s) costs JOLT_COST of the pay, new damage to the taxi up to PENALTY_MAX
---        (DAMAGE_FOR_MAX damage points cost all of it), a reset (R) PENALTY_MAX; all together at
---        most PENALTY_MAX. The taxi gone (deleted): the passenger waits at the pickup again
+--        per JOLT_GAP s) costs JOLT_COST of the pay; speeding (on a road, faster than its speed
+--        limit x SPEED_TOLERANCE for SPEEDING_FOR s; again after every SPEEDING_AGAIN s more)
+--        SPEEDING_COST; new damage to the taxi up to PENALTY_MAX (DAMAGE_FOR_MAX damage points cost
+--        all of it), a reset (R) PENALTY_MAX; all together at most PENALTY_MAX. The speed limit is
+--        the one of the road's link in the game's road network (map.findClosestRoad, link.speedLimit
+--        in m/s); a road without one has no limit. The taxi gone (deleted): the passenger waits at
+--        the pickup again
 --     3. you in the taxi, standing still in the drop-off zone (DROP_RADIUS m around the place's
 --        doors) for DROP_STILL s: handed over (jobs.handOver)
 --   No vehicle is spawned: the passenger is a marker, nothing to clean up when the job ends.
@@ -37,6 +41,11 @@ local STOP_SPEED = 0.5 -- m/s: slower counts as standing still
 local JOLT_ACCEL = 7 -- m/s^2: the taxi's speed changing faster than this is a jolt
 local JOLT_GAP = 2 -- s: at most one jolt in this time (one hard stop counts once)
 local JOLT_COST = 0.05 -- share of the pay a jolt costs (twice that for a VIP)
+local SPEED_TOLERANCE = 1.15 -- faster than the speed limit x this is speeding
+local SPEEDING_FOR = 2 -- s of speeding before it counts
+local SPEEDING_AGAIN = 10 -- s more of speeding until it counts again
+local SPEEDING_COST = 0.05 -- share of the pay speeding costs each time (twice that for a VIP)
+local ROAD_MARGIN = 3 -- m beyond a road's edge that still count as on it
 local PENALTY_MAX = 0.5 -- share of the pay a bumpy ride can cost at most
 local DAMAGE_FOR_MAX = 40000 -- damage points (beamstate.damage) that cost PENALTY_MAX
 local PAY_BASE, PAY_PER_KM = 100, 100
@@ -139,7 +148,7 @@ function M.penalty(a)
 	if a.rough then
 		return PENALTY_MAX
 	end
-	local p = (a.jolts or 0) * JOLT_COST * (isVip(a) and 2 or 1)
+	local p = ((a.jolts or 0) * JOLT_COST + (a.speeding or 0) * SPEEDING_COST) * (isVip(a) and 2 or 1)
 	local damage = damageOf(a.taxiId)
 	if damage and a.damageStart then
 		p = p + math.max(0, damage - a.damageStart) / DAMAGE_FOR_MAX * PENALTY_MAX
@@ -152,11 +161,42 @@ local function board(a, id)
 	a.phase, a.stillFor = "toDestination", 0
 	a.taxiId, a.damageStart = id, damageOf(id)
 	a.jolts, a.joltAt, a.lastVel, a.rough = 0, -math.huge, nil, false
+	a.speeding, a.speedingFor = 0, 0
 	U.toast("info", "Passenger in: drive to " .. a.job.dest.name, 6)
 end
 
+-- The speed limit (m/s) of the road at p, or nil (off the road, or a road without one).
+local function speedLimitAt(p)
+	local ok, limit = pcall(function()
+		local a, b, d = map.findClosestRoad(vec3(p.x, p.y, p.z))
+		local nodes = a and b and map.getMap().nodes
+		local n, m = nodes and nodes[a], nodes and nodes[b]
+		if not (n and m) or (tonumber(d) or math.huge) > (tonumber(n.radius) or 0) + ROAD_MARGIN then
+			return nil
+		end
+		local link = (n.links or {})[b] or (m.links or {})[a]
+		return type(link) == "table" and tonumber(link.speedLimit) or nil
+	end)
+	return ok and limit and limit > 0 and limit or nil
+end
+
+-- Speeding: faster than the road's speed limit x SPEED_TOLERANCE for SPEEDING_FOR s.
+local function watchSpeed(a, taxi, dt)
+	local p = U.vecOf(taxi:getPosition())
+	local limit = p and speedLimitAt(p)
+	if not limit or J.speedOf(taxi) <= limit * SPEED_TOLERANCE then
+		a.speedingFor = 0
+		return
+	end
+	a.speedingFor = a.speedingFor + dt
+	if a.speedingFor >= SPEEDING_FOR then
+		a.speeding, a.speedingFor = a.speeding + 1, SPEEDING_FOR - SPEEDING_AGAIN
+		U.toast("warning", "Too fast!", 3)
+	end
+end
+
 -- A jolt: the taxi's speed changed faster than JOLT_ACCEL since the last check.
-local function watchRide(a, taxi, dt)
+local function watchJolts(a, taxi, dt)
 	local v = type(taxi.getVelocity) == "function" and U.vecOf(taxi:getVelocity())
 	if not v then
 		return
@@ -197,7 +237,8 @@ function M.step(a, dt)
 		a.phase, a.taxiId, a.stillFor = "toPassenger", nil, 0
 		return
 	end
-	watchRide(a, taxi, dt)
+	watchJolts(a, taxi, dt)
+	watchSpeed(a, taxi, dt)
 	local p = U.vecOf(taxi:getPosition())
 	local inZone = id == a.taxiId and p and J.dist2D(p, job.dest.pos) <= DROP_RADIUS and J.speedOf(taxi) <= STOP_SPEED
 	a.stillFor = inZone and a.stillFor + dt or 0
@@ -207,9 +248,10 @@ function M.step(a, dt)
 			"I",
 			"jobs",
 			string.format(
-				"job %s done: %d jolts, damage %s -> %s, %d %% of the pay",
+				"job %s done: %d jolts, %d times speeding, damage %s -> %s, %d %% of the pay",
 				tostring(job.id),
 				a.jolts,
+				a.speeding,
 				tostring(a.damageStart),
 				tostring(damageOf(a.taxiId)),
 				math.floor((1 - penalty) * 100 + 0.5)
@@ -235,7 +277,7 @@ function M.status(a)
 			inZone = inZone,
 			text = inZone and "In the ring – wait" or ("to " .. a.job.dest.name),
 			short = inZone and "In the ring – wait" or ("Drive to " .. a.job.dest.name),
-			hint = "Drive smoothly. Bumps cost pay.",
+			hint = "No bumps, no speeding.",
 		}
 	end
 	return {

@@ -280,8 +280,10 @@ People wait at the roadside for a ride to a place on the map: a garage, a dealer
 3. **Drive them:** the route leads to the place. A ring on the ground there shows the drop-off zone. Stop in it for 2 seconds, sitting in your taxi. The pay goes to your account.
 
 - **Pay:** $100 plus $100 per km of the ride, more for longer rides and for your level. The server can change it (`client.jobPay`).
-- **Drive smoothly:** every jolt (hard braking, a crash, a hard landing) costs 5 % of the pay; *Drive smoother!* tells you. New damage to your taxi costs too, and resetting it (**R**) during the ride costs half. All together it never costs more than half.
-- **VIPs** pay 50 % more, but a jolt costs them twice as much.
+- **Drive smoothly:** every jolt (hard braking, a crash, a hard landing) costs 5 % of the pay; *Drive smoother!* tells you.
+- **Keep to the speed limit:** more than 15 % over the road's speed limit for 2 seconds costs 5 % of the pay; *Too fast!* tells you. Staying too fast costs 5 % again every 10 seconds. Roads without a speed limit in the game don't count.
+- New damage to your taxi costs too, and resetting it (**R**) during the ride costs half. All together it never costs more than half.
+- **VIPs** pay 50 % more, but jolts and speeding cost twice as much.
 - If you get out, the route leads back to your taxi. If the taxi disappears, the passenger waits at the pickup again.
 - Giving up, the 30 minutes and new jobs work as for towing jobs.
 - **Levels:** taxi jobs have their own level, by the same rules as towing (see [Levels](#levels)):

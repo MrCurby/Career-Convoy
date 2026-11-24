@@ -4220,14 +4220,15 @@ check(
 			table.insert(paths, p or false)
 		end,
 	}
-	-- a straight road along x (nodes every 100 m, 4 m half width) and a dirt track that may not be used
+	-- a straight road along x (nodes every 100 m, 4 m half width, speed limit 20 m/s) and a dirt track
+	-- that may not be used
 	local nodes = {}
 	for i = 0, 50 do
 		nodes["n" .. i] = { pos = vec3(i * 100, 0, 10), radius = 4, links = {} }
 	end
 	for i = 0, 49 do
-		nodes["n" .. i].links["n" .. (i + 1)] = { drivability = 1 }
-		nodes["n" .. (i + 1)].links["n" .. i] = { drivability = 1 }
+		nodes["n" .. i].links["n" .. (i + 1)] = { drivability = 1, speedLimit = 20 }
+		nodes["n" .. (i + 1)].links["n" .. i] = { drivability = 1, speedLimit = 20 }
 	end
 	nodes.dirt = { pos = vec3(0, 3000, 10), radius = 4, links = { dirt2 = { drivability = 0.2 } } }
 	nodes.dirt2 = { pos = vec3(100, 3000, 10), radius = 4, links = { dirt = { drivability = 0.2 } } }
@@ -4249,6 +4250,10 @@ check(
 				table.insert(path, "n" .. i)
 			end
 			return path
+		end,
+		findClosestRoad = function(p)
+			local i = math.max(0, math.min(49, math.floor(p.x / 100)))
+			return "n" .. i, "n" .. (i + 1), math.abs(p.y)
 		end,
 		getPathLen = function(path)
 			local len = 0
@@ -5274,6 +5279,37 @@ check(
 	update(0.3)
 	local active = jobs.getActive()
 	check(active.jolts == 1 and lastToastMsg() == "Drive smoother!", "a hard stop is one jolt")
+	-- speeding: on the road (limit 20 m/s), more than 15 % over it for 2 s; again after 10 s more
+	me.p = { x = 2500, y = -2, z = 10 }
+	local function speedTo(v)
+		while math.abs(me.v.x - v) > 1e-9 do
+			me.v = { x = me.v.x + math.max(-1.5, math.min(1.5, v - me.v.x)), y = 0, z = 0 }
+			update(0.3)
+		end
+	end
+	local function drive(seconds)
+		for _ = 1, math.floor(seconds / 0.3 + 0.5) do
+			update(0.3)
+		end
+	end
+	speedTo(22.5)
+	drive(4)
+	check(active.speeding == 0 and active.jolts == 1, "up to 15 % over the limit: fine (speeding up gently is no jolt)")
+	speedTo(25.5)
+	me.p.y = -12
+	drive(4)
+	check(active.speeding == 0, "off the road: no speed limit")
+	me.p.y = -2
+	drive(1.5)
+	check(active.speeding == 0, "too fast, but not for 2 s yet: nothing")
+	drive(1)
+	check(active.speeding == 1 and lastToastMsg() == "Too fast!", 'too fast for 2 s: speeding, "Too fast!"')
+	drive(7)
+	check(active.speeding == 1, "still too fast: not counted again at once")
+	drive(4)
+	check(active.speeding == 2, "10 s later: counted again")
+	speedTo(0)
+	check(active.jolts == 1, "slowing down gently is no jolt")
 	world.playerVeh = nil
 	check(jobs.appState().active.short == "Back to your taxi", "out of the taxi: back to it")
 	world.playerVeh = 70
@@ -5284,8 +5320,8 @@ check(
 	end
 	local done = lastSent("sc_jobDone")
 	check(
-		done and done.id == 30 and math.abs(done.share - 0.9) < 1e-9,
-		"standing in the ring: handed over; a jolt and new damage cost 10 % of the pay"
+		done and done.id == 30 and math.abs(done.share - 0.8) < 1e-9,
+		"standing in the ring: handed over; a jolt, speeding twice and new damage cost 20 % of the pay"
 	)
 	handlers.sc_jobPaid(json.encode({
 		payout = "p-30",
@@ -5300,10 +5336,10 @@ check(
 		'taxi pay: the toast says "rough ride", not "damage"'
 	)
 	check(
-		taxi.penalty({ job = { data = { vip = true } }, jolts = 2 }) == 0.2
+		math.abs(taxi.penalty({ job = { data = { vip = true } }, jolts = 1, speeding = 1 }) - 0.2) < 1e-9
 			and taxi.penalty({ job = { data = {} }, rough = true }) == 0.5
 			and taxi.penalty({ job = { data = {} }, jolts = 30 }) == 0.5,
-		"a VIP: jolts cost twice as much; a reset costs half; never more than half"
+		"a VIP: jolts and speeding cost twice as much; a reset costs half; never more than half"
 	)
 	jobs.onBeamMPServerLeave()
 	_G.map, _G.freeroam_facilities, _G.jsonReadFile, _G.util_configListGenerator, _G.core_groundMarkers =
