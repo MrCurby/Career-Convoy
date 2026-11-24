@@ -54,6 +54,7 @@ M.id = "taxi"
 M.name = "Taxi"
 M.icon = "taxi"
 M.branch = "commercial"
+M.deduction = "rough ride"
 M.steps = { "Pick up", "Drive", "Paid" }
 
 local clock = 0

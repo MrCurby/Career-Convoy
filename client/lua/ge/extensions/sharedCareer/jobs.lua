@@ -10,6 +10,8 @@
 --                    BeamXP ("commercial"): the branch whose attribute key, id or path id is or
 --                    ends with it (career_branches; the names change between game versions).
 --                    No branch XP if the career has no such branch
+--   deduction        optional: what the pay held back is for, in the pay's toast ("Job done: +$450
+--                    (-$50 rough ride)"); default "damage"
 --   steps            the steps of a job in the Jobs app, e.g. {"Pick up", "Tow", "Paid"}; the last
 --                    one is reached when the pay arrives
 --   generate(tier)   makes up a job of this tier (1 easy .. 4 hard, see main.lua "Job levels") on
@@ -579,7 +581,7 @@ local function rxPaid(data)
 	U.toast(
 		"success",
 		string.format("Job done: +$%d", pay)
-			.. (deduction > 0 and string.format(" (−$%d damage)", deduction) or "")
+			.. (deduction > 0 and string.format(" (−$%d %s)", deduction, t and t.deduction or "damage") or "")
 			.. (xp > 0 and string.format(" · +%d XP", xp) or ""),
 		8
 	)

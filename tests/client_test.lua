@@ -5287,6 +5287,18 @@ check(
 		done and done.id == 30 and math.abs(done.share - 0.9) < 1e-9,
 		"standing in the ring: handed over; a jolt and new damage cost 10 % of the pay"
 	)
+	handlers.sc_jobPaid(json.encode({
+		payout = "p-30",
+		job = 30,
+		type = "taxi",
+		title = "Passenger",
+		pay = 360,
+		deduction = 40,
+	}))
+	check(
+		world.moneyLabel == "Taxi job: Passenger" and lastToastMsg():find("%$40 rough ride%)") ~= nil,
+		'taxi pay: the toast says "rough ride", not "damage"'
+	)
 	check(
 		taxi.penalty({ job = { data = { vip = true } }, jolts = 2 }) == 0.2
 			and taxi.penalty({ job = { data = {} }, rough = true }) == 0.5
