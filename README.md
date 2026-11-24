@@ -12,8 +12,9 @@ One shared world (same traffic, same time of day, same traffic lights), while ev
 [![Build](https://github.com/MrCurby/SharedCareer/actions/workflows/release.yml/badge.svg)](https://github.com/MrCurby/SharedCareer/actions/workflows/release.yml)
 ![BeamNG.drive 0.39+](https://img.shields.io/badge/BeamNG.drive-0.39%2B-orange)
 ![BeamMP](https://img.shields.io/badge/BeamMP-server%20mod-blue)
+[![Discord](https://img.shields.io/badge/Discord-join%20us-5865F2?logo=discord&logoColor=white)](https://discord.gg/29393BNWBt)
 
-[Features](#features) · [Quick start](#quick-start) · [Server setup](docs/server-setup.md) · [In-game guide](docs/features.md) · [Settings & commands](docs/configuration.md) · [Report a bug](#help-and-bug-reports)
+[Features](#features) · [Quick start](#quick-start) · [Server setup](docs/server-setup.md) · [In-game guide](docs/features.md) · [Settings & commands](docs/configuration.md) · [Report a bug](#help-and-bug-reports) · [Discord](https://discord.gg/29393BNWBt)
 
 </div>
 
@@ -175,7 +176,21 @@ Good to know before you play:
 
 More details: [Known limitations](docs/development.md#known-limitations).
 
+## Community
+
+<div align="center">
+
+Questions, ideas, or looking for people to drive with? Come say hi.
+
+<a href="https://discord.gg/29393BNWBt"><img src="https://img.shields.io/badge/Join%20our%20Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Join our Discord"></a>
+
+New releases are posted there too.
+
+</div>
+
 ## Help and bug reports
+
+Quick questions are welcome on [Discord](https://discord.gg/29393BNWBt). For bugs, please use GitHub so nothing gets lost.
 
 Search the [existing issues](https://github.com/MrCurby/SharedCareer/issues) first, then [open a new one](https://github.com/MrCurby/SharedCareer/issues/new). Please include:
 
