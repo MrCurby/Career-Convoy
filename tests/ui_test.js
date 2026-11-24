@@ -255,17 +255,13 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 	check(phone.levelText(sec.level) === 'Level 4 · 200 XP to level 5' && phone.levelText({level: 10}) === 'Level 10 · top level'
 		&& phone.levelText(null) === '', 'your level in words');
 	const jobTypes = phone.jobTypes;
-	check(jobTypes[0].id === 'tow' && !jobTypes[0].soon && jobTypes[1].id === 'taxi' && jobTypes[1].soon,
-		'start page: a card for towing first, taxi greyed out as coming soon');
+	check(jobTypes.length === 1 && jobTypes[0].id === 'tow', 'start page: a card for towing');
 	check(phone.jobTypes === jobTypes && phone.fuelSorts.map(o => o.id).join() === 'gasoline,diesel,distance',
 		'the lists get the same arrays until Lua sends new jobs (a new array each time never settles)');
-	check(phone.jobTypeText(jobTypes[0]) === '1 open' && phone.jobTypeText(jobTypes[1]) === 'Soon',
-		'on the cards: the open jobs, "Soon"');
+	check(phone.jobTypeText(jobTypes[0]) === '1 open', 'on the cards: the open jobs');
 	check(phone.jobTypeLevel('tow').level === 4 && phone.jobTypeLevel('taxi') === null, 'on the cards: your level, none without it');
 	phone.openApp({id: 'jobs', title: 'Jobs'});
 	check(phone.jobsType === null && !phone.canGoBackInApp() && phone.appTitle() === 'Jobs', 'the Jobs app opens on its start page');
-	phone.openJobType(jobTypes[1]);
-	check(phone.jobsType === null, 'taxi (coming soon) does not open');
 	phone.openJobType(jobTypes[0]);
 	check(phone.jobsType === 'tow' && phone.canGoBackInApp() && phone.appTitle() === 'Towing' && phone.jobsOpenIn() === 1,
 		'a card opens the page of its job type, the app bar shows its name');
@@ -278,9 +274,14 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 	phone.goHome();
 	phone.openApp({id: 'jobs', title: 'Jobs'});
 	check(phone.jobsType === null, 'opened again: the start page');
-	phone.emit('SharedCareerJobs', {enabled: true, sections: [{type: 'x', open: 1}]});
-	check(phone.jobTypes.some(function (t) { return t.id === 'x' && t.name === 'x' && !t.soon; })
-		&& phone.jobsOpenIn('tow') === 0, 'new job types get a card');
+	phone.emit('SharedCareerJobs', {enabled: true, sections: [{type: 'taxi', name: 'Taxi', icon: 'taxi', open: 2,
+		groups: []}, {type: 'x', open: 1}]});
+	check(phone.jobTypes.map(t => t.id + ':' + t.name + ':' + t.icon).join() === 'tow:Towing:tow,taxi:Taxi:taxi,x:x:jobs'
+		&& phone.jobsOpenIn('tow') === 0 && phone.jobTypeText(phone.jobTypes[1]) === '2 open',
+		'every job type Lua sends gets a card, towing first');
+	phone.openJobType(phone.jobTypes[1]);
+	check(phone.jobsType === 'taxi' && phone.appTitle() === 'Taxi', 'the taxi card opens the taxi jobs');
+	phone.goBack();
 	check(phone.jobs.sections[0].groups.length === 0 && phone.jobs.open === 0, 'nothing sent: empty lists');
 	check(!phone.jobLicenseMissing() && phone.jobs.licenses && !Array.isArray(phone.jobs.licenses),
 		'no licenses sent: nothing greyed out');
@@ -439,7 +440,7 @@ if (process.argv[2]) {
 		.filter(b => !/^<use(?:\s[^>]*)?\/>$/.test(b.trim()) && !b.includes('scp-rope-path'));
 	check(inline.length === 0, 'no icon drawn inline in phone or app templates (' + inline.length + ')');
 	// the icon names Lua sends: the apps on the phone, the job types, the kinds of vehicle of a towing job
-	const lua = ['jobs', 'tow', 'straps', 'fuel', 'towJobs'].map(f => read('client/lua/ge/extensions/sharedCareer/' + f + '.lua'));
+	const lua = ['jobs', 'tow', 'straps', 'fuel', 'towJobs', 'taxiJobs'].map(f => read('client/lua/ge/extensions/sharedCareer/' + f + '.lua'));
 	const kinds = lua[4].match(/local KINDS = \{([\s\S]*?)\n\}/)[1];
 	const names = lua.flatMap(l => [...l.matchAll(/icon = "([a-z-]+)"/g)].map(m => m[1]))
 		.concat([...kinds.matchAll(/kind = "([a-z-]+)"/g)].map(m => m[1]), ['car']);

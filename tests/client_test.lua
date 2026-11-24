@@ -4335,10 +4335,10 @@ check(
 		tow.payFor(1000, false) == 270 and tow.payFor(1000, true) == 340,
 		"pay: $150 + $120 per km, a flat tire pays 25 % more"
 	)
-	handlers.sc_jobGenerate("")
+	handlers.sc_jobGenerate(json.encode({ type = "tow" }))
 	check(lastSent("sc_jobOffer") == nil, "before the server's job list (jobs on?) no job is made up")
 	handlers.sc_jobs(json.encode({ enabled = true, jobs = {} }))
-	handlers.sc_jobGenerate("")
+	handlers.sc_jobGenerate(json.encode({ type = "tow" }))
 	local offer = lastSent("sc_jobOffer")
 	check(
 		offer
@@ -4424,7 +4424,7 @@ check(
 		iconOk and tow.iconOf({ data = {} }) == nil and tow.iconOf({ data = { kind = "boat" } }) == nil,
 		"the icons by kind: bus, truck, van, suv, pickup, car; none for an unknown kind"
 	)
-	check(offer.tier == 1, "the server asked for nothing special: tier 1")
+	check(offer.tier == 1, "the server asked for no tier: tier 1")
 	local okAll, lengthOk = true, true
 	for i = 1, 80 do
 		local tier = (i - 1) % 4 + 1
@@ -4586,7 +4586,7 @@ check(
 	freeroam_facilities.getFacilities = function()
 		return {}
 	end
-	handlers.sc_jobGenerate("")
+	handlers.sc_jobGenerate(json.encode({ type = "tow" }))
 	check(#sentToServer == sentBefore, "no repair shops on the map: no job")
 	freeroam_facilities.getFacilities = realFacilities
 
@@ -5076,12 +5076,12 @@ check(
 		end,
 	}
 	jobs.registerType(test)
-	local offers = {}
-	for _ = 1, 4 do
-		local j = jobs.generate()
-		offers[j.type] = (offers[j.type] or 0) + 1
-	end
-	check(offers.tow == 2 and offers.test == 2, "making up jobs: the job types take turns")
+	local made = jobs.generate("test", 2)
+	local none, why = jobs.generate("nope", 1)
+	check(
+		made.type == "test" and made.tier == 2 and none == nil and why == "unknown job type nope",
+		"making up a job: by the job type the server asks for; an unknown one makes none"
+	)
 	local tj = {
 		id = 20,
 		type = "test",
@@ -5157,6 +5157,143 @@ check(
 		career_modules_playerAttributes.money() == moneyBefore and acks() == acksBefore + 1,
 		"after a reconnect: a payout sent again is only confirmed"
 	)
+
+	--== Taxi jobs ==
+	local taxi = sharedCareer_taxiJobs
+	cfgJ.ui.jobs = true
+	handlers.sc_configUpdate(json.encode(cfgJ))
+	extensions.hook("onCareerActive", true)
+	local told = lastSent("sc_jobsRequest")
+	check(
+		told and table.concat(told.types, ",") == "tow,taxi,test",
+		"the client tells the server its job types: towing, taxi (and the test one)"
+	)
+	handlers.sc_jobs(json.encode({ enabled = true, jobs = {} }))
+	world.playerVeh = 70
+	me.p = { x = 0, y = -20, z = 10 }
+	-- making one up: a passenger beside the road, a place of the map, the pay by the way by road
+	check(
+		taxi.payFor(1000, false, 1) == 200 and taxi.payFor(1000, true, 1) == 300 and taxi.payFor(1000, false, 4) == 440,
+		"taxi pay: $100 + $100 per km; a VIP pays 50 % more, a higher tier more"
+	)
+	handlers.sc_jobGenerate(json.encode({ type = "taxi", tier = 2 }))
+	offer = lastSent("sc_jobOffer")
+	check(
+		offer
+			and offer.type == "taxi"
+			and offer.tier == 2
+			and (offer.title == "Passenger" or offer.title == "VIP")
+			and math.abs(math.abs(offer.pos.y) - 5.8) < 1e-6
+			and offer.length == jobs.roadLength(offer.pos, offer.dest.pos)
+			and offer.pay == taxi.payFor(offer.length, offer.data.vip, 2),
+		"the server asks for a taxi job: a passenger beside the road, a ride by road to a place, its pay"
+	)
+	local vips = { 0, 0 }
+	for i, tier in ipairs({ 1, 4 }) do
+		for _ = 1, 100 do
+			local j = taxi.generate(tier)
+			if j.data.vip then
+				vips[i] = vips[i] + 1
+			end
+			if j.title ~= (j.data.vip and "VIP" or "Passenger") then
+				vips[i] = -1000
+			end
+		end
+	end
+	check(
+		vips[1] == 0 and vips[2] > 25 and vips[2] < 75,
+		"VIPs: never in tier 1, about half in tier 4 (" .. table.concat(vips, "/") .. ")"
+	)
+	check(
+		#taxi.tags({ data = { vip = false } }) == 0 and taxi.tags({ data = { vip = true } })[1].text == "VIP",
+		"a VIP shows as a tag"
+	)
+	freeroam_facilities.getFacilities = function()
+		return {}
+	end
+	local noPlace, noPlaceWhy = taxi.generate(1)
+	freeroam_facilities.getFacilities = realFacilities
+	check(noPlace == nil and noPlaceWhy == "no places to go on this map", "no places on the map: no taxi job")
+	-- doing it: pick up the passenger, drive to the place, a smooth ride pays all
+	local ride = {
+		id = 30,
+		type = "taxi",
+		title = "Passenger",
+		pos = { x = 2000, y = -5.8, z = 10 },
+		dest = { name = "Belasco Auto", pos = doors.belasco },
+		length = 2000,
+		pay = 400,
+		data = { vip = false },
+		state = "mine",
+	}
+	handlers.sc_jobs(json.encode({ enabled = true, jobs = { ride } }))
+	st = jobs.appState()
+	check(
+		jobs.getActive()
+			and paths[#paths].x == 2000
+			and st.active.short == "Pick up the passenger"
+			and st.active.steps[2] == "Drive",
+		"the job is yours: the route leads to the passenger"
+	)
+	local walker = addVehicle(91, "0-91", true, "unicycle")
+	walker.p = { x = 2002, y = -8, z = 10 }
+	function walker:getPosition()
+		return self.p
+	end
+	world.playerVeh = 91
+	for _ = 1, 30 do
+		update(0.1)
+	end
+	check(
+		jobs.appState().active.step == 0 and jobs.appState().active.hint == "Pick them up in a car.",
+		"on foot next to them: they don't get in"
+	)
+	world.playerVeh = 70
+	me.p = { x = 2003, y = -9, z = 10 }
+	me.v = { x = 0, y = 0, z = 0 }
+	function me:getVelocity()
+		return self.v
+	end
+	_G.map.objects = { [70] = { damage = 100 } }
+	for _ = 1, 25 do
+		update(0.1)
+	end
+	st = jobs.appState()
+	check(
+		st.active.step == 1 and paths[#paths].x == 4000 and lastToastMsg() == "Passenger in: drive to Belasco Auto",
+		"stopped next to them in a car: they get in, the route leads to the place"
+	)
+	-- a hard stop is a jolt: once, not again right after
+	me.v = { x = 15, y = 0, z = 0 }
+	update(0.3)
+	me.v = { x = 0, y = 0, z = 0 }
+	update(0.3)
+	me.v = { x = 15, y = 0, z = 0 }
+	update(0.3)
+	me.v = { x = 0, y = 0, z = 0 }
+	update(0.3)
+	local active = jobs.getActive()
+	check(active.jolts == 1 and lastToastMsg() == "Drive smoother!", "a hard stop is one jolt")
+	world.playerVeh = nil
+	check(jobs.appState().active.short == "Back to your taxi", "out of the taxi: back to it")
+	world.playerVeh = 70
+	_G.map.objects[70].damage = 4100
+	me.p = { x = 4002, y = 48, z = 10 }
+	for _ = 1, 30 do
+		update(0.1)
+	end
+	local done = lastSent("sc_jobDone")
+	check(
+		done and done.id == 30 and math.abs(done.share - 0.9) < 1e-9,
+		"standing in the ring: handed over; a jolt and new damage cost 10 % of the pay"
+	)
+	check(
+		taxi.penalty({ job = { data = { vip = true } }, jolts = 2 }) == 0.2
+			and taxi.penalty({ job = { data = {} }, rough = true }) == 0.5
+			and taxi.penalty({ job = { data = {} }, jolts = 30 }) == 0.5,
+		"a VIP: jolts cost twice as much; a reset costs half; never more than half"
+	)
+	jobs.onBeamMPServerLeave()
 	_G.map, _G.freeroam_facilities, _G.jsonReadFile, _G.util_configListGenerator, _G.core_groundMarkers =
 		nil, nil, nil, nil, nil
 	_G.castRayStatic = nil

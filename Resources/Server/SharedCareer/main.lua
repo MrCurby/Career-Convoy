@@ -67,7 +67,7 @@
 --   sc_fuelDelivered    {station, fuel, amount, stationName}  own fuel delivery to a station
 --   Server -> Client: sc_fuelPrices {enabled, factors = {[station] = {gasoline = 0.9, ...}}}
 --   Jobs (beta, see "Jobs" below):
---   sc_jobsRequest                    sc_jobs        {enabled, jobs = [job, with state "open" |
+--   sc_jobsRequest {types}            sc_jobs        {enabled, jobs = [job, with state "open" |
 --   sc_jobOffer   {a new job}                         "taken" | "mine", takenBy (name), minLevel,
 --   sc_jobTake    {id}                                locked, pay and xp (yours)], levels = {type: level}}
 --   sc_jobDone    {id, share}         sc_jobGenerate {type, tier}  please make up a new job
@@ -1194,21 +1194,27 @@ end
 
 --== Jobs ======================================================================
 -- The server keeps one list for everyone; the clients make the jobs up (they know the map: road
--- network, repair shops, vehicles) when the server asks one of them (sc_jobGenerate). A job goes
+-- network, repair shops, vehicles) when the server asks one of them (sc_jobGenerate) – one whose
+-- client has that job type (it tells its job types in sc_jobsRequest). A job goes
 -- to the first player who takes it, is paid once (a payout, see "Payouts of jobs") and is open
 -- again if that player leaves, gives up or runs out of time.
--- What a job is about is up to its job type on the client (jobs.lua, towJobs.lua); the server only
+-- What a job is about is up to its job type on the client (jobs.lua, towJobs.lua, taxiJobs.lua); the server only
 -- knows what every job has:
 -- job = {id, type ("tow"), tier (1.., see "Job levels"), title (e.g. the vehicle),
 --        pos = {x, y, z} (where it starts), dest = {name, pos = {x, y, z}}, length (m), pay (at
 --        level 1), data (the type's own fields, passed on as they are, at most JOB_DATA_MAX bytes
 --        as JSON), takenBy (player id), takenAt}
 -- Enough jobs for everyone: per job type, the open jobs are kept at server.jobsOpen for tier 1 and
--- for the highest tier each player on the server can take (wantedTiers).
+-- for the highest tier each player on the server can take (wantedTiers). A job type and tier that
+-- got no job after it was asked for (no place for it on this map) waits JOB_RETRY s, so the others
+-- don't wait for it.
 local JOB_ASK_EVERY = 5 -- s between two requests for a new job
+local JOB_RETRY = 30 -- s before a job type and tier is asked for again when no job of it came
 local JOB_TEXT_MAX = 128
 local JOB_DATA_MAX = 2048
+local JOB_TYPES_MAX = 16 -- job types one client may tell
 local jobAskedAt = -math.huge
+local jobAsks = {} -- "type|tier" -> when it was asked for, until a job of it comes
 
 local function jobsEnabled()
 	return Config.server.jobs == true
@@ -1244,7 +1250,7 @@ local LEVEL_RULES = {
 -- job type -> the rules that differ from LEVEL_RULES, e.g. delivery = {tierLevel = {1, 4, 7}, tierXp = {50, 90, 140}}
 local LEVEL_RULES_BY_TYPE = {}
 local HISTORY_MAX = 20
--- job types seen (in progress.json or in an offer): their tiers are kept stocked
+-- job types seen (in progress.json, from a client or in an offer): everyone sees their level in them
 local knownTypes = {}
 
 -- The level rules of a job type: LEVEL_RULES with the type's own values over them.
@@ -1657,8 +1663,20 @@ local function openJobCount(kind, tier)
 	return n
 end
 
--- The tiers to keep stocked: per job type, tier 1 and the highest tier of every player on the
--- server. {{type, tier, open}}, the emptiest first. Before any job type is known: {{tier = 1}}.
+-- The players whose client can make up jobs of this type (sorted).
+local function jobMakers(kind)
+	local ids = {}
+	for id, entry in pairs(players) do
+		if entry.careerActive and entry.jobTypes and entry.jobTypes[kind] and MP.IsPlayerConnected(id) then
+			table.insert(ids, id)
+		end
+	end
+	table.sort(ids)
+	return ids
+end
+
+-- The tiers to keep stocked: per job type a player's client can make up, tier 1 and the highest
+-- tier of every player on the server. {{type, tier, open}}, the emptiest first.
 local function wantedTiers()
 	local wanted, seen = {}, {}
 	local function want(kind, tier)
@@ -1670,15 +1688,14 @@ local function wantedTiers()
 		table.insert(wanted, { type = kind, tier = tier, open = openJobCount(kind, tier) })
 	end
 	for kind in pairs(knownTypes) do
-		want(kind, 1)
-		for id, entry in pairs(players) do
-			if entry.careerActive and MP.IsPlayerConnected(id) then
-				want(kind, topTier(rulesOf(kind), levelFor(id, kind)))
+		if #jobMakers(kind) > 0 then
+			want(kind, 1)
+			for id, entry in pairs(players) do
+				if entry.careerActive and MP.IsPlayerConnected(id) then
+					want(kind, topTier(rulesOf(kind), levelFor(id, kind)))
+				end
 			end
 		end
-	end
-	if #wanted == 0 then
-		return { { tier = 1, open = 0 } }
 	end
 	table.sort(wanted, function(a, b)
 		if a.open ~= b.open then
@@ -1748,11 +1765,24 @@ local function reopenJob(job, why)
 	end
 end
 
-function sc_jobsRequest(player_id)
+-- The Jobs app wants the list: {types = the job types this client can make up}.
+function sc_jobsRequest(player_id, data)
 	local entry = players[player_id]
-	if entry and entry.careerActive then
-		sendJobs(player_id)
+	if not entry or not entry.careerActive then
+		return
 	end
+	local msg = decodeTable(data)
+	if msg and type(msg.types) == "table" then
+		entry.jobTypes = {}
+		for i, v in ipairs(msg.types) do
+			local kind = jobType(v)
+			if kind and i <= JOB_TYPES_MAX then
+				entry.jobTypes[kind] = true
+				knownTypes[kind] = true
+			end
+		end
+	end
+	sendJobs(player_id)
 end
 
 -- A client made up a job (after sc_jobGenerate).
@@ -1775,6 +1805,7 @@ function sc_jobOffer(player_id, data)
 	then
 		return
 	end
+	jobAsks[kind .. "|" .. tier] = nil
 	if openJobCount(kind, tier) >= jobsOpen() then
 		return
 	end
@@ -2038,24 +2069,22 @@ local function jobsTick()
 	if changed then
 		sendJobsToAll()
 	end
-	local need = wantedTiers()[1]
-	if need.open >= jobsOpen() then
-		return
-	end
 	if now() - jobAskedAt < JOB_ASK_EVERY then
 		return
 	end
-	local ids = {}
-	for id, entry in pairs(players) do
-		if entry.careerActive and MP.IsPlayerConnected(id) then
-			table.insert(ids, id)
+	local need
+	for _, w in ipairs(wantedTiers()) do
+		if w.open < jobsOpen() and now() - (jobAsks[w.type .. "|" .. w.tier] or -math.huge) >= JOB_RETRY then
+			need = w
+			break
 		end
 	end
-	if #ids == 0 then
+	if not need then
 		return
 	end
-	table.sort(ids)
+	local ids = jobMakers(need.type)
 	jobAskedAt = now()
+	jobAsks[need.type .. "|" .. need.tier] = now()
 	send(ids[(jobSeq + math.floor(now())) % #ids + 1], "sc_jobGenerate", { type = need.type, tier = need.tier })
 end
 

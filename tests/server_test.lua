@@ -770,14 +770,24 @@ do
 		"jobs list sent to everyone (empty after reset)"
 	)
 	check(lastTo(0, "sc_configUpdate").ui.jobs == true, "the clients know that jobs are on")
-	-- missing jobs: one player is asked to make one up, not more often than every 5 s
+	-- missing jobs: one player whose client has the job type is asked to make one up, not more often
+	-- than every 5 s
 	local asked = countTo(0, "sc_jobGenerate") + countTo(1, "sc_jobGenerate")
+	fakeTime = fakeTime + 100
+	sc_tick()
+	check(
+		countTo(0, "sc_jobGenerate") + countTo(1, "sc_jobGenerate") == asked,
+		"no client has told its job types yet: nobody is asked"
+	)
+	sc_jobsRequest(0, json.encode({ types = { "tow" } }))
+	sc_jobsRequest(1, json.encode({ types = { "tow" } }))
+	check(jobsOf(0).levels.tow.level == 1, "a job type a client has: everyone sees their level in it")
 	fakeTime = fakeTime + 100
 	sc_tick()
 	sc_tick()
 	check(countTo(0, "sc_jobGenerate") + countTo(1, "sc_jobGenerate") == asked + 1, "one player asked for a new job")
 	local ask = lastTo(0, "sc_jobGenerate") or lastTo(1, "sc_jobGenerate")
-	check(ask.tier == 1, "no job type known yet: a job of tier 1")
+	check(ask.type == "tow" and ask.tier == 1, "a towing job of tier 1")
 	offer(0)
 	local list = jobsOf(1).jobs
 	check(
@@ -1108,6 +1118,43 @@ do
 	check(
 		lastTo(1, "sc_jobPaid").xp == 100 and jobsOf(1).levels.short.level == 2 and jobsOf(1).levels.tow.level >= 5,
 		"100 XP: level 2 in this job type; the towing level stays as it was"
+	)
+	-- a job type only one client has (a taxi job): asked from that one; a job type and tier that
+	-- gets no job (no place for it on the map) waits 30 s, the others go on
+	onConsoleInput("sc jobs reset")
+	sc_jobsRequest(1, json.encode({ types = { "tow", "taxi", "no-way", 5 } }))
+	check(
+		jobsOf(1).levels.taxi and jobsOf(1).levels["no-way"] == nil,
+		"Ben's client has taxi jobs; a job type that isn't a word is dropped"
+	)
+	local function asks(id)
+		return countTo(id, "sc_jobGenerate")
+	end
+	local taxiAsks, others = 0, 0
+	for _ = 1, 12 do
+		local before = { asks(0), asks(1) }
+		fakeTime = fakeTime + 6
+		sc_tick()
+		for id = 0, 1 do
+			if asks(id) > before[id + 1] then
+				local a = lastTo(id, "sc_jobGenerate")
+				if a.type == "taxi" then
+					taxiAsks = taxiAsks + 1
+					check(id == 1, "a taxi job is asked from Ben, whose client has them")
+				else
+					others = others + 1
+					offer(a.tier)
+				end
+			end
+		end
+	end
+	check(
+		taxiAsks >= 2 and taxiAsks <= 3 and others >= 6 and #jobsOf(0).jobs == others,
+		"no taxi job comes: asked again only every 30 s, the towing jobs are made meanwhile ("
+			.. taxiAsks
+			.. "/"
+			.. others
+			.. ")"
 	)
 	-- the levels survive a restart of the server
 	local f = assert(io.open(tmpProgress))

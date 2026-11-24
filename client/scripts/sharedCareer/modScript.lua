@@ -27,7 +27,8 @@
 --             Fuel (fuel.lua)
 --             (client.phone, key F4)
 --   jobs      jobs: the shared job list and the Jobs app, for every job type (server.jobs)
---   towJobs   the towing jobs, the first job type: broken-down cars towed to a repair shop
+--   towJobs   the towing jobs, a job type: broken-down cars towed to a repair shop
+--   taxiJobs  the taxi jobs, a job type: a passenger at the roadside driven to a place on the map
 --
 -- Also in the mod: levels/west_coast_usa/.../garage_interactions/items.level.json –
 -- larger zones at the garage computers (replaces the map file of the same name),
@@ -72,5 +73,6 @@ loadPersistent("sharedCareer/straps")
 loadPersistent("sharedCareer/phone")
 loadPersistent("sharedCareer/jobs")
 loadPersistent("sharedCareer/towJobs")
+loadPersistent("sharedCareer/taxiJobs")
 loadPersistent("sharedCareer/cleanup")
 loadPersistent("sharedCareer/core")

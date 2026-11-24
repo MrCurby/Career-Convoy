@@ -154,6 +154,15 @@ function M.myPosition()
 	return nil
 end
 
+--- A vehicle's model ("pickup"; "unicycle" for a player on foot), or nil.
+function M.modelOf(veh)
+	local model = veh.JBeam
+	if model == nil and type(veh.getJBeamFilename) == "function" then
+		model = veh:getJBeamFilename()
+	end
+	return model
+end
+
 --- Your career money, or nil without a running career.
 function M.money()
 	local attrs = rawget(_G, "career_modules_playerAttributes")

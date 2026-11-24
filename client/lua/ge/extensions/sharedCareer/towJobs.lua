@@ -3,22 +3,19 @@
 -- A job type of the Jobs app (jobs.lua: the shared list, taking, giving up, the pay). This file
 -- brings what a towing job is about:
 --   making one up (generate), by tier (TIERS: the higher, the harder and the better paid)
---     a place     a random road node far from every vehicle, moved off the road onto the
---                 roadside (ROADSIDE m beyond the road's edge, the side that is free), standing
---                 along the road. A side is free when nothing stands between the road and the spot
---                 (a tunnel wall, a rock: a ray at car height) and there is ground at about the
---                 road's height (GROUND_STEP); a node without a free side isn't used. Without that
---                 check a spot in a tunnel wall made the game put the car under the tunnel
+--     a place     beside a normal road (jobs.randomRoadside: only a side with nothing in the way
+--                 and ground at the road's height), far from every vehicle, standing along the
+--                 road. Without that check a spot in a tunnel wall made the game put the car under
+--                 the tunnel
 --     a vehicle   by the tier's heavy share a heavy vehicle (HEAVY_MODELS), else an old one from
 --                 the career's own delivery filter (gameplay/delivery/vehicles.deliveryVehicles.json,
 --                 JUNKER_FILTER) via util_configListGenerator; a pickup, van, bus or truck from it is
 --                 drawn again (up to CAR_TRIES times) unless the tier's truck share lets it stay; a
 --                 few common cars if that is missing. The higher the tier, the more trucks
 --     a shop      a garage of the map (freeroam_facilities, the middle of its doors), as far away
---                 as the tier says in a straight line (the nearest fit if none is)
---     the pay     (PAY_BASE + PAY_PER_KM per km of the tow (by road: jobs.driveDistance; the
---                 straight line x ROAD_FACTOR where there is no way by road)) x the
---                 tier's pay, x PAY_FLAT with a flat tire, x client.jobPay
+--                 as the tier says in a straight line (jobs.pickDestination: the nearest fit if none is)
+--     the pay     (PAY_BASE + PAY_PER_KM per km of the tow (jobs.roadLength: by road, else the
+--                 straight line x 1.3)) x the tier's pay, x PAY_FLAT with a flat tire, x client.jobPay
 --     faults     what is broken (FAULTS: engine, clutch, gearbox, radiator, oil pan, windshield,
 --                tail lights), each by its chance, at least one; a crash always has a broken engine
 --     a crash    from tier 2 on, some jobs are crashes (the tier's crash chance) instead of a
@@ -58,13 +55,6 @@ local U, J
 
 local SPAWN_RANGE = 400 -- m: the broken-down vehicle appears when you are this close
 local FAR_FROM_VEHICLES = 350 -- m: a new job is never made up closer to any vehicle
-local DEST_NEAREST = 400 -- m: a shop at least this far away when none fits the tier
-local MIN_ROAD_RADIUS = 2.5 -- m: half the width of a road the place may be on
-local MIN_DRIVABILITY = 0.6 -- the road must be a normal road (not a dirt track)
-local ROADSIDE = 1.8 -- m beyond the road's edge
-local SIDE_CLEAR = 1.2 -- m free beyond the spot (half a car's width)
-local GROUND_STEP = 1.5 -- m the roadside's ground may be above or below the road
-local RAY_HEIGHT = 1 -- m above the road the rays start (above curbs, below a tunnel's roof)
 local PLACE_TRIES = 40
 local NEAR_VEHICLE = 30 -- m: close enough to the vehicle, the route goes to the shop
 local DROP_RADIUS = 14 -- m around the middle of the shop's doors
@@ -73,7 +63,6 @@ local DROP_SPEED = 0.5 -- m/s: slower counts as standing still
 local DAMAGE_WAIT = 3 -- s for the vehicle's damage report; then no deduction
 local PAY_BASE, PAY_PER_KM = 150, 120
 local PAY_FLAT = 1.25
-local ROAD_FACTOR = 1.3 -- without a way by road: roads are about this much longer than the straight line
 -- the tiers: how far to the shop (m), how often a flat tire, how often a heavy vehicle, how often a
 -- truck may come from the delivery filter otherwise, the pay; how often a crash, and its speed (m/s
 -- when it hits the ground)
@@ -139,7 +128,7 @@ local PENALTY_MAX = 0.5 -- share of the pay new damage can cost at most
 local DAMAGE_FOR_MAX = 40000 -- damage points (beamstate.damage) that cost PENALTY_MAX
 local BREAKDOWN_RETRY = 3 -- s without the vehicle's answer: break it down again
 local SPAWN_RETRY = 10 -- s before a vehicle that vanished right away is spawned again
-local MARKER_RANGE = 250 -- m: the markers show within this distance
+local MARKER_COLOR = { 1, 0.6, 0.1 } -- orange
 
 local JUNKER_FILTER = "junkerVehFilter"
 local FILTER_FILE = "gameplay/delivery/vehicles.deliveryVehicles.json"
@@ -165,126 +154,11 @@ M.branch = "commercial"
 M.steps = { "Pick up", "Tow", "Paid" }
 
 local clock = 0
-local roadNodes = nil -- {level, names} road nodes a job may be placed at
 local current = nil -- the towing job that is yours (jobs.lua's job state), for the
 -- vehicle's replies: + vehId, spawnedAt, brokenDown, sentAt,
 -- damageStart, phase, stillFor, checkingSince, damageNow
 
 --== Making up a job =============================================================
-
--- road nodes a broken-down car may stand at: wide enough, on a normal road (cached per map)
-local function candidateNodes(nodes)
-	local level = type(getCurrentLevelIdentifier) == "function" and getCurrentLevelIdentifier() or ""
-	if roadNodes and roadNodes.level == level then
-		return roadNodes.names
-	end
-	local names = {}
-	for name, n in pairs(nodes) do
-		if
-			type(n) == "table"
-			and n.pos
-			and (tonumber(n.radius) or 0) >= MIN_ROAD_RADIUS
-			and type(n.links) == "table"
-		then
-			for _, link in pairs(n.links) do
-				if type(link) == "table" and (tonumber(link.drivability) or 0) >= MIN_DRIVABILITY then
-					table.insert(names, name)
-					break
-				end
-			end
-		end
-	end
-	table.sort(names, function(a, b)
-		return tostring(a) < tostring(b)
-	end) -- the same order on every PC
-	roadNodes = { level = level, names = names }
-	return names
-end
-
--- The spot `side` m from the road point `p` towards `out` (x, y, length 1) with its ground, or nil
--- when something stands in the way or there is no ground at about the road's height.
-local function freeSpot(p, out, side)
-	local from = vec3(p.x, p.y, p.z + RAY_HEIGHT)
-	if U.castRay(from, vec3(out.x, out.y, 0), side + SIDE_CLEAR) then
-		return nil
-	end
-	local pos = { x = p.x + out.x * side, y = p.y + out.y * side, z = p.z }
-	local hit = U.castRay(vec3(pos.x, pos.y, p.z + RAY_HEIGHT), vec3(0, 0, -1), RAY_HEIGHT + GROUND_STEP)
-	if not hit then
-		return nil
-	end
-	pos.z = p.z + RAY_HEIGHT - hit
-	return pos
-end
-
--- Where on the roadside of this node a car can stand: {pos, dir} or nil. The right side of the
--- road first, else the left.
-local function roadside(nodes, name)
-	local n = nodes[name]
-	local p = n and U.vecOf(n.pos)
-	if not p then
-		return nil
-	end
-	for other, link in pairs(n.links) do
-		local q = type(link) == "table"
-			and (tonumber(link.drivability) or 0) >= MIN_DRIVABILITY
-			and nodes[other]
-			and U.vecOf(nodes[other].pos)
-		if q then
-			local dx, dy = q.x - p.x, q.y - p.y
-			local len = math.sqrt(dx * dx + dy * dy)
-			if len > 1 then
-				dx, dy = dx / len, dy / len
-				local side = tonumber(n.radius) + ROADSIDE
-				for _, s in ipairs({ 1, -1 }) do
-					local pos = freeSpot(p, { x = dy * s, y = -dx * s }, side)
-					if pos then
-						return { pos = pos, dir = { x = dx * s, y = dy * s } }
-					end
-				end
-				return nil
-			end
-		end
-	end
-	return nil
-end
-
-local function vehiclePositions()
-	local out = {}
-	local count = type(be.getObjectCount) == "function" and be:getObjectCount() or 0
-	for i = 0, count - 1 do
-		local veh = be:getObject(i)
-		local p = veh and type(veh.getPosition) == "function" and U.vecOf(veh:getPosition())
-		if p then
-			table.insert(out, p)
-		end
-	end
-	return out
-end
-
--- The repair shops the vehicle can go to: the map's garages (dealerships if there are none).
-local function repairShops()
-	local data = U.facilities()
-	if not data then
-		return {}
-	end
-	local shops = {}
-	for _, kind in ipairs({ "garages", "dealerships" }) do
-		for _, fac in pairs(type(data[kind]) == "table" and data[kind] or {}) do
-			local p = type(fac) == "table" and U.facilityDoor(fac)
-			if p then
-				table.insert(shops, {
-					name = U.translate(fac.name) or (type(fac.name) == "string" and fac.name) or tostring(fac.id),
-					pos = p,
-				})
-			end
-		end
-		if #shops > 0 then
-			break
-		end
-	end
-	return shops
-end
 
 -- The game's info of a model: {model = {Name, Brand, Type, ["Body Style"], ...}, configs = {...}},
 -- or nil.
@@ -396,10 +270,6 @@ local function pickVehicle(t)
 	return { model = model, name = modelName(model), kind = M.vehicleKind(model) }
 end
 
-local function roundTo(x, step)
-	return math.floor(x / step + 0.5) * step
-end
-
 local function tierOf(tier)
 	return TIERS[math.max(1, math.min(#TIERS, tonumber(tier) or 1))]
 end
@@ -452,50 +322,26 @@ function M.payFor(length, flatTire, tier)
 		* tierOf(tier).pay
 		* (flatTire and PAY_FLAT or 1)
 		* J.payFactor()
-	return roundTo(pay, 10)
+	return J.roundTo(pay, 10)
 end
 
 --- Makes up a towing job of a tier on this map, or returns nil and why not.
 function M.generate(tier)
 	local t = tierOf(tier)
-	local nodes = map and type(map.getMap) == "function" and map.getMap().nodes
-	if type(nodes) ~= "table" then
-		return nil, "no road network"
-	end
-	local shops = repairShops()
+	-- the repair shops: the map's garages (dealerships if there are none)
+	local shops = J.facilityPlaces({ "garages", "dealerships" })
 	if #shops == 0 then
 		return nil, "no repair shops on this map"
 	end
-	local names = candidateNodes(nodes)
-	if #names == 0 then
-		return nil, "no roads for a breakdown"
-	end
-	local others = vehiclePositions()
 	for _ = 1, PLACE_TRIES do
-		local spot = roadside(nodes, names[math.random(#names)])
-		local free = spot ~= nil
-		for _, p in ipairs(free and others or {}) do
-			if J.dist2D(p, spot.pos) < FAR_FROM_VEHICLES then
-				free = false
-				break
-			end
+		local spot, why = J.randomRoadside()
+		if why then
+			return nil, why
 		end
-		if free then
-			-- a shop as far away as the tier says; on a small map the one nearest to that
-			local fitting, nearest, miss = {}, nil, math.huge
-			for _, shop in ipairs(shops) do
-				local d = J.dist2D(shop.pos, spot.pos)
-				if d >= t.destMin and d <= t.destMax then
-					table.insert(fitting, { shop = shop, d = d })
-				end
-				local off = d < t.destMin and t.destMin - d or math.max(0, d - t.destMax)
-				if d >= DEST_NEAREST and off < miss then
-					nearest, miss = { shop = shop, d = d }, off
-				end
-			end
-			local pick = #fitting > 0 and fitting[math.random(#fitting)] or nearest
+		if spot and J.farFromVehicles(spot.pos, FAR_FROM_VEHICLES) then
+			local pick = J.pickDestination(shops, spot.pos, t.destMin, t.destMax)
 			if pick then
-				local length = roundTo(J.driveDistance(spot.pos, pick.shop.pos) or pick.d * ROAD_FACTOR, 10)
+				local length = J.roadLength(spot.pos, pick.place.pos)
 				local flatTire = math.random() < t.flatTire
 				local vehicle = pickVehicle(t)
 				local crash = pickCrash(t)
@@ -503,7 +349,7 @@ function M.generate(tier)
 				return {
 					title = bodyStyle(vehicle) or vehicle.name,
 					pos = spot.pos,
-					dest = { name = pick.shop.name, pos = pick.shop.pos },
+					dest = { name = pick.place.name, pos = pick.place.pos },
 					length = length,
 					pay = M.payFor(length, flatTire, tier),
 					data = {
@@ -670,9 +516,8 @@ end
 -- While the crashed car falls and settles: once it lies still it breaks down (the crash is not new
 -- damage against the pay). Landed too far away: removed, it comes back as a plain breakdown.
 local function settle(a, veh, dt)
-	local p, v = U.vecOf(veh:getPosition()), type(veh.getVelocity) == "function" and U.vecOf(veh:getVelocity())
-	local speed = v and math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z) or 0
-	a.crashing.still = speed <= DROP_SPEED and a.crashing.still + dt or 0
+	local p = U.vecOf(veh:getPosition())
+	a.crashing.still = J.speedOf(veh) <= DROP_SPEED and a.crashing.still + dt or 0
 	if a.crashing.still < CRASH_STILL and clock - a.crashing.since < CRASH_WAIT then
 		return
 	end
@@ -751,16 +596,9 @@ function M.step(a, dt)
 		J.sendToVehicle(a.vehId, "sharedCareerVeh.jobCoolDown()")
 		U.toast("info", "Route set: tow it to " .. job.dest.name, 6)
 	end
-	local speed = 0
-	if type(veh.getVelocity) == "function" then
-		local v = U.vecOf(veh:getVelocity())
-		if v then
-			speed = math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z)
-		end
-	end
 	local inZone = p
 		and J.dist2D(p, job.dest.pos) <= DROP_RADIUS
-		and speed <= DROP_SPEED
+		and J.speedOf(veh) <= DROP_SPEED
 		and be:getPlayerVehicleID(0) ~= a.vehId
 	if a.checkingSince then
 		if a.damageNow or clock - a.checkingSince >= DAMAGE_WAIT then
@@ -834,55 +672,12 @@ end
 --== Drawing ======================================================================
 
 function M.draw(a)
-	if not (debugDrawer and ColorF and vec3) then
-		return
-	end
-	local me = U.myPosition()
-	if not me then
-		return
-	end
 	if a.phase == "toVehicle" then
 		local veh = a.vehId and be:getObjectByID(a.vehId)
-		local p = veh and U.vecOf(veh:getPosition()) or a.job.pos
-		if J.dist2D(me, p) <= MARKER_RANGE then
-			local bob = 0.15 * math.sin(clock * 2.5)
-			local top = vec3(p.x, p.y, p.z + 3.2 + bob)
-			debugDrawer:drawSphere(top, 0.35, ColorF(1, 0.6, 0.1, 0.85))
-			debugDrawer:drawCylinder(
-				vec3(p.x, p.y, p.z + 2.3 + bob),
-				vec3(p.x, p.y, p.z + 2.85 + bob),
-				0.06,
-				ColorF(1, 0.6, 0.1, 0.85)
-			)
-		end
+		J.drawMarker(veh and U.vecOf(veh:getPosition()) or a.job.pos, MARKER_COLOR)
 	elseif a.phase == "toDestination" then
-		local d = a.job.dest.pos
-		if J.dist2D(me, d) <= MARKER_RANGE then
-			local inZone = (a.stillFor or 0) > 0
-			local r, g, b = 0.25, 0.55, 1
-			if inZone then
-				r, g, b = 0.3, 0.9, 0.45
-			end
-			debugDrawer:drawCylinder(
-				vec3(d.x, d.y, d.z + 0.02),
-				vec3(d.x, d.y, d.z + 0.08),
-				DROP_RADIUS,
-				ColorF(r, g, b, 0.18)
-			)
-			debugDrawer:drawCylinder(vec3(d.x, d.y, d.z), vec3(d.x, d.y, d.z + 4), 0.08, ColorF(r, g, b, 0.7))
-			local label = inZone
-					and string.format("Drop-off \194\183 %d s", math.max(1, math.ceil(DROP_STILL - (a.stillFor or 0))))
-				or ("Drop-off \194\183 " .. a.job.dest.name)
-			local str = String and String(label) or label
-			debugDrawer:drawTextAdvanced(
-				vec3(d.x, d.y, d.z + 4.4),
-				str,
-				ColorF(1, 1, 1, 1),
-				true,
-				false,
-				ColorI(20, 30, 50, 200)
-			)
-		end
+		local waitLeft = (a.stillFor or 0) > 0 and DROP_STILL - a.stillFor or nil
+		J.drawDropOff(a.job.dest.pos, DROP_RADIUS, a.job.dest.name, waitLeft)
 	end
 end
 
@@ -893,7 +688,7 @@ function M.onUpdate(dtReal)
 end
 
 function M.onBeamMPServerLeave()
-	current, roadNodes = nil, nil
+	current = nil
 end
 
 function M.onExtensionLoaded()
