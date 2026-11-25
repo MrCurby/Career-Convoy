@@ -16,8 +16,8 @@
 --     1. the route leads to the passenger (a yellow marker); stopping in a vehicle (not on foot)
 --        within PICKUP_RADIUS m of them for BOARD_STILL s: they get in. That vehicle is the taxi
 --     2. the route leads to the place. A smooth ride pays all: every jolt (the taxi's speed
---        changes faster than JOLT_ACCEL m/s^2: hard braking, a crash, a hard landing; at most one
---        per JOLT_GAP s) costs JOLT_COST of the pay; speeding (on a road, faster than its speed
+--        changes faster than JOLT_ACCEL m/s^2, measured over JOLT_WINDOW s so bumps and curbs
+--        don't count: hard braking, a crash, a hard landing; at most one per JOLT_GAP s) costs JOLT_COST of the pay; speeding (on a road, faster than its speed
 --        limit x speedLimit.TOLERANCE for SPEEDING_FOR s; again after every SPEEDING_AGAIN s more)
 --        SPEEDING_COST; new damage to the taxi up to PENALTY_MAX (DAMAGE_FOR_MAX damage points cost
 --        all of it), a reset (R) PENALTY_MAX; all together at most PENALTY_MAX. The speed limit
@@ -46,7 +46,8 @@ local BOARD_STILL = 2 -- s standing still next to them: they get in
 local DROP_RADIUS = 12 -- m around the middle of the place's doors
 local DROP_STILL = 2 -- s standing still in the drop-off zone
 local STOP_SPEED = 0.5 -- m/s: slower counts as standing still
-local JOLT_ACCEL = 7 -- m/s^2: the taxi's speed changing faster than this is a jolt
+local JOLT_ACCEL = 9 -- m/s^2: the taxi's speed changing faster than this is a jolt (about a full stop)
+local JOLT_WINDOW = 0.5 -- s: the change is measured over this long (not every frame: bumps don't count)
 local JOLT_GAP = 2 -- s: at most one jolt in this time (one hard stop counts once)
 local JOLT_COST = 0.05 -- share of the pay a jolt costs (twice that for a VIP)
 local SPEEDING_FOR = 2 -- s of speeding before it counts
@@ -197,7 +198,7 @@ end
 local function board(a, id)
 	a.phase, a.stillFor = "toDestination", 0
 	a.taxiId, a.damageStart = id, damageOf(id)
-	a.jolts, a.joltAt, a.lastVel, a.rough = 0, -math.huge, nil, false
+	a.jolts, a.joltAt, a.lastVel, a.velFor, a.rough = 0, -math.huge, nil, 0, false
 	a.speeding, a.speedingFor = 0, 0
 	U.toast("info", "Passenger in: drive to " .. a.job.dest.name, 6)
 end
@@ -218,19 +219,25 @@ local function watchSpeed(a, taxi, dt)
 	end
 end
 
--- A jolt: the taxi's speed changed faster than JOLT_ACCEL since the last check.
+-- A jolt: the taxi's speed changed faster than JOLT_ACCEL over the last JOLT_WINDOW s.
 local function watchJolts(a, taxi, dt)
 	local v = type(taxi.getVelocity) == "function" and U.vecOf(taxi:getVelocity())
 	if not v then
 		return
 	end
 	local last = a.lastVel
-	a.lastVel = v
-	if not last or dt <= 0 then
+	if not last then
+		a.lastVel, a.velFor = v, 0
 		return
 	end
+	a.velFor = (a.velFor or 0) + dt
+	if a.velFor < JOLT_WINDOW then
+		return
+	end
+	local span = a.velFor
+	a.lastVel, a.velFor = v, 0
 	local dx, dy, dz = v.x - last.x, v.y - last.y, v.z - last.z
-	if math.sqrt(dx * dx + dy * dy + dz * dz) / dt > JOLT_ACCEL and clock - a.joltAt >= JOLT_GAP then
+	if math.sqrt(dx * dx + dy * dy + dz * dz) / span > JOLT_ACCEL and clock - a.joltAt >= JOLT_GAP then
 		a.jolts, a.joltAt = a.jolts + 1, clock
 		U.toast("warning", "Drive smoother!", 3)
 	end

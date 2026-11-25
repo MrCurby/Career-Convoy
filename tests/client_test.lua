@@ -5287,6 +5287,14 @@ check(
 		st.active.step == 1 and paths[#paths].x == 4000 and lastToastMsg() == "Passenger in: drive to Belasco Auto",
 		"stopped next to them in a car: they get in, the route leads to the place"
 	)
+	-- a bumpy road: the taxi shakes from frame to frame, but that is no jolt
+	for i = 1, 40 do
+		me.v = { x = 0, y = 0, z = (i % 2 == 0) and 1.5 or -1.5 }
+		update(0.02)
+	end
+	me.v = { x = 0, y = 0, z = 0 }
+	update(0.02)
+	check(jobs.getActive().jolts == 0, "a bumpy road: no jolt")
 	-- a hard stop is a jolt: once, not again right after
 	me.v = { x = 15, y = 0, z = 0 }
 	update(0.3)
