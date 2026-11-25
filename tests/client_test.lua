@@ -5522,9 +5522,17 @@ check(
 	sharedCareer_speedLimit.uiRequest() -- the window opens: it asks for the sign
 	wait(1)
 	check(
-		sign().limit == 70 and sign().unit == "km/h" and sign().over == false,
-		"on the road: its limit (20 m/s) in km/h, rounded to 5"
+		sign().limit == 70 and sign().unit == "km/h" and sign().over == false and sign().taxi == false,
+		"on the road: its limit (20 m/s) in km/h, rounded to 5; no taxi ride"
 	)
+	local getActive = jobs.getActive
+	jobs.getActive = function()
+		return { type = "taxi" }
+	end
+	wait(1)
+	check(sign().taxi == true, "on a taxi ride: the sign knows (the player may show it only then)")
+	jobs.getActive = getActive
+	wait(1)
 	local count = #signs
 	wait(2)
 	check(#signs == count, "nothing changed: nothing sent")

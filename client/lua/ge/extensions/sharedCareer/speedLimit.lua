@@ -6,10 +6,13 @@
 --
 -- The sign is the UI app ui/modules/apps/SharedCareer-SpeedLimit/ (cleanup.lua adds it to the
 -- career layout once, bottom right). Every CHECK_EVERY s while you drive a vehicle (not on foot)
--- this sends it guihook SharedCareerSpeedLimit {limit, unit, over}, only when something changed:
+-- this sends it guihook SharedCareerSpeedLimit {limit, unit, over, taxi}, only when something changed:
 --   limit  the limit in the unit of the game's speedometer, rounded to 5 (nil: no sign)
 --   unit   "km/h" or "mph", by the game's setting for units (uiUnitLength: metric / imperial)
 --   over   you drive faster than the limit x TOLERANCE (the sign warns; a taxi ride loses pay)
+--   taxi   your job is a taxi ride (the player can show the sign only then: phone, Settings)
+-- Whether the sign shows at all is the player's choice (phone, Settings: off, taxi rides, always)
+-- and is kept by the window.
 
 local M = {}
 
@@ -22,7 +25,7 @@ local MS_TO = { ["km/h"] = 3.6, mph = 2.23694 } -- m/s in each unit
 M.TOLERANCE = 1.15 -- faster than the limit x this is speeding
 
 local since = 0
-local shown = nil -- what the sign shows: "limit|unit|over"
+local shown = nil -- what the sign shows: "limit|unit|over|taxi"
 
 --- The speed limit (m/s) of the road at p ({x, y, z}), or nil (off the road, or a road without one).
 function M.limitAt(p)
@@ -61,10 +64,13 @@ local function signNow()
 	local unit = M.unit()
 	local v = type(veh.getVelocity) == "function" and U.vecOf(veh:getVelocity())
 	local speed = v and math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z) or 0
+	local jobs = U.ext("sharedCareer_jobs")
+	local job = jobs and type(jobs.getActive) == "function" and jobs.getActive() or nil
 	return {
 		limit = math.floor(limit * MS_TO[unit] / 5 + 0.5) * 5,
 		unit = unit,
 		over = speed > limit * M.TOLERANCE,
+		taxi = type(job) == "table" and job.type == "taxi",
 	}
 end
 
@@ -78,7 +84,13 @@ function M.onUpdate(dtReal)
 	if not ok then
 		sign = {}
 	end
-	local key = tostring(sign.limit) .. "|" .. tostring(sign.unit) .. "|" .. tostring(sign.over)
+	local key = tostring(sign.limit)
+		.. "|"
+		.. tostring(sign.unit)
+		.. "|"
+		.. tostring(sign.over)
+		.. "|"
+		.. tostring(sign.taxi)
 	if key ~= shown and guihooks and type(guihooks.trigger) == "function" then
 		shown = key
 		guihooks.trigger("SharedCareerSpeedLimit", sign)

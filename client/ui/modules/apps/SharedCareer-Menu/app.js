@@ -62,11 +62,13 @@ sharedCareerMenuApp.controller('SharedCareerMenu', ['$scope', '$element', functi
 	}
 
 	// Menu and phone sit at the right edge: when one opens, the other one closes
-	// (window event "sharedCareerPanelOpen").
+	// (window event "sharedCareerPanelOpen"). Every change is announced (window event
+	// "sharedCareerMenuShown", true = open): the speed limit sign hides while the menu is open.
 	function setCollapsed(value) {
 		$scope.collapsed = value;
 		try { window.localStorage.setItem(STORAGE_KEY, value ? "1" : "0"); } catch (e) {}
 		reportVisible(!value);
+		try { window.dispatchEvent(new CustomEvent("sharedCareerMenuShown", {detail: !value})); } catch (e) {}
 		if (!value) {
 			try { window.dispatchEvent(new CustomEvent("sharedCareerPanelOpen", {detail: "menu"})); } catch (e) {}
 		}
