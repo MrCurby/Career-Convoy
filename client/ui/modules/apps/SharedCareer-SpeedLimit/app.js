@@ -6,9 +6,10 @@
 // When it shows is the player's choice in the phone's Settings app: "off" (the default), "taxi"
 // (only on a taxi ride) or "always"; the phone keeps it in localStorage (SIGN_KEY) and announces a
 // change with the window event "sharedCareerSpeedSign". The unit too: "game" (the game's setting,
-// the default), "kmh" or "mph" (UNIT_KEY, window event "sharedCareerSpeedUnit"). While the SharedCareer menu is open the
-// sign is hidden, so it never covers the menu: the menu keeps its state in localStorage
-// (MENU_KEY, "1" = collapsed) and announces a change with the window event "sharedCareerMenuShown".
+// the default), "kmh" or "mph" (UNIT_KEY, window event "sharedCareerSpeedUnit"). While the
+// SharedCareer menu is open the sign and its whole frame are hidden, so it never covers the menu or
+// blocks its buttons: the menu keeps its state in localStorage (MENU_KEY, "1" = collapsed) and
+// announces a change with the window event "sharedCareerMenuShown".
 //
 // Note: only var/function at the top level – the game evaluates app.js again in the same scope
 // when the apps are reloaded.
@@ -24,7 +25,7 @@ sharedCareerSpeedLimitApp.directive('sharedCareerSpeedLimit', [function () {
 	};
 }]);
 
-sharedCareerSpeedLimitApp.controller('SharedCareerSpeedLimit', ['$scope', function ($scope) {
+sharedCareerSpeedLimitApp.controller('SharedCareerSpeedLimit', ['$scope', '$element', function ($scope, $element) {
 	var SIGN_KEY = 'sharedCareerSpeedSign'; // kept by the phone (SharedCareer-Phone/app.js)
 	var UNIT_KEY = 'sharedCareerSpeedUnit'; // kept by the phone
 	var MENU_KEY = 'sharedCareerMenuCollapsed'; // kept by the menu (SharedCareer-Menu/app.js)
@@ -60,8 +61,31 @@ sharedCareerSpeedLimitApp.controller('SharedCareerSpeedLimit', ['$scope', functi
 		$scope.$evalAsync(function () { $scope.unitChoice = ev && ev.detail ? ev.detail : 'game'; });
 	}
 	function onMenu(ev) {
-		$scope.$evalAsync(function () { $scope.menuOpen = !!(ev && ev.detail); });
+		$scope.$evalAsync(function () {
+			$scope.menuOpen = !!(ev && ev.detail);
+			hideFrame($scope.menuOpen);
+		});
 	}
+	// BeamNG's frame around an app catches clicks over its whole area, even with the sign hidden.
+	// So while the menu is open the whole frame is made invisible (invisible elements take no
+	// clicks): a sign placed over the menu then never blocks its buttons. The frame is the part
+	// around the sign that stands next to the menu's frame (below the element both share).
+	function frame() {
+		var menu = document.querySelector('.scMenu:not(.scm-dialog-host)');
+		if (!menu) return null;
+		for (var el = $element[0]; el.parentElement; el = el.parentElement) {
+			if (el.parentElement.contains(menu)) return el;
+		}
+		return null;
+	}
+	function hideFrame(hidden) {
+		try {
+			var el = frame();
+			if (el) el.style.visibility = hidden ? 'hidden' : '';
+		} catch (e) {}
+	}
+	// at start, once the apps are linked (the menu may come after the sign)
+	setTimeout(function () { if (!$scope.$$destroyed) hideFrame($scope.menuOpen); }, 500);
 	window.addEventListener('sharedCareerSpeedSign', onMode);
 	window.addEventListener('sharedCareerSpeedUnit', onUnit);
 	window.addEventListener('sharedCareerMenuShown', onMenu);
@@ -69,6 +93,7 @@ sharedCareerSpeedLimitApp.controller('SharedCareerSpeedLimit', ['$scope', functi
 		window.removeEventListener('sharedCareerSpeedSign', onMode);
 		window.removeEventListener('sharedCareerSpeedUnit', onUnit);
 		window.removeEventListener('sharedCareerMenuShown', onMenu);
+		hideFrame(false);
 	});
 	// the sign as it is now (Lua sends it only when it changes)
 	bngApi.engineLua('if sharedCareer_speedLimit then sharedCareer_speedLimit.uiRequest() end');
