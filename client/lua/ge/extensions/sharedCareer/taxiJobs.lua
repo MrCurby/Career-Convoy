@@ -29,6 +29,12 @@
 --     3. you in the taxi, standing still in the drop-off zone (DROP_RADIUS m around the place's
 --        doors) for DROP_STILL s: handed over (jobs.handOver), with a tip for 4 or 5 stars (TIPS)
 --   No vehicle is spawned: the passenger is a marker, nothing to clean up when the job ends.
+--   Calls: with "On duty" on (the switch on the taxi page of the Jobs app; off on every join), the
+--   nearest open ride within CALL_RANGE m rings the phone (phone.ring) while you drive a vehicle,
+--   own the Taxi License and have no job. "Accept" takes it. Not nagging: after a call that wasn't
+--   taken the next one waits CALL_PAUSE s (and that ride doesn't call again), after a ride
+--   CALL_AFTER_RIDE s; MISSED_MAX calls missed in a row put you off duty. A call whose ride someone
+--   else took hangs up.
 
 local M = {}
 
@@ -59,6 +65,12 @@ local STARS = { { 5, 0.01 }, { 4, 0.1 }, { 3, 0.2 }, { 2, 0.35 } } -- else 1 sta
 local TIPS = { [5] = 0.15, [4] = 0.05 }
 local TIPS_VIP = { [5] = 0.25, [4] = 0.1 }
 local MARKER_COLOR = { 1, 0.82, 0.1 } -- taxi yellow
+local CALL_CHECK = 2 -- s between two looks for a ride to call about
+local CALL_RANGE = 2000 -- m (straight line): rides closer than this call
+local CALL_FIRST = 3 -- s after going on duty before the first call
+local CALL_PAUSE = 45 -- s after a call that wasn't taken before the next one
+local CALL_AFTER_RIDE = 20 -- s after a ride before the next call
+local MISSED_MAX = 2 -- calls missed in a row: off duty
 -- the tiers: how far to the place (m), how often a VIP, the pay
 local TIERS = {
 	{ destMin = 600, destMax = 2000, vip = 0, pay = 1 },
@@ -75,6 +87,11 @@ M.deduction = "rough ride"
 M.steps = { "Pick up", "Drive", "Paid" }
 
 local clock = 0
+local onDuty = false
+local calling = nil -- the ride that rings the phone: its job id
+local nextCallAt, sinceCallCheck = 0, 0
+local missed = 0 -- calls missed in a row
+local declined = {} -- job ids that called and weren't taken: they don't call again
 
 --== Making up a job =============================================================
 
@@ -325,7 +342,9 @@ function M.status(a)
 	}
 end
 
-function M.stop() end
+function M.stop()
+	nextCallAt = math.max(nextCallAt, clock + CALL_AFTER_RIDE)
+end
 
 -- a reset (R) of the taxi during the ride: a rough ride
 function M.vehicleReset(a, id)
@@ -344,10 +363,136 @@ function M.draw(a)
 	end
 end
 
+--== Calls (on duty) ================================================================
+
+local function callId(jobId)
+	return "taxi-" .. tostring(jobId)
+end
+
+function M.isOnDuty()
+	return onDuty
+end
+
+--- The "On duty" switch: while on, rides nearby call you.
+function M.setOnDuty(on)
+	if on == onDuty then
+		return
+	end
+	onDuty, missed = on, 0
+	if on then
+		nextCallAt = clock + CALL_FIRST
+		U.toast("info", "On duty: rides will call you", 4)
+	else
+		local phone = U.ext("sharedCareer_phone")
+		if calling and phone then
+			phone.hangUp(callId(calling))
+		end
+		calling = nil
+		U.toast("info", "Off duty", 3)
+	end
+end
+
+local function distText(m)
+	return m < 1000 and string.format("%d m", math.floor(m / 10 + 0.5) * 10) or string.format("%.1f km", m / 1000)
+end
+
+-- The nearest ride you could take now that hasn't called before, within CALL_RANGE m, or nil.
+local function rideToCall(me)
+	local best, bestD = nil, CALL_RANGE
+	for _, job in ipairs(J.openJobsOf(M.id)) do
+		local p = type(job.pos) == "table" and U.vecOf(job.pos)
+		local d = p and J.dist2D(me, p)
+		if d and d <= bestD and not declined[job.id] then
+			best, bestD = job, d
+		end
+	end
+	return best, bestD
+end
+
+-- How a call ended: taken, declined or missed.
+local function answered(job, accepted, wasMissed)
+	calling = nil
+	if accepted then
+		missed = 0
+		J.uiTake(job.id)
+		return
+	end
+	declined[job.id] = true
+	nextCallAt = clock + CALL_PAUSE
+	missed = wasMissed and missed + 1 or 0
+	if missed >= MISSED_MAX then
+		onDuty, missed = false, 0
+		U.toast("warning", "Off duty: calls missed", 5)
+		J.refreshApp()
+	end
+end
+
+-- A look for a ride to call about (every CALL_CHECK s while on duty).
+local function checkCalls()
+	local phone = U.ext("sharedCareer_phone")
+	if calling then
+		-- the ride is gone (someone else took it), or you took a job yourself: hang up
+		local stillOpen = false
+		for _, job in ipairs(J.openJobsOf(M.id)) do
+			stillOpen = stillOpen or job.id == calling
+		end
+		if not stillOpen or J.getActive() then
+			phone.hangUp(callId(calling))
+			calling = nil
+			nextCallAt = clock + CALL_CHECK
+		end
+		return
+	end
+	local lic = U.ext("sharedCareer_licenses")
+	if clock < nextCallAt or J.getActive() or not U.careerActive() or not (lic and lic.has("taxi")) then
+		return
+	end
+	local veh = myVehicle()
+	local me = veh and U.vecOf(veh:getPosition())
+	if not me then
+		return
+	end
+	local job, d = rideToCall(me)
+	if not job then
+		return
+	end
+	local rang = phone
+		and phone.ring({
+			id = callId(job.id),
+			title = "Ride request",
+			text = "To " .. tostring(job.dest and job.dest.name or "?"),
+			detail = distText(d) .. " away · $" .. math.floor(tonumber(job.pay) or 0),
+			icon = M.icon,
+			open = { app = "jobs", page = M.id },
+			onAnswer = function(accepted, wasMissed)
+				answered(job, accepted, wasMissed)
+			end,
+		})
+	if rang then
+		calling = job.id
+	end
+end
+
 --== Hooks =======================================================================
 
 function M.onUpdate(dtReal)
-	clock = clock + (tonumber(dtReal) or 0)
+	local dt = tonumber(dtReal) or 0
+	clock = clock + dt
+	if not onDuty then
+		return
+	end
+	sinceCallCheck = sinceCallCheck + dt
+	if sinceCallCheck >= CALL_CHECK then
+		sinceCallCheck = 0
+		local ok, err = pcall(checkCalls)
+		if not ok then
+			U.log("E", "jobs", "taxi call failed: " .. tostring(err))
+		end
+	end
+end
+
+function M.onBeamMPServerLeave()
+	onDuty, calling, missed, declined = false, nil, 0, {}
 end
 
 function M.onExtensionLoaded()

@@ -330,6 +330,40 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 	phone.openJobs();
 	check(phone.currentApp && phone.currentApp.id === 'jobs' && !phone.currentApp.beta, 'the job strip opens the Jobs app without a beta marker');
 	phone.goHome();
+	// the "On duty" switch of a job type (taxi): shown only for a job type that has one
+	phone.emit('SharedCareerJobs', {enabled: true, sections: [{type: 'tow', open: 0, groups: []},
+		{type: 'taxi', name: 'Taxi', icon: 'taxi', open: 1, duty: false, groups: []}], licenses: {}});
+	check(phone.jobDuty('taxi') === false && phone.jobDuty('tow') === null, 'the switch: off for taxi, none for towing');
+	phone.openApp({id: 'jobs', title: 'Jobs'});
+	phone.openJobType({id: 'taxi'});
+	env.calls.length = 0;
+	phone.setDuty(true);
+	check(env.calls.some(c => c.indexOf('sharedCareer_jobs.uiDuty("taxi", true)') >= 0), '"On duty" goes to Lua');
+	phone.goHome();
+	// a call: the phone comes out, "Decline" puts it away again
+	if (phone.open) phone.toggle();
+	check(!phone.open, 'phone away');
+	const ride = {id: 'taxi-7', title: 'Ride request', text: 'To Belasco Auto', detail: '600 m away · $300', icon: 'taxi',
+		seconds: 15, open: {app: 'jobs', page: 'taxi'}};
+	phone.emit('SharedCareerPhoneCall', {call: ride});
+	check(phone.open && phone.call && phone.call.title === 'Ride request', 'a call: the phone comes out and shows it');
+	env.calls.length = 0;
+	phone.answerCall(false);
+	check(!phone.open && phone.call === null && env.calls.some(c => c.indexOf('sharedCareer_phone.uiAnswer(false)') >= 0),
+		'"Decline": Lua hears it, the phone goes away again');
+	phone.emit('SharedCareerPhoneCall', {call: ride});
+	phone.emit('SharedCareerPhoneCall', {});
+	check(!phone.open && phone.call === null, 'rang out (or hung up): the phone goes away again');
+	phone.emit('SharedCareerPhoneCall', {call: ride});
+	env.calls.length = 0;
+	phone.answerCall(true);
+	check(phone.open && phone.currentApp && phone.currentApp.id === 'jobs' && phone.jobsType === 'taxi'
+		&& env.calls.some(c => c.indexOf('sharedCareer_phone.uiAnswer(true)') >= 0),
+		'"Accept": the phone stays out on the taxi page');
+	phone.emit('SharedCareerPhoneCall', {});
+	check(phone.open && phone.jobsType === 'taxi', 'Lua ends the call after "Accept": the page stays');
+	phone.goHome();
+	if (phone.open) phone.toggle();
 	phone.destroy();
 	check(last(env, 'phone') === false && last(env, 'fuel') === false, 'phone window removed: not visible');
 }

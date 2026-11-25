@@ -34,6 +34,8 @@
 --   stop(a)          the job ends here (paid, given up, taken away, no answer): clean up
 --   draw(a)          optional, every frame: markers in the world
 --   vehicleReset(a, id)  optional: a vehicle was reset (R)
+--   isOnDuty(), setOnDuty(on)  optional: an "On duty" switch on its page in the Jobs app (taxi:
+--                    while on duty, rides nearby call you); openJobsOf gives it the jobs to call about
 -- (Not named like the game's hooks – onUpdate, onVehicleResetted, ... – the game calls those on
 -- every extension.)
 --
@@ -336,6 +338,20 @@ function M.sendToVehicle(id, cmd)
 	if veh and type(veh.queueLuaCommand) == "function" then
 		veh:queueLuaCommand("if sharedCareerVeh then " .. cmd .. " end")
 	end
+end
+
+--- The jobs of a job type you could take now: open, not locked by your level, as the server sent them.
+function M.openJobsOf(kind)
+	local out = {}
+	if not enabled then
+		return out
+	end
+	for _, job in ipairs(list) do
+		if job.type == kind and job.state == "open" and job.locked ~= true then
+			table.insert(out, job)
+		end
+	end
+	return out
 end
 
 local function serverAllows()
@@ -730,8 +746,18 @@ function M.appState()
 	local function section(id)
 		if not byType[id] then
 			local t = types[id]
-			byType[id] =
-				{ type = id, name = t and t.name or id, icon = t and t.icon or "?", level = levelForApp(id), jobs = {} }
+			local duty = nil -- a job type without the switch: none in the app
+			if t and t.isOnDuty then
+				duty = t.isOnDuty() == true
+			end
+			byType[id] = {
+				type = id,
+				name = t and t.name or id,
+				icon = t and t.icon or "?",
+				level = levelForApp(id),
+				duty = duty,
+				jobs = {},
+			}
 			table.insert(order, id)
 		end
 		return byType[id]
@@ -877,6 +903,15 @@ end
 
 function M.uiRequest()
 	pushApp()
+end
+
+--- The "On duty" switch of a job type's page.
+function M.uiDuty(kind, on)
+	local t = types[kind]
+	if t and t.setOnDuty then
+		t.setOnDuty(on == true)
+		pushApp()
+	end
 end
 
 --- Something the app shows changed elsewhere (licenses.lua: a license bought).

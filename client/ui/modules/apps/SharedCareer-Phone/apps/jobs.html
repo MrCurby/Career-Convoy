@@ -23,6 +23,7 @@
 							ng-bind="jobTypeText(t)"></span></span>
 					<span class="scp-jobtype-pill" ng-if="jobTypeLevel(t.id)"
 						ng-bind="'Level ' + jobTypeLevel(t.id).level"></span>
+					<span class="scp-jobtype-pill scp-jobtype-pill-duty" ng-if="jobDuty(t.id)">On duty</span>
 				</span>
 			</span>
 			<span class="scp-jobtype-go"><svg aria-hidden="true"><use
@@ -44,6 +45,16 @@
 					class="scp-btn-svg"><svg aria-hidden="true"><use
 							href="#sc-icon-route" /></svg></span>Route</button>
 		</div>
+
+		<!-- the job type's "On duty" switch (taxi: while on, rides nearby call you) -->
+		<button class="scp-duty" ng-if="jobs.enabled && jobDuty() !== null && !jobLicenseMissing()"
+			ng-class="{'scp-duty-on': jobDuty()}" ng-click="setDuty(!jobDuty())">
+			<span class="scp-duty-text">
+				<b ng-bind="jobDuty() ? 'On duty' : 'Off duty'"></b>
+				<span ng-bind="jobDuty() ? 'Rides nearby call you.' : 'Go on duty for calls.'"></span>
+			</span>
+			<span class="scp-switch"><i></i></span>
+		</button>
 
 		<!-- your job -->
 		<div class="scp-myjob" ng-if="jobsActiveIn()">

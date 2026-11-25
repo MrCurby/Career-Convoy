@@ -122,6 +122,21 @@
 					</div>
 				</div>
 
+				<!-- an incoming call (phone.lua ring), over everything until it is answered or rings out:
+				     the bar runs down while it rings -->
+				<div class="scp-call" ng-if="call">
+					<span class="scp-call-icon"><svg ng-if="hasIcon(call.icon)"
+							aria-hidden="true"><use ng-attr-href="{{ '#sc-icon-' + call.icon }}" /></svg></span>
+					<div class="scp-call-title" ng-bind="call.title"></div>
+					<div class="scp-call-text" ng-if="call.text" ng-bind="call.text"></div>
+					<div class="scp-call-detail" ng-if="call.detail" ng-bind="call.detail"></div>
+					<div class="scp-call-timer"><i ng-style="{'animation-duration': call.seconds + 's'}"></i></div>
+					<div class="scp-call-buttons">
+						<button class="scp-call-btn scp-call-decline" ng-click="answerCall(false)">Decline</button>
+						<button class="scp-call-btn scp-call-accept" ng-click="answerCall(true)">Accept</button>
+					</div>
+				</div>
+
 				<!-- home bar: back to the home screen; on the home screen it puts the phone away -->
 				<div class="scp-homebar" ng-click="homeBar()"
 					title="{{ currentApp ? 'Home' : 'Put the phone away' }}"><i></i></div>

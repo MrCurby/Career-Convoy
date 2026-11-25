@@ -5370,6 +5370,117 @@ check(
 			and taxi.penalty({ job = { data = {} }, jolts = 30 }) == 0.5,
 		"a VIP: jolts and speeding cost twice as much; a reset costs half; never more than half"
 	)
+
+	-- calls: only while on duty, the nearest ride rings the phone; not nagging
+	local phone = sharedCareer_phone
+	local rings = {} -- what the phone window got: a call, or false when it ended
+	local trigger0 = guihooks.trigger
+	guihooks.trigger = function(name, data)
+		if name == "SharedCareerPhoneCall" then
+			table.insert(rings, data.call or false)
+		end
+		return trigger0(name, data)
+	end
+	local function wait(seconds)
+		for _ = 1, math.floor(seconds / 0.5 + 0.5) do
+			update(0.5)
+		end
+	end
+	local function lastRing()
+		return rings[#rings]
+	end
+	local function rideAt(id, x)
+		return {
+			id = id,
+			type = "taxi",
+			title = "Passenger",
+			pos = { x = x, y = -5.8, z = 10 },
+			dest = { name = "Belasco Auto", pos = doors.belasco },
+			length = 2000,
+			pay = 300,
+			data = { vip = false },
+			state = "open",
+		}
+	end
+	local function listRides(...)
+		handlers.sc_jobs(json.encode({
+			enabled = true,
+			jobs = { ... },
+			levels = { taxi = { level = 1, xp = 0, from = 0, to = 100 } },
+		}))
+	end
+	wait(8)
+	handlers.sc_licenses(json.encode({
+		list = { { id = "taxi", name = "Taxi License", price = 5000, jobType = "taxi", owned = true } },
+	}))
+	me.p = { x = 2000, y = -2, z = 10 }
+	listRides(rideAt(41, 2600), rideAt(42, 4500))
+	local function taxiSection()
+		for _, sec in ipairs(jobs.appState().sections) do
+			if sec.type == "taxi" then
+				return sec
+			end
+		end
+	end
+	wait(6)
+	check(
+		jobs.getActive() == nil and #rings == 0 and taxiSection().duty == false and not taxi.isOnDuty(),
+		"off duty (on every join): no calls; the app shows the switch off"
+	)
+	jobs.uiDuty("taxi", true)
+	check(
+		taxiSection().duty == true and lastToastMsg() == "On duty: rides will call you",
+		'"On duty": the switch is on'
+	)
+	wait(4)
+	local ring = lastRing()
+	check(
+		ring
+			and ring.title == "Ride request"
+			and ring.text == "To Belasco Auto"
+			and ring.detail == "600 m away · $300"
+			and ring.icon == "taxi"
+			and ring.open.app == "jobs"
+			and ring.open.page == "taxi"
+			and phone.ringing(),
+		"on duty: the nearest ride rings the phone (the one 2.5 km away doesn't)"
+	)
+	phone.uiAnswer(false)
+	local ringsAfter = #rings
+	wait(60)
+	check(
+		lastRing() == false and #rings == ringsAfter,
+		"declined: the call ends; that ride doesn't call again, and nothing else is near"
+	)
+	me.p = { x = 4000, y = -2, z = 10 }
+	wait(4)
+	check(lastRing() and lastRing().text == "To Belasco Auto" and phone.ringing(), "nearer to another ride: it calls")
+	wait(16)
+	check(lastRing() == false and not phone.ringing() and taxi.isOnDuty(), "not answered: it rings out, still on duty")
+	listRides(rideAt(41, 2600), rideAt(42, 4500), rideAt(43, 3600))
+	wait(30)
+	check(lastRing() == false, "after a missed call: a pause before the next")
+	wait(20)
+	check(lastRing() and phone.ringing(), "after the pause: the next ride calls")
+	wait(16)
+	check(
+		not taxi.isOnDuty() and lastToastMsg() == "Off duty: calls missed" and taxiSection().duty == false,
+		"two calls missed in a row: off duty"
+	)
+	jobs.uiDuty("taxi", true)
+	listRides(rideAt(44, 4300))
+	wait(4)
+	check(phone.ringing(), "on duty again: a new ride calls")
+	listRides()
+	wait(3)
+	check(lastRing() == false and not phone.ringing(), "someone else took the ride: the call hangs up")
+	listRides(rideAt(45, 4200))
+	wait(4)
+	phone.uiAnswer(true)
+	check(lastSent("sc_jobTake").id == 45 and lastRing() == false, '"Accept": the ride is taken')
+	jobs.uiDuty("taxi", false)
+	check(not taxi.isOnDuty() and lastToastMsg() == "Off duty", "switched off: off duty")
+	guihooks.trigger = trigger0
 	jobs.onBeamMPServerLeave()
 	_G.map, _G.freeroam_facilities, _G.jsonReadFile, _G.util_configListGenerator, _G.core_groundMarkers =
 		nil, nil, nil, nil, nil
