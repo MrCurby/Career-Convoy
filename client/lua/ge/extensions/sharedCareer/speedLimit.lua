@@ -70,7 +70,7 @@ local function signNow()
 		limit = math.floor(limit * MS_TO[unit] / 5 + 0.5) * 5,
 		unit = unit,
 		over = speed > limit * M.TOLERANCE,
-		taxi = type(job) == "table" and job.type == "taxi",
+		taxi = type(job) == "table" and type(job.type) == "table" and job.type.id == "taxi" and not job.paidAt,
 	}
 end
 

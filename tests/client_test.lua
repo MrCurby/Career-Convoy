@@ -5305,6 +5305,19 @@ check(
 	)
 	-- speeding: on the road (limit 20 m/s), more than 15 % over it for 2 s; again after 10 s more
 	me.p = { x = 2500, y = -2, z = 10 }
+	-- the speed limit sign learns that this is a taxi ride (the player may show it only then)
+	local rideSign
+	local trigger1 = guihooks.trigger
+	guihooks.trigger = function(name, data)
+		if name == "SharedCareerSpeedLimit" then
+			rideSign = data
+		end
+		return trigger1(name, data)
+	end
+	sharedCareer_speedLimit.uiRequest()
+	update(0.3)
+	guihooks.trigger = trigger1
+	check(rideSign and rideSign.limit and rideSign.taxi == true, "on a taxi ride: the speed limit sign knows it")
 	local function speedTo(v)
 		while math.abs(me.v.x - v) > 1e-9 do
 			me.v = { x = me.v.x + math.max(-1.5, math.min(1.5, v - me.v.x)), y = 0, z = 0 }
@@ -5525,14 +5538,6 @@ check(
 		sign().limit == 70 and sign().unit == "km/h" and sign().over == false and sign().taxi == false,
 		"on the road: its limit (20 m/s) in km/h, rounded to 5; no taxi ride"
 	)
-	local getActive = jobs.getActive
-	jobs.getActive = function()
-		return { type = "taxi" }
-	end
-	wait(1)
-	check(sign().taxi == true, "on a taxi ride: the sign knows (the player may show it only then)")
-	jobs.getActive = getActive
-	wait(1)
 	local count = #signs
 	wait(2)
 	check(#signs == count, "nothing changed: nothing sent")
