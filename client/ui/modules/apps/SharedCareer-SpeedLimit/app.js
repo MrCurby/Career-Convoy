@@ -78,14 +78,20 @@ sharedCareerSpeedLimitApp.controller('SharedCareerSpeedLimit', ['$scope', '$elem
 		}
 		return null;
 	}
+	// returns whether the frame was found
 	function hideFrame(hidden) {
 		try {
 			var el = frame();
 			if (el) el.style.visibility = hidden ? 'hidden' : '';
-		} catch (e) {}
+			return !!el;
+		} catch (e) { return false; }
 	}
-	// at start, once the apps are linked (the menu may come after the sign)
-	setTimeout(function () { if (!$scope.$$destroyed) hideFrame($scope.menuOpen); }, 500);
+	// at start: once the menu is there too (it may load after the sign), for at most 10 s
+	var tries = 0;
+	var startTimer = setInterval(function () {
+		tries++;
+		if ($scope.$$destroyed || hideFrame($scope.menuOpen) || tries >= 20) clearInterval(startTimer);
+	}, 500);
 	window.addEventListener('sharedCareerSpeedSign', onMode);
 	window.addEventListener('sharedCareerSpeedUnit', onUnit);
 	window.addEventListener('sharedCareerMenuShown', onMenu);
@@ -93,6 +99,7 @@ sharedCareerSpeedLimitApp.controller('SharedCareerSpeedLimit', ['$scope', '$elem
 		window.removeEventListener('sharedCareerSpeedSign', onMode);
 		window.removeEventListener('sharedCareerSpeedUnit', onUnit);
 		window.removeEventListener('sharedCareerMenuShown', onMenu);
+		clearInterval(startTimer);
 		hideFrame(false);
 	});
 	// the sign as it is now (Lua sends it only when it changes)
