@@ -184,7 +184,7 @@ With a rope on, everything is on one screen: at the top the rope itself – your
 
 **Towing with another vehicle:** the anchor can go onto any of your vehicles, at any point. Move it close to one: a **ring** shows where it would hook on, with a dashed line from the anchor. It is **green** on a tow hitch and **white** elsewhere. Tow hitches within a few meters show as faint green rings, so you can find them. Then tap **Hook on**; nothing hooks on by itself. The anchor now moves with that vehicle: drive off to tow, or stand still and haul in like a tow truck. **Unhook** leaves the anchor where it is, and you can move it again. Drive off gently, because a hard jolt can snap the rope.
 
-**Loading it onto a tow truck:** hook the anchor onto the truck, haul the car up onto it and tap **Stop**. Once the rope is short (3 m or less), a yellow **Strap down** button appears below the anchor. It straps the car down onto that truck, the same as in the Straps app, without aiming. Afterwards the Straps app offers **Remove rope**, so you can take the rope off there.
+**Loading it onto a tow truck:** hook the anchor onto the truck, haul the car up onto it and tap **Stop**. Once the rope is short (3 m or less), a **Strap down** button appears below the anchor. It straps the car down onto that truck, the same as in the Straps app, without aiming. Afterwards the Straps app offers **Remove rope**, so you can take the rope off there.
 
 The ring picks a tow hitch within 0.7 m first, otherwise the nearest sturdy point within 0.5 m. Light parts like mirrors, glass or thin panels are passed over if a sturdy point is in reach, because the rope would only tear them off.
 

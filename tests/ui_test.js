@@ -165,6 +165,13 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 	check(phone.fuel && phone.fuel.stations.length === 1, 'fuel = false (app closed): the last list stays');
 	phone.emit('SharedCareerState', {hour: 11, connected: true});
 	check(phone.fuel === null && phone.time === 11, 'no fuel (map without stations): empty list; time updated');
+	// the hint "Green: cheaper after a delivery" only while a station is cheaper
+	check(!phone.fuelDiscounted(), 'no stations: no hint about green prices');
+	phone.emit('SharedCareerState', {hour: 11, connected: true, fuel: {stations: [{id: 'a', fuels: {gasoline: {price: 1.6}}}]}});
+	const noDiscount = phone.fuelDiscounted();
+	phone.emit('SharedCareerState', {hour: 11, connected: true, fuel: {stations: [{id: 'a', fuels: {gasoline: {price: 1.6}}},
+		{id: 'b', fuels: {diesel: {price: 1.5, discount: 10}}}]}});
+	check(!noDiscount && phone.fuelDiscounted(), 'the hint about green prices only while a station is cheaper after a delivery');
 	// home screen: time until day / night with a bar
 	phone.emit('SharedCareerPhone', {enabled: true, apps: [{id: 'tow'}, {id: 'fuel'}]});
 	phone.emit('SharedCareerState', {hour: 13, isDay: true, secondsToSwitch: 1380, dayStart: 6, nightStart: 20, connected: true,
@@ -224,12 +231,15 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 	check(phone.segStyle(4).background && !phone.segStyle(5).background && phone.ropeState().text === 'OK',
 		'winch at half its limit: 5 of 10 segments; rope OK');
 	phone.emit('SharedCareerTow', {allowed: true, attached: true, slack: false, winch: 1, strain: 1, ropeLoad: 0.5});
-	check(phone.segStyle(9).background === '#ff3b30' && phone.ropeState().text === 'High load',
+	check(phone.segStyle(9).background === 'var(--scp-danger)' && phone.ropeState().text === 'High load',
 		'winch at its limit: all segments red; rope under high load');
 	phone.emit('SharedCareerTow', {allowed: true, attached: true, slack: false, winch: 0, strain: 0.2, ropeLoad: 0.8});
 	check(phone.ropeState().cls === 'scp-rope-critical', 'rope near breaking: the critical chip');
 	phone.emit('SharedCareerTow', {allowed: true, attached: true, slack: false, winch: -1, strain: 0, ropeLoad: 0.2});
 	check(phone.winchText() === 'Paying out' && !phone.segStyle(0).background, 'paying out: the winch gives way, no load shown');
+	phone.emit('SharedCareerTow', {allowed: true, attached: true, strengths: [50, 100], strength: 100});
+	check(phone.tow.strengthOptions.map(o => o.id + ':' + o.name).join() === '50:50%,100:100%',
+		'the strengths as options of the segment select');
 	phone.emit('SharedCareerTow', {allowed: true, attached: true, slack: true, winch: 0, strain: 0.3, ropeLoad: 0});
 	check(!phone.segStyle(0).background && phone.winchText() === 'Locked' && phone.ropeState().text === 'Slack',
 		'winch stopped: "Locked", empty segments; rope "Slack"');
@@ -451,17 +461,17 @@ if (process.argv[2]) {
 	// replace: true needs exactly one root element: nothing (not even a comment) before or after it
 	check(pages.every(h => /^<div\b/.test(h) && /<\/div>\s*$/.test(h)),
 		'menu and phone templates are one root <div>, nothing before or after it');
-	// every app screen is loaded into a .scp-appscreen slot, else it is not given a height and cannot scroll
-	const slots = [...pages[1].matchAll(/<div([^>]*)ng-include="'\/ui\/modules\/apps\/SharedCareer-Phone\/apps\//g)];
-	check(slots.length === 4 && slots.every(m => m[1].includes('class="scp-appscreen"')),
-		'phone.html: each app screen sits in a .scp-appscreen slot (so it scrolls)');
-	// the phone's remote (remote.html), in the Tow and Straps app templates
+	// every app screen is loaded into the .scp-appscreen slot, else it is not given a height and cannot scroll
+	check((pages[1].match(/ng-include="appScreen\(\)"/g) || []).length === 1
+		&& /<div class="scp-appscreen" ng-if="appScreen\(\)" ng-include="appScreen\(\)">/.test(pages[1]),
+		'phone.html: the app screens are loaded into one .scp-appscreen slot (so they scroll)');
+	// the phone's remote (shared/remote.html), in the Tow and Straps app templates
 	const phoneDir = 'client/ui/modules/apps/SharedCareer-Phone/';
 	const appTemplates = ['jobs', 'tow', 'straps', 'fuel'].map(name => read(phoneDir + 'apps/' + name + '.html'));
 	const phoneScript = read(phoneDir + 'app.js');
-	const remote = read(phoneDir + 'remote.html');
+	const remote = read(phoneDir + 'shared/remote.html');
 	const segmentSelect = read(phoneDir + 'shared/segment-select.html');
-	check((appTemplates.join('').match(/ng-include="'\/ui\/modules\/apps\/SharedCareer-Phone\/remote.html'"/g) || []).length === 2
+	check((appTemplates.join('').match(/ng-include="'\/ui\/modules\/apps\/SharedCareer-Phone\/shared\/remote.html'"/g) || []).length === 2
 		&& !appTemplates.join('').includes('scp-pad-key'), 'the Tow and Straps apps share one remote (remote.html)');
 	check(!appTemplates[0].includes('<scp-segment-select')
 		&& appTemplates[3].includes('<scp-segment-select options="fuelSorts" selected="fuelSort"')
@@ -476,7 +486,9 @@ if (process.argv[2]) {
 		&& appTemplates[0].includes('ng-click="licenseRoute()"'),
 		'Jobs app without the license: a bar with the route, the jobs greyed out, no "Take job"');
 	pages.push(remote, segmentSelect, ...appTemplates);
-	const used = pages.flatMap(h => [...h.matchAll(/href="#sc-icon-([a-z-]+)"/g)].map(m => m[1]));
+	// an icon by its name: <svg><use href="#sc-icon-car"/></svg> in the menu, <scp-icon name="car"> on the phone
+	const used = pages.flatMap(h => [...h.matchAll(/href="#sc-icon-([a-z-]+)"|<scp-icon[^>]*\sname="([a-z-]+)"/g)]
+		.map(m => m[1] || m[2]));
 	const missing = used.filter(n => !icons.includes(n));
 	check(used.length > 30 && missing.length === 0, 'every icon the apps use is in icons.svg ' + missing.join(','));
 	// no icon drawn inline in an app: an <svg> there only holds a <use> (the rope is a drawing, not an icon)
@@ -493,6 +505,15 @@ if (process.argv[2]) {
 	// in the window: an icon by name, text for a name without one ("T" of an app)
 	const env = makeEnv({});
 	const phone = load(...PHONE, env);
+	const screens = ['jobs', 'tow', 'straps', 'fuel'].map(id => { phone.openApp({id: id}); return phone.appScreen(); });
+	phone.openApp({id: 'radio'});
+	check(screens.every((s, i) => s === '/ui/modules/apps/SharedCareer-Phone/apps/' + ['jobs', 'tow', 'straps', 'fuel'][i] + '.html'
+		&& fs.existsSync(require('path').join(__dirname, '../client', s))) && phone.appScreen() === null,
+		'the built-in apps load their screen (apps/<id>.html); an app without one gets none');
+	const icon = env.directives.scpIcon;
+	check(icon.template(null, {name: 'car'}) === '<svg class="scp-icon" aria-hidden="true"><use href="#sc-icon-car"/></svg>'
+		&& icon.template(null, {name: '{{ j.icon }}'}).includes('<use ng-attr-href="#sc-icon-{{ j.icon }}"/>'),
+		'<scp-icon>: an icon by its name, or by a name from Lua');
 	check(phone.hasIcon('tow') && phone.hasIcon('car') && !phone.hasIcon('T') && !phone.hasIcon('') && !phone.hasIcon(undefined),
 		'hasIcon: true for an icon in icons.svg, false for anything else');
 }

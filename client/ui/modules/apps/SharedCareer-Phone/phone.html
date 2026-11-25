@@ -1,153 +1,126 @@
 <div ng-controller="SharedCareerPhone" class="scMenu scPhone" ng-show="enabled">
-	<!-- The phone's shell: status bar, home screen, app bar; each app with its own screen is in
-	     apps/<name>.html. Nothing may stand before this <div> (not even a comment): the directive
-	     uses replace: true, which needs exactly one root element (see app.js). -->
-	<!-- Style of the SharedCareer menu (tab) + the phone's own -->
-	<link rel="stylesheet" type="text/css"
-		href="/ui/modules/apps/SharedCareer-Menu/app.css">
-	<link rel="stylesheet" type="text/css"
-		href="/ui/modules/apps/SharedCareer-Phone/app.css">
-	<!-- every icon, from ui/sharedCareer/icons.svg: an icon by its name is <svg><use href="#sc-icon-car"/></svg> -->
+	<!-- The phone: its shell (status bar, home screen, app bar, calls) is here, the screen of each
+	     built-in app in apps/<name>.html, the parts they share in shared/. Nothing may stand before
+	     this <div> (not even a comment): the directive uses replace: true, which needs exactly one
+	     root element (see app.js). -->
+	<!-- the tab's style comes from the SharedCareer menu, the phone's own from app.css -->
+	<link rel="stylesheet" type="text/css" href="/ui/modules/apps/SharedCareer-Menu/app.css">
+	<link rel="stylesheet" type="text/css" href="/ui/modules/apps/SharedCareer-Phone/app.css">
+	<!-- every icon, from ui/sharedCareer/icons.svg; one by its name is <scp-icon name="car"></scp-icon> -->
 	<div ng-include="'/ui/sharedCareer/icons.svg'"></div>
 
 	<!-- The phone is attached to <body> on start (app.js), so the app frame (only the tab) never
 	     clips it and never blocks clicks elsewhere. Only the phone itself takes clicks. -->
-	<div class="scp-host" id="sharedCareerPhoneHost"><div class="scp-phone"
-			ng-if="open && enabled">
+	<div class="scp-host" id="sharedCareerPhoneHost">
+		<div class="scp-phone" ng-if="open && enabled">
 			<div class="scp-screen">
 				<div class="scp-notch"></div>
 
 				<!-- status bar: server time, players, connection -->
 				<div class="scp-status">
-					<span class="scp-status-time" ng-bind="clock()"></span>
+					<span ng-bind="clock()"></span>
 					<span class="scp-status-right">
 						<span class="scp-players" title="Players on the server">
-							<svg aria-hidden="true"><use href="#sc-icon-players" /></svg>
+							<scp-icon name="players"></scp-icon>
 							<span ng-bind="playerCount()"></span>
 						</span>
-						<span class="scp-signal" ng-class="{'scp-offline': !connected}"
+						<span class="scp-signal" ng-class="{'scp-signal-off': !connected}"
 							title="{{ connected ? 'Connected to the server' : 'No connection' }}">
 							<i></i><i></i><i></i><i></i>
 						</span>
 					</span>
 				</div>
 
-				<!-- home screen -->
+				<!-- home screen: the clock, day or night, the apps -->
 				<div class="scp-home" ng-if="!currentApp">
 					<div class="scp-hero">
-						<div class="scp-big-clock" ng-bind="clock()"></div>
-						<div class="scp-sub" ng-bind="dayText()"></div>
+						<div class="scp-clock" ng-bind="clock()"></div>
+						<div class="scp-day" ng-bind="dayText()"></div>
+						<!-- how much of the day / night is over: sun -> moon by day, moon -> sun by night -->
 						<div class="scp-phase" ng-if="phaseProgress() !== null"
 							ng-class="{'scp-phase-night': !timeInfo.isDay}"
 							title="How much of the {{ timeInfo.isDay ? 'day' : 'night' }} is over">
-							<span class="scp-phase-icon" ng-bind="timeInfo.isDay ? '☀' : '☾'"></span>
-							<span class="scp-phase-bar"><i
-									ng-style="{'width': (phaseProgress() * 100) + '%'}"></i></span>
-							<span class="scp-phase-icon" ng-bind="timeInfo.isDay ? '☾' : '☀'"></span>
+							<span ng-bind="timeInfo.isDay ? '☀' : '☾'"></span>
+							<span class="scp-phase-bar"><i ng-style="{'width': (phaseProgress() * 100) + '%'}"></i></span>
+							<span ng-bind="timeInfo.isDay ? '☾' : '☀'"></span>
 						</div>
 					</div>
 					<div class="scp-grid" ng-if="apps.length">
-						<button class="scp-app" ng-repeat="app in apps track by app.id"
-							ng-click="openApp(app)" title="{{ app.title }}">
+						<button class="scp-app" ng-repeat="app in apps track by app.id" ng-click="openApp(app)"
+							title="{{ app.title }}">
 							<span class="scp-app-icon" ng-style="{'background': app.color}">
-								<span ng-if="hasIcon(app.icon)" class="scp-svg"><svg
-										aria-hidden="true"><use
-											ng-attr-href="{{ '#sc-icon-' + app.icon }}" /></svg></span>
+								<scp-icon ng-if="hasIcon(app.icon)" name="{{ app.icon }}"></scp-icon>
 								<span ng-if="!hasIcon(app.icon)" ng-bind="app.icon"></span>
 								<span class="scp-beta-badge" ng-if="app.beta">BETA</span>
 							</span>
 							<span class="scp-app-title" ng-bind="app.title"></span>
 						</button>
 					</div>
-					<div class="scp-empty" ng-if="!apps.length">
-						<svg class="scp-empty-logo" aria-hidden="true"><use
-								href="#sc-icon-logo" /></svg>
-						<div class="scp-empty-title">No apps yet</div>
-						<div class="scp-empty-text">Apps show up here.</div>
+					<div class="scp-card scp-empty" ng-if="!apps.length">
+						<scp-icon name="logo"></scp-icon>
+						<b>No apps yet</b>
+						<span>Apps show up here.</span>
 					</div>
 				</div>
 
-				<!-- an open app (apps bring their own content later) -->
+				<!-- an open app: the app bar, then the app's screen -->
 				<div class="scp-appview" ng-if="currentApp">
 					<div class="scp-appbar">
-						<!-- back: inside an app (a job type in Jobs) to its start page, else to the home screen -->
-						<button class="scp-back" ng-click="goBack()"
-							ng-bind="canGoBackInApp() ? '&#8249; ' + currentApp.title : '&#8249; Home'"></button>
+						<!-- back: from a page inside an app (a job type in Jobs) to its start page, else home -->
+						<button class="scp-back" ng-click="goBack()">
+							<scp-icon name="chevron-left"></scp-icon>
+							<span ng-bind="canGoBackInApp() ? currentApp.title : 'Home'"></span>
+						</button>
 						<span class="scp-appbar-title" ng-bind="appTitle()"></span>
-						<span class="scp-beta-pill" ng-if="currentApp.beta"
+						<span class="scp-pill scp-pill-warn scp-appbar-beta" ng-if="currentApp.beta"
 							title="Experimental: this app is new and may still change">BETA</span>
 					</div>
-					<!-- your job, as a strip above the apps you use for it (Tow, Straps) -->
-					<div class="scp-jobstrip-bar" ng-if="jobStripShown()">
-						<button class="scp-jobstrip" ng-click="openJobs()"
-							title="Open the Jobs app">
-							<span class="scp-jobstrip-label">Job</span>
-							<span class="scp-row-name" ng-bind="jobStepText()"></span>
-							<span class="scp-row-right" ng-if="jobs.active.distance !== undefined"
-								ng-bind="formatDistance(jobs.active.distance)"></span>
-						</button>
-					</div>
-					<!-- Jobs: jobs for everyone on the server (jobs.lua). Its start page is a button per job type;
-				     a button opens that job type's page with its jobs. What a job shows (icon, tags, steps,
-				     what to do now) comes from its job type (towJobs.lua: towing jobs, the icon by the kind of
-				     vehicle: car, suv, pickup, van, bus, truck – icons.svg; taxiJobs.lua: taxi rides). -->
-					<div class="scp-appscreen" ng-if="currentApp.id === 'jobs'"
-						ng-include="'/ui/modules/apps/SharedCareer-Phone/apps/jobs.html'"></div>
-					<!-- Tow: rope and winch, as a remote control (tow.lua). Without a rope: attach it (where you
-				     look, or to a vehicle nearby). With a rope, all on one screen: the rope at a glance, the
-				     winch, and the anchor (the remote; near a vehicle, "Hook on" puts it where the ring shows). -->
-					<div class="scp-appscreen" ng-if="currentApp.id === 'tow'"
-						ng-include="'/ui/modules/apps/SharedCareer-Phone/apps/tow.html'"></div>
-					<!-- Straps: ratchet straps that hold a car on a trailer or truck (straps.lua). "Strap down"
-				     straps the car you look at at its four corners; "Add strap" adds one by hand in two
-				     steps (aim at the car, then move the strap's end with the remote to the truck and hook
-				     it on). Below: the straps, each with its load, "Tighten", and "Remove rope" while the
-				     tow rope is still on a strapped car. -->
-					<div class="scp-appscreen" ng-if="currentApp.id === 'straps'"
-						ng-include="'/ui/modules/apps/SharedCareer-Phone/apps/straps.html'"></div>
-
-
-					<!-- Fuel: all gas stations, cheapest first (fuel.lua) -->
-					<div class="scp-appscreen" ng-if="currentApp.id === 'fuel'"
-						ng-include="'/ui/modules/apps/SharedCareer-Phone/apps/fuel.html'"></div>
-
-					<div class="scp-appbody"
-						ng-if="currentApp.id !== 'tow' && currentApp.id !== 'straps' && currentApp.id !== 'fuel' && currentApp.id !== 'jobs'">
-						<span class="scp-app-icon scp-app-icon-big"
-							ng-style="{'background': currentApp.color}"><svg
-								ng-if="hasIcon(currentApp.icon)" aria-hidden="true"><use
-									ng-attr-href="{{ '#sc-icon-' + currentApp.icon }}" /></svg><span
-								ng-if="!hasIcon(currentApp.icon)"
-								ng-bind="currentApp.icon"></span></span>
+					<!-- your job, as a strip above the apps you use for it (Tow, Straps); opens it in Jobs -->
+					<button class="scp-jobstrip" ng-if="jobStripShown()" ng-click="openJobs()"
+						title="Open the Jobs app">
+						<span class="scp-pill scp-pill-accent">Job</span>
+						<span class="scp-jobstrip-text" ng-bind="jobStepText()"></span>
+						<span class="scp-dim-text" ng-if="jobs.active.distance !== undefined"
+							ng-bind="formatDistance(jobs.active.distance)"></span>
+					</button>
+					<!-- the screen of a built-in app (apps/<id>.html, appScreen in app.js); each file says at
+					     its top what it shows -->
+					<div class="scp-appscreen" ng-if="appScreen()" ng-include="appScreen()"></div>
+					<!-- an app without a screen of its own: its icon, large -->
+					<div class="scp-appbody scp-appbody-center" ng-if="!appScreen()">
+						<span class="scp-app-icon scp-app-icon-big" ng-style="{'background': currentApp.color}">
+							<scp-icon ng-if="hasIcon(currentApp.icon)" name="{{ currentApp.icon }}"></scp-icon>
+							<span ng-if="!hasIcon(currentApp.icon)" ng-bind="currentApp.icon"></span>
+						</span>
 					</div>
 				</div>
 
 				<!-- an incoming call (phone.lua ring), over everything until it is answered or rings out:
 				     the bar runs down while it rings -->
 				<div class="scp-call" ng-if="call">
-					<span class="scp-call-icon"><svg ng-if="hasIcon(call.icon)"
-							aria-hidden="true"><use ng-attr-href="{{ '#sc-icon-' + call.icon }}" /></svg></span>
+					<span class="scp-call-icon"><scp-icon ng-if="hasIcon(call.icon)" name="{{ call.icon }}"></scp-icon></span>
 					<div class="scp-call-title" ng-bind="call.title"></div>
 					<div class="scp-call-text" ng-if="call.text" ng-bind="call.text"></div>
-					<div class="scp-call-detail" ng-if="call.detail" ng-bind="call.detail"></div>
-					<div class="scp-call-timer"><i ng-style="{'animation-duration': call.seconds + 's'}"></i></div>
+					<div class="scp-dim-text" ng-if="call.detail" ng-bind="call.detail"></div>
+					<div class="scp-call-timer"><i class="scp-call-timer-bar" ng-style="{'animation-duration': call.seconds + 's'}"></i></div>
 					<div class="scp-call-buttons">
-						<button class="scp-call-btn scp-call-decline" ng-click="answerCall(false)">Decline</button>
-						<button class="scp-call-btn scp-call-accept" ng-click="answerCall(true)">Accept</button>
+						<button class="scp-btn scp-btn-l scp-btn-danger" ng-click="answerCall(false)">Decline</button>
+						<button class="scp-btn scp-btn-l scp-btn-ok" ng-click="answerCall(true)">Accept</button>
 					</div>
 				</div>
 
 				<!-- home bar: back to the home screen; on the home screen it puts the phone away -->
-				<div class="scp-homebar" ng-click="homeBar()"
-					title="{{ currentApp ? 'Home' : 'Put the phone away' }}"><i></i></div>
+				<div class="scp-homebar" ng-click="homeBar()" title="{{ currentApp ? 'Home' : 'Put the phone away' }}">
+					<i></i>
+				</div>
 			</div>
-		</div></div>
+		</div>
+	</div>
 
 	<!-- tab at the right edge: takes the phone out / puts it away -->
-	<div class="scm-tab scp-tab" ng-class="{'scp-tab-open': open}"
-		ng-click="toggle()"
+	<div class="scm-tab scp-tab" ng-class="{'scp-tab-open': open}" ng-click="toggle()"
 		title="{{ open ? 'Put the phone away' : 'Take the phone out (F4)' }}">
-		<svg class="scm-logo" aria-hidden="true"><use href="#sc-icon-phone" /></svg>
+		<scp-icon class="scm-logo" name="phone"></scp-icon>
 		<span class="scm-tab-arrow" ng-bind="open ? '>' : '<'"></span>
 	</div>
 </div>

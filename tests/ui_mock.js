@@ -52,7 +52,7 @@ function makeScope() {
 function load(file, ctrlName, env, root) {
 	let controller = null;
 	const angular = {module: () => ({
-		directive: () => {},
+		directive: (name, arr) => { (env.directives = env.directives || {})[name] = arr[arr.length - 1](); },
 		controller: (name, arr) => { if (name === ctrlName) controller = arr[arr.length - 1]; },
 	})};
 	const src = fs.readFileSync(path.join(root || ROOT, file), 'utf8');

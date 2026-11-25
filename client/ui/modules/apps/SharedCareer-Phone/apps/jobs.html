@@ -1,55 +1,54 @@
-<div class="scp-appbody scp-tow scp-jobs">
-	<div class="scp-hint" ng-if="!jobs.enabled">Jobs are off on this
-		server.</div>
+<!-- Jobs: jobs for everyone on the server (jobs.lua). Its start page has a card per job type; a card
+     opens that job type's page with its jobs. What a job shows (icon, tags, steps, what to do now)
+     comes from its job type (towJobs.lua: towing jobs, the icon by the kind of vehicle: car, suv,
+     pickup, van, bus, truck; taxiJobs.lua: taxi rides). -->
+<div class="scp-appbody">
+	<div class="scp-card scp-hint" ng-if="!jobs.enabled">Jobs are off on this server.</div>
 
 	<!-- start page: a card per job type (jobTypes in app.js) in its vehicle's livery (app.css,
 	     scp-jobtype-<id>): its name, how many jobs are open, your level in it -->
-	<div class="scp-jobtypes" ng-if="!jobsType">
-		<button class="scp-jobtype" ng-repeat="t in jobTypes track by t.id"
-			ng-click="openJobType(t)"
+	<div class="scp-stack scp-jobtypes" ng-if="!jobsType">
+		<button class="scp-jobtype" ng-repeat="t in jobTypes track by t.id" ng-click="openJobType(t)"
 			ng-class="['scp-jobtype-' + t.id, {'scp-jobtype-mine': jobsActiveIn(t.id)}]">
-			<span class="scp-jobtype-art" ng-if="hasIcon(t.icon)"><svg
-					aria-hidden="true"><use ng-attr-href="{{ '#sc-icon-' + t.icon }}" /></svg></span>
-			<span class="scp-jobtype-icon"><svg ng-if="hasIcon(t.icon)"
-					aria-hidden="true"><use
-						ng-attr-href="{{ '#sc-icon-' + t.icon }}" /></svg><span
-					ng-if="!hasIcon(t.icon)" ng-bind="t.icon"></span></span>
+			<scp-icon class="scp-jobtype-art" ng-if="hasIcon(t.icon)" name="{{ t.icon }}"></scp-icon>
+			<span class="scp-jobtype-icon">
+				<scp-icon ng-if="hasIcon(t.icon)" name="{{ t.icon }}"></scp-icon>
+				<span ng-if="!hasIcon(t.icon)" ng-bind="t.icon"></span>
+			</span>
 			<span class="scp-jobtype-body">
 				<span class="scp-jobtype-name" ng-bind="t.name"></span>
 				<span class="scp-jobtype-pills">
-					<span class="scp-jobtype-pill" ng-class="{'scp-jobtype-pill-lock': jobLicenseMissing(t.id)}"><span
-							class="scp-ic scp-ic-tiny" ng-if="jobLicenseMissing(t.id)"><svg
-								aria-hidden="true"><use href="#sc-icon-lock" /></svg></span><span
-							ng-bind="jobTypeText(t)"></span></span>
+					<span class="scp-jobtype-pill" ng-class="{'scp-jobtype-pill-lock': jobLicenseMissing(t.id)}">
+						<scp-icon ng-if="jobLicenseMissing(t.id)" name="lock"></scp-icon>
+						<span ng-bind="jobTypeText(t)"></span>
+					</span>
 					<span class="scp-jobtype-pill" ng-if="jobTypeLevel(t.id)"
 						ng-bind="'Level ' + jobTypeLevel(t.id).level"></span>
 					<span class="scp-jobtype-pill scp-jobtype-pill-duty" ng-if="jobDuty(t.id)">On duty</span>
 				</span>
 			</span>
-			<span class="scp-jobtype-go"><svg aria-hidden="true"><use
-						href="#sc-icon-chevron-right" /></svg></span>
+			<scp-icon class="scp-jobtype-go" name="chevron-right"></scp-icon>
 		</button>
 	</div>
 
 	<!-- the page of one job type: its jobs -->
-	<div class="scp-jobpage" ng-if="jobsType">
+	<div class="scp-stack scp-jobpage" ng-if="jobsType">
 		<!-- the job type's jobs need a license you don't have: they are greyed out below -->
-		<div class="scp-license" ng-if="jobs.enabled && jobLicenseMissing()">
-			<span class="scp-license-icon"><svg aria-hidden="true"><use
-						href="#sc-icon-lock" /></svg></span>
-			<span class="scp-license-text">
+		<div class="scp-card scp-card-warn scp-item" ng-if="jobs.enabled && jobLicenseMissing()">
+			<span class="scp-item-icon scp-item-icon-warn"><scp-icon name="lock"></scp-icon></span>
+			<span class="scp-item-text">
 				<b ng-bind="jobLicense().name + ' needed'"></b>
 				<span>Buy it at the License Office.</span>
 			</span>
-			<button class="scp-license-btn" ng-click="licenseRoute()"><span
-					class="scp-btn-svg"><svg aria-hidden="true"><use
-							href="#sc-icon-route" /></svg></span>Route</button>
+			<button class="scp-btn scp-btn-s scp-btn-warn" ng-click="licenseRoute()">
+				<scp-icon name="route"></scp-icon>Route
+			</button>
 		</div>
 
 		<!-- the job type's "On duty" switch (taxi: while on, rides nearby call you) -->
-		<button class="scp-duty" ng-if="jobs.enabled && jobDuty() !== null && !jobLicenseMissing()"
-			ng-class="{'scp-duty-on': jobDuty()}" ng-click="setDuty(!jobDuty())">
-			<span class="scp-duty-text">
+		<button class="scp-card scp-item scp-duty" ng-if="jobs.enabled && jobDuty() !== null && !jobLicenseMissing()"
+			ng-class="{'scp-card-ok': jobDuty()}" ng-click="setDuty(!jobDuty())">
+			<span class="scp-item-text">
 				<b ng-bind="jobDuty() ? 'On duty' : 'Off duty'"></b>
 				<span ng-bind="jobDuty() ? 'Rides nearby call you.' : 'Go on duty for calls.'"></span>
 			</span>
@@ -57,109 +56,97 @@
 		</button>
 
 		<!-- your job -->
-		<div class="scp-myjob" ng-if="jobsActiveIn()">
+		<div class="scp-card scp-myjob" ng-if="jobsActiveIn()">
 			<div class="scp-myjob-top">
-				<span class="scp-myjob-label">Your job</span>
+				<span class="scp-section-title">Your job</span>
 				<span class="scp-reward">
-					<span class="scp-myjob-pay"><s class="scp-pay-was" ng-if="jobPayDropped()"
-							ng-bind="money(jobs.active.pay)"></s><span
-							ng-bind="money(jobPayNow())"></span></span>
-					<span class="scp-xp" ng-if="jobs.active.xp"
-						ng-bind="xpText(jobs.active.xp)"></span>
+					<span class="scp-pill scp-pill-ok scp-pay">
+						<s class="scp-pay-was" ng-if="jobPayDropped()" ng-bind="money(jobs.active.pay)"></s>
+						<span ng-bind="money(jobPayNow())"></span>
+					</span>
+					<span class="scp-pill scp-pill-info" ng-if="jobs.active.xp" ng-bind="xpText(jobs.active.xp)"></span>
 				</span>
 			</div>
 			<div class="scp-myjob-title" ng-bind="jobs.active.title"></div>
 			<!-- the rating so far (taxi: the passenger's stars), if the job type gives one -->
 			<div class="scp-stars" ng-if="jobStars() !== null">
-				<span class="scp-star" ng-repeat="n in STAR_SLOTS track by n"
-					ng-class="{'scp-star-on': n <= jobStars()}"><svg aria-hidden="true"><use
-							href="#sc-icon-star" /></svg></span>
+				<scp-icon ng-repeat="n in STAR_SLOTS track by n" ng-class="{'scp-star-on': n <= jobStars()}"
+					name="star"></scp-icon>
 			</div>
-			<div class="scp-chips">
-				<span class="scp-chip-tag"
-					ng-repeat="t in jobs.active.tags track by $index"
-					ng-class="'scp-tag-' + t.kind" ng-bind="t.text"></span>
+			<div class="scp-tags" ng-if="jobs.active.tags.length">
+				<span class="scp-pill" ng-repeat="t in jobs.active.tags track by $index" ng-class="'scp-tag-' + t.kind"
+					ng-bind="t.text"></span>
 			</div>
 			<div class="scp-steps">
-				<div class="scp-step"
-					ng-repeat="st in jobs.active.steps track by $index"
+				<div class="scp-step" ng-repeat="st in jobs.active.steps track by $index"
 					ng-class="{'scp-step-done': $index < jobStep(), 'scp-step-now': $index === jobStep()}">
 					<i></i><span ng-bind="st"></span>
 				</div>
 			</div>
 			<div class="scp-myjob-now">
-				<span class="scp-myjob-dist"
-					ng-if="jobs.active.distance !== undefined && !jobPaid()"
+				<span class="scp-myjob-dist" ng-if="jobs.active.distance !== undefined && !jobPaid()"
 					ng-bind="formatDistance(jobs.active.distance)"></span>
 				<span class="scp-myjob-what" ng-bind="jobText()"></span>
 			</div>
 			<div class="scp-myjob-buttons" ng-if="!jobPaid()">
-				<button class="scp-myjob-btn" ng-click="jobsCall('uiNavigate()')"><span
-						class="scp-btn-svg"><svg aria-hidden="true"><use
-								href="#sc-icon-route" /></svg></span>Route</button>
-				<button class="scp-myjob-btn scp-myjob-giveup"
-					ng-click="jobsCall('uiGiveUp()')">Give up</button>
+				<button class="scp-btn scp-btn-primary" ng-click="jobsCall('uiNavigate()')">
+					<scp-icon name="route"></scp-icon>Route
+				</button>
+				<button class="scp-btn scp-btn-remove" ng-click="jobsCall('uiGiveUp()')">Give up</button>
 			</div>
 		</div>
-		<div class="scp-hint"
-			ng-if="jobsActiveIn() && jobs.active.hint && !jobPaid()"
-			ng-bind="jobs.active.hint"></div>
+		<div class="scp-hint" ng-if="jobsActiveIn() && jobs.active.hint && !jobPaid()" ng-bind="jobs.active.hint"></div>
 
-		<!-- a section per job type: your level in it (a ring that fills up to the next level), then
-		     its jobs by the level they need – yours first (the hardest at the top), then the ones
-		     you can't take yet, with a lock -->
-		<div class="scp-jobsection"
-			ng-repeat="sec in jobs.sections track by sec.type"
-			ng-if="jobs.enabled && sec.type === jobsType"
-			ng-class="{'scp-jobsection-nolicense': jobLicenseMissing()}">
-			<div class="scp-level">
-				<span class="scp-level-ring"
-					ng-style="{'background': levelRing(sec.level)}"><span
-						ng-bind="sec.level ? sec.level.level : '–'"></span></span>
-				<span class="scp-level-text">
+		<!-- the job type's section: your level in it (a ring that fills up to the next level), then its
+		     jobs by the level they need – yours first (the hardest at the top), then the ones you can't
+		     take yet, with a lock -->
+		<div class="scp-stack" ng-repeat="sec in jobs.sections track by sec.type"
+			ng-if="jobs.enabled && sec.type === jobsType" ng-class="{'scp-jobsection-nolicense': jobLicenseMissing()}">
+			<div class="scp-card scp-item">
+				<span class="scp-level-ring" ng-style="{'background': levelRing(sec.level)}">
+					<span ng-bind="sec.level ? sec.level.level : '–'"></span>
+				</span>
+				<span class="scp-item-text">
 					<b ng-bind="sec.name"></b>
 					<span ng-bind="levelText(sec.level)"></span>
 				</span>
 			</div>
-			<div class="scp-level-group"
-				ng-repeat="g in sec.groups track by (g.minLevel + (g.locked ? 'L' : ''))">
-				<div class="scp-label scp-group-label"
-					ng-class="{'scp-group-locked': g.locked}">
-					<span class="scp-group-name"><span class="scp-ic scp-ic-tiny"
-							ng-if="g.locked"><svg aria-hidden="true"><use
-									href="#sc-icon-lock" /></svg></span><span
-							ng-bind="'Level ' + g.minLevel"></span></span>
-					<span ng-bind="g.locked ? 'Locked' : g.open + ' open'"></span>
+			<div class="scp-stack" ng-repeat="g in sec.groups track by (g.minLevel + (g.locked ? 'L' : ''))">
+				<div class="scp-section-title" ng-class="{'scp-locked': g.locked}">
+					<scp-icon ng-if="g.locked" name="lock"></scp-icon>
+					<span ng-bind="'Level ' + g.minLevel"></span>
+					<span class="scp-section-end" ng-bind="g.locked ? 'Locked' : g.open + ' open'"></span>
 				</div>
-				<div class="scp-job" ng-repeat="j in g.jobs track by j.id"
-					ng-class="{'scp-job-taken': j.state === 'taken', 'scp-job-locked': j.locked}">
-					<div class="scp-job-head">
-						<span class="scp-job-icon"><svg ng-if="hasIcon(j.icon)"
-								aria-hidden="true"><use
-									ng-attr-href="{{ '#sc-icon-' + j.icon }}" /></svg><span
-								ng-if="!hasIcon(j.icon)" ng-bind="j.icon"></span></span>
-						<span class="scp-job-title">
-							<span class="scp-job-name" ng-bind="j.title"></span>
-							<span class="scp-job-tags" ng-bind="tagLine(j)"></span>
+				<div class="scp-card scp-job" ng-repeat="j in g.jobs track by j.id"
+					ng-class="{'scp-job-taken': j.state === 'taken', 'scp-locked': j.locked}">
+					<div class="scp-item">
+						<span class="scp-item-icon scp-item-icon-accent">
+							<scp-icon ng-if="hasIcon(j.icon)" name="{{ j.icon }}"></scp-icon>
+							<span ng-if="!hasIcon(j.icon)" ng-bind="j.icon"></span>
+						</span>
+						<span class="scp-item-text">
+							<b ng-bind="j.title"></b>
+							<span ng-bind="tagLine(j)"></span>
 						</span>
 						<span class="scp-reward">
-							<span class="scp-job-pay" ng-bind="money(j.pay)"></span>
-							<span class="scp-xp" ng-if="j.xp" ng-bind="xpText(j.xp)"></span>
+							<span class="scp-pill scp-pill-ok scp-pay" ng-bind="money(j.pay)"></span>
+							<span class="scp-pill scp-pill-info" ng-if="j.xp" ng-bind="xpText(j.xp)"></span>
 						</span>
 					</div>
-					<div class="scp-job-route">
-						<div class="scp-route-row"><span
-								class="scp-route-dot scp-route-from"><svg aria-hidden="true"><use
-										href="#sc-icon-pin" /></svg></span><span
-								ng-bind="j.distance !== undefined ? formatDistance(j.distance) + ' away' : '–'"></span></div>
+					<!-- from where you are to the vehicle, then from there to where it goes -->
+					<div class="scp-route">
+						<div class="scp-route-row">
+							<scp-icon class="scp-route-from" name="pin"></scp-icon>
+							<span ng-bind="j.distance !== undefined ? formatDistance(j.distance) + ' away' : '–'"></span>
+						</div>
 						<div class="scp-route-line"></div>
-						<div class="scp-route-row"><span
-								class="scp-route-dot scp-route-to"><svg aria-hidden="true"><use
-										href="#sc-icon-pin" /></svg></span><span class="scp-route-dest"
-								ng-bind="j.dest"></span><span class="scp-route-len" ng-if="j.length"
-								ng-bind="formatDistance(j.length)"></span></div>
+						<div class="scp-route-row">
+							<scp-icon class="scp-route-to" name="pin"></scp-icon>
+							<b class="scp-route-dest" ng-bind="j.dest"></b>
+							<span class="scp-dim-text" ng-if="j.length" ng-bind="formatDistance(j.length)"></span>
+						</div>
 					</div>
-					<button class="scp-wide scp-job-take"
+					<button class="scp-btn scp-btn-primary scp-btn-block"
 						ng-if="j.state === 'open' && !j.locked && !jobs.active && !jobLicenseMissing()"
 						ng-click="jobsCall('uiTake(' + j.id + ')')">Take job</button>
 					<div class="scp-job-status" ng-if="j.state === 'taken'"
@@ -167,12 +154,10 @@
 				</div>
 			</div>
 		</div>
-		<div class="scp-jobs-empty"
-			ng-if="jobs.enabled && !jobsOpenIn() && !jobsActiveIn()">
-			<span class="scp-jobs-empty-icon"><svg aria-hidden="true"><use
-						href="#sc-icon-jobs" /></svg></span>
-			<div class="scp-empty-title">No jobs right now</div>
-			<div class="scp-empty-text">New ones are on the way.</div>
+		<div class="scp-card scp-empty" ng-if="jobs.enabled && !jobsOpenIn() && !jobsActiveIn()">
+			<scp-icon name="jobs"></scp-icon>
+			<b>No jobs right now</b>
+			<span>New ones are on the way.</span>
 		</div>
 	</div>
 </div>

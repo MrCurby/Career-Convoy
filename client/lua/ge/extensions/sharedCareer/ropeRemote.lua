@@ -15,7 +15,7 @@
 --   ground    an end above the ground gets a dashed drop line and a disc on the ground, so you can
 --             tell where in the world it is (groundMarker)
 --
--- The phone's buttons for it are one template, ui/modules/apps/SharedCareer-Phone/remote.html;
+-- The phone's buttons for it are one template, ui/modules/apps/SharedCareer-Phone/shared/remote.html;
 -- they call the open app's uiNudge, uiNudgeStop and uiToView.
 
 local M = {}
