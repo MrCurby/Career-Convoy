@@ -233,8 +233,6 @@ Good to know:
 
 <img src="images/phone-jobs.png" width="240" alt="Jobs app: your job and the open jobs">
 
-> **Experimental.** Towing jobs are new; pay, places and rules may still change.
-
 Cars break down at the roadside, and somebody has to tow them to a repair shop. There is **one list for everyone** on the server: whoever takes a job first gets it.
 
 **License needed:** towing jobs need the **Towing License** ($5,000). Buy it at the **License Office** (a marker on the map). Without it, the Jobs app shows the jobs grey, with a bar on top: **Route** there leads you to the office. The **Taxi License** ($5,000) is for [taxi jobs](#taxi-jobs).
@@ -269,8 +267,6 @@ Every job you finish gives you **XP**, and with enough XP you reach the next **l
 - Your level is kept by the server, per server. A new save keeps it; the server owner can reset it (`sc levels reset <name>`).
 
 ## Taxi jobs
-
-> **Experimental.** Taxi jobs are new; pay, places and rules may still change.
 
 People wait at the roadside for a ride to a place on the map: a garage, a dealership, a gas station. As with towing jobs, there is **one list for everyone**.
 
@@ -316,10 +312,13 @@ The phone goes away when you open a game menu (pause menu, map, garage, ...); th
 
 Apps:
 
-- **Jobs** *(beta)*: towing and taxi jobs, see [Towing jobs](#towing-jobs) and [Taxi jobs](#taxi-jobs). Apps that are still experimental carry a **BETA** badge.
+- **Jobs:** towing and taxi jobs, see [Towing jobs](#towing-jobs) and [Taxi jobs](#taxi-jobs).
 - **Tow:** rope and winch as a remote control, see [Moving your vehicles by hand](#moving-your-vehicles-by-hand-rope-and-winch).
 - **Straps:** strap a car down on a truck or trailer, see [Strapping a car down](#strapping-a-car-down-straps).
 - **Fuel:** gas station prices, see [Fuel app on the phone](#fuel-app-on-the-phone).
+- **Settings:** pick a wallpaper and the look of the app icons (BeamNG orange, each app in its own color, dark or glass). The choice is kept on your PC.
+
+<img src="images/phone-settings.png" width="240" alt="Settings app: wallpaper and app icons">
 
 - The bar at the bottom goes back to the home screen from an app, or puts the phone away.
 - Opening the phone collapses the SharedCareer menu, and the other way round.

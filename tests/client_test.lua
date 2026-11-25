@@ -2409,11 +2409,12 @@ local st = lastPhone("SharedCareerPhone")
 check(
 	st
 		and st.enabled == true
-		and #st.apps == 3
+		and #st.apps == 4
 		and st.apps[1].id == "tow"
 		and st.apps[2].id == "straps"
-		and st.apps[3].id == "fuel",
-	"phone on, with the built-in apps Tow, Straps and Fuel"
+		and st.apps[3].id == "fuel"
+		and st.apps[4].id == "settings",
+	"phone on, with the built-in apps Tow, Straps and Fuel, Settings last"
 )
 phoneHooks = {}
 phoneKey.onDown()
@@ -2471,7 +2472,7 @@ for _, app in ipairs(st.apps) do
 	table.insert(ids, app.id)
 end
 check(
-	table.concat(ids, ",") == "bank,jobs,tow,straps,fuel,taxi",
+	table.concat(ids, ",") == "bank,jobs,tow,straps,fuel,taxi,settings",
 	"apps sorted by order, then title: " .. table.concat(ids, ",")
 )
 check(
@@ -2482,7 +2483,7 @@ check(sharedCareer_phone.uiOpenApp("taxi") == true and opened == 1, "a tap opens
 check(sharedCareer_phone.uiOpenApp("bank") == true, "an app that fails to open doesn't break the phone")
 check(sharedCareer_phone.uiOpenApp("nope") == false, "unknown app: nothing happens")
 sharedCareer_phone.unregisterApp("bank")
-check(#lastPhone("SharedCareerPhone").apps == 5, "an app can be removed again")
+check(#lastPhone("SharedCareerPhone").apps == 6, "an app can be removed again")
 -- switched off on the server: hidden, key does nothing, apps don't open
 cfgP.phone = false
 handlers.sc_configUpdate(json.encode(cfgP))
@@ -4646,10 +4647,7 @@ check(
 			jobsApp = app
 		end
 	end
-	check(
-		jobsApp and not jobsApp.beta and jobsApp.title == "Jobs",
-		"the Jobs app is on the phone without a beta marker"
-	)
+	check(jobsApp and jobsApp.title == "Jobs", "the Jobs app is on the phone")
 	local st = jobs.appState()
 	local first = st.sections[1] and st.sections[1].groups[1].jobs[1]
 	check(

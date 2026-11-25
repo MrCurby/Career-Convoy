@@ -338,7 +338,7 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 	phone.emit('SharedCareerJobs', {enabled: true, jobs: [], active: active({phase: 'paid', step: 2})});
 	check(phone.jobStep() === 2 && phone.jobPaid() && phone.jobText().indexOf('Done') === 0, 'step 3: paid');
 	phone.openJobs();
-	check(phone.currentApp && phone.currentApp.id === 'jobs' && !phone.currentApp.beta, 'the job strip opens the Jobs app without a beta marker');
+	check(phone.currentApp && phone.currentApp.id === 'jobs', 'the job strip opens the Jobs app');
 	phone.goHome();
 	// the "On duty" switch of a job type (taxi): shown only for a job type that has one
 	phone.emit('SharedCareerJobs', {enabled: true, sections: [{type: 'tow', open: 0, groups: []},
@@ -485,7 +485,7 @@ if (process.argv[2]) {
 		&& appTemplates[0].includes("!jobs.active && !jobLicenseMissing()\"")
 		&& appTemplates[0].includes('ng-click="licenseRoute()"'),
 		'Jobs app without the license: a bar with the route, the jobs greyed out, no "Take job"');
-	pages.push(remote, segmentSelect, ...appTemplates);
+	pages.push(remote, segmentSelect, ...appTemplates, read(phoneDir + 'apps/settings.html'));
 	// an icon by its name: <svg><use href="#sc-icon-car"/></svg> in the menu, <scp-icon name="car"> on the phone
 	const used = pages.flatMap(h => [...h.matchAll(/href="#sc-icon-([a-z-]+)"|<scp-icon[^>]*\sname="([a-z-]+)"/g)]
 		.map(m => m[1] || m[2]));
@@ -496,7 +496,7 @@ if (process.argv[2]) {
 		.filter(b => !/^<use(?:\s[^>]*)?\/>$/.test(b.trim()) && !b.includes('scp-rope-path'));
 	check(inline.length === 0, 'no icon drawn inline in phone or app templates (' + inline.length + ')');
 	// the icon names Lua sends: the apps on the phone, the job types, the kinds of vehicle of a towing job
-	const lua = ['jobs', 'tow', 'straps', 'fuel', 'towJobs', 'taxiJobs'].map(f => read('client/lua/ge/extensions/sharedCareer/' + f + '.lua'));
+	const lua = ['jobs', 'tow', 'straps', 'fuel', 'towJobs', 'taxiJobs', 'phone'].map(f => read('client/lua/ge/extensions/sharedCareer/' + f + '.lua'));
 	const kinds = lua[4].match(/local KINDS = \{([\s\S]*?)\n\}/)[1];
 	const names = lua.flatMap(l => [...l.matchAll(/icon = "([a-z-]+)"/g)].map(m => m[1]))
 		.concat([...kinds.matchAll(/kind = "([a-z-]+)"/g)].map(m => m[1]), ['car']);
@@ -505,11 +505,30 @@ if (process.argv[2]) {
 	// in the window: an icon by name, text for a name without one ("T" of an app)
 	const env = makeEnv({});
 	const phone = load(...PHONE, env);
-	const screens = ['jobs', 'tow', 'straps', 'fuel'].map(id => { phone.openApp({id: id}); return phone.appScreen(); });
+	const screenIds = ['jobs', 'tow', 'straps', 'fuel', 'settings'];
+	const screens = screenIds.map(id => { phone.openApp({id: id}); return phone.appScreen(); });
 	phone.openApp({id: 'radio'});
-	check(screens.every((s, i) => s === '/ui/modules/apps/SharedCareer-Phone/apps/' + ['jobs', 'tow', 'straps', 'fuel'][i] + '.html'
+	check(screens.every((s, i) => s === '/ui/modules/apps/SharedCareer-Phone/apps/' + screenIds[i] + '.html'
 		&& fs.existsSync(require('path').join(__dirname, '../client', s))) && phone.appScreen() === null,
 		'the built-in apps load their screen (apps/<id>.html); an app without one gets none');
+	// Settings: the wallpaper and the app icons, kept on this PC; a stored id that is gone falls back to the first
+	const css = read(phoneDir + 'app.css');
+	check(phone.WALLPAPERS.every(w => fs.existsSync(require('path').join(__dirname, '../client/ui/sharedCareer/wallpapers', w.id + '.svg')))
+		&& phone.ICON_THEMES.every(t => css.includes('.scp-app-icon-' + t.id + ' {')),
+		'Settings: every wallpaper is a file in wallpapers/, every icon theme has its style in app.css');
+	check(phone.look.wallpaper === 'ember' && phone.look.icons === 'beamng'
+		&& phone.wallpaperStyle()['background-image'] === 'url(/ui/sharedCareer/wallpapers/ember.svg)'
+		&& phone.appIconClass() === 'scp-app-icon-beamng' && !phone.appIconStyle({color: '#123456'}).background,
+		'Settings: by default the Ember wallpaper and BeamNG icons (orange, not the app\'s color)');
+	phone.setWallpaper('dusk');
+	phone.setIconTheme('colors');
+	check(env.storage.sharedCareerPhoneWallpaper === 'dusk' && env.storage.sharedCareerPhoneIcons === 'colors'
+		&& phone.appIconStyle({color: '#123456'}).background === '#123456' && phone.appIconClass('dark') === 'scp-app-icon-dark',
+		'Settings: the choice is stored; "Colors" shows each app in its own color');
+	const again = load(...PHONE, makeEnv({sharedCareerPhoneWallpaper: 'dusk', sharedCareerPhoneIcons: 'neon'}));
+	check(again.look.wallpaper === 'dusk' && again.look.icons === 'beamng', 'Settings: read back on start; an unknown theme falls back to BeamNG');
+	phone.setWallpaper('nope');
+	check(phone.look.wallpaper === 'ember', 'Settings: an unknown wallpaper falls back to the first');
 	const icon = env.directives.scpIcon;
 	check(icon.template(null, {name: 'car'}) === '<svg class="scp-icon" aria-hidden="true"><use href="#sc-icon-car"/></svg>'
 		&& icon.template(null, {name: '{{ j.icon }}'}).includes('<use ng-attr-href="#sc-icon-{{ j.icon }}"/>'),

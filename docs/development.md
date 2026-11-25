@@ -19,9 +19,11 @@ client/                          client mod (packed into Resources/Client/Shared
                                    with invalid values)
   scripts/sharedCareer/            mod entry point (loads the extensions)
   ui/modules/apps/                 the three UI apps: SharedCareer-Menu (the menu with the steering
-                                   wheel), SharedCareer-Phone (phone with the Jobs, Tow, Straps
-                                   and Fuel apps) and SharedCareer-SpeedLimit (the speed limit sign)
+                                   wheel), SharedCareer-Phone (phone with the Jobs, Tow, Straps,
+                                   Fuel and Settings apps) and SharedCareer-SpeedLimit (the speed
+                                   limit sign)
   ui/sharedCareer/icons.svg        every icon of the UI apps, in one file (see "Icons" below)
+  ui/sharedCareer/wallpapers/      the phone's wallpapers (Settings app), one SVG each
   levels/west_coast_usa/…          enlarged garage-computer zones (generated, see tools/zones)
 Resources/Server/SharedCareer/   server plugin (main.lua)
 tests/                           mock-based tests for client and server
@@ -190,7 +192,7 @@ The menu and the phone are AngularJS apps (`ui/modules/apps/…`). Lua pushes st
 
 - **App frames catch clicks over their whole area**, even where they look transparent. The apps therefore must never overlap. The phone's frame is only its tab, directly below the menu.
 - Dialogs and the phone are attached to the page body, not to the app frame, so the frame can't clip them. Only the dialog card / the phone take clicks.
-- **The phone's look** comes from the top of its `app.css`: tokens for colors, text sizes and corners, and building blocks (`.scp-card`, `.scp-item`, `.scp-pill`, `.scp-btn` with its variants, `.scp-row`, `<scp-segment-select>`). BeamNG orange marks the main action and what is chosen; green, amber, red and blue are for states (good / money, warning, danger, XP). A new screen is built from these instead of its own colors and sizes.
+- **The phone's look** comes from the top of its `app.css`: tokens for colors, text sizes and corners, and building blocks (`.scp-card`, `.scp-item`, `.scp-pill`, `.scp-btn` with its variants, `.scp-row`, `<scp-segment-select>`). BeamNG orange marks the main action and what is chosen; green, amber, red and blue are for states (good / money, warning, danger, XP). A new screen is built from these instead of its own colors and sizes. The Settings app lets each player pick a wallpaper (a file in `ui/sharedCareer/wallpapers/`, listed in `WALLPAPERS` in `app.js`) and an icon theme (`ICON_THEMES`, styled as `.scp-app-icon-<theme>`); the color an app registers with is used only by the "Colors" theme.
 - **State only while someone looks.** `menu.lua` builds and sends `SharedCareerState` only while the menu is expanded, the phone is out or the Fuel app is open (the fuel prices only for the Fuel app). The windows report this with `sharedCareer_menu.uiVisible(view, on)` on every change and every 2 s; a view counts as visible for 5 s after its last report, so a lost report fixes itself. A view that appears gets the state at once. The prices at the pumps and on the signs don't depend on it (`fuel.lua` sets them itself).
 
 ### Icons

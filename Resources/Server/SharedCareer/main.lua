@@ -66,7 +66,7 @@
 --   Server -> Client: sc_players {players = [{id, name, status}]}  (Players tab, name tags)
 --   sc_fuelDelivered    {station, fuel, amount, stationName}  own fuel delivery to a station
 --   Server -> Client: sc_fuelPrices {enabled, factors = {[station] = {gasoline = 0.9, ...}}}
---   Jobs (beta, see "Jobs" below):
+--   Jobs (see "Jobs" below):
 --   sc_jobsRequest {types}            sc_jobs        {enabled, jobs = [job, with state "open" |
 --   sc_jobOffer   {a new job}                         "taken" | "mine", takenBy (name), minLevel,
 --   sc_jobTake    {id}                                locked, pay and xp (yours)], levels = {type: level}}

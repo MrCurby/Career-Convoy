@@ -14,6 +14,8 @@
 	<div class="scp-host" id="sharedCareerPhoneHost">
 		<div class="scp-phone" ng-if="open && enabled">
 			<div class="scp-screen">
+				<!-- the wallpaper (Settings), behind the home screen -->
+				<div class="scp-wallpaper" ng-if="!currentApp" ng-style="wallpaperStyle()"></div>
 				<div class="scp-notch"></div>
 
 				<!-- status bar: server time, players, connection -->
@@ -48,10 +50,9 @@
 					<div class="scp-grid" ng-if="apps.length">
 						<button class="scp-app" ng-repeat="app in apps track by app.id" ng-click="openApp(app)"
 							title="{{ app.title }}">
-							<span class="scp-app-icon" ng-style="{'background': app.color}">
+							<span class="scp-app-icon" ng-class="appIconClass()" ng-style="appIconStyle(app)">
 								<scp-icon ng-if="hasIcon(app.icon)" name="{{ app.icon }}"></scp-icon>
 								<span ng-if="!hasIcon(app.icon)" ng-bind="app.icon"></span>
-								<span class="scp-beta-badge" ng-if="app.beta">BETA</span>
 							</span>
 							<span class="scp-app-title" ng-bind="app.title"></span>
 						</button>
@@ -72,8 +73,6 @@
 							<span ng-bind="canGoBackInApp() ? currentApp.title : 'Home'"></span>
 						</button>
 						<span class="scp-appbar-title" ng-bind="appTitle()"></span>
-						<span class="scp-pill scp-pill-warn scp-appbar-beta" ng-if="currentApp.beta"
-							title="Experimental: this app is new and may still change">BETA</span>
 					</div>
 					<!-- your job, as a strip above the apps you use for it (Tow, Straps); opens it in Jobs -->
 					<button class="scp-jobstrip" ng-if="jobStripShown()" ng-click="openJobs()"
@@ -88,7 +87,7 @@
 					<div class="scp-appscreen" ng-if="appScreen()" ng-include="appScreen()"></div>
 					<!-- an app without a screen of its own: its icon, large -->
 					<div class="scp-appbody scp-appbody-center" ng-if="!appScreen()">
-						<span class="scp-app-icon scp-app-icon-big" ng-style="{'background': currentApp.color}">
+						<span class="scp-app-icon scp-app-icon-big" ng-class="appIconClass()" ng-style="appIconStyle(currentApp)">
 							<scp-icon ng-if="hasIcon(currentApp.icon)" name="{{ currentApp.icon }}"></scp-icon>
 							<span ng-if="!hasIcon(currentApp.icon)" ng-bind="currentApp.icon"></span>
 						</span>

@@ -2,7 +2,7 @@
 // The phone shows the server time, the number of players, the connection and the apps that
 // SharedCareer extensions registered (lua/ge/extensions/sharedCareer/phone.lua). Built-in app
 // screens: Jobs (jobs.lua with its job types: towJobs.lua, taxiJobs.lua), Tow (rope and winch, tow.lua), Straps (ratchet straps,
-// straps.lua) and Fuel (gas station prices, fuel.lua). Apps marked beta get a "BETA" badge on the icon and in the title bar.
+// straps.lua), Fuel (gas station prices, fuel.lua) and Settings (wallpaper and app icons, kept on this PC).
 // The home screen has, below the clock, how long until day or night (with a bar for the part
 // of it that is over), and the app icons.
 //
@@ -148,7 +148,7 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 		if ($scope.canGoBackInApp()) $scope.jobsType = null; else closeApp();
 	};
 	// the screen of the open app, if it is a built-in one with its own (apps/<id>.html); else null
-	var APP_SCREENS = ['jobs', 'tow', 'straps', 'fuel'];
+	var APP_SCREENS = ['jobs', 'tow', 'straps', 'fuel', 'settings'];
 	$scope.appScreen = function () {
 		var id = $scope.currentApp && $scope.currentApp.id;
 		return APP_SCREENS.indexOf(id) >= 0 ? '/ui/modules/apps/SharedCareer-Phone/apps/' + id + '.html' : null;
@@ -279,6 +279,41 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 	function fuelLua(cmd) { bngApi.engineLua('if sharedCareer_fuel then sharedCareer_fuel.' + cmd + ' end'); }
 	$scope.navigate = function (id) { fuelLua('uiNavigate(' + JSON.stringify(String(id)) + ')'); };
 	$scope.stopNavigate = function () { fuelLua('uiStopNavigate()'); };
+
+	//== Settings app: how the phone looks, kept on this PC (localStorage) ==
+	// A wallpaper is a file ui/sharedCareer/wallpapers/<id>.svg; an icon theme is a class
+	// scp-app-icon-<id> in app.css ("Colors": each app in the color it registered with). The first is the default.
+	$scope.WALLPAPERS = [{id: 'ember', name: 'Ember'}, {id: 'dusk', name: 'Dusk'}, {id: 'night-road', name: 'Night road'},
+		{id: 'contours', name: 'Contours'}, {id: 'hazard', name: 'Hazard'}, {id: 'carbon', name: 'Carbon'}];
+	$scope.ICON_THEMES = [{id: 'beamng', name: 'BeamNG'}, {id: 'colors', name: 'Colors'}, {id: 'dark', name: 'Dark'},
+		{id: 'glass', name: 'Glass'}];
+	var LOOK_KEYS = {wallpaper: 'sharedCareerPhoneWallpaper', icons: 'sharedCareerPhoneIcons'};
+	var LOOK_LISTS = {wallpaper: $scope.WALLPAPERS, icons: $scope.ICON_THEMES};
+	// the id if the list has it, else the list's first (a stored id that is gone, nothing stored)
+	function lookId(what, id) {
+		var list = LOOK_LISTS[what];
+		for (var i = 0; i < list.length; i++) if (list[i].id === id) return id;
+		return list[0].id;
+	}
+	function readLook(what) {
+		try { return lookId(what, window.localStorage.getItem(LOOK_KEYS[what])); } catch (e) { return lookId(what, null); }
+	}
+	function setLook(what, id) {
+		$scope.look[what] = lookId(what, id);
+		try { window.localStorage.setItem(LOOK_KEYS[what], $scope.look[what]); } catch (e) {}
+	}
+	$scope.look = {wallpaper: readLook('wallpaper'), icons: readLook('icons')};
+	$scope.setWallpaper = function (id) { setLook('wallpaper', id); };
+	$scope.setIconTheme = function (id) { setLook('icons', id); };
+	// a wallpaper as a background (default: the chosen one)
+	$scope.wallpaperStyle = function (id) {
+		return {'background-image': 'url(/ui/sharedCareer/wallpapers/' + (id || $scope.look.wallpaper) + '.svg)'};
+	};
+	// an app icon in an icon theme (default: the chosen one): its class, and its own color in "Colors"
+	$scope.appIconClass = function (theme) { return 'scp-app-icon-' + (theme || $scope.look.icons); };
+	$scope.appIconStyle = function (app, theme) {
+		return (theme || $scope.look.icons) === 'colors' && app ? {'background': app.color} : {};
+	};
 
 	//== Jobs app (lua/ge/extensions/sharedCareer/jobs.lua) ==
 	// What a job shows (icon, tags, steps, the texts of what to do now) comes from its job type
