@@ -25,6 +25,9 @@ local M = {}
 local U
 
 local MAX_DRIFT_HOURS = 0.05 -- 3 game minutes
+-- the hour of the last time change sent from the menu, until the server answers with sc_time
+-- (see "Time controls" below)
+local sentHour = nil
 
 --== Time of day ===============================================================
 
@@ -146,6 +149,7 @@ local function rxTime(data)
 	end
 	M.applyTime(msg)
 	lastMsg = msg -- even if applyTime had nothing to change (for the menu window)
+	sentHour = nil -- the server's time is the current one again
 	local menu = U.ext("sharedCareer_menu")
 	if menu then
 		menu.push()
@@ -252,11 +256,49 @@ function M.timeState()
 	return state
 end
 
+-- The server takes at most one time change per second and player and drops the rest without a
+-- word (TIME_CONTROL_COOLDOWN in main.lua). So changes are sent at least CONTROL_GAP apart (a
+-- little more than that second, as the network can bring two closer together): a click in
+-- between waits in the queue instead of getting lost. A newer click of the same kind replaces
+-- the waiting one (Night after Morning: only Night counts).
+local CONTROL_GAP = 1.3
+local queue = {}
+local sinceControl = CONTROL_GAP
+
+local function sendNext()
+	if #queue > 0 and sinceControl >= CONTROL_GAP then
+		local payload = table.remove(queue, 1)
+		U.send("sc_timeControl", payload)
+		sinceControl = 0
+		if payload.action == "set" then
+			sentHour = payload.hour
+		end
+	end
+end
+
 local function control(payload)
 	if not (U.isMP() and U.careerActive()) then
 		return
 	end
-	U.send("sc_timeControl", payload)
+	for i, waiting in ipairs(queue) do
+		if waiting.action == payload.action then
+			queue[i] = payload
+			return
+		end
+	end
+	table.insert(queue, payload)
+	sendNext()
+end
+
+-- The hour a change starts from: a "set" still waiting in the queue, else one sent that the server
+-- hasn't answered yet, else the current time.
+local function baseHour()
+	for _, waiting in ipairs(queue) do
+		if waiting.action == "set" then
+			return waiting.hour
+		end
+	end
+	return sentHour or M.timeState().hour
 end
 
 function M.uiSetHour(hour)
@@ -267,14 +309,14 @@ function M.uiSetHour(hour)
 	control({ action = "set", hour = hour % 24 })
 end
 
--- Relative to the current time (e.g. +1 / -1 hour).
+-- Relative to the current time (e.g. +1 / -1 hour); quick clicks add up (+1 h, +1 h = +2 h).
 function M.uiShiftHour(delta)
-	local state = M.timeState()
+	local hour = baseHour()
 	delta = tonumber(delta)
-	if not state.hour or not delta then
+	if not hour or not delta then
 		return
 	end
-	M.uiSetHour((state.hour + delta) % 24)
+	M.uiSetHour((hour + delta) % 24)
 end
 
 -- Pause the clock (true) or let it run (false) – for everyone. Pausing also ends real time.
@@ -300,6 +342,8 @@ end
 local since = 1
 
 function M.onUpdate(dtReal)
+	sinceControl = sinceControl + (tonumber(dtReal) or 0)
+	sendNext()
 	since = since + (tonumber(dtReal) or 0)
 	if since < 1 then
 		return
@@ -315,6 +359,8 @@ end
 
 function M.onBeamMPServerLeave()
 	lastMsg = nil
+	queue = {}
+	sentHour = nil
 end
 
 function M.onExtensionLoaded()
