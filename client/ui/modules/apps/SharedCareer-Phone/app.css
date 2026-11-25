@@ -1,160 +1,359 @@
-/* SharedCareer Phone – the tab uses the menu's style (SharedCareer-Menu/app.css) */
+/* SharedCareer Phone, in the style of BeamNG: dark, flat surfaces, BeamNG orange as the one accent.
+   The tab at the screen edge uses the menu's style (SharedCareer-Menu/app.css). Everything on the
+   phone is built from the tokens and building blocks at the top of this file (colors, text sizes
+   and corners as variables; cards, pills, buttons, rows); the parts of the shell and of each app
+   follow in the order of their files: phone.html, apps/jobs, tow, straps, fuel, settings, shared/remote. */
+
+/*== Tab ==*/
 .scPhone .scp-tab { min-height: 72px; }
 .scPhone .scp-tab-open { background: rgba(255, 102, 0, 0.55); }
 
-/* The host sits directly in <body>, without a size; only the phone takes clicks. */
-.scPhone.scp-host, .scp-host { position: fixed; left: 0; top: 0; width: 0; height: 0; z-index: 100000; pointer-events: none; }
+/*== Tokens ==*/
 .scp-phone {
-	position: fixed; right: 44px; bottom: 28px; width: 286px; height: 584px; box-sizing: border-box;
-	padding: 10px; border-radius: 40px; pointer-events: auto; user-select: none;
-	background: linear-gradient(145deg, #2b2d33, #121317);
-	box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55), inset 0 0 0 2px rgba(255, 255, 255, 0.06);
-	font-family: inherit; color: #fff;
+	/* the screen, and white layers on it */
+	--scp-bg: #15171b;
+	--scp-surface: rgba(255, 255, 255, 0.06);
+	--scp-control: rgba(255, 255, 255, 0.1);
+	--scp-control-hover: rgba(255, 255, 255, 0.17);
+	--scp-line: rgba(255, 255, 255, 0.1);
+	--scp-text: #fff;
+	--scp-text-dim: rgba(255, 255, 255, 0.6);
+	/* BeamNG orange: what you can do next, and what is chosen */
+	--scp-accent: #ff6600;
+	--scp-accent-hover: #ff7d26;
+	--scp-accent-soft: rgba(255, 102, 0, 0.16);
+	--scp-accent-line: rgba(255, 102, 0, 0.5);
+	--scp-accent-text: #ff8c42;
+	/* states: green good (and money), amber warning, red danger, blue XP and levels */
+	--scp-ok: #28a055;
+	--scp-ok-hover: #2fb361;
+	--scp-ok-soft: rgba(40, 160, 85, 0.2);
+	--scp-ok-line: rgba(60, 200, 110, 0.45);
+	--scp-ok-text: #7fe0a0;
+	--scp-warn: #ffb020;
+	--scp-warn-hover: #ffc04a;
+	--scp-warn-soft: rgba(255, 176, 32, 0.16);
+	--scp-warn-text: #ffc85a;
+	--scp-warn-ink: #241500;
+	--scp-danger: #e5483d;
+	--scp-danger-hover: #f05a4f;
+	--scp-danger-soft: rgba(229, 72, 61, 0.22);
+	--scp-danger-text: #ff9a90;
+	--scp-info: #4f8cff;
+	--scp-info-soft: rgba(79, 140, 255, 0.18);
+	--scp-info-text: #9cc0ff;
+	/* text sizes */
+	--scp-fs-xs: 10px;
+	--scp-fs-s: 11px;
+	--scp-fs-m: 12px;
+	--scp-fs-l: 13px;
+	--scp-fs-xl: 15px;
+	--scp-fs-xxl: 18px;
+	/* corners: small (pills), medium (buttons, rows), large (cards) */
+	--scp-r-s: 4px;
+	--scp-r-m: 8px;
+	--scp-r-l: 12px;
+}
+
+/*== The phone ==*/
+/* The host sits directly in <body>, without a size; only the phone takes clicks. */
+.scp-host { position: fixed; left: 0; top: 0; width: 0; height: 0; z-index: 100000; pointer-events: none; }
+.scp-phone {
+	position: fixed; right: 44px; bottom: 28px; width: 286px; height: 584px; box-sizing: border-box; padding: 9px;
+	border-radius: 40px; pointer-events: auto; user-select: none;
+	font-family: inherit; font-size: var(--scp-fs-m); line-height: 1.3; color: var(--scp-text);
+	background: linear-gradient(160deg, #2a2c31, #141518);
+	box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(255, 255, 255, 0.1);
 	animation: scp-in 0.18s ease-out;
+}
+.scp-phone *, .scp-phone *::before, .scp-phone *::after { box-sizing: border-box; }
+/* the side button, in BeamNG orange */
+.scp-phone::before {
+	content: ""; position: absolute; right: -3px; top: 132px; width: 3px; height: 44px; border-radius: 0 2px 2px 0;
+	background: var(--scp-accent);
 }
 @keyframes scp-in { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
 .scp-screen {
-	position: relative; width: 100%; height: 100%; border-radius: 31px; overflow: hidden;
-	background:
-		radial-gradient(120% 70% at 85% 0%, rgba(255, 102, 0, 0.35), transparent 60%),
-		radial-gradient(90% 60% at 0% 100%, rgba(40, 110, 200, 0.35), transparent 60%),
-		#16181d;
-	display: flex; flex-direction: column;
+	position: relative; z-index: 0; width: 100%; height: 100%; border-radius: 31px; overflow: hidden; display: flex;
+	flex-direction: column; background: radial-gradient(110% 55% at 100% 0%, rgba(255, 102, 0, 0.2), transparent 70%), var(--scp-bg);
+}
+/* the wallpaper (Settings) behind the home screen: below everything on the screen (z-index -1 in the screen) */
+.scp-wallpaper {
+	position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: -1; background-color: var(--scp-bg);
+	background-size: cover; background-position: center;
 }
 .scp-notch {
 	position: absolute; top: 8px; left: 50%; width: 84px; height: 22px; margin-left: -42px;
 	border-radius: 12px; background: #050506; z-index: 2;
 }
 
-/* status bar */
+/*== Building blocks ==*/
+/* buttons start from nothing (before everything that sets their look) */
+.scp-btn, .scp-back, .scp-app, .scp-jobstrip, .scp-row, .scp-seg button, .scp-jobtype, .scp-duty, .scp-option {
+	margin: 0; border: none; background: none; color: inherit; font-family: inherit; font-size: inherit;
+	text-align: inherit; cursor: pointer;
+}
+.scp-phone button[disabled] { opacity: 0.45; cursor: default; }
+.scp-phone button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+/* an icon (icons.svg, <scp-icon name="…">): 18 px, other sizes where it is used */
+.scp-icon { display: block; flex: none; width: 18px; height: 18px; }
+
+/* a column of things with the same space between them */
+.scp-stack { display: flex; flex-direction: column; gap: 8px; }
+.scp-stack > *, .scp-appbody > * { flex: none; }
+
+/* text */
+.scp-section-title {
+	display: flex; align-items: center; gap: 5px; min-height: 22px; font-size: var(--scp-fs-s); font-weight: 700;
+	text-transform: uppercase; letter-spacing: 0.06em; color: var(--scp-text-dim);
+}
+.scp-section-title .scp-icon { width: 14px; height: 14px; color: var(--scp-accent); }
+.scp-section-end { margin-left: auto; }
+.scp-hint { font-size: var(--scp-fs-s); line-height: 1.35; color: var(--scp-text-dim); }
+.scp-hint-warn { font-weight: 700; color: var(--scp-warn-text); }
+.scp-dim-text { flex: none; white-space: nowrap; color: var(--scp-text-dim); }
+/* something you can't use yet (a locked level, a job you need a license for) */
+.scp-locked { opacity: 0.45; filter: grayscale(0.6); }
+
+/* a card: a block on the screen; green (good), amber (needs something) or orange (a step you are in) */
+.scp-card { padding: 10px 12px; border-radius: var(--scp-r-l); background: var(--scp-surface); }
+.scp-card-ok { background: var(--scp-ok-soft); box-shadow: inset 0 0 0 1px var(--scp-ok-line); }
+.scp-card-warn { background: var(--scp-warn-soft); }
+.scp-card-warn .scp-item-text b { color: var(--scp-warn-text); }
+.scp-card-warn .scp-item-text b, .scp-card-warn .scp-item-text span { white-space: normal; }
+.scp-card-accent { background: var(--scp-accent-soft); box-shadow: inset 0 0 0 1px var(--scp-accent-line); }
+
+/* an item: an icon, a name with a line below it, something at the end */
+.scp-item { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.scp-item-icon {
+	flex: none; width: 32px; height: 32px; border-radius: var(--scp-r-m); display: flex; align-items: center; justify-content: center;
+	font-size: var(--scp-fs-l); font-weight: 700; background: var(--scp-control);
+}
+.scp-item-icon .scp-icon { width: 20px; height: 20px; }
+.scp-item-icon-accent { color: #fff; background: var(--scp-accent); }
+.scp-item-icon-ok { color: #fff; background: var(--scp-ok); }
+.scp-item-icon-warn { border-radius: 50%; color: var(--scp-warn); background: var(--scp-warn-soft); }
+.scp-item-icon-warn .scp-icon { width: 16px; height: 16px; }
+.scp-item-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; font-size: var(--scp-fs-s); text-align: left; }
+.scp-item-text b, .scp-item-text span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.scp-item-text b { font-size: var(--scp-fs-l); }
+.scp-item-text span { color: var(--scp-text-dim); }
+
+/* a pill: a short value or tag; tags get their tone from their kind (scp-tag-<kind>, from Lua) */
+.scp-pill {
+	display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: var(--scp-r-s);
+	font-size: var(--scp-fs-xs); font-weight: 700; line-height: 14px; white-space: nowrap; font-variant-numeric: tabular-nums;
+	color: var(--scp-text); background: var(--scp-control);
+}
+.scp-pill-accent { background: var(--scp-accent); }
+.scp-pill-ok { color: var(--scp-ok-text); background: var(--scp-ok-soft); }
+.scp-pill-warn, .scp-tag-tire, .scp-tag-vip { color: var(--scp-warn-text); background: var(--scp-warn-soft); }
+.scp-tag-engine, .scp-tag-clutch, .scp-tag-gearbox, .scp-tag-radiator, .scp-tag-oilpan,
+.scp-tag-crash { color: var(--scp-danger-text); background: var(--scp-danger-soft); }
+.scp-pill-info, .scp-tag-heavy { color: var(--scp-info-text); background: var(--scp-info-soft); }
+
+/* a button: grey; orange for the main action (and a chosen one), green, amber or red where that is
+   what it does; scp-btn-remove turns red only under the mouse */
+.scp-btn {
+	display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; padding: 0 12px;
+	border-radius: var(--scp-r-m); font-size: var(--scp-fs-m); font-weight: 700; white-space: nowrap;
+	color: var(--scp-text); background-color: var(--scp-control);
+}
+.scp-btn:not([disabled]):hover { background-color: var(--scp-control-hover); }
+.scp-btn .scp-icon { width: 16px; height: 16px; }
+.scp-btn-primary { color: #fff; background-color: var(--scp-accent); }
+.scp-btn-primary:not([disabled]):hover { background-color: var(--scp-accent-hover); }
+.scp-btn-ok { color: #fff; background-color: var(--scp-ok); }
+.scp-btn-ok:not([disabled]):hover { background-color: var(--scp-ok-hover); }
+.scp-btn-warn { color: var(--scp-warn-ink); background-color: var(--scp-warn); }
+.scp-btn-warn:not([disabled]):hover { background-color: var(--scp-warn-hover); }
+.scp-btn-danger { color: #fff; background-color: var(--scp-danger); }
+.scp-btn-danger:not([disabled]):hover, .scp-btn-remove:not([disabled]):hover { color: #fff; background-color: var(--scp-danger); }
+.scp-btn-s { min-height: 24px; padding: 0 9px; font-size: var(--scp-fs-s); }
+.scp-btn-s .scp-icon { width: 13px; height: 13px; }
+.scp-btn-l { min-height: 44px; font-size: var(--scp-fs-xl); }
+.scp-btn-block { display: flex; width: 100%; }
+.scp-btn-icon { width: 30px; min-height: 30px; padding: 0; flex: none; }
+/* a tile: the icon above its name */
+.scp-btn-tile { flex-direction: column; gap: 4px; height: 56px; font-size: var(--scp-fs-s); }
+.scp-btn-tile .scp-icon { width: 22px; height: 22px; }
+/* a big button with an icon and two lines (Attach rope, Hook on) */
+.scp-btn.scp-item { justify-content: flex-start; min-height: 48px; padding: 8px 12px; }
+.scp-btn.scp-item .scp-item-icon { background: rgba(255, 255, 255, 0.2); }
+.scp-btn.scp-item .scp-item-text span { color: inherit; opacity: 0.85; }
+/* a row of buttons side by side */
+.scp-buttons { display: flex; gap: 6px; }
+/* comes in with a pop when it shows up (Flip upright, Hook on) */
+.scp-appear { animation: scp-pop 0.2s ease-out; }
+@keyframes scp-pop { from { transform: scale(0.96); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* buttons joined in one row to pick one (shared/segment-select.html), the chosen one orange */
+.scp-seg { display: flex; align-items: center; gap: 3px; padding: 3px; border-radius: 10px; background: rgba(0, 0, 0, 0.25); }
+.scp-seg button {
+	flex: 1; min-width: 0; min-height: 28px; padding: 0 4px; display: flex; align-items: center; justify-content: center;
+	gap: 5px; border-radius: 7px; font-size: var(--scp-fs-m); font-weight: 700;
+}
+.scp-seg button:hover { background: var(--scp-control); }
+.scp-seg .scp-seg-on, .scp-seg .scp-seg-on:hover { background: var(--scp-accent); }
+.scp-seg button .scp-icon { width: 15px; height: 15px; }
+.scp-seg-label { flex: none; min-width: 34px; padding: 0 3px 0 5px; font-size: var(--scp-fs-xs); font-weight: 700; color: var(--scp-text-dim); }
+.scp-seg-label ~ button { padding: 0 2px; font-size: var(--scp-fs-s); }
+.scp-seg-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* needs your attention (Strength, while the winch is stuck) */
+.scp-seg.scp-attention { box-shadow: inset 0 0 0 1.5px var(--scp-warn); }
+
+/* a row in a list (your vehicles, the straps) */
+.scp-row {
+	display: flex; align-items: center; gap: 8px; width: 100%; min-height: 38px; padding: 4px 4px 4px 10px;
+	border-radius: var(--scp-r-m); text-align: left; background: var(--scp-surface);
+}
+button.scp-row:hover { background: var(--scp-accent-soft); }
+.scp-row-icon {
+	flex: none; width: 26px; height: 26px; border-radius: 6px; display: flex; align-items: center; justify-content: center;
+	color: var(--scp-accent-text); background: var(--scp-accent-soft);
+}
+.scp-row-icon .scp-icon { width: 16px; height: 16px; }
+.scp-row-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scp-row-go { width: 14px; height: 14px; margin-right: 6px; opacity: 0.5; }
+button.scp-row:hover .scp-row-go { opacity: 1; }
+
+/* a load as a colored dot: grey slack, green, amber, red near breaking */
+.scp-dot { flex: none; width: 9px; height: 9px; border-radius: 50%; }
+.scp-dot-slack { background: rgba(255, 255, 255, 0.35); }
+.scp-dot-ok { background: var(--scp-ok); }
+.scp-dot-high { background: var(--scp-warn); }
+.scp-dot-critical { background: var(--scp-danger); animation: scp-blink 0.5s ease-in-out infinite; }
+@keyframes scp-blink { 50% { opacity: 0.45; } }
+
+/* an on/off switch, green while on */
+.scp-switch { flex: none; position: relative; width: 40px; height: 24px; border-radius: 12px; background: rgba(255, 255, 255, 0.25); transition: background 0.2s; }
+.scp-switch i { position: absolute; left: 3px; top: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: left 0.2s; }
+.scp-card-ok .scp-switch { background: var(--scp-ok); }
+.scp-card-ok .scp-switch i { left: 19px; }
+
+/* nothing to show yet: an icon, a line, a hint */
+.scp-empty { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 20px 16px; text-align: center; }
+.scp-empty .scp-icon { width: 32px; height: 32px; margin-bottom: 4px; color: var(--scp-accent); }
+.scp-empty b { font-size: var(--scp-fs-xl); }
+.scp-empty span { font-size: var(--scp-fs-s); color: var(--scp-text-dim); }
+
+/*== Status bar ==*/
 .scp-status {
-	height: 38px; padding: 0 22px; display: flex; align-items: center; justify-content: space-between;
-	font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; flex: none;
+	flex: none; height: 38px; padding: 0 22px; display: flex; align-items: center; justify-content: space-between;
+	font-size: var(--scp-fs-l); font-weight: 700; font-variant-numeric: tabular-nums;
 }
 .scp-status-right { display: flex; align-items: center; gap: 8px; }
-.scp-players { display: flex; align-items: center; gap: 3px; font-size: 12px; }
-.scp-players svg { width: 14px; height: 14px; }
+.scp-players { display: flex; align-items: center; gap: 3px; font-size: var(--scp-fs-m); }
+.scp-players .scp-icon { width: 14px; height: 14px; }
 .scp-signal { display: flex; align-items: flex-end; gap: 2px; height: 11px; }
-.scp-signal i { display: block; width: 3px; background: #fff; border-radius: 1px; }
+.scp-signal i { display: block; width: 3px; border-radius: 1px; background: #fff; }
 .scp-signal i:nth-child(1) { height: 4px; }
 .scp-signal i:nth-child(2) { height: 6px; }
 .scp-signal i:nth-child(3) { height: 8px; }
 .scp-signal i:nth-child(4) { height: 11px; }
-.scp-signal.scp-offline i { background: rgba(255, 255, 255, 0.3); }
+.scp-signal-off i { background: rgba(255, 255, 255, 0.3); }
 
-/* home screen */
-.scp-home { flex: 1; display: flex; flex-direction: column; padding: 0 16px; min-height: 0; overflow-y: auto; }
-.scp-hero { text-align: center; padding: 20px 0 18px; }
-.scp-big-clock { font-size: 56px; font-weight: 300; letter-spacing: 1px; line-height: 1; font-variant-numeric: tabular-nums; }
-.scp-sub { margin-top: 8px; font-size: 13px; opacity: 0.75; }
+/*== Home screen ==*/
+.scp-home { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 0 16px; overflow-y: auto; }
+.scp-hero { padding: 22px 0 20px; text-align: center; }
+.scp-clock { font-size: 52px; font-weight: 300; line-height: 1; letter-spacing: 1px; font-variant-numeric: tabular-nums; }
+.scp-day { margin-top: 8px; font-size: var(--scp-fs-l); color: var(--scp-text-dim); }
 /* how much of the day / night is over: sun -> moon (by day), moon -> sun (by night) */
-.scp-phase { display: flex; align-items: center; gap: 6px; margin: 9px 34px 0; font-size: 11px; }
-.scp-phase-icon { opacity: 0.8; width: 12px; text-align: center; }
-.scp-phase-bar { flex: 1; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.15); overflow: hidden; }
-.scp-phase-bar i { display: block; height: 100%; border-radius: 2px; background: #ffb340; transition: width 1s linear; }
-.scp-phase-night .scp-phase-bar i { background: #7a8cff; }
+.scp-phase { display: flex; align-items: center; gap: 6px; margin: 10px 34px 0; font-size: var(--scp-fs-s); color: var(--scp-text-dim); }
+.scp-phase-bar { flex: 1; height: 4px; border-radius: 2px; overflow: hidden; background: var(--scp-control); }
+.scp-phase-bar i { display: block; height: 100%; border-radius: 2px; background: var(--scp-warn); transition: width 1s linear; }
+.scp-phase-night .scp-phase-bar i { background: var(--scp-info); }
 
 .scp-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px 6px; align-content: start; }
-.scp-app {
-	display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 0;
-	background: none; border: none; color: #fff; cursor: pointer; font-family: inherit;
-}
+.scp-app { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 0; }
 .scp-app-icon {
-	width: 48px; height: 48px; border-radius: 13px; display: flex; align-items: center; justify-content: center;
-	font-size: 20px; font-weight: 700; color: #fff; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
+	position: relative; width: 48px; height: 48px; border-radius: var(--scp-r-l); display: flex; align-items: center;
+	justify-content: center; font-size: 20px; font-weight: 700; color: #fff; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
 }
-.scp-app:hover .scp-app-icon { filter: brightness(1.15); }
-.scp-app-title { font-size: 11px; max-width: 60px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.scp-empty {
-	margin: auto 6px 34px; padding: 18px 16px; text-align: center; border-radius: 18px;
-	background: rgba(255, 255, 255, 0.08); backdrop-filter: blur(6px);
+.scp-app-icon .scp-icon { width: 30px; height: 30px; }
+.scp-app:hover .scp-app-icon { filter: brightness(1.12); }
+/* the icon themes (Settings): BeamNG orange, each app's own color (set by app.js), graphite, glass */
+.scp-app-icon-beamng { background: var(--scp-accent); }
+.scp-app-icon-colors { background: #6e7581; }
+.scp-app-icon-dark { color: var(--scp-accent); background: #2a2d33; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08), 0 2px 8px rgba(0, 0, 0, 0.35); }
+.scp-app-icon-glass {
+	background: rgba(255, 255, 255, 0.16); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28), 0 2px 8px rgba(0, 0, 0, 0.25);
+	backdrop-filter: blur(10px);
 }
-.scp-empty-logo { width: 34px; height: 34px; color: #ff6600; }
-.scp-empty-title { margin-top: 6px; font-size: 15px; font-weight: 600; }
-.scp-empty-text { margin-top: 4px; font-size: 12px; opacity: 0.75; line-height: 1.4; }
+/* the clock and the names stay readable on every wallpaper */
+.scp-hero, .scp-app-title { text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55); }
+.scp-app-title { max-width: 60px; font-size: var(--scp-fs-s); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scp-home .scp-empty { margin: auto 6px 34px; }
 
-/* an open app */
-.scp-appview { flex: 1; display: flex; flex-direction: column; min-height: 0; }
-.scp-appbar { display: flex; align-items: center; gap: 6px; padding: 6px 12px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
-.scp-back { background: none; border: none; color: #ff8a3d; font-size: 14px; cursor: pointer; padding: 2px 4px; font-family: inherit; }
-.scp-appbar-title { font-weight: 600; font-size: 15px; }
-.scp-appbody { flex: 1; display: flex; align-items: center; justify-content: center; }
-/* the slot an app's own screen (apps/<name>.html) is loaded into: passes the height on, so the
-   app's .scp-appbody gets the rest of the phone and scrolls (min-height: 0) */
+/*== An open app ==*/
+.scp-appview { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+/* the app bar, with an orange line below it like the windows of BeamNG */
+.scp-appbar {
+	flex: none; display: flex; align-items: center; gap: 6px; min-height: 36px; padding: 2px 12px 6px 8px;
+	border-bottom: 2px solid var(--scp-accent);
+}
+.scp-back { display: flex; align-items: center; gap: 1px; padding: 2px 4px 2px 0; font-size: var(--scp-fs-l); color: var(--scp-accent-text); }
+.scp-back .scp-icon { width: 16px; height: 16px; }
+.scp-back:hover { color: var(--scp-accent-hover); }
+.scp-appbar-title { min-width: 0; font-size: var(--scp-fs-xl); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* your job, as a strip above the Tow and Straps apps */
+.scp-jobstrip {
+	flex: none; display: flex; align-items: center; gap: 8px; margin: 8px 12px 0; padding: 6px 10px; border-radius: var(--scp-r-m);
+	font-size: var(--scp-fs-m); background: var(--scp-surface); box-shadow: inset 3px 0 0 var(--scp-accent);
+}
+.scp-jobstrip:hover { background: var(--scp-control); }
+.scp-jobstrip-text { flex: 1; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* the slot an app's screen (apps/<name>.html) is loaded into: passes the height on, so the app's
+   .scp-appbody gets the rest of the phone and scrolls (min-height: 0) */
 .scp-appscreen { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.scp-appbody { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding: 10px 12px 12px; overflow-y: auto; }
+/* an app without a screen of its own: its icon, large */
+.scp-appbody-center { align-items: center; justify-content: center; }
 .scp-app-icon-big { width: 72px; height: 72px; border-radius: 18px; font-size: 30px; }
-.scp-app-icon-big svg { width: 44px; height: 44px; }
+.scp-app-icon-big .scp-icon { width: 44px; height: 44px; }
 
-/* home bar */
-.scp-homebar { height: 26px; display: flex; align-items: center; justify-content: center; cursor: pointer; flex: none; }
+/*== Home bar ==*/
+.scp-homebar { flex: none; height: 26px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
 .scp-homebar i { display: block; width: 110px; height: 5px; border-radius: 3px; background: rgba(255, 255, 255, 0.75); }
 .scp-homebar:hover i { background: #fff; }
 
-/* app icons (icons.svg) on the home screen */
-.scp-svg { display: flex; }
-.scp-svg svg { width: 30px; height: 30px; }
-
-.scp-tow { display: block; padding: 10px 12px; overflow-y: auto; align-items: stretch; }
-.scp-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; opacity: 0.65; margin: 10px 2px 6px; display: flex; align-items: center; justify-content: space-between; }
-.scp-hint { font-size: 11px; opacity: 0.6; margin: 5px 2px 0; line-height: 1.35; }
-.scp-hint-warn { opacity: 1; color: #ffb340; font-weight: 600; }
-.scp-wide { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; border-radius: 12px; border: none; font-size: 14px; font-weight: 600; color: #fff; cursor: pointer; font-family: inherit; margin-top: 4px; }
-.scp-row-right { opacity: 0.7; white-space: nowrap; flex: none; margin-left: 8px; }
-.scp-row-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; min-width: 0; }
-/* the row to switch views (shared/segment-select.html): one equal button per option, the chosen one orange */
-.scp-seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; margin-bottom: 10px; background: rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 4px; }
-.scp-seg button { min-width: 0; display: flex; align-items: center; justify-content: center; gap: 5px; border: none; border-radius: 9px; padding: 8px 4px; background: none; color: #fff; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
-.scp-seg button:hover { background: rgba(255, 255, 255, 0.1); }
-.scp-seg .scp-seg-on, .scp-seg .scp-seg-on:hover { background: #e8730c; }
-.scp-seg-icon { display: inline-flex; flex: none; }
-.scp-seg-icon svg { width: 15px; height: 15px; }
-.scp-seg-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-/* Fuel app */
-.scp-station { background: rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 8px 10px; margin-bottom: 6px; }
-.scp-cheapest { background: rgba(42, 157, 85, 0.3); }
-.scp-station-top { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; }
-.scp-station-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 6px; }
-.scp-station-bottom { display: flex; align-items: center; gap: 8px; margin-top: 5px; font-size: 12px; }
-.scp-price { opacity: 0.65; white-space: nowrap; }
-.scp-price-main { opacity: 1; font-weight: 600; }
-.scp-price-off { color: #5fd38a; }
-.scp-fuelkey { font-size: 10px; opacity: 0.7; margin-right: 2px; }
-.scp-disc { font-size: 10px; }
-.scp-gap { flex: 1; }
-.scp-go { border: none; border-radius: 8px; padding: 4px 10px; background: rgba(255, 255, 255, 0.15); color: #fff; font-size: 12px; cursor: pointer; font-family: inherit; }
-.scp-go:hover { background: rgba(42, 157, 85, 0.6); }
-.scp-go-on { background: #2a9d55; }
-
-/* "BETA": a badge on the home screen icon and a pill in the title bar of experimental apps */
-.scp-app-icon { position: relative; }
-.scp-beta-badge {
-	position: absolute; top: -6px; right: -9px; padding: 1px 4px; border-radius: 6px;
-	font-size: 8px; font-weight: 800; letter-spacing: 0.5px; line-height: 12px; color: #2b1d00;
-	background: linear-gradient(135deg, #ffd34d, #ffa41b); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+/*== An incoming call: over the whole screen, the icon pulsing, the bar running down while it rings ==*/
+.scp-call {
+	position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 20; display: flex; flex-direction: column;
+	align-items: center; justify-content: center; gap: 6px; padding: 24px; text-align: center;
+	background: radial-gradient(120% 60% at 50% 0%, rgba(255, 102, 0, 0.28), transparent 70%), var(--scp-bg);
+	animation: scp-from-right 0.18s ease-out;
 }
-.scp-beta-pill {
-	margin-left: auto; padding: 2px 7px; border-radius: 8px; font-size: 9px; font-weight: 800; letter-spacing: 0.6px;
-	color: #2b1d00; background: linear-gradient(135deg, #ffd34d, #ffa41b);
+.scp-call-icon {
+	width: 76px; height: 76px; margin-bottom: 10px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+	color: #fff; background: var(--scp-accent); animation: scp-call-pulse 1.2s ease-out infinite;
 }
+.scp-call-icon .scp-icon { width: 44px; height: 44px; }
+@keyframes scp-call-pulse { from { box-shadow: 0 0 0 0 rgba(255, 102, 0, 0.6); } to { box-shadow: 0 0 0 22px rgba(255, 102, 0, 0); } }
+.scp-call-title { font-size: 22px; font-weight: 700; }
+.scp-call-text { font-size: var(--scp-fs-xl); font-weight: 700; }
+.scp-call-timer { width: 70%; height: 4px; margin: 14px 0 22px; border-radius: 2px; overflow: hidden; background: var(--scp-control); }
+.scp-call-timer-bar { display: block; height: 100%; background: #fff; animation: scp-call-timer linear forwards; }
+@keyframes scp-call-timer { from { width: 100%; } to { width: 0; } }
+.scp-call-buttons { display: flex; gap: 14px; width: 100%; }
+.scp-call-buttons .scp-btn { flex: 1; }
 
-/* Jobs app, start page: a card per job type, one per row, painted in its vehicle's livery
-   (towing: amber with hazard chevrons, taxi: yellow with checkers; a new job type: blue). Its
-   icon is drawn large behind the text. */
-.scp-jobtypes { display: flex; flex-direction: column; gap: 10px; animation: scp-from-left 0.18s ease-out; }
+/*== Jobs app (apps/jobs.html) ==*/
+/* start page: a card per job type, painted in its vehicle's livery (towing: amber with hazard
+   chevrons, taxi: yellow with checkers; a new job type: blue). Its icon is drawn large behind the text. */
+.scp-jobtypes { animation: scp-from-left 0.18s ease-out; }
 .scp-jobtype {
 	--livery: #3f6fe0; --livery-deep: #2b4fb8; --ink: #fff; --band: none;
-	position: relative; overflow: hidden; flex: none;
-	display: flex; align-items: center; gap: 12px; min-height: 92px; padding: 14px 12px 18px 14px;
-	border: none; border-radius: 20px; text-align: left; font-family: inherit; cursor: pointer;
-	color: var(--ink); background: linear-gradient(135deg, var(--livery) 0%, var(--livery-deep) 100%);
+	position: relative; overflow: hidden; display: flex; align-items: center; gap: 12px; min-height: 92px;
+	padding: 14px 12px 18px 14px; border-radius: var(--scp-r-l); text-align: left; color: var(--ink);
+	background: linear-gradient(135deg, var(--livery) 0%, var(--livery-deep) 100%);
 	box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 /* the livery band along the bottom edge */
 .scp-jobtype::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 8px; background: var(--band); }
 .scp-jobtype:hover { filter: brightness(1.08); }
 .scp-jobtype:active { transform: scale(0.98); }
-.scp-jobtype:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 .scp-jobtype-tow {
 	--livery: #ffb020; --livery-deep: #e8730c; --ink: #241503;
 	--band: repeating-linear-gradient(-45deg, #241503 0 8px, #ffb020 8px 16px);
@@ -164,250 +363,115 @@
 	--band: repeating-conic-gradient(#221a00 0 25%, #ffd21f 0 50%) 0 0 / 8px 8px;
 }
 /* the icon, large and faint, cut off by the card's right edge */
-.scp-jobtype-art { position: absolute; right: -14px; top: 50%; transform: translateY(-50%) rotate(-8deg); opacity: 0.16; color: var(--ink); pointer-events: none; }
-.scp-jobtype-art svg { width: 112px; height: 112px; }
-.scp-jobtype-icon {
-	position: relative; flex: none; width: 50px; height: 50px; border-radius: 15px;
-	display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 700;
-	background: var(--ink); color: var(--livery);
+.scp-jobtype-art {
+	position: absolute; right: -14px; top: 50%; width: 112px; height: 112px; transform: translateY(-50%) rotate(-8deg);
+	opacity: 0.16; pointer-events: none;
 }
-.scp-jobtype-icon svg { width: 32px; height: 32px; }
+.scp-jobtype-icon {
+	position: relative; flex: none; width: 50px; height: 50px; border-radius: var(--scp-r-l); display: flex; align-items: center;
+	justify-content: center; font-size: 22px; font-weight: 700; color: var(--livery); background: var(--ink);
+}
+.scp-jobtype-icon .scp-icon { width: 32px; height: 32px; }
 .scp-jobtype-body { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
-.scp-jobtype-name { font-size: 20px; font-weight: 800; letter-spacing: -0.2px; line-height: 1.1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scp-jobtype-name { font-size: 20px; font-weight: 700; line-height: 1.1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .scp-jobtype-pills { display: flex; flex-wrap: wrap; gap: 5px; }
 .scp-jobtype-pill {
-	display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 999px;
-	font-size: 11px; font-weight: 700; background: rgba(0, 0, 0, 0.16);
+	display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: var(--scp-r-s);
+	font-size: var(--scp-fs-s); font-weight: 700; background: rgba(0, 0, 0, 0.16);
 }
-.scp-jobtype-pill-lock { background: var(--ink); color: var(--livery); }
-.scp-jobtype-go { position: relative; flex: none; display: flex; opacity: 0.7; }
-.scp-jobtype-go svg { width: 22px; height: 22px; }
+.scp-jobtype-pill .scp-icon { width: 12px; height: 12px; }
+.scp-jobtype-pill-lock { color: var(--livery); background: var(--ink); }
+.scp-jobtype-pill-duty { color: #fff; background: var(--scp-ok); }
+.scp-jobtype-go { position: relative; width: 22px; height: 22px; opacity: 0.7; }
 /* your job is of this type: a white ring, its first pill white */
 .scp-jobtype-mine { box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35), inset 0 0 0 3px #fff; }
-.scp-jobtype-mine .scp-jobtype-pill:first-child { background: #fff; color: #1f4fd8; }
+.scp-jobtype-mine .scp-jobtype-pill:first-child { color: var(--scp-bg); background: #fff; }
 /* the page of a job type slides in from the right; back to the start page, it slides in from the left */
 .scp-jobpage { animation: scp-from-right 0.18s ease-out; }
 @keyframes scp-from-right { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
 @keyframes scp-from-left { from { opacity: 0; transform: translateX(-24px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .scp-jobtypes, .scp-jobpage { animation: none; } }
 
-/* Jobs app: your job */
-.scp-myjob {
-	position: relative; overflow: hidden; border-radius: 16px; padding: 12px 13px 12px; margin-bottom: 6px;
-	background: linear-gradient(150deg, #2f6fe0 0%, #3f4fd0 55%, #5a3fc4 100%);
-	box-shadow: 0 6px 18px rgba(40, 70, 200, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.12);
-}
-.scp-myjob::after {
-	content: ""; position: absolute; right: -30px; top: -40px; width: 120px; height: 120px; border-radius: 50%;
-	background: radial-gradient(circle, rgba(255, 255, 255, 0.18), transparent 70%); pointer-events: none;
-}
-.scp-myjob-top { display: flex; align-items: center; justify-content: space-between; }
-.scp-myjob-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; opacity: 0.8; font-weight: 700; }
-.scp-myjob-pay { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
+/* the "On duty" switch of a job type (taxi: rides nearby call you), green while on */
+.scp-duty { width: 100%; }
+.scp-duty.scp-card-ok .scp-item-text b { color: var(--scp-ok-text); }
+
+/* your job: an orange line on top, like a BeamNG window */
+.scp-myjob { position: relative; overflow: hidden; padding-top: 12px; background: rgba(255, 255, 255, 0.09); }
+.scp-myjob::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--scp-accent); }
+.scp-myjob-top { display: flex; align-items: flex-start; justify-content: space-between; }
+.scp-reward { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+.scp-pay { padding: 3px 7px; font-size: var(--scp-fs-l); }
 /* the pay before it dropped (damage, a rough ride), struck through before the pay as it is now */
-.scp-pay-was { margin-right: 6px; font-size: 12px; font-weight: 700; opacity: 0.55; }
+.scp-pay-was { font-size: var(--scp-fs-s); opacity: 0.6; }
+.scp-myjob-title { margin-top: 2px; font-size: var(--scp-fs-xxl); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* the rating so far: five stars, the ones earned in gold */
 .scp-stars { display: flex; gap: 2px; margin-top: 4px; }
-.scp-star { display: flex; color: rgba(255, 255, 255, 0.25); transition: color 0.3s; }
-.scp-star svg { width: 16px; height: 16px; }
-.scp-star-on { color: #ffd21f; }
-.scp-myjob-title { font-size: 17px; font-weight: 700; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.scp-chips { display: flex; gap: 5px; margin-top: 6px; flex-wrap: wrap; }
-.scp-chip-tag { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 7px; }
-.scp-tag-engine,
-.scp-tag-clutch,
-.scp-tag-gearbox,
-.scp-tag-radiator,
-.scp-tag-oilpan { background: rgba(255, 90, 80, 0.22); color: #ffb3ad; }
-.scp-tag-tire { background: rgba(255, 190, 60, 0.22); color: #ffd98a; }
-.scp-myjob .scp-tag-engine,
-.scp-myjob .scp-tag-clutch,
-.scp-myjob .scp-tag-gearbox,
-.scp-myjob .scp-tag-radiator,
-.scp-myjob .scp-tag-oilpan { background: rgba(255, 255, 255, 0.16); color: #fff; }
-.scp-myjob .scp-tag-tire { background: rgba(255, 210, 90, 0.3); color: #fff2c9; }
+.scp-stars .scp-icon { width: 16px; height: 16px; color: rgba(255, 255, 255, 0.25); transition: color 0.3s; }
+.scp-stars .scp-star-on { color: var(--scp-warn); }
+.scp-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+/* the steps of the job: done ones white, the one you are at orange */
 .scp-steps { display: flex; margin: 12px 0 2px; }
-.scp-step { flex: 1; position: relative; text-align: center; font-size: 10px; opacity: 0.6; }
-.scp-step i { display: block; width: 11px; height: 11px; margin: 0 auto 4px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.7); box-sizing: border-box; background: transparent; position: relative; z-index: 1; }
-.scp-step::before { content: ""; position: absolute; top: 5px; left: -50%; width: 100%; height: 2px; background: rgba(255, 255, 255, 0.3); }
+.scp-step { flex: 1; position: relative; text-align: center; font-size: var(--scp-fs-xs); color: var(--scp-text-dim); }
+.scp-step i {
+	position: relative; z-index: 1; display: block; width: 11px; height: 11px; margin: 0 auto 4px; border-radius: 50%;
+	border: 2px solid rgba(255, 255, 255, 0.5); background: var(--scp-bg);
+}
+.scp-step::before { content: ""; position: absolute; top: 5px; left: -50%; width: 100%; height: 2px; background: rgba(255, 255, 255, 0.2); }
 .scp-step:first-child::before { display: none; }
-.scp-step-done, .scp-step-now { opacity: 1; }
-.scp-step-done i { background: #fff; border-color: #fff; }
+.scp-step-done, .scp-step-now { color: var(--scp-text); }
+.scp-step-done i { border-color: #fff; background: #fff; }
 .scp-step-done::before, .scp-step-now::before { background: #fff; }
-.scp-step-now i { background: #ffd34d; border-color: #ffd34d; box-shadow: 0 0 0 4px rgba(255, 211, 77, 0.3); }
+.scp-step-now i { border-color: var(--scp-accent); background: var(--scp-accent); box-shadow: 0 0 0 4px var(--scp-accent-soft); }
 .scp-step-now span { font-weight: 700; }
-.scp-myjob-now { display: flex; align-items: baseline; gap: 7px; margin-top: 10px; min-width: 0; }
-.scp-myjob-dist { font-size: 24px; font-weight: 300; font-variant-numeric: tabular-nums; flex: none; }
-.scp-myjob-what { font-size: 12px; opacity: 0.9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.scp-myjob-now { display: flex; align-items: baseline; gap: 7px; min-width: 0; margin-top: 10px; }
+.scp-myjob-dist { flex: none; font-size: 24px; font-weight: 300; font-variant-numeric: tabular-nums; }
+.scp-myjob-what { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .scp-myjob-buttons { display: grid; grid-template-columns: 1fr auto; gap: 6px; margin-top: 10px; }
-.scp-myjob-btn {
-	display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 12px; border-radius: 10px; border: none; cursor: pointer;
-	font-family: inherit; font-size: 13px; font-weight: 700; color: #fff; background: rgba(255, 255, 255, 0.2);
-}
-.scp-myjob-btn:hover { background: rgba(255, 255, 255, 0.3); }
-.scp-myjob-giveup { background: transparent; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.45); font-weight: 600; }
-.scp-myjob-giveup:hover { background: rgba(255, 70, 60, 0.35); box-shadow: inset 0 0 0 1.5px rgba(255, 120, 110, 0.9); }
-.scp-btn-svg { display: flex; }
-.scp-btn-svg svg { width: 15px; height: 15px; }
 
-/* Jobs app: the list */
-.scp-job {
-	border-radius: 14px; padding: 10px 11px; margin-bottom: 8px; background: rgba(255, 255, 255, 0.07);
-	box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
-}
-.scp-job-taken { opacity: 0.55; }
-.scp-job-locked { opacity: 0.45; filter: grayscale(0.6); }
-/* a license you don't have: a bar with the route to the license office, the tab's jobs greyed out */
-.scp-license { display: flex; align-items: center; gap: 10px; padding: 8px 10px; margin-bottom: 8px; border-radius: 14px; background: rgba(255, 179, 64, 0.14); }
-.scp-license-icon { flex: none; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: rgba(255, 179, 64, 0.25); color: #ffb340; }
-.scp-license-icon svg { width: 16px; height: 16px; }
-.scp-license-text { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: 11px; line-height: 1.3; }
-.scp-license-text b { font-size: 13px; color: #ffb340; }
-.scp-license-text span { opacity: 0.7; }
-.scp-license-btn { flex: none; display: flex; align-items: center; gap: 4px; padding: 6px 10px; border: none; border-radius: 10px; background: #ffb340; color: #1b1b1b; font-family: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
-.scp-jobsection-nolicense .scp-job { opacity: 0.45; filter: grayscale(0.6); }
-/* a section per job type: your level (a ring that fills up to the next level), the jobs by level */
-.scp-jobsection + .scp-jobsection { margin-top: 14px; }
-.scp-level { display: flex; align-items: center; gap: 10px; padding: 8px 10px; margin-bottom: 8px; border-radius: 14px; background: rgba(79, 140, 255, 0.12); }
+/* the jobs of a job type: your level in it (a ring that fills up to the next level), the jobs by level */
 .scp-level-ring { flex: none; width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
-.scp-level-ring span { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; background: #1b2233; }
-.scp-level-text { display: flex; flex-direction: column; min-width: 0; }
-.scp-level-text b { font-size: 13px; }
-.scp-level-text span { font-size: 11px; opacity: 0.7; }
-.scp-group-name { display: inline-flex; align-items: center; gap: 4px; }
-.scp-group-locked { opacity: 0.5; }
-.scp-tag-heavy { background: rgba(160, 120, 255, 0.24); color: #d9c9ff; }
-.scp-tag-vip { background: rgba(255, 210, 31, 0.24); color: #ffe682; }
-.scp-tag-crash { background: rgba(255, 60, 60, 0.3); color: #ffc2c2; }
-.scp-myjob .scp-tag-crash { background: rgba(255, 80, 80, 0.45); color: #fff; }
-.scp-myjob .scp-tag-heavy,
-.scp-myjob .scp-tag-vip { background: rgba(255, 255, 255, 0.16); color: #fff; }
-.scp-job-head { display: flex; align-items: center; gap: 9px; min-width: 0; }
-.scp-job-icon {
-	flex: none; width: 32px; height: 32px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
-	background: linear-gradient(135deg, #f08a24, #d8590c); color: #fff;
+.scp-level-ring span {
+	width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+	font-size: var(--scp-fs-l); font-weight: 700; background: var(--scp-bg);
 }
-.scp-job-icon svg { width: 21px; height: 21px; }
-.scp-job-title { display: flex; flex-direction: column; min-width: 0; flex: 1; }
-.scp-job-name { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.scp-job-tags { font-size: 11px; opacity: 0.65; }
-.scp-reward { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
-.scp-job-pay {
-	flex: none; font-size: 13px; font-weight: 800; padding: 3px 8px; border-radius: 8px; font-variant-numeric: tabular-nums;
-	color: #7ff0a5; background: rgba(60, 200, 110, 0.16);
-}
-/* the XP of a job: like the pay above it, in blue */
-.scp-xp {
-	font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 6px; font-variant-numeric: tabular-nums; white-space: nowrap;
-	color: #8cc4ff; background: rgba(70, 140, 255, 0.18);
-}
-/* on the blue card of your job: light, so it stands out */
-.scp-myjob .scp-xp { color: #fff; background: rgba(255, 255, 255, 0.2); }
-.scp-job-route { margin: 9px 0 2px 4px; font-size: 11px; }
+.scp-jobsection-nolicense .scp-job { opacity: 0.45; filter: grayscale(0.6); }
+.scp-job { padding: 10px 11px; }
+.scp-job-taken { opacity: 0.55; }
+.scp-job .scp-btn { margin-top: 8px; }
+.scp-job-status { margin-top: 6px; font-size: var(--scp-fs-s); font-weight: 700; text-align: center; color: var(--scp-text-dim); }
+/* the way: from where you are to the vehicle, then from there to where it goes */
+.scp-route { margin: 8px 0 0 4px; font-size: var(--scp-fs-s); }
 .scp-route-row { display: flex; align-items: center; gap: 7px; min-width: 0; }
-.scp-route-dot { display: flex; flex: none; }
-.scp-route-dot svg { width: 13px; height: 13px; }
-.scp-route-from { color: #ffa94d; }
-.scp-route-to { color: #5fa8ff; }
+.scp-route-row .scp-icon { width: 13px; height: 13px; }
+.scp-route-from { color: var(--scp-accent-text); }
+.scp-route-to { color: var(--scp-info-text); }
 .scp-route-line { width: 0; height: 9px; margin: 1px 0 1px 6px; border-left: 2px dotted rgba(255, 255, 255, 0.3); }
-.scp-route-dest { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.scp-route-len { margin-left: auto; opacity: 0.6; white-space: nowrap; flex: none; padding-left: 6px; }
-.scp-job-take { margin-top: 9px; padding: 8px; background: linear-gradient(135deg, #2f6fe0, #4b4fd6); }
-.scp-job-take:hover { filter: brightness(1.12); }
-.scp-job-status { margin-top: 7px; font-size: 11px; font-weight: 600; text-align: center; opacity: 0.8; }
-.scp-jobs-empty { text-align: center; padding: 22px 10px; border-radius: 14px; background: rgba(255, 255, 255, 0.05); }
-.scp-jobs-empty-icon { display: inline-flex; color: #5f8fff; }
-.scp-jobs-empty-icon svg { width: 34px; height: 34px; }
+.scp-route-dest { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* Tow and Straps apps: a strip with your job, above the app */
-.scp-jobstrip-bar { padding: 10px 12px 0; }
-.scp-jobstrip {
-	width: 100%; display: flex; align-items: center; gap: 8px; padding: 7px 10px; border: none; border-radius: 10px;
-	cursor: pointer; font-family: inherit; font-size: 12px; color: #fff; background: linear-gradient(135deg, rgba(47, 111, 224, 0.55), rgba(90, 63, 196, 0.55));
+/*== Tow app (apps/tow.html) ==*/
+.scp-attach { min-height: 60px; }
+.scp-attach .scp-item-icon { width: 40px; height: 40px; border-radius: 50%; }
+.scp-attach .scp-item-icon .scp-icon { width: 26px; height: 26px; }
+.scp-attach .scp-item-text b { font-size: var(--scp-fs-xl); }
+/* "To the road": in the yellow of a road sign, a hazard-striped button */
+.scp-btn-road { color: var(--scp-warn); }
+.scp-btn-block.scp-btn-road {
+	background-image: repeating-linear-gradient(-45deg, rgba(255, 176, 32, 0.16) 0 6px, rgba(0, 0, 0, 0.25) 6px 12px);
 }
-.scp-jobstrip:hover { filter: brightness(1.15); }
-.scp-jobstrip-label { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; padding: 2px 6px; border-radius: 6px; background: rgba(255, 255, 255, 0.22); }
+.scp-tow-head { display: flex; align-items: center; gap: 6px; }
+.scp-tow-name { flex: 1; min-width: 0; font-size: var(--scp-fs-xl); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-
-
-/* Tow app and Straps app: shared pieces */
-.scp-ic { display: inline-flex; flex: none; }
-.scp-ic svg { width: 18px; height: 18px; }
-.scp-ic-tiny svg { width: 12px; height: 12px; }
-.scp-hint-box { padding: 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.06); opacity: 0.8; }
-.scp-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.scp-tile {
-	display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; height: 58px; border: none;
-	border-radius: 14px; cursor: pointer; font-family: inherit; font-size: 11px; font-weight: 700; color: #fff;
-	background: rgba(255, 255, 255, 0.09);
+/* the rope at a glance: its color and the pill below it by its load */
+.scp-ropeview { --rope: #e2d6bd; display: flex; align-items: center; gap: 4px; padding: 2px 8px; }
+.scp-rope-slack { --rope: rgba(255, 255, 255, 0.45); }
+.scp-rope-high { --rope: var(--scp-warn); }
+.scp-rope-critical { --rope: var(--scp-danger); }
+.scp-ropeend {
+	flex: none; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+	background: var(--scp-control);
 }
-.scp-tile:hover { filter: brightness(1.15); }
-.scp-tile .scp-ic svg { width: 22px; height: 22px; }
-.scp-list-row {
-	width: 100%; display: flex; align-items: center; gap: 8px; padding: 7px 10px; margin-bottom: 4px; border: none; border-radius: 10px;
-	cursor: pointer; font-family: inherit; font-size: 12px; color: #fff; background: rgba(255, 255, 255, 0.07);
-}
-.scp-list-row:hover { background: rgba(232, 115, 12, 0.3); }
-.scp-list-row .scp-row-name { flex: 1; }
-.scp-iconbtn {
-	flex: none; width: 28px; height: 28px; border-radius: 50%; border: none; cursor: pointer; display: flex; align-items: center;
-	justify-content: center; color: #fff; background: rgba(255, 255, 255, 0.12);
-}
-.scp-iconbtn .scp-ic svg { width: 15px; height: 15px; }
-.scp-iconbtn-road { color: #ffd21a; }
-.scp-iconbtn-road:hover { background: rgba(255, 204, 0, 0.25); }
-.scp-iconbtn-cut:hover { background: rgba(255, 59, 48, 0.7); }
-.scp-pick {
-	flex: 1; padding: 5px 0; border: none; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 11px; font-weight: 700;
-	color: #fff; background: rgba(255, 255, 255, 0.08);
-}
-.scp-pick:hover { background: rgba(255, 255, 255, 0.15); }
-.scp-pick-on { background: #e8730c; }
-
-/* Tow app without a rope: a big "Attach rope", "To the road", your vehicles */
-.scp-attach {
-	width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: none; border-radius: 16px; cursor: pointer;
-	font-family: inherit; color: #fff; text-align: left;
-	background: linear-gradient(135deg, #f39233, #d8590c); box-shadow: 0 6px 18px rgba(216, 89, 12, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.15);
-}
-.scp-attach:hover { filter: brightness(1.1); }
-.scp-attach-icon { flex: none; width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.2); }
-.scp-attach-icon svg { width: 26px; height: 26px; }
-.scp-attach-text { display: flex; flex-direction: column; gap: 1px; }
-.scp-attach-text b { font-size: 16px; }
-.scp-attach-text span { font-size: 11px; opacity: 0.85; }
-.scp-road {
-	width: 100%; display: flex; align-items: center; justify-content: center; gap: 7px; margin-top: 6px; padding: 8px; border: none;
-	border-radius: 12px; cursor: pointer; font-family: inherit; font-size: 12px; font-weight: 700; color: #ffd21a;
-	background: repeating-linear-gradient(-45deg, rgba(255, 204, 0, 0.14) 0 6px, rgba(0, 0, 0, 0.22) 6px 12px), #1f1f1f;
-}
-.scp-road:hover { filter: brightness(1.25); }
-.scp-flip {
-	width: 100%; display: flex; align-items: center; justify-content: center; gap: 7px; margin: 6px 0; padding: 8px; border: none;
-	border-radius: 12px; cursor: pointer; font-family: inherit; font-size: 12px; font-weight: 700; color: #fff;
-	background: linear-gradient(135deg, #e0573a, #b8372a); animation: scp-pop 0.2s ease-out;
-}
-.scp-flip:hover { filter: brightness(1.12); }
-.scp-veh-icon { flex: none; width: 26px; height: 26px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #ffa45c; background: rgba(255, 140, 40, 0.16); }
-.scp-veh-icon svg { width: 17px; height: 17px; }
-.scp-veh-plus { display: flex; flex: none; opacity: 0.5; }
-.scp-veh-plus svg { width: 14px; height: 14px; }
-.scp-veh-row:hover .scp-veh-plus { opacity: 1; }
-
-/* Tow app with a rope: name, the rope at a glance, then the Winch and Anchor panels */
-.scp-tow-head { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
-.scp-tow-name { flex: 1; min-width: 0; font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.scp-ropeview {
-	--rope: #e2d6bd; display: flex; align-items: center; gap: 4px; padding: 1px 8px; margin-bottom: 7px; border-radius: 14px;
-	background: rgba(255, 255, 255, 0.07); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
-}
-.scp-ropeview.scp-rope-slack { --rope: rgba(255, 255, 255, 0.45); }
-.scp-ropeview.scp-rope-high { --rope: #ffa028; }
-.scp-ropeview.scp-rope-critical { --rope: #ff3b30; }
-.scp-end { flex: none; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; background: rgba(255, 255, 255, 0.12); }
-.scp-end svg { width: 19px; height: 19px; }
-.scp-end-car { color: #ffa45c; background: rgba(255, 140, 40, 0.18); }
-.scp-end-hooked { background: #2fa85a; }
+.scp-ropeend-car { color: var(--scp-accent-text); background: var(--scp-accent-soft); }
+.scp-ropeend-hooked { background: var(--scp-ok); }
 .scp-ropeline { position: relative; flex: 1; height: 48px; }
 .scp-ropeline svg { position: absolute; left: 0; top: 4px; width: 100%; height: 26px; overflow: visible; }
 .scp-rope-path { fill: none; stroke: var(--rope); stroke-width: 3; stroke-linecap: round; }
@@ -415,156 +479,75 @@
 .scp-rope-marks.scp-rope-in { animation-name: scp-rope-in; }
 @keyframes scp-rope-in { to { stroke-dashoffset: -11; } }
 @keyframes scp-rope-out { to { stroke-dashoffset: 11; } }
-.scp-rope-len {
-	position: absolute; left: 50%; top: 0; transform: translateX(-50%); padding: 0 5px; border-radius: 6px; font-size: 11px;
-	font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; background: #2a2c32;
-}
-.scp-rope-state {
-	position: absolute; left: 50%; bottom: 1px; transform: translateX(-50%); padding: 1px 8px; border-radius: 7px; font-size: 10px;
-	font-weight: 700; white-space: nowrap; background: rgba(225, 214, 190, 0.18); color: #efe6d2;
-}
-.scp-rope-slack .scp-rope-state { background: rgba(255, 255, 255, 0.1); color: rgba(255, 255, 255, 0.7); }
-.scp-rope-high .scp-rope-state { background: rgba(255, 160, 40, 0.28); color: #ffd09a; }
-.scp-rope-critical .scp-rope-state { background: rgba(255, 50, 40, 0.55); color: #fff; animation: scp-blink 0.5s ease-in-out infinite; }
+.scp-rope-len, .scp-rope-state { position: absolute; left: 50%; transform: translateX(-50%); }
+.scp-rope-len { top: 0; background: #2a2c31; }
+.scp-rope-state { bottom: 1px; }
+.scp-rope-slack .scp-rope-state { color: var(--scp-text-dim); }
+.scp-rope-high .scp-rope-state { color: var(--scp-warn-text); background: var(--scp-warn-soft); }
+.scp-rope-critical .scp-rope-state { color: #fff; background: var(--scp-danger); animation: scp-blink 0.5s ease-in-out infinite; }
 
-.scp-panel { padding: 8px 9px 9px; margin-bottom: 7px; border-radius: 14px; background: rgba(255, 255, 255, 0.06); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05); }
-.scp-panel-head { display: flex; align-items: center; gap: 7px; margin-bottom: 6px; min-height: 20px; }
-.scp-panel-title { flex: none; display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; opacity: 0.8; }
-.scp-panel-title .scp-ic svg { width: 15px; height: 15px; }
-.scp-panel-info { margin-left: auto; font-size: 11px; font-weight: 700; opacity: 0.7; font-variant-numeric: tabular-nums; }
+/* a panel: the Winch, the Anchor; a title row, then its controls */
+.scp-panel { display: flex; flex-direction: column; gap: 8px; padding: 8px 9px 9px; }
+.scp-panel-head { display: flex; align-items: center; gap: 8px; }
+.scp-panel-info { margin-left: auto; font-size: var(--scp-fs-s); font-weight: 700; color: var(--scp-text-dim); font-variant-numeric: tabular-nums; }
+.scp-panel-end { margin-left: auto; }
+.scp-panel-info + .scp-panel-end { margin-left: 0; }
+.scp-panel .scp-card { padding: 8px 10px; }
 
-/* Winch: its load, three big buttons, the strength */
-.scp-meter-text { flex: none; min-width: 66px; text-align: right; font-size: 11px; font-weight: 700; opacity: 0.85; }
-.scp-meter-limit { color: #ff6b5e; opacity: 1; animation: scp-blink 0.8s ease-in-out infinite; }
-@keyframes scp-blink { 50% { opacity: 0.45; } }
+/* Winch: its load as segments, three buttons, the strength */
 .scp-segs { flex: 1; display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px; }
-.scp-segs i { display: block; height: 6px; border-radius: 2px; background: rgba(255, 255, 255, 0.12); }
-.scp-wbtns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-.scp-wbtn {
-	display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 0 5px; border: none; border-radius: 12px; cursor: pointer;
-	font-family: inherit; font-size: 11px; font-weight: 700; color: #fff; background: rgba(255, 255, 255, 0.08);
-}
-.scp-wbtn:hover { background: rgba(255, 255, 255, 0.14); }
-.scp-wbtn .scp-ic { width: 28px; height: 28px; border-radius: 50%; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.1); }
-.scp-wbtn-out { background: #7d5cc9; }
-.scp-wbtn-stop { background: rgba(255, 255, 255, 0.22); }
-.scp-wbtn-in { background: linear-gradient(135deg, #f08a24, #d8590c); box-shadow: 0 4px 12px rgba(216, 89, 12, 0.35); }
-.scp-wbtn-out:hover, .scp-wbtn-in:hover { filter: brightness(1.1); }
-.scp-wbtn-out .scp-ic, .scp-wbtn-stop .scp-ic, .scp-wbtn-in .scp-ic { background: rgba(255, 255, 255, 0.22); }
-.scp-strength { display: flex; align-items: center; gap: 3px; margin-top: 6px; padding: 3px; border-radius: 10px; background: rgba(0, 0, 0, 0.2); }
-.scp-strength-name { flex: none; padding: 0 4px 0 5px; font-size: 10px; font-weight: 700; opacity: 0.7; }
-.scp-strength .scp-pick { padding: 4px 0; }
-.scp-strength-warn { box-shadow: inset 0 0 0 1.5px #ffb340; }
+.scp-segs i { display: block; height: 6px; border-radius: 2px; background: var(--scp-control); }
+.scp-meter-text { flex: none; min-width: 66px; text-align: right; font-size: var(--scp-fs-s); font-weight: 700; color: var(--scp-text-dim); }
+.scp-meter-limit { color: var(--scp-danger-text); animation: scp-blink 0.8s ease-in-out infinite; }
+.scp-winch { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 
-/* Anchor: the remote (arrows, to my view in the middle, up and down), Fine, Hook on / Unhook */
-.scp-fine { flex: none; margin-left: auto; padding: 3px 9px; border: none; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 10px; font-weight: 800; color: #fff; background: rgba(255, 255, 255, 0.1); }
-.scp-panel-info + .scp-fine { margin-left: 0; }
-.scp-fine:hover { background: rgba(255, 255, 255, 0.18); }
-.scp-fine-on { background: #2d9cdb; }
+/*== Straps app (apps/straps.html) ==*/
+.scp-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+/* "Tighten" pulses while the straps are pulled tight */
+.scp-tightening { animation: scp-tightening 0.8s ease-in-out infinite alternate; }
+.scp-phone .scp-tightening[disabled] { opacity: 0.7; }
+@keyframes scp-tightening { from { filter: brightness(0.85); } to { filter: brightness(1.15); } }
+
+/*== Fuel app (apps/fuel.html) ==*/
+.scp-station { padding: 8px 10px; }
+.scp-station-top { display: flex; justify-content: space-between; gap: 6px; font-size: var(--scp-fs-l); }
+.scp-station-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scp-station-bottom { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.scp-price { display: inline-flex; align-items: baseline; gap: 2px; white-space: nowrap; color: var(--scp-text-dim); }
+.scp-price-main { font-weight: 700; color: var(--scp-text); }
+.scp-price-off { color: var(--scp-ok-text); }
+.scp-price-small { font-size: var(--scp-fs-xs); font-weight: 400; }
+.scp-station-go { margin-left: auto; }
+
+/*== Settings app (apps/settings.html) ==*/
+/* an option to pick: the chosen one with an orange ring */
+.scp-option { display: flex; flex-direction: column; align-items: center; gap: 5px; font-size: var(--scp-fs-s); color: var(--scp-text-dim); }
+.scp-option-on { font-weight: 700; color: var(--scp-text); }
+.scp-wallpapers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 8px; }
+.scp-wallpaper-thumb {
+	display: block; width: 100%; height: 118px; border-radius: var(--scp-r-m); background-color: var(--scp-bg);
+	background-size: cover; background-position: center; box-shadow: inset 0 0 0 1px var(--scp-line);
+}
+.scp-option:hover .scp-wallpaper-thumb { filter: brightness(1.15); }
+.scp-option-on .scp-wallpaper-thumb { box-shadow: 0 0 0 2px var(--scp-accent); }
+.scp-themes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.scp-themes .scp-option { gap: 8px; padding: 12px 8px 10px; }
+.scp-themes .scp-option:hover { background: var(--scp-control); }
+.scp-themes .scp-option-on, .scp-themes .scp-option-on:hover { background: var(--scp-accent-soft); box-shadow: inset 0 0 0 2px var(--scp-accent); }
+.scp-theme-icons { display: flex; gap: 6px; }
+.scp-app-icon-mini { width: 30px; height: 30px; border-radius: var(--scp-r-m); font-size: var(--scp-fs-l); }
+.scp-app-icon-mini .scp-icon { width: 18px; height: 18px; }
+
+/*== Remote for a rope's loose end (shared/remote.html) ==*/
 .scp-remote { display: flex; align-items: center; justify-content: center; gap: 16px; }
 .scp-pad { display: grid; grid-template-columns: 40px 40px 40px; grid-template-rows: 33px 33px 33px; gap: 4px; }
-.scp-pad-key {
-	display: flex; align-items: center; justify-content: center; border: none; border-radius: 10px; cursor: pointer; padding: 0;
-	font-family: inherit; color: #fff; background: rgba(255, 255, 255, 0.1);
-}
-.scp-pad-key:hover { background: rgba(255, 255, 255, 0.18); }
-.scp-pad-key:active { background: #2d9cdb; }
-.scp-pad-center { background: rgba(45, 156, 219, 0.35); }
+.scp-pad-key { min-height: 0; padding: 0; }
+.scp-btn.scp-pad-key:active { background: var(--scp-accent); }
+.scp-pad-center { color: var(--scp-accent-text); background: var(--scp-accent-soft); }
 .scp-lift { display: flex; flex-direction: column; gap: 5px; }
-.scp-lift .scp-pad-key { width: 56px; height: 50px; flex-direction: column; gap: 2px; }
-.scp-pad-label { font-size: 10px; font-weight: 700; }
-.scp-hooked {
-	display: flex; align-items: center; gap: 9px; padding: 9px 10px; border-radius: 12px;
-	background: linear-gradient(135deg, rgba(60, 190, 100, 0.3), rgba(60, 190, 100, 0.14)); box-shadow: inset 0 0 0 1px rgba(110, 230, 150, 0.35);
-}
-.scp-hooked-icon { flex: none; width: 30px; height: 30px; border-radius: 9px; display: flex; align-items: center; justify-content: center; background: #2fa85a; }
-.scp-hooked-icon svg { width: 18px; height: 18px; }
-.scp-hooked-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
-.scp-hooked-label { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.75; }
-.scp-hooked-title { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* "Hook on": only while the anchor is near a point it can hook onto; green on a tow hitch */
-.scp-hookon {
-	width: 100%; display: flex; align-items: center; gap: 10px; margin-top: 8px; padding: 6px 12px; border: none; border-radius: 12px;
-	cursor: pointer; font-family: inherit; color: #fff; text-align: left; animation: scp-pop 0.2s ease-out;
-	background: rgba(255, 255, 255, 0.16); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
-}
-.scp-hookon-hitch { background: linear-gradient(135deg, #34b864, #22894a); box-shadow: 0 4px 14px rgba(47, 168, 90, 0.4); }
-.scp-hookon:hover { filter: brightness(1.12); }
-.scp-strapdown { color: #1d1a12; background: linear-gradient(135deg, #ffd23f, #e0a21a); box-shadow: 0 4px 14px rgba(224, 162, 26, 0.35); }
-.scp-strapdown[disabled] { opacity: 0.5; cursor: default; }
-.scp-hookon .scp-ic svg { width: 20px; height: 20px; }
-.scp-hookon-text { display: flex; flex-direction: column; min-width: 0; }
-.scp-hookon-text b { font-size: 13px; }
-.scp-hookon-text span { font-size: 10px; opacity: 0.85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-@keyframes scp-pop { from { transform: scale(0.96); opacity: 0; } to { transform: none; opacity: 1; } }
+.scp-lift .scp-pad-key { width: 56px; height: 50px; flex-direction: column; gap: 2px; font-size: var(--scp-fs-xs); }
 
-/* Straps app */
-.scp-tile-strap { color: #1d1a12; background: linear-gradient(135deg, #ffd23f, #e0a21a); }
-.scp-rope-off { margin-top: 10px; padding: 8px; font-size: 12px; background: rgba(255, 255, 255, 0.1); }
-.scp-rope-off:hover { background: rgba(255, 59, 48, 0.7); }
-.scp-tile[disabled] { opacity: 0.5; cursor: default; }
-.scp-strap-step { padding: 10px; border-radius: 12px; background: rgba(255, 200, 40, 0.14); box-shadow: inset 0 0 0 1px rgba(255, 200, 40, 0.35); }
-.scp-strap-step-text { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; }
-.scp-strap-step-buttons { display: flex; gap: 6px; margin-top: 8px; }
-.scp-strap-step-buttons .scp-go { padding: 6px 14px; }
-.scp-strap-end { background: rgba(255, 200, 40, 0.1); box-shadow: inset 0 0 0 1px rgba(255, 200, 40, 0.35); }
-.scp-strap-cancel { margin-top: 8px; padding: 7px; font-size: 12px; background: rgba(255, 255, 255, 0.1); }
-.scp-strap-cancel:hover { background: rgba(255, 255, 255, 0.18); }
-.scp-tighten { margin-top: 8px; color: #1d1a12; background: linear-gradient(135deg, #ffd23f, #e0a21a); }
-.scp-tighten:hover { filter: brightness(1.1); }
-.scp-tighten .scp-ic svg { width: 18px; height: 18px; }
-.scp-tighten-on { opacity: 0.6; cursor: default; animation: scp-tighten 0.8s ease-in-out infinite alternate; }
-@keyframes scp-tighten { from { filter: brightness(0.9); } to { filter: brightness(1.15); } }
-.scp-strap-row { box-sizing: border-box; cursor: default; }
-.scp-strap-row:hover { background: rgba(255, 255, 255, 0.07); }
-.scp-dot { flex: none; width: 9px; height: 9px; border-radius: 50%; }
-.scp-dot-slack { background: rgba(255, 255, 255, 0.35); }
-.scp-dot-ok { background: #4cd964; }
-.scp-dot-high { background: #ffcc00; }
-.scp-dot-critical { background: #ff3b30; animation: scp-blink 0.5s ease-in-out infinite; }
-
-
-/* Jobs app: the "On duty" switch of a job type (taxi: rides nearby call you); green while on */
-.scp-duty {
-	width: 100%; display: flex; align-items: center; gap: 10px; margin-bottom: 8px; padding: 9px 12px;
-	border: none; border-radius: 14px; text-align: left; font-family: inherit; color: #fff; cursor: pointer;
-	background: rgba(255, 255, 255, 0.08);
+/*== Less motion, if the system asks for it (the call's bar still runs down: it shows the time left) ==*/
+@media (prefers-reduced-motion: reduce) {
+	.scp-phone, .scp-phone *:not(.scp-call-timer-bar) { animation: none !important; transition: none !important; }
 }
-.scp-duty-text { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: 11px; line-height: 1.3; }
-.scp-duty-text b { font-size: 13px; }
-.scp-duty-text span { opacity: 0.7; }
-.scp-duty-on { background: rgba(60, 200, 110, 0.2); }
-.scp-duty-on .scp-duty-text b { color: #7ff0a5; }
-.scp-switch { flex: none; position: relative; width: 40px; height: 24px; border-radius: 12px; background: rgba(255, 255, 255, 0.25); transition: background 0.2s; }
-.scp-switch i { position: absolute; left: 3px; top: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: left 0.2s; }
-.scp-duty-on .scp-switch { background: #34c759; }
-.scp-duty-on .scp-switch i { left: 19px; }
-.scp-jobtype-pill-duty { background: #34c759; color: #fff; }
-
-/* an incoming call: over the whole screen, the icon pulsing, the bar running down while it rings */
-.scp-call {
-	position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 20; display: flex; flex-direction: column; align-items: center;
-	justify-content: center; gap: 6px; padding: 24px; text-align: center; color: #fff;
-	background: linear-gradient(170deg, #20314f 0%, #121722 100%); animation: scp-from-right 0.18s ease-out;
-}
-.scp-call-icon {
-	width: 76px; height: 76px; margin-bottom: 10px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-	color: #221a00; background: #ffd21f; animation: scp-call-pulse 1.2s ease-out infinite;
-}
-.scp-call-icon svg { width: 44px; height: 44px; }
-@keyframes scp-call-pulse { from { box-shadow: 0 0 0 0 rgba(255, 210, 31, 0.6); } to { box-shadow: 0 0 0 22px rgba(255, 210, 31, 0); } }
-.scp-call-title { font-size: 22px; font-weight: 800; }
-.scp-call-text { font-size: 15px; font-weight: 700; }
-.scp-call-detail { font-size: 13px; opacity: 0.7; }
-.scp-call-timer { width: 70%; height: 4px; margin: 14px 0 22px; border-radius: 2px; overflow: hidden; background: rgba(255, 255, 255, 0.15); }
-.scp-call-timer i { display: block; height: 100%; background: #fff; animation: scp-call-timer linear forwards; }
-@keyframes scp-call-timer { from { width: 100%; } to { width: 0; } }
-.scp-call-buttons { display: flex; gap: 14px; width: 100%; }
-.scp-call-btn {
-	flex: 1; padding: 12px 0; border: none; border-radius: 14px; font-family: inherit; font-size: 15px; font-weight: 800;
-	color: #fff; cursor: pointer;
-}
-.scp-call-decline { background: #ff3b30; }
-.scp-call-accept { background: #34c759; }
-.scp-call-btn:hover { filter: brightness(1.1); }
-@media (prefers-reduced-motion: reduce) { .scp-call, .scp-call-icon { animation: none; } }

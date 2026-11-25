@@ -2,7 +2,8 @@
 --
 -- A phone in the game, the home for SharedCareer apps. The home screen shows the server time,
 -- how long until day or night (with a bar), the number of players and the app grid. Apps so far:
--- Jobs (jobs.lua), Tow (tow.lua), Straps (straps.lua) and Fuel (fuel.lua).
+-- Jobs (jobs.lua), Tow (tow.lua), Straps (straps.lua), Fuel (fuel.lua) and Settings (the phone's
+-- own: wallpaper and app icons, kept by the window on this PC; registered here).
 --
 -- The UI is the app ui/modules/apps/SharedCareer-Phone/: a small tab with a phone icon at the
 -- right screen edge (below the menu); the phone itself opens above it. Key: F4 by default
@@ -12,14 +13,14 @@
 --
 -- Apps: SharedCareer extensions register themselves here:
 --   sharedCareer_phone.registerApp({id = "taxi", title = "Taxi", icon = "T", color = "#f5b800",
---                                   order = 10, beta = true, onOpen = function() ... end, onClose = ...})
--- beta = true marks the app as experimental (a "BETA" badge on its icon and in its title bar).
+--                                   order = 10, onOpen = function() ... end, onClose = ...})
 -- The phone shows every registered app on the home screen; a tap calls uiOpenApp(id), which
 -- calls the app's onOpen; leaving the app (home, putting the phone away) calls uiCloseApp(id) ->
--- onClose. Apps are only listed while client.phone is on. Tow, Straps and Fuel have their own screens
--- in the phone window (phone.html).
+-- onClose. Apps are only listed while client.phone is on. Jobs, Tow, Straps, Fuel and Settings have
+-- their own screens in the phone window (apps/<id>.html).
 --
 -- icon: the name of an icon in ui/sharedCareer/icons.svg ("jobs", "tow", ...), else a short text (letter).
+-- color: the icon's color with the "Colors" app icons (Settings); the other icon themes don't use it.
 --
 -- Calls: an extension can ring the phone (ring, e.g. taxiJobs.lua: a ride nearby while you are on
 -- duty). The phone comes out and shows the call (title, two lines, Accept / Decline) until it is
@@ -27,7 +28,7 @@
 -- onAnswer(accepted, missed) learns which; "Accept" also opens the app (and page) the call names.
 -- One call at a time, only while you drive (no game menu open).
 --
--- guihooks: SharedCareerPhone {enabled, apps = [{id, title, icon, color, beta}]} (state),
+-- guihooks: SharedCareerPhone {enabled, apps = [{id, title, icon, color}]} (state),
 --           SharedCareerPhoneToggle (key), SharedCareerPhoneAway (a game menu is open),
 --           SharedCareerPhoneCall {call = {id, title, text, detail, icon, seconds, open = {app, page}}}
 --           (a call rings; without call: it is over).
@@ -41,7 +42,7 @@ local ACTION = "sharedCareerPhone"
 local KEY = "f4"
 local RING_SECONDS = 15 -- s a call rings before it counts as missed
 
-local apps = {} -- id -> {id, title, icon, color, order, beta, onOpen, onClose}
+local apps = {} -- id -> {id, title, icon, color, order, onOpen, onClose}
 local keyRegistered = false
 local screen = "play" -- the game's current screen (UI route), from onUiChangedState
 local call = nil -- the call that rings: {id, title, text, detail, icon, open, onAnswer, left}
@@ -61,10 +62,7 @@ end
 function M.state()
 	local list = {}
 	for _, app in pairs(apps) do
-		table.insert(
-			list,
-			{ id = app.id, title = app.title, icon = app.icon, color = app.color, order = app.order, beta = app.beta }
-		)
+		table.insert(list, { id = app.id, title = app.title, icon = app.icon, color = app.color, order = app.order })
 	end
 	table.sort(list, function(a, b)
 		if a.order ~= b.order then
@@ -79,7 +77,7 @@ local function push()
 	trigger("SharedCareerPhone", M.state())
 end
 
---- Registers an app on the phone. def = {id, title, icon (icon name or short text), color, order, beta, onOpen, onClose}.
+--- Registers an app on the phone. def = {id, title, icon (icon name or short text), color, order, onOpen, onClose}.
 function M.registerApp(def)
 	if type(def) ~= "table" or type(def.id) ~= "string" or def.id == "" then
 		return false
@@ -90,7 +88,6 @@ function M.registerApp(def)
 		icon = tostring(def.icon or string.upper(def.id:sub(1, 1))),
 		color = type(def.color) == "string" and def.color or "#ff6600",
 		order = tonumber(def.order) or 100,
-		beta = def.beta == true,
 		onOpen = type(def.onOpen) == "function" and def.onOpen or nil,
 		onClose = type(def.onClose) == "function" and def.onClose or nil,
 	}
@@ -275,6 +272,7 @@ end
 
 function M.onExtensionLoaded()
 	U = extensions.sharedCareer_util
+	M.registerApp({ id = "settings", title = "Settings", icon = "settings", color = "#6e7581", order = 1000 })
 end
 
 M.onInit = function()

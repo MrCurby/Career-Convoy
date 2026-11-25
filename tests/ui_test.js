@@ -165,6 +165,13 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 	check(phone.fuel && phone.fuel.stations.length === 1, 'fuel = false (app closed): the last list stays');
 	phone.emit('SharedCareerState', {hour: 11, connected: true});
 	check(phone.fuel === null && phone.time === 11, 'no fuel (map without stations): empty list; time updated');
+	// the hint "Green: cheaper after a delivery" only while a station is cheaper
+	check(!phone.fuelDiscounted(), 'no stations: no hint about green prices');
+	phone.emit('SharedCareerState', {hour: 11, connected: true, fuel: {stations: [{id: 'a', fuels: {gasoline: {price: 1.6}}}]}});
+	const noDiscount = phone.fuelDiscounted();
+	phone.emit('SharedCareerState', {hour: 11, connected: true, fuel: {stations: [{id: 'a', fuels: {gasoline: {price: 1.6}}},
+		{id: 'b', fuels: {diesel: {price: 1.5, discount: 10}}}]}});
+	check(!noDiscount && phone.fuelDiscounted(), 'the hint about green prices only while a station is cheaper after a delivery');
 	// home screen: time until day / night with a bar
 	phone.emit('SharedCareerPhone', {enabled: true, apps: [{id: 'tow'}, {id: 'fuel'}]});
 	phone.emit('SharedCareerState', {hour: 13, isDay: true, secondsToSwitch: 1380, dayStart: 6, nightStart: 20, connected: true,
@@ -224,12 +231,15 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 	check(phone.segStyle(4).background && !phone.segStyle(5).background && phone.ropeState().text === 'OK',
 		'winch at half its limit: 5 of 10 segments; rope OK');
 	phone.emit('SharedCareerTow', {allowed: true, attached: true, slack: false, winch: 1, strain: 1, ropeLoad: 0.5});
-	check(phone.segStyle(9).background === '#ff3b30' && phone.ropeState().text === 'High load',
+	check(phone.segStyle(9).background === 'var(--scp-danger)' && phone.ropeState().text === 'High load',
 		'winch at its limit: all segments red; rope under high load');
 	phone.emit('SharedCareerTow', {allowed: true, attached: true, slack: false, winch: 0, strain: 0.2, ropeLoad: 0.8});
 	check(phone.ropeState().cls === 'scp-rope-critical', 'rope near breaking: the critical chip');
 	phone.emit('SharedCareerTow', {allowed: true, attached: true, slack: false, winch: -1, strain: 0, ropeLoad: 0.2});
 	check(phone.winchText() === 'Paying out' && !phone.segStyle(0).background, 'paying out: the winch gives way, no load shown');
+	phone.emit('SharedCareerTow', {allowed: true, attached: true, strengths: [50, 100], strength: 100});
+	check(phone.tow.strengthOptions.map(o => o.id + ':' + o.name).join() === '50:50%,100:100%',
+		'the strengths as options of the segment select');
 	phone.emit('SharedCareerTow', {allowed: true, attached: true, slack: true, winch: 0, strain: 0.3, ropeLoad: 0});
 	check(!phone.segStyle(0).background && phone.winchText() === 'Locked' && phone.ropeState().text === 'Slack',
 		'winch stopped: "Locked", empty segments; rope "Slack"');
@@ -328,7 +338,7 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 	phone.emit('SharedCareerJobs', {enabled: true, jobs: [], active: active({phase: 'paid', step: 2})});
 	check(phone.jobStep() === 2 && phone.jobPaid() && phone.jobText().indexOf('Done') === 0, 'step 3: paid');
 	phone.openJobs();
-	check(phone.currentApp && phone.currentApp.id === 'jobs' && !phone.currentApp.beta, 'the job strip opens the Jobs app without a beta marker');
+	check(phone.currentApp && phone.currentApp.id === 'jobs', 'the job strip opens the Jobs app');
 	phone.goHome();
 	// the "On duty" switch of a job type (taxi): shown only for a job type that has one
 	phone.emit('SharedCareerJobs', {enabled: true, sections: [{type: 'tow', open: 0, groups: []},
@@ -451,17 +461,17 @@ if (process.argv[2]) {
 	// replace: true needs exactly one root element: nothing (not even a comment) before or after it
 	check(pages.every(h => /^<div\b/.test(h) && /<\/div>\s*$/.test(h)),
 		'menu and phone templates are one root <div>, nothing before or after it');
-	// every app screen is loaded into a .scp-appscreen slot, else it is not given a height and cannot scroll
-	const slots = [...pages[1].matchAll(/<div([^>]*)ng-include="'\/ui\/modules\/apps\/SharedCareer-Phone\/apps\//g)];
-	check(slots.length === 4 && slots.every(m => m[1].includes('class="scp-appscreen"')),
-		'phone.html: each app screen sits in a .scp-appscreen slot (so it scrolls)');
-	// the phone's remote (remote.html), in the Tow and Straps app templates
+	// every app screen is loaded into the .scp-appscreen slot, else it is not given a height and cannot scroll
+	check((pages[1].match(/ng-include="appScreen\(\)"/g) || []).length === 1
+		&& /<div class="scp-appscreen" ng-if="appScreen\(\)" ng-include="appScreen\(\)">/.test(pages[1]),
+		'phone.html: the app screens are loaded into one .scp-appscreen slot (so they scroll)');
+	// the phone's remote (shared/remote.html), in the Tow and Straps app templates
 	const phoneDir = 'client/ui/modules/apps/SharedCareer-Phone/';
 	const appTemplates = ['jobs', 'tow', 'straps', 'fuel'].map(name => read(phoneDir + 'apps/' + name + '.html'));
 	const phoneScript = read(phoneDir + 'app.js');
-	const remote = read(phoneDir + 'remote.html');
+	const remote = read(phoneDir + 'shared/remote.html');
 	const segmentSelect = read(phoneDir + 'shared/segment-select.html');
-	check((appTemplates.join('').match(/ng-include="'\/ui\/modules\/apps\/SharedCareer-Phone\/remote.html'"/g) || []).length === 2
+	check((appTemplates.join('').match(/ng-include="'\/ui\/modules\/apps\/SharedCareer-Phone\/shared\/remote.html'"/g) || []).length === 2
 		&& !appTemplates.join('').includes('scp-pad-key'), 'the Tow and Straps apps share one remote (remote.html)');
 	check(!appTemplates[0].includes('<scp-segment-select')
 		&& appTemplates[3].includes('<scp-segment-select options="fuelSorts" selected="fuelSort"')
@@ -475,8 +485,10 @@ if (process.argv[2]) {
 		&& appTemplates[0].includes("!jobs.active && !jobLicenseMissing()\"")
 		&& appTemplates[0].includes('ng-click="licenseRoute()"'),
 		'Jobs app without the license: a bar with the route, the jobs greyed out, no "Take job"');
-	pages.push(remote, segmentSelect, ...appTemplates);
-	const used = pages.flatMap(h => [...h.matchAll(/href="#sc-icon-([a-z-]+)"/g)].map(m => m[1]));
+	pages.push(remote, segmentSelect, ...appTemplates, read(phoneDir + 'apps/settings.html'));
+	// an icon by its name: <svg><use href="#sc-icon-car"/></svg> in the menu, <scp-icon name="car"> on the phone
+	const used = pages.flatMap(h => [...h.matchAll(/href="#sc-icon-([a-z-]+)"|<scp-icon[^>]*\sname="([a-z-]+)"/g)]
+		.map(m => m[1] || m[2]));
 	const missing = used.filter(n => !icons.includes(n));
 	check(used.length > 30 && missing.length === 0, 'every icon the apps use is in icons.svg ' + missing.join(','));
 	// no icon drawn inline in an app: an <svg> there only holds a <use> (the rope is a drawing, not an icon)
@@ -484,7 +496,7 @@ if (process.argv[2]) {
 		.filter(b => !/^<use(?:\s[^>]*)?\/>$/.test(b.trim()) && !b.includes('scp-rope-path'));
 	check(inline.length === 0, 'no icon drawn inline in phone or app templates (' + inline.length + ')');
 	// the icon names Lua sends: the apps on the phone, the job types, the kinds of vehicle of a towing job
-	const lua = ['jobs', 'tow', 'straps', 'fuel', 'towJobs', 'taxiJobs'].map(f => read('client/lua/ge/extensions/sharedCareer/' + f + '.lua'));
+	const lua = ['jobs', 'tow', 'straps', 'fuel', 'towJobs', 'taxiJobs', 'phone'].map(f => read('client/lua/ge/extensions/sharedCareer/' + f + '.lua'));
 	const kinds = lua[4].match(/local KINDS = \{([\s\S]*?)\n\}/)[1];
 	const names = lua.flatMap(l => [...l.matchAll(/icon = "([a-z-]+)"/g)].map(m => m[1]))
 		.concat([...kinds.matchAll(/kind = "([a-z-]+)"/g)].map(m => m[1]), ['car']);
@@ -493,6 +505,34 @@ if (process.argv[2]) {
 	// in the window: an icon by name, text for a name without one ("T" of an app)
 	const env = makeEnv({});
 	const phone = load(...PHONE, env);
+	const screenIds = ['jobs', 'tow', 'straps', 'fuel', 'settings'];
+	const screens = screenIds.map(id => { phone.openApp({id: id}); return phone.appScreen(); });
+	phone.openApp({id: 'radio'});
+	check(screens.every((s, i) => s === '/ui/modules/apps/SharedCareer-Phone/apps/' + screenIds[i] + '.html'
+		&& fs.existsSync(require('path').join(__dirname, '../client', s))) && phone.appScreen() === null,
+		'the built-in apps load their screen (apps/<id>.html); an app without one gets none');
+	// Settings: the wallpaper and the app icons, kept on this PC; a stored id that is gone falls back to the first
+	const css = read(phoneDir + 'app.css');
+	check(phone.WALLPAPERS.every(w => fs.existsSync(require('path').join(__dirname, '../client/ui/sharedCareer/wallpapers', w.id + '.svg')))
+		&& phone.ICON_THEMES.every(t => css.includes('.scp-app-icon-' + t.id + ' {')),
+		'Settings: every wallpaper is a file in wallpapers/, every icon theme has its style in app.css');
+	check(phone.look.wallpaper === 'ember' && phone.look.icons === 'beamng'
+		&& phone.wallpaperStyle()['background-image'] === 'url(/ui/sharedCareer/wallpapers/ember.svg)'
+		&& phone.appIconClass() === 'scp-app-icon-beamng' && !phone.appIconStyle({color: '#123456'}).background,
+		'Settings: by default the Ember wallpaper and BeamNG icons (orange, not the app\'s color)');
+	phone.setWallpaper('dusk');
+	phone.setIconTheme('colors');
+	check(env.storage.sharedCareerPhoneWallpaper === 'dusk' && env.storage.sharedCareerPhoneIcons === 'colors'
+		&& phone.appIconStyle({color: '#123456'}).background === '#123456' && phone.appIconClass('dark') === 'scp-app-icon-dark',
+		'Settings: the choice is stored; "Colors" shows each app in its own color');
+	const again = load(...PHONE, makeEnv({sharedCareerPhoneWallpaper: 'dusk', sharedCareerPhoneIcons: 'neon'}));
+	check(again.look.wallpaper === 'dusk' && again.look.icons === 'beamng', 'Settings: read back on start; an unknown theme falls back to BeamNG');
+	phone.setWallpaper('nope');
+	check(phone.look.wallpaper === 'ember', 'Settings: an unknown wallpaper falls back to the first');
+	const icon = env.directives.scpIcon;
+	check(icon.template(null, {name: 'car'}) === '<svg class="scp-icon" aria-hidden="true"><use href="#sc-icon-car"/></svg>'
+		&& icon.template(null, {name: '{{ j.icon }}'}).includes('<use ng-attr-href="#sc-icon-{{ j.icon }}"/>'),
+		'<scp-icon>: an icon by its name, or by a name from Lua');
 	check(phone.hasIcon('tow') && phone.hasIcon('car') && !phone.hasIcon('T') && !phone.hasIcon('') && !phone.hasIcon(undefined),
 		'hasIcon: true for an icon in icons.svg, false for anything else');
 }
@@ -506,12 +546,46 @@ if (process.argv[2]) {
 	const sign = load('client/ui/modules/apps/SharedCareer-SpeedLimit/app.js', 'SharedCareerSpeedLimit', env);
 	check(env.calls.some(c => c.indexOf('sharedCareer_speedLimit.uiRequest()') >= 0) && !sign.sign.limit,
 		'the sign asks Lua for the limit when it opens; nothing shown before');
-	sign.emit('SharedCareerSpeedLimit', {limit: 50, unit: 'km/h', over: false});
-	check(sign.sign.limit === 50 && sign.sign.unit === 'km/h', 'a limit: shown in its unit');
-	sign.emit('SharedCareerSpeedLimit', {limit: 35, unit: 'mph', over: true});
-	check(sign.sign.unit === 'mph' && sign.sign.over === true, 'mph, too fast: the US sign warns');
+	sign.emit('SharedCareerSpeedLimit', {kmh: 50, mph: 30, unit: 'km/h', over: false});
+	check(sign.limit() === 50 && sign.unit() === 'km/h', 'a limit: shown in the game\'s unit (km/h)');
+	sign.emit('SharedCareerSpeedLimit', {kmh: 55, mph: 35, unit: 'mph', over: true});
+	check(sign.limit() === 35 && sign.unit() === 'mph' && sign.sign.over === true, 'mph, too fast: the US sign warns');
 	sign.emit('SharedCareerSpeedLimit', {});
-	check(!sign.sign.limit, 'no limit (off the road, on foot): no sign');
+	check(!sign.sign.kmh, 'no limit (off the road, on foot): no sign');
+	// when it shows: the player's choice on the phone (off by default), never while the menu is open
+	const menu = load('client/ui/modules/apps/SharedCareer-Menu/app.js', 'SharedCareerMenu', env);
+	const phone = load(...PHONE, env);
+	sign.emit('SharedCareerSpeedLimit', {kmh: 50, mph: 30, unit: 'km/h', over: false, taxi: false});
+	check(phone.look.sign === 'off' && !sign.shown(), 'by default the sign is off');
+	// the unit: the game's by default, or the player's choice on the phone
+	check(phone.look.unit === 'game' && sign.unit() === 'km/h', 'by default the unit of the game\'s settings');
+	phone.setSpeedUnit('mph');
+	check(env.storage.sharedCareerSpeedUnit === 'mph' && sign.unit() === 'mph' && sign.limit() === 30,
+		'mph picked on the phone: the US sign in mph, although the game uses km/h');
+	phone.setSpeedUnit('kmh');
+	sign.emit('SharedCareerSpeedLimit', {kmh: 50, mph: 30, unit: 'mph', over: false, taxi: false});
+	check(sign.unit() === 'km/h' && sign.limit() === 50, 'km/h picked: km/h, although the game uses mph');
+	phone.setSpeedUnit('game');
+	check(sign.unit() === 'mph', 'back to the game\'s unit');
+	phone.setSignMode('always');
+	check(env.storage.sharedCareerSpeedSign === 'always' && sign.menuOpen && !sign.shown(),
+		'"Always", but the menu is open: hidden, so it never covers the menu');
+	menu.toggleCollapsed();
+	check(!sign.menuOpen && sign.shown(), 'menu collapsed: the sign shows');
+	phone.setSignMode('taxi');
+	const offRide = sign.shown();
+	sign.emit('SharedCareerSpeedLimit', {kmh: 50, mph: 30, unit: 'km/h', over: false, taxi: true});
+	check(!offRide && sign.shown(), '"Taxi rides": only on a taxi ride');
+	menu.toggleCollapsed();
+	check(sign.menuOpen && !sign.shown(), 'menu opened again: hidden');
+	const later = load('client/ui/modules/apps/SharedCareer-SpeedLimit/app.js', 'SharedCareerSpeedLimit',
+		makeEnv({sharedCareerSpeedSign: 'always', sharedCareerMenuCollapsed: '1'}));
+	later.emit('SharedCareerSpeedLimit', {kmh: 50, mph: 30, unit: 'km/h', over: false, taxi: false});
+	check(later.shown(), 'after a restart: the stored choice, the menu as it was left');
+	const laterMph = load('client/ui/modules/apps/SharedCareer-SpeedLimit/app.js', 'SharedCareerSpeedLimit',
+		makeEnv({sharedCareerSpeedUnit: 'mph'}));
+	laterMph.emit('SharedCareerSpeedLimit', {kmh: 50, mph: 30, unit: 'km/h', over: false, taxi: false});
+	check(laterMph.unit() === 'mph', 'after a restart: the stored unit');
 }
 
 process.exit(H.done() ? 1 : 0);

@@ -2409,11 +2409,12 @@ local st = lastPhone("SharedCareerPhone")
 check(
 	st
 		and st.enabled == true
-		and #st.apps == 3
+		and #st.apps == 4
 		and st.apps[1].id == "tow"
 		and st.apps[2].id == "straps"
-		and st.apps[3].id == "fuel",
-	"phone on, with the built-in apps Tow, Straps and Fuel"
+		and st.apps[3].id == "fuel"
+		and st.apps[4].id == "settings",
+	"phone on, with the built-in apps Tow, Straps and Fuel, Settings last"
 )
 phoneHooks = {}
 phoneKey.onDown()
@@ -2471,7 +2472,7 @@ for _, app in ipairs(st.apps) do
 	table.insert(ids, app.id)
 end
 check(
-	table.concat(ids, ",") == "bank,jobs,tow,straps,fuel,taxi",
+	table.concat(ids, ",") == "bank,jobs,tow,straps,fuel,taxi,settings",
 	"apps sorted by order, then title: " .. table.concat(ids, ",")
 )
 check(
@@ -2482,7 +2483,7 @@ check(sharedCareer_phone.uiOpenApp("taxi") == true and opened == 1, "a tap opens
 check(sharedCareer_phone.uiOpenApp("bank") == true, "an app that fails to open doesn't break the phone")
 check(sharedCareer_phone.uiOpenApp("nope") == false, "unknown app: nothing happens")
 sharedCareer_phone.unregisterApp("bank")
-check(#lastPhone("SharedCareerPhone").apps == 5, "an app can be removed again")
+check(#lastPhone("SharedCareerPhone").apps == 6, "an app can be removed again")
 -- switched off on the server: hidden, key does nothing, apps don't open
 cfgP.phone = false
 handlers.sc_configUpdate(json.encode(cfgP))
@@ -4646,10 +4647,7 @@ check(
 			jobsApp = app
 		end
 	end
-	check(
-		jobsApp and not jobsApp.beta and jobsApp.title == "Jobs",
-		"the Jobs app is on the phone without a beta marker"
-	)
+	check(jobsApp and jobsApp.title == "Jobs", "the Jobs app is on the phone")
 	local st = jobs.appState()
 	local first = st.sections[1] and st.sections[1].groups[1].jobs[1]
 	check(
@@ -5307,6 +5305,19 @@ check(
 	)
 	-- speeding: on the road (limit 20 m/s), more than 15 % over it for 2 s; again after 10 s more
 	me.p = { x = 2500, y = -2, z = 10 }
+	-- the speed limit sign learns that this is a taxi ride (the player may show it only then)
+	local rideSign
+	local trigger1 = guihooks.trigger
+	guihooks.trigger = function(name, data)
+		if name == "SharedCareerSpeedLimit" then
+			rideSign = data
+		end
+		return trigger1(name, data)
+	end
+	sharedCareer_speedLimit.uiRequest()
+	update(0.3)
+	guihooks.trigger = trigger1
+	check(rideSign and rideSign.kmh and rideSign.taxi == true, "on a taxi ride: the speed limit sign knows it")
 	local function speedTo(v)
 		while math.abs(me.v.x - v) > 1e-9 do
 			me.v = { x = me.v.x + math.max(-1.5, math.min(1.5, v - me.v.x)), y = 0, z = 0 }
@@ -5524,8 +5535,12 @@ check(
 	sharedCareer_speedLimit.uiRequest() -- the window opens: it asks for the sign
 	wait(1)
 	check(
-		sign().limit == 70 and sign().unit == "km/h" and sign().over == false,
-		"on the road: its limit (20 m/s) in km/h, rounded to 5"
+		sign().kmh == 70
+			and sign().mph == 45
+			and sign().unit == "km/h"
+			and sign().over == false
+			and sign().taxi == false,
+		"on the road: its limit (20 m/s) in km/h and mph, rounded to 5; the game's unit; no taxi ride"
 	)
 	local count = #signs
 	wait(2)
@@ -5539,14 +5554,14 @@ check(
 	units = "imperial"
 	me.v = { x = 0, y = 0, z = 0 }
 	wait(1)
-	check(sign().limit == 45 and sign().unit == "mph" and sign().over == false, "imperial units: in mph")
+	check(sign().mph == 45 and sign().unit == "mph" and sign().over == false, "imperial units: the game's unit is mph")
 	me.p.y = -12
 	wait(1)
-	check(sign().limit == nil, "off the road: no sign")
+	check(sign().kmh == nil, "off the road: no sign")
 	me.p.y = -2
 	world.playerVeh = 91
 	wait(1)
-	check(sign().limit == nil, "on foot: no sign")
+	check(sign().kmh == nil, "on foot: no sign")
 	world.playerVeh = 70
 	_G.settings = nil
 	guihooks.trigger = trigger0

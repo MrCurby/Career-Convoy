@@ -1,34 +1,27 @@
-<div class="scp-appbody scp-tow scp-fuel">
-	<scp-segment-select options="fuelSorts" selected="fuelSort"
-		on-select="setFuelSort(id)"></scp-segment-select>
-	<div class="scp-station" ng-repeat="st in stations() track by st.id"
-		ng-class="{'scp-cheapest': $first && fuelSort !== 'distance'}">
+<!-- Fuel: all gas stations, cheapest first or nearest first (fuel.lua; the prices come with
+     "SharedCareerState"), each with a route to it -->
+<div class="scp-appbody">
+	<scp-segment-select options="fuelSorts" selected="fuelSort" on-select="setFuelSort(id)"></scp-segment-select>
+	<div class="scp-card scp-station" ng-repeat="st in stations() track by st.id"
+		ng-class="{'scp-card-ok': $first && fuelSort !== 'distance'}">
 		<div class="scp-station-top">
-			<span class="scp-station-name" ng-bind="st.name"></span>
-			<span class="scp-row-right" ng-if="st.distance !== undefined"
-				ng-bind="formatDistance(st.distance)"></span>
+			<b class="scp-station-name" ng-bind="st.name"></b>
+			<span class="scp-dim-text" ng-if="st.distance !== undefined" ng-bind="formatDistance(st.distance)"></span>
 		</div>
 		<div class="scp-station-bottom">
-			<span class="scp-price" ng-repeat="f in ['gasoline', 'diesel']"
-				ng-if="st.fuels[f]"
+			<span class="scp-price" ng-repeat="f in ['gasoline', 'diesel']" ng-if="st.fuels[f]"
 				ng-class="{'scp-price-main': f === mainFuel(), 'scp-price-off': st.fuels[f].discount > 0}">
-				<span class="scp-fuelkey"
-					ng-bind="f === 'gasoline' ? 'G' : 'D'"></span>{{
-				formatPrice(st.fuels[f]) }}<span class="scp-disc"
-					ng-if="st.fuels[f].discount > 0"> −{{ st.fuels[f].discount }}%</span>
+				<span class="scp-price-small" ng-bind="f === 'gasoline' ? 'G' : 'D'"></span>
+				<span ng-bind="formatPrice(st.fuels[f])"></span>
+				<span class="scp-price-small" ng-if="st.fuels[f].discount > 0" ng-bind="'−' + st.fuels[f].discount + '%'"></span>
 			</span>
-			<span class="scp-gap"></span>
-			<button class="scp-go"
-				ng-if="st.canNavigate && fuel.navigating !== st.id"
+			<button class="scp-btn scp-btn-s scp-station-go" ng-if="st.canNavigate && fuel.navigating !== st.id"
 				ng-click="navigate(st.id)" title="Route to this station">Go</button>
-			<button class="scp-go scp-go-on" ng-if="fuel.navigating === st.id"
+			<button class="scp-btn scp-btn-s scp-btn-primary scp-station-go" ng-if="fuel.navigating === st.id"
 				ng-click="stopNavigate()" title="Stop navigation">Stop</button>
 		</div>
 	</div>
-	<div class="scp-hint" ng-if="!connected">Only on a SharedCareer
-		server</div>
-	<div class="scp-hint" ng-if="connected && !stations().length">No gas
-		stations on this map</div>
-	<div class="scp-hint" ng-if="stations().length">Green = cheaper after a
-		delivery.</div>
+	<div class="scp-hint" ng-if="!connected">Only on a SharedCareer server.</div>
+	<div class="scp-hint" ng-if="connected && !stations().length">No gas stations on this map.</div>
+	<div class="scp-hint" ng-if="fuelDiscounted()">Green: cheaper after a delivery.</div>
 </div>

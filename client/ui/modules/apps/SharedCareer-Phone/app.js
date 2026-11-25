@@ -2,7 +2,7 @@
 // The phone shows the server time, the number of players, the connection and the apps that
 // SharedCareer extensions registered (lua/ge/extensions/sharedCareer/phone.lua). Built-in app
 // screens: Jobs (jobs.lua with its job types: towJobs.lua, taxiJobs.lua), Tow (rope and winch, tow.lua), Straps (ratchet straps,
-// straps.lua) and Fuel (gas station prices, fuel.lua). Apps marked beta get a "BETA" badge on the icon and in the title bar.
+// straps.lua), Fuel (gas station prices, fuel.lua) and Settings (wallpaper and app icons, kept on this PC).
 // The home screen has, below the clock, how long until day or night (with a bar for the part
 // of it that is over), and the app icons.
 //
@@ -19,8 +19,9 @@
 //
 // Files: app.json registers the BeamNG UI app; phone.html is the template (the phone's shell),
 // apps/<name>.html the screens of the built-in apps, shared/ the parts they share (segment-select.html:
-// the row to switch views, directive scpSegmentSelect below), remote.html the rope remote, app.css the styles.
-// phone.html must have exactly one root element (replace: true below), with nothing before it.
+// a row of buttons to pick one, directive scpSegmentSelect below; remote.html: the rope remote),
+// app.css the styles. phone.html must have exactly one root element (replace: true below), with
+// nothing before it.
 //
 // Note: only var/function at the top level – the game evaluates app.js again in the same
 // scope when the apps are reloaded.
@@ -36,8 +37,24 @@ sharedCareerPhoneApp.directive('sharedCareerPhone', [function () {
 	};
 }]);
 
-// A row of buttons to switch between views of an app (Fuel: sort); the chosen
-// one is highlighted. <scp-segment-select options="list" selected="id" on-select="set(id)">
+// An icon of ui/sharedCareer/icons.svg (loaded into the page by phone.html), by its name:
+// <scp-icon name="car"></scp-icon>, or a name from Lua: <scp-icon name="{{ app.icon }}"></scp-icon>.
+// Its size comes from app.css (.scp-icon and the place it is in); it is drawn in the text color.
+sharedCareerPhoneApp.directive('scpIcon', [function () {
+	return {
+		restrict: 'E',
+		replace: true,
+		template: function (element, attrs) {
+			var name = attrs.name || '';
+			var href = name.indexOf('{{') >= 0 ? 'ng-attr-href="#sc-icon-' + name + '"' : 'href="#sc-icon-' + name + '"';
+			return '<svg class="scp-icon" aria-hidden="true"><use ' + href + '/></svg>';
+		}
+	};
+}]);
+
+// A row of buttons to pick one (Fuel: the order, Tow: the winch's strength); the chosen one is
+// orange. <scp-segment-select label="Strength" options="list" selected="id" on-select="set(id)">
+//   label      optional, a name in front of the buttons
 //   options    [{id, name, icon?}] – keep it the same array between updates (a new array on every
 //              call makes AngularJS check again and again until it gives up)
 //   selected   the id of the chosen option
@@ -48,6 +65,7 @@ sharedCareerPhoneApp.directive('scpSegmentSelect', [function () {
 		replace: true,
 		templateUrl: '/ui/modules/apps/SharedCareer-Phone/shared/segment-select.html',
 		scope: {
+			label: '@',
 			options: '=',
 			selected: '=',
 			onSelect: '&'
@@ -129,6 +147,12 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 	$scope.goBack = function () {
 		if ($scope.canGoBackInApp()) $scope.jobsType = null; else closeApp();
 	};
+	// the screen of the open app, if it is a built-in one with its own (apps/<id>.html); else null
+	var APP_SCREENS = ['jobs', 'tow', 'straps', 'fuel', 'settings'];
+	$scope.appScreen = function () {
+		var id = $scope.currentApp && $scope.currentApp.id;
+		return APP_SCREENS.indexOf(id) >= 0 ? '/ui/modules/apps/SharedCareer-Phone/apps/' + id + '.html' : null;
+	};
 	$scope.appTitle = function () {
 		if (!$scope.currentApp) return '';
 		return $scope.canGoBackInApp() ? $scope.jobTypeName() : $scope.currentApp.title;
@@ -149,7 +173,7 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 		if (s < 0.9) return 'Working hard';
 		return 'At the limit';
 	};
-	// the winch's load while it hauls in, as 10 segments, green -> yellow -> orange, red at the limit;
+	// the winch's load while it hauls in, as 10 segments, green -> amber -> orange, red at the limit;
 	// stopped the drum is locked (the rope holds like a tow rope), paying out it gives way
 	$scope.winchText = function () {
 		var t = $scope.tow;
@@ -157,11 +181,12 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 		return t.winch === -1 ? 'Paying out' : 'Locked';
 	};
 	$scope.winchSegs = new Array(10);
-	var SEG_COLORS = ['#4cd964', '#4cd964', '#4cd964', '#8fdc4a', '#c8d93a', '#ffcc00', '#ffcc00', '#ffa020', '#ff8a20', '#ff6a1a'];
+	// the colors are the phone's (app.css)
 	$scope.segStyle = function (i) {
 		var s = $scope.tow.winch === 1 ? ($scope.tow.strain || 0) : 0;
 		if (s * 10 <= i) return {};
-		return {'background': s >= 0.95 ? '#ff3b30' : SEG_COLORS[i]};
+		if (s >= 0.95) return {'background': 'var(--scp-danger)'};
+		return {'background': i < 5 ? 'var(--scp-ok)' : i < 8 ? 'var(--scp-warn)' : 'var(--scp-accent)'};
 	};
 	// the rope's load (share of its breaking load), in words
 	$scope.ropeState = function () {
@@ -200,7 +225,7 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 			$scope.straps = data;
 		});
 	});
-	//== The remote for a rope's loose end (remote.html, ropeRemote.lua): in the Tow and Straps apps ==
+	//== The remote for a rope's loose end (shared/remote.html, ropeRemote.lua): in the Tow and Straps apps ==
 	// its buttons go to the open app; a held button is let go in the app it was pressed in
 	var REMOTE_CALLS = {tow: $scope.towCall, straps: $scope.strapsCall};
 	var nudging = null;
@@ -242,11 +267,65 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 		});
 		return list;
 	};
+	// whether a station sells fuel cheaper after a delivery (its price is green)
+	$scope.fuelDiscounted = function () {
+		var f = $scope.fuel;
+		return !!f && Array.isArray(f.stations) && f.stations.some(function (st) {
+			return ['gasoline', 'diesel'].some(function (k) { return !!st.fuels && !!st.fuels[k] && st.fuels[k].discount > 0; });
+		});
+	};
 	$scope.formatPrice = function (p) { return "$" + Number(p.price).toFixed(2) + "/" + p.unit; };
 	$scope.formatDistance = function (m) { return m < 1000 ? Math.round(m) + " m" : (m / 1000).toFixed(1) + " km"; };
 	function fuelLua(cmd) { bngApi.engineLua('if sharedCareer_fuel then sharedCareer_fuel.' + cmd + ' end'); }
 	$scope.navigate = function (id) { fuelLua('uiNavigate(' + JSON.stringify(String(id)) + ')'); };
 	$scope.stopNavigate = function () { fuelLua('uiStopNavigate()'); };
+
+	//== Settings app: how the phone looks, when the speed limit sign shows and in which unit; kept on this PC (localStorage) ==
+	// A wallpaper is a file ui/sharedCareer/wallpapers/<id>.svg; an icon theme is a class
+	// scp-app-icon-<id> in app.css ("Colors": each app in the color it registered with). The speed
+	// limit sign (SharedCareer-SpeedLimit/app.js) reads its choices from the same keys and hears a change
+	// as a window event (LOOK_EVENTS). The first of each list is the default.
+	$scope.WALLPAPERS = [{id: 'ember', name: 'Ember'}, {id: 'dusk', name: 'Dusk'}, {id: 'night-road', name: 'Night road'},
+		{id: 'contours', name: 'Contours'}, {id: 'hazard', name: 'Hazard'}, {id: 'carbon', name: 'Carbon'}];
+	$scope.ICON_THEMES = [{id: 'beamng', name: 'BeamNG'}, {id: 'colors', name: 'Colors'}, {id: 'dark', name: 'Dark'},
+		{id: 'glass', name: 'Glass'}];
+	$scope.SIGN_MODES = [{id: 'off', name: 'Off'}, {id: 'taxi', name: 'Taxi rides'}, {id: 'always', name: 'Always'}];
+	// "BeamNG": the unit of the game's own settings
+	$scope.SPEED_UNITS = [{id: 'game', name: 'BeamNG'}, {id: 'kmh', name: 'km/h'}, {id: 'mph', name: 'mph'}];
+	var LOOK_KEYS = {wallpaper: 'sharedCareerPhoneWallpaper', icons: 'sharedCareerPhoneIcons', sign: 'sharedCareerSpeedSign',
+		unit: 'sharedCareerSpeedUnit'};
+	var LOOK_LISTS = {wallpaper: $scope.WALLPAPERS, icons: $scope.ICON_THEMES, sign: $scope.SIGN_MODES, unit: $scope.SPEED_UNITS};
+	var LOOK_EVENTS = {sign: 'sharedCareerSpeedSign', unit: 'sharedCareerSpeedUnit'};
+	// the id if the list has it, else the list's first (a stored id that is gone, nothing stored)
+	function lookId(what, id) {
+		var list = LOOK_LISTS[what];
+		for (var i = 0; i < list.length; i++) if (list[i].id === id) return id;
+		return list[0].id;
+	}
+	function readLook(what) {
+		try { return lookId(what, window.localStorage.getItem(LOOK_KEYS[what])); } catch (e) { return lookId(what, null); }
+	}
+	function setLook(what, id) {
+		$scope.look[what] = lookId(what, id);
+		try { window.localStorage.setItem(LOOK_KEYS[what], $scope.look[what]); } catch (e) {}
+		if (LOOK_EVENTS[what]) {
+			try { window.dispatchEvent(new CustomEvent(LOOK_EVENTS[what], {detail: $scope.look[what]})); } catch (e) {}
+		}
+	}
+	$scope.look = {wallpaper: readLook('wallpaper'), icons: readLook('icons'), sign: readLook('sign'), unit: readLook('unit')};
+	$scope.setWallpaper = function (id) { setLook('wallpaper', id); };
+	$scope.setIconTheme = function (id) { setLook('icons', id); };
+	$scope.setSignMode = function (id) { setLook('sign', id); };
+	$scope.setSpeedUnit = function (id) { setLook('unit', id); };
+	// a wallpaper as a background (default: the chosen one)
+	$scope.wallpaperStyle = function (id) {
+		return {'background-image': 'url(/ui/sharedCareer/wallpapers/' + (id || $scope.look.wallpaper) + '.svg)'};
+	};
+	// an app icon in an icon theme (default: the chosen one): its class, and its own color in "Colors"
+	$scope.appIconClass = function (theme) { return 'scp-app-icon-' + (theme || $scope.look.icons); };
+	$scope.appIconStyle = function (app, theme) {
+		return (theme || $scope.look.icons) === 'colors' && app ? {'background': app.color} : {};
+	};
 
 	//== Jobs app (lua/ge/extensions/sharedCareer/jobs.lua) ==
 	// What a job shows (icon, tags, steps, the texts of what to do now) comes from its job type
@@ -347,7 +426,7 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 	// your level as a ring: the part that is filled shows the way to the next level
 	$scope.levelRing = function (l) {
 		var deg = Math.round(360 * Math.max(0, Math.min(1, Number(l && l.share) || 0)));
-		return 'conic-gradient(#4f8cff ' + deg + 'deg, rgba(255, 255, 255, 0.12) ' + deg + 'deg)';
+		return 'conic-gradient(var(--scp-info) ' + deg + 'deg, var(--scp-control) ' + deg + 'deg)';
 	};
 	// a job's tags in one line, for the list ("Engine failure · Flat tire")
 	$scope.tagLine = function (j) {
@@ -460,6 +539,8 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 			if (!data) return;
 			if (!Array.isArray(data.nearby)) data.nearby = [];
 			if (!Array.isArray(data.strengths)) data.strengths = [];
+			// the strengths as options of the segment select, built once per update
+			data.strengthOptions = data.strengths.map(function (s) { return {id: s, name: s + '%'}; });
 			$scope.tow = data;
 		});
 	});
