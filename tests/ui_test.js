@@ -434,6 +434,22 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 	check(!menu.$$destroyed && !phone.$$destroyed, 'apps on the page keep running');
 }
 
+//== The menu twice on the page (e.g. twice in the layout): a dialog only once ==
+{
+	const env = makeEnv({sharedCareerMenuCollapsed: '1'});
+	const first = load(...MENU, env);
+	const second = load(...MENU, env);
+	const welcome = {kind: 'welcome', buttons: [{label: 'OK', action: 'close'}]};
+	env.calls.length = 0;
+	[first, second].forEach(m => m.emit('SharedCareerDialog', welcome));
+	check(!first.dialog && second.dialog === welcome, 'the same dialog twice: the one behind closes');
+	check(!env.calls.some(c => c.includes('uiDialogButton')), 'closing the one behind sends no button to Lua');
+	first.emit('SharedCareerDialog', {kind: 'licenses', buttons: []});
+	check(first.dialog && second.dialog === welcome, 'a dialog of another kind stays open');
+	second.dialogButton(welcome.buttons[0]);
+	check(env.calls.filter(c => c.includes('uiDialogButton')).length === 1, 'closing the one in front: one button');
+}
+
 //== Timeline for tests/ui_replay.lua ==
 // Random clicks on the real menu and phone (waits of 0.3 to 12 s cross the 2 s reports and the
 // 5 s lease); every engineLua call with its time and what is on screen after each step.

@@ -127,8 +127,26 @@ sharedCareerMenuApp.controller('SharedCareerMenu', ['$scope', '$element', functi
 	$scope.$on('$destroy', function () {
 		if (dialogHost && dialogHost.parentNode) dialogHost.parentNode.removeChild(dialogHost);
 	});
+	// The same dialog only once: if the menu is on the page more than once (e.g. twice in the
+	// player's layout), every copy gets the guihook. The one that shows a dialog last lies in front;
+	// it tells the others (window event "sharedCareerDialogShown"), and a copy with a dialog of the
+	// same kind behind it closes that without a word (no button is sent to Lua).
+	var me = {};
+	function onOtherDialog(ev) {
+		var d = ev && ev.detail;
+		if (!d || d.from === me || !$scope.dialog || $scope.dialog.kind !== d.kind) return;
+		$scope.$evalAsync(function () { $scope.dialog = null; });
+	}
+	window.addEventListener("sharedCareerDialogShown", onOtherDialog);
+	$scope.$on('$destroy', function () { window.removeEventListener("sharedCareerDialogShown", onOtherDialog); });
 	onHook('SharedCareerDialog', function (event, data) {
-		$scope.$evalAsync(function () { $scope.dialog = data || null; });
+		$scope.$evalAsync(function () {
+			$scope.dialog = data || null;
+			if (!$scope.dialog) return;
+			try {
+				window.dispatchEvent(new CustomEvent("sharedCareerDialogShown", {detail: {from: me, kind: $scope.dialog.kind}}));
+			} catch (e) {}
+		});
 	});
 	$scope.dialogButton = function (b) {
 		var d = $scope.dialog;
