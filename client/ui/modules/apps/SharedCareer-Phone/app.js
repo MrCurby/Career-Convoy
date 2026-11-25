@@ -1,7 +1,7 @@
 // SharedCareer Phone: a tab at the right screen edge (key F4) that takes the phone out.
 // The phone shows the server time, the number of players, the connection and the apps that
 // SharedCareer extensions registered (lua/ge/extensions/sharedCareer/phone.lua). Built-in app
-// screens: Jobs (jobs.lua with its job types, for now towJobs.lua), Tow (rope and winch, tow.lua), Straps (ratchet straps,
+// screens: Jobs (jobs.lua with its job types: towJobs.lua, taxiJobs.lua), Tow (rope and winch, tow.lua), Straps (ratchet straps,
 // straps.lua) and Fuel (gas station prices, fuel.lua). Apps marked beta get a "BETA" badge on the icon and in the title bar.
 // The home screen has, below the clock, how long until day or night (with a bar for the part
 // of it that is over), and the app icons.
@@ -10,7 +10,8 @@
 // players, connection, fuel prices) from menu.lua every second, "SharedCareerTow" from tow.lua and
 // "SharedCareerStraps" from straps.lua while their app is open, "SharedCareerJobs" (jobs and your
 // job) from jobs.lua, "SharedCareerPhoneToggle" from the key, "SharedCareerPhoneAway" (a game menu
-// is open: the phone goes away, the key does not take it out there).
+// is open: the phone goes away, the key does not take it out there), "SharedCareerPhoneCall" (a
+// call rings, phone.lua ring: the phone comes out and shows it until it is answered).
 // menu.lua only sends "SharedCareerState" while someone looks: the phone reports "phone" (out)
 // and "fuel" (Fuel app open) with sharedCareer_menu.uiVisible on every change and every 2 s.
 // Opening the phone collapses the menu and the other way round (window event
@@ -249,15 +250,13 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 
 	//== Jobs app (lua/ge/extensions/sharedCareer/jobs.lua) ==
 	// What a job shows (icon, tags, steps, the texts of what to do now) comes from its job type
-	// (towJobs.lua: towing jobs); this window only lays it out.
+	// (towJobs.lua, taxiJobs.lua); this window only lays it out.
 	$scope.jobs = {enabled: false, sections: [], open: 0, active: null, licenses: {}};
 	// The app has two pages: its start page, a list with a card per job type, and the page of one
 	// job type (its jobs). jobsType is the open job type, null on the start page; the back button
 	// in the app bar leads from a job type back to the start page (goBack).
-	// The cards: towing first, one for every other job type, the ones still to come (TYPES_SOON,
-	// greyed out, not clickable) last. A new job type gets its card as soon as Lua sends it.
+	// The cards: towing first, then one for every other job type, as soon as Lua sends it.
 	// Built once per update from Lua, not on every call (ng-repeat).
-	var TYPES_SOON = [{id: 'taxi', name: 'Taxi', icon: 'car'}];
 	function jobTypesOf(sections) {
 		var list = [{id: 'tow', name: 'Towing', icon: 'tow'}];
 		var added = {tow: true};
@@ -268,14 +267,11 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 			list.push({id: sec.type, name: sec.name || sec.type, icon: sec.icon || 'jobs'});
 			added[sec.type] = true;
 		}
-		TYPES_SOON.forEach(function (t) {
-			if (!added[t.id]) list.push({id: t.id, name: t.name, icon: t.icon, soon: true});
-		});
 		return list;
 	}
 	$scope.jobsType = null;
 	$scope.jobTypes = jobTypesOf([]);
-	$scope.openJobType = function (t) { if (t && !t.soon) $scope.jobsType = t.id; };
+	$scope.openJobType = function (t) { if (t) $scope.jobsType = t.id; };
 	$scope.jobTypeName = function () {
 		for (var i = 0; i < $scope.jobTypes.length; i++) {
 			if ($scope.jobTypes[i].id === $scope.jobsType) return $scope.jobTypes[i].name;
@@ -305,9 +301,8 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 		}
 		return null;
 	};
-	// the line on a job type's card: "Your job", "3 open", "Soon"
+	// the line on a job type's card: "Your job", "License needed", "3 open"
 	$scope.jobTypeText = function (t) {
-		if (t.soon) return 'Soon';
 		if ($scope.jobsActiveIn(t.id)) return 'Your job';
 		if ($scope.jobLicenseMissing(t.id)) return 'License needed';
 		var open = $scope.jobsOpenIn(t.id);
@@ -317,6 +312,18 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 	$scope.jobLicense = function (type) { return $scope.jobs.licenses[type || $scope.jobsType] || null; };
 	// without it the job type's jobs are greyed out and can't be taken (the server refuses them too)
 	$scope.jobLicenseMissing = function (type) { var l = $scope.jobLicense(type); return !!l && !l.owned; };
+	// the "On duty" switch of a job type (default: the open one): true/false, null if it has none
+	$scope.jobDuty = function (type) {
+		type = type || $scope.jobsType;
+		for (var i = 0; i < $scope.jobs.sections.length; i++) {
+			var sec = $scope.jobs.sections[i];
+			if (sec.type === type) return typeof sec.duty === 'boolean' ? sec.duty : null;
+		}
+		return null;
+	};
+	$scope.setDuty = function (on) {
+		$scope.jobsCall('uiDuty(' + JSON.stringify(String($scope.jobsType)) + ', ' + (on ? 'true' : 'false') + ')');
+	};
 	$scope.licenseRoute = function () {
 		bngApi.engineLua('if sharedCareer_licenses then sharedCareer_licenses.uiRoute() end');
 	};
@@ -352,6 +359,22 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 		return a ? (a.step || 0) : 0;
 	};
 	$scope.jobPaid = function () { return !!$scope.jobs.active && $scope.jobs.active.phase === 'paid'; };
+	// the pay of your job as it is now (less after damage or a rough ride), if the job type says
+	$scope.jobPayNow = function () {
+		var a = $scope.jobs.active;
+		if (!a) return 0;
+		return typeof a.payNow === 'number' ? a.payNow : a.pay;
+	};
+	$scope.jobPayDropped = function () {
+		var a = $scope.jobs.active;
+		return !!a && typeof a.payNow === 'number' && a.payNow < a.pay;
+	};
+	// the rating of your job so far (1..5 stars), or null if its job type gives none
+	$scope.STAR_SLOTS = [1, 2, 3, 4, 5];
+	$scope.jobStars = function () {
+		var a = $scope.jobs.active;
+		return a && typeof a.stars === 'number' ? a.stars : null;
+	};
 	$scope.jobText = function () {
 		var a = $scope.jobs.active;
 		if (!a) return '';
@@ -394,6 +417,41 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 			$scope.jobs = {enabled: data.enabled === true, sections: sections, open: Number(data.open) || 0, active: active,
 				licenses: licenses};
 			$scope.jobTypes = jobTypesOf(sections);
+		});
+	});
+
+	//== Calls (phone.lua ring): the phone comes out and shows the call until it is answered ==
+	$scope.call = null;
+	var callTookPhoneOut = false; // the call took the phone out: it goes away again unless accepted
+	function endCallView(accepted, c) {
+		$scope.call = null;
+		var app = accepted && c && c.open ? appById(c.open.app) : null;
+		if (app) {
+			$scope.openApp(app);
+			if (c.open.page) $scope.jobsType = c.open.page;
+		} else if (callTookPhoneOut) {
+			setOpen(false);
+		}
+		callTookPhoneOut = false;
+	}
+	$scope.answerCall = function (accept) {
+		var c = $scope.call;
+		if (!c) return;
+		lua('uiAnswer(' + (accept ? 'true' : 'false') + ')');
+		endCallView(accept, c);
+	};
+	$scope.$on('SharedCareerPhoneCall', function (event, data) {
+		$scope.$evalAsync(function () {
+			var c = data && data.call && typeof data.call === 'object' ? data.call : null;
+			if (c) {
+				if (!$scope.call) {
+					callTookPhoneOut = !$scope.open;
+					if (!$scope.open) setOpen(true);
+				}
+				$scope.call = c;
+			} else if ($scope.call) {
+				endCallView(false, null); // rang out, or the caller hung up
+			}
 		});
 	});
 

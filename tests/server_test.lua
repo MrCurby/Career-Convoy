@@ -97,14 +97,14 @@ source = source:gsub(
 	'local PROGRESS_FILE = CONFIG_DIR %.%. "/progress%.json"',
 	'local PROGRESS_FILE = "' .. tmpProgress .. '"'
 )
--- a job type of the tests with its own level rules (two tiers, more XP)
 source = source:gsub(
 	'local LICENSES_FILE = CONFIG_DIR %.%. "/licenses%.json"',
 	'local LICENSES_FILE = "' .. tmpLicenses .. '"'
 )
+-- a job type of the tests with its own level rules (two tiers, more XP)
 source = source:gsub(
-	"local LEVEL_RULES_BY_TYPE = {}",
-	"local LEVEL_RULES_BY_TYPE = {short = {tierLevel = {1, 2}, tierXp = {100, 200}}}"
+	"local LEVEL_RULES_BY_TYPE = {\n",
+	"local LEVEL_RULES_BY_TYPE = {\n\tshort = {tierLevel = {1, 2}, tierXp = {100, 200}},\n"
 )
 assert(load(source, "main.lua"))()
 onInit()
@@ -770,14 +770,29 @@ do
 		"jobs list sent to everyone (empty after reset)"
 	)
 	check(lastTo(0, "sc_configUpdate").ui.jobs == true, "the clients know that jobs are on")
-	-- missing jobs: one player is asked to make one up, not more often than every 5 s
+	-- missing jobs: one player whose client has the job type is asked to make one up, not more often
+	-- than every 5 s
 	local asked = countTo(0, "sc_jobGenerate") + countTo(1, "sc_jobGenerate")
+	fakeTime = fakeTime + 100
+	sc_tick()
+	check(
+		countTo(0, "sc_jobGenerate") + countTo(1, "sc_jobGenerate") == asked,
+		"no client has told its job types yet: nobody is asked"
+	)
+	-- as in the game: a client tells its job types when its career starts, before it reports the
+	-- start (sc_careerResult); they count all the same
+	onPlayerDisconnect(0)
+	onPlayerJoin(0)
+	sc_hello(0, json.encode({ version = VERSION }))
+	sc_jobsRequest(0, json.encode({ types = { "tow" } }))
+	sc_careerResult(0, json.encode({ ok = true }))
+	check(jobsOf(0).levels.tow.level == 1, "a job type a client has: everyone sees their level in it")
 	fakeTime = fakeTime + 100
 	sc_tick()
 	sc_tick()
 	check(countTo(0, "sc_jobGenerate") + countTo(1, "sc_jobGenerate") == asked + 1, "one player asked for a new job")
 	local ask = lastTo(0, "sc_jobGenerate") or lastTo(1, "sc_jobGenerate")
-	check(ask.tier == 1, "no job type known yet: a job of tier 1")
+	check(ask.type == "tow" and ask.tier == 1, "a towing job of tier 1")
 	offer(0)
 	local list = jobsOf(1).jobs
 	check(
@@ -1109,6 +1124,84 @@ do
 		lastTo(1, "sc_jobPaid").xp == 100 and jobsOf(1).levels.short.level == 2 and jobsOf(1).levels.tow.level >= 5,
 		"100 XP: level 2 in this job type; the towing level stays as it was"
 	)
+	-- a job type only one client has (a taxi job): asked from that one; a job type and tier that
+	-- gets no job (no place for it on the map) waits 30 s, the others go on
+	onConsoleInput("sc jobs reset")
+	sc_jobsRequest(1, json.encode({ types = { "tow", "taxi", "no-way", 5 } }))
+	check(
+		jobsOf(1).levels.taxi and jobsOf(1).levels["no-way"] == nil,
+		"Ben's client has taxi jobs; a job type that isn't a word is dropped"
+	)
+	local function asks(id)
+		return countTo(id, "sc_jobGenerate")
+	end
+	local taxiAsks, others = 0, 0
+	for _ = 1, 12 do
+		local before = { asks(0), asks(1) }
+		fakeTime = fakeTime + 6
+		sc_tick()
+		for id = 0, 1 do
+			if asks(id) > before[id + 1] then
+				local a = lastTo(id, "sc_jobGenerate")
+				if a.type == "taxi" then
+					taxiAsks = taxiAsks + 1
+					check(id == 1, "a taxi job is asked from Ben, whose client has them")
+				else
+					others = others + 1
+					offer(a.tier)
+				end
+			end
+		end
+	end
+	check(
+		taxiAsks >= 2 and taxiAsks <= 3 and others >= 6 and #jobsOf(0).jobs == others,
+		"no taxi job comes: asked again only every 30 s, the towing jobs are made meanwhile ("
+			.. taxiAsks
+			.. "/"
+			.. others
+			.. ")"
+	)
+	-- taxi rides: a tip on top of the pay (at most 25 %), a smaller level bonus (3 % per level)
+	local function finishTaxi(share, tip)
+		onConsoleInput("sc jobs reset")
+		sc_jobOffer(
+			0,
+			json.encode({
+				type = "taxi",
+				tier = 1,
+				title = "Passenger",
+				pos = { x = 1, y = 2, z = 3 },
+				dest = { name = "Belasco Auto", pos = { x = 4, y = 5, z = 6 } },
+				length = 1000,
+				pay = 1000,
+			})
+		)
+		local ride
+		for _, tj in ipairs(jobsOf(1).jobs) do
+			if tj.type == "taxi" then
+				ride = tj
+			end
+		end
+		sc_jobTake(1, json.encode({ id = ride.id }))
+		sc_jobDone(1, json.encode({ id = ride.id, share = share, tip = tip }))
+		local taxiPaid = lastTo(1, "sc_jobPaid")
+		sc_jobPaidAck(1, json.encode({ payout = taxiPaid.payout }))
+		return taxiPaid
+	end
+	local taxiPaid = finishTaxi(0.9, 0.05)
+	check(
+		taxiPaid.pay == 950 and taxiPaid.deduction == 100 and taxiPaid.tip == 50 and taxiPaid.xp == 36,
+		"a taxi ride: 90 % of the pay earned plus a 5 % tip; the XP only from the 90 %"
+	)
+	taxiPaid = finishTaxi(1, 3)
+	check(taxiPaid.tip == 250 and taxiPaid.pay == 1250, "a tip is at most 25 % of the pay")
+	taxiPaid = finishTaxi(1)
+	check(
+		taxiPaid.tip == 0 and taxiPaid.pay == 1000 and jobsOf(1).levels.taxi.level == 2,
+		"no tip sent: none; taxi level 2"
+	)
+	taxiPaid = finishTaxi(1)
+	check(taxiPaid.pay == 1030, "taxi level 2: 3 % more pay (towing: 5 % per level)")
 	-- the levels survive a restart of the server
 	local f = assert(io.open(tmpProgress))
 	local stored = json.decode(f:read("*a"))

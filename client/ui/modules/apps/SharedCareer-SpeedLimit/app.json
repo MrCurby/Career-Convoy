@@ -1,0 +1,17 @@
+{
+  "domElement": "<shared-career-speed-limit></shared-career-speed-limit>",
+  "name": "SharedCareer Speed Limit",
+  "types": [
+    "ui.apps.categories.beammp"
+  ],
+  "css": {
+    "right": "40px",
+    "bottom": "300px",
+    "width": "100px",
+    "height": "110px"
+  },
+  "description": "SharedCareer: the speed limit of the road you drive on, in the unit of your speedometer.",
+  "author": "SharedCareer",
+  "version": "1.0",
+  "directive": "sharedCareerSpeedLimit"
+}

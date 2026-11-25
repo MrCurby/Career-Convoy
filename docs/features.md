@@ -15,6 +15,8 @@ Everything players see and use in the game. All texts in the game are in English
 - [Moving your vehicles by hand (rope and winch)](#moving-your-vehicles-by-hand-rope-and-winch)
 - [Strapping a car down (straps)](#strapping-a-car-down-straps)
 - [Towing jobs](#towing-jobs)
+- [Taxi jobs](#taxi-jobs)
+- [Speed limit sign](#speed-limit-sign)
 - [Phone](#phone)
 - [Sending money](#sending-money)
 
@@ -235,7 +237,7 @@ Good to know:
 
 Cars break down at the roadside, and somebody has to tow them to a repair shop. There is **one list for everyone** on the server: whoever takes a job first gets it.
 
-**License needed:** towing jobs need the **Towing License** ($5,000). Buy it at the **License Office** (a marker on the map). Without it, the Jobs app shows the jobs grey, with a bar on top: **Route** there leads you to the office. The **Taxi License** ($5,000) is for the taxi jobs that are coming; it is on sale already.
+**License needed:** towing jobs need the **Towing License** ($5,000). Buy it at the **License Office** (a marker on the map). Without it, the Jobs app shows the jobs grey, with a bar on top: **Route** there leads you to the office. The **Taxi License** ($5,000) is for [taxi jobs](#taxi-jobs).
 
 1. **Find a job:** phone (**F4**) → **Jobs** → **Towing**. The Jobs app opens on a card per kind of job; **‹ Jobs** at the top left leads back. Every job shows the vehicle (its icon tells the kind: car, SUV, pickup, van, bus or truck), what's wrong (engine failure, broken clutch or gearbox, broken radiator, oil leak, broken windshield or taillights, sometimes a flat tire), how far you have to drive to it, the repair shop, the length of the tow (both by road), your pay and the XP you get under it. The jobs are sorted by the level they need, see [Levels](#levels).
 2. **Take it:** the route leads you to the breakdown. A marker floats above the car when you are close. It's yours now: the others see the job as taken.
@@ -266,6 +268,44 @@ Every job you finish gives you **XP**, and with enough XP you reach the next **l
 - The game's own career XP grows too (BeamXP and the Commercial branch).
 - Your level is kept by the server, per server. A new save keeps it; the server owner can reset it (`sc levels reset <name>`).
 
+## Taxi jobs
+
+> **Experimental.** Taxi jobs are new; pay, places and rules may still change.
+
+People wait at the roadside for a ride to a place on the map: a garage, a dealership, a gas station. As with towing jobs, there is **one list for everyone**.
+
+**License needed:** taxi jobs need the **Taxi License** ($5,000) from the **License Office**.
+
+1. **Find a ride:** phone (**F4**) → **Jobs** → **Taxi**. Every ride shows where the passenger wants to go, how far you have to drive to them, the length of the ride (both by road), your pay and the XP.
+2. **Pick them up:** the route leads you to the passenger, a yellow marker beside the road. Drive there in any vehicle (not on foot) and stop next to them for 2 seconds: they get in. That vehicle is your taxi now.
+3. **Drive them:** the route leads to the place. A ring on the ground there shows the drop-off zone. Stop in it for 2 seconds, sitting in your taxi. The pay goes to your account.
+
+- **Pay:** $60 plus $80 per km of the ride, more for longer rides and for your level. The server can change it (`client.jobPay`). A ride pays less than a tow of the same length: it is quicker and easier, and a smooth one earns a tip.
+- **Drive smoothly:** every jolt (hard braking, a crash, a hard landing) costs 5 % of the pay; *Drive smoother!* tells you.
+- **Keep to the speed limit:** more than 15 % over the road's speed limit for 2 seconds costs 5 % of the pay; *Too fast!* tells you, and the [speed limit sign](#speed-limit-sign) shows the limit. Staying too fast costs 5 % again every 10 seconds. Roads without a speed limit in the game don't count.
+- New damage to your taxi costs too, and resetting it (**R**) during the ride costs half. All together it never costs more than half.
+- **Stars:** the passenger rates the ride with 1 to 5 stars. Every jolt, speeding and damage costs stars. In the Jobs app your ride shows the stars and the pay as it is now (the full pay struck through once it drops).
+- **Tip:** 5 stars earn a tip of 15 % on top of the pay, 4 stars 5 %. Below that, no tip.
+- **VIPs** pay 50 % more and tip more (25 % for 5 stars, 10 % for 4), but jolts and speeding cost twice as much.
+- **Calls (On duty):** on the taxi page of the Jobs app, switch **On duty** on. While you drive, the nearest ride within 2 km then calls you: the phone comes out with **Accept** and **Decline**. It rings 15 seconds. You only get calls while you are on duty, have the Taxi License and no job. So it doesn't nag: after a call you didn't take the next one waits 45 seconds (and that ride doesn't call again), after a ride 20 seconds, and after two missed calls in a row you are off duty. Every join starts off duty.
+- If you get out, the route leads back to your taxi. If the taxi disappears, the passenger waits at the pickup again.
+- Giving up, the 30 minutes and new jobs work as for towing jobs.
+- **Levels:** taxi jobs have their own level, by the same rules as towing (see [Levels](#levels)), but every level above 1 adds only 3 % to the pay (towing: 5 %):
+
+  | From level | Rides |
+  |---|---|
+  | 1 | short rides (about 0.6–2 km) |
+  | 3 | longer rides, sometimes a VIP (pays 15 % more) |
+  | 5 | long rides, often a VIP (pays 30 % more) |
+  | 8 | the longest rides, every second passenger a VIP (pays 50 % more) |
+
+## Speed limit sign
+
+A road sign at the bottom right shows the speed limit of the road you drive on, in the unit of your speedometer: a round sign with a red ring in km/h, a US *SPEED LIMIT* sign in mph (the game's setting for units: metric or imperial). It pulses red while you drive more than 15 % too fast, the point where a taxi ride starts to lose pay.
+
+- It shows only while you drive a vehicle on a road that has a speed limit in the game; on foot, off the road or on a road without one it is hidden.
+- It is a UI app of its own (*SharedCareer Speed Limit*), added to your career layout once. Move or remove it in the game's UI editor like any other app; once removed, it isn't added again.
+
 ## Phone
 
 <img src="images/phone.png" width="240" alt="The SharedCareer phone">
@@ -276,7 +316,7 @@ The phone goes away when you open a game menu (pause menu, map, garage, ...); th
 
 Apps:
 
-- **Jobs** *(beta)*: towing jobs, see [Towing jobs](#towing-jobs-beta). Apps that are still experimental carry a **BETA** badge.
+- **Jobs** *(beta)*: towing and taxi jobs, see [Towing jobs](#towing-jobs) and [Taxi jobs](#taxi-jobs). Apps that are still experimental carry a **BETA** badge.
 - **Tow:** rope and winch as a remote control, see [Moving your vehicles by hand](#moving-your-vehicles-by-hand-rope-and-winch).
 - **Straps:** strap a car down on a truck or trailer, see [Strapping a car down](#strapping-a-car-down-straps).
 - **Fuel:** gas station prices, see [Fuel app on the phone](#fuel-app-on-the-phone).

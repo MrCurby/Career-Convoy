@@ -2,7 +2,8 @@
 --
 -- Two jobs on join (after the career start):
 --   A) remove Mileage leftovers (client.cleanupMileageApps)
---   B) add the apps "SharedCareer Menu" and "SharedCareer Phone" to the career layout ONCE each
+--   B) add the apps "SharedCareer Menu", "SharedCareer Phone" and "SharedCareer Speed Limit" to the
+--      career layout ONCE each
 --      (client.addApps). Afterwards the mod remembers that in settings/sharedCareer/state.json;
 --      players who remove an app don't get it forced on them again.
 --
@@ -69,6 +70,21 @@ local APPS = {
 			height = "80px",
 			left = "",
 			bottom = "",
+		},
+	},
+	{
+		appName = "sharedCareerSpeedLimit",
+		stateKey = "speedLimitAppAdded",
+		label = "SharedCareer speed limit sign",
+		-- bottom right, above the game's speedometer, left of the phone tab (never over it)
+		placement = {
+			position = "absolute",
+			right = "40px",
+			bottom = "300px",
+			width = "100px",
+			height = "110px",
+			left = "",
+			top = "",
 		},
 	},
 }

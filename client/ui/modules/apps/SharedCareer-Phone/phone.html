@@ -90,7 +90,7 @@
 					<!-- Jobs: jobs for everyone on the server (jobs.lua). Its start page is a button per job type;
 				     a button opens that job type's page with its jobs. What a job shows (icon, tags, steps,
 				     what to do now) comes from its job type (towJobs.lua: towing jobs, the icon by the kind of
-				     vehicle: car, suv, pickup, van, bus, truck – icons.svg). -->
+				     vehicle: car, suv, pickup, van, bus, truck – icons.svg; taxiJobs.lua: taxi rides). -->
 					<div class="scp-appscreen" ng-if="currentApp.id === 'jobs'"
 						ng-include="'/ui/modules/apps/SharedCareer-Phone/apps/jobs.html'"></div>
 					<!-- Tow: rope and winch, as a remote control (tow.lua). Without a rope: attach it (where you
@@ -119,6 +119,21 @@
 									ng-attr-href="{{ '#sc-icon-' + currentApp.icon }}" /></svg><span
 								ng-if="!hasIcon(currentApp.icon)"
 								ng-bind="currentApp.icon"></span></span>
+					</div>
+				</div>
+
+				<!-- an incoming call (phone.lua ring), over everything until it is answered or rings out:
+				     the bar runs down while it rings -->
+				<div class="scp-call" ng-if="call">
+					<span class="scp-call-icon"><svg ng-if="hasIcon(call.icon)"
+							aria-hidden="true"><use ng-attr-href="{{ '#sc-icon-' + call.icon }}" /></svg></span>
+					<div class="scp-call-title" ng-bind="call.title"></div>
+					<div class="scp-call-text" ng-if="call.text" ng-bind="call.text"></div>
+					<div class="scp-call-detail" ng-if="call.detail" ng-bind="call.detail"></div>
+					<div class="scp-call-timer"><i ng-style="{'animation-duration': call.seconds + 's'}"></i></div>
+					<div class="scp-call-buttons">
+						<button class="scp-call-btn scp-call-decline" ng-click="answerCall(false)">Decline</button>
+						<button class="scp-call-btn scp-call-accept" ng-click="answerCall(true)">Accept</button>
 					</div>
 				</div>
 

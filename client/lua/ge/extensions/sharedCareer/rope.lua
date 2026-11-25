@@ -189,21 +189,13 @@ local function isOwnVehicle(gameId)
 	return true -- not registered with BeamMP yet: a fresh vehicle of ours
 end
 
-local function modelOf(veh)
-	local model = veh.JBeam
-	if model == nil and type(veh.getJBeamFilename) == "function" then
-		model = veh:getJBeamFilename()
-	end
-	return model
-end
-
 -- Can a rope be tied to this vehicle (and can it be towed to the road)? Returns true, or false and
 -- a message.
 function M.canRope(veh, id)
 	if not veh or type(veh.queueLuaCommand) ~= "function" then
 		return false, "Look at one of your vehicles"
 	end
-	if modelOf(veh) == "unicycle" then
+	if U.modelOf(veh) == "unicycle" then
 		return false, "Not on players on foot"
 	end
 	if not isOwnVehicle(id) then
@@ -224,7 +216,7 @@ function M.canHold(veh, id, except)
 	if not veh or type(veh.queueLuaCommand) ~= "function" or id == except then
 		return false
 	end
-	return modelOf(veh) ~= "unicycle" and isOwnVehicle(id)
+	return U.modelOf(veh) ~= "unicycle" and isOwnVehicle(id)
 end
 
 -- The vehicle closest to the aim line: {veh, id, t (distance along the line), miss (distance
@@ -273,7 +265,7 @@ end
 local nodePos = M.nodePos
 
 function M.vehicleName(veh)
-	local model = tostring(modelOf(veh) or "vehicle")
+	local model = tostring(U.modelOf(veh) or "vehicle")
 	if core_vehicles and type(core_vehicles.getModel) == "function" then
 		local ok, info = pcall(core_vehicles.getModel, model)
 		local m = ok and type(info) == "table" and info.model

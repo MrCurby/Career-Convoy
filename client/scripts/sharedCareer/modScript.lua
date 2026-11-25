@@ -27,12 +27,15 @@
 --             Fuel (fuel.lua)
 --             (client.phone, key F4)
 --   jobs      jobs: the shared job list and the Jobs app, for every job type (server.jobs)
---   towJobs   the towing jobs, the first job type: broken-down cars towed to a repair shop
+--   towJobs   the towing jobs, a job type: broken-down cars towed to a repair shop
+--   taxiJobs  the taxi jobs, a job type: a passenger at the roadside driven to a place on the map
+--   speedLimit  the speed limit of the road you drive on, as a sign (bottom right)
 --
 -- Also in the mod: levels/west_coast_usa/.../garage_interactions/items.level.json –
 -- larger zones at the garage computers (replaces the map file of the same name),
--- and the UI apps ui/modules/apps/SharedCareer-Menu/ (SharedCareer menu) and
--- ui/modules/apps/SharedCareer-Phone/ (the phone, own tab; its apps: Jobs, Tow, Straps, Fuel).
+-- and the UI apps ui/modules/apps/SharedCareer-Menu/ (SharedCareer menu),
+-- ui/modules/apps/SharedCareer-Phone/ (the phone, own tab; its apps: Jobs, Tow, Straps, Fuel) and
+-- ui/modules/apps/SharedCareer-SpeedLimit/ (the speed limit sign).
 --
 --   cleanup   UI layouts: removes Mileage leftovers (red "Unknown app" boxes) and adds the
 --             SharedCareer apps to the career layout once
@@ -72,5 +75,7 @@ loadPersistent("sharedCareer/straps")
 loadPersistent("sharedCareer/phone")
 loadPersistent("sharedCareer/jobs")
 loadPersistent("sharedCareer/towJobs")
+loadPersistent("sharedCareer/taxiJobs")
+loadPersistent("sharedCareer/speedLimit")
 loadPersistent("sharedCareer/cleanup")
 loadPersistent("sharedCareer/core")

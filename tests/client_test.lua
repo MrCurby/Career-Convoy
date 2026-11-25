@@ -2983,6 +2983,22 @@ check(
 		and files["settings/sharedCareer/state.json"].phoneAppAdded == true,
 	"phone tab added once, directly below the menu, only as big as the tab"
 )
+do
+	local signApp
+	for _, a in ipairs(files[CUSTOM].apps) do
+		if a.appName == "sharedCareerSpeedLimit" then
+			signApp = a
+		end
+	end
+	check(
+		signApp
+			and signApp.placement.right == "40px"
+			and signApp.placement.bottom == "300px"
+			and signApp.placement.top == ""
+			and files["settings/sharedCareer/state.json"].speedLimitAppAdded == true,
+		"speed limit sign added once, bottom right, left of the phone tab"
+	)
+end
 -- 2) player removes it again -> NOT added again on the next join
 local removedLayout = { apps = { { appName = "tacho2" } } }
 joinWith({ [CUSTOM] = removedLayout, ["settings/sharedCareer/state.json"] = { menuAppAdded = true } })
@@ -3032,7 +3048,12 @@ joinWith({
 			{ appName = "sharedCareerPhone", placement = { right = "0px", top = "920px" } },
 		},
 	},
-	["settings/sharedCareer/state.json"] = { menuAppAdded = true, fuelAppAdded = true, phoneAppAdded = true },
+	["settings/sharedCareer/state.json"] = {
+		menuAppAdded = true,
+		fuelAppAdded = true,
+		phoneAppAdded = true,
+		speedLimitAppAdded = true,
+	},
 })
 local names, phoneTop = {}, nil
 for _, a in ipairs(files[CUSTOM].apps) do
@@ -3097,7 +3118,7 @@ do
 	joinWith({}) -- fresh file mocks
 	files[CUSTOM] = { apps = { { appName = "tacho2" }, oldMenu, { appName = "sharedCareerPhone" } } }
 	files[OTHER] = { apps = { { appName = "sharedCareerTime" }, { appName = "sharedCareerMenu" } } }
-	files["settings/sharedCareer/state.json"] = { timeAppAdded = true, phoneAppAdded = true }
+	files["settings/sharedCareer/state.json"] = { timeAppAdded = true, phoneAppAdded = true, speedLimitAppAdded = true }
 	FS.findFiles = function(_, dir)
 		return dir == "settings/ui_apps/layouts/" and { CUSTOM, OTHER } or {}
 	end
@@ -4220,14 +4241,15 @@ check(
 			table.insert(paths, p or false)
 		end,
 	}
-	-- a straight road along x (nodes every 100 m, 4 m half width) and a dirt track that may not be used
+	-- a straight road along x (nodes every 100 m, 4 m half width, speed limit 20 m/s) and a dirt track
+	-- that may not be used
 	local nodes = {}
 	for i = 0, 50 do
 		nodes["n" .. i] = { pos = vec3(i * 100, 0, 10), radius = 4, links = {} }
 	end
 	for i = 0, 49 do
-		nodes["n" .. i].links["n" .. (i + 1)] = { drivability = 1 }
-		nodes["n" .. (i + 1)].links["n" .. i] = { drivability = 1 }
+		nodes["n" .. i].links["n" .. (i + 1)] = { drivability = 1, speedLimit = 20 }
+		nodes["n" .. (i + 1)].links["n" .. i] = { drivability = 1, speedLimit = 20 }
 	end
 	nodes.dirt = { pos = vec3(0, 3000, 10), radius = 4, links = { dirt2 = { drivability = 0.2 } } }
 	nodes.dirt2 = { pos = vec3(100, 3000, 10), radius = 4, links = { dirt = { drivability = 0.2 } } }
@@ -4249,6 +4271,10 @@ check(
 				table.insert(path, "n" .. i)
 			end
 			return path
+		end,
+		findClosestRoad = function(p)
+			local i = math.max(0, math.min(49, math.floor(p.x / 100)))
+			return "n" .. i, "n" .. (i + 1), math.abs(p.y)
 		end,
 		getPathLen = function(path)
 			local len = 0
@@ -4335,10 +4361,10 @@ check(
 		tow.payFor(1000, false) == 270 and tow.payFor(1000, true) == 340,
 		"pay: $150 + $120 per km, a flat tire pays 25 % more"
 	)
-	handlers.sc_jobGenerate("")
+	handlers.sc_jobGenerate(json.encode({ type = "tow" }))
 	check(lastSent("sc_jobOffer") == nil, "before the server's job list (jobs on?) no job is made up")
 	handlers.sc_jobs(json.encode({ enabled = true, jobs = {} }))
-	handlers.sc_jobGenerate("")
+	handlers.sc_jobGenerate(json.encode({ type = "tow" }))
 	local offer = lastSent("sc_jobOffer")
 	check(
 		offer
@@ -4424,7 +4450,7 @@ check(
 		iconOk and tow.iconOf({ data = {} }) == nil and tow.iconOf({ data = { kind = "boat" } }) == nil,
 		"the icons by kind: bus, truck, van, suv, pickup, car; none for an unknown kind"
 	)
-	check(offer.tier == 1, "the server asked for nothing special: tier 1")
+	check(offer.tier == 1, "the server asked for no tier: tier 1")
 	local okAll, lengthOk = true, true
 	for i = 1, 80 do
 		local tier = (i - 1) % 4 + 1
@@ -4586,7 +4612,7 @@ check(
 	freeroam_facilities.getFacilities = function()
 		return {}
 	end
-	handlers.sc_jobGenerate("")
+	handlers.sc_jobGenerate(json.encode({ type = "tow" }))
 	check(#sentToServer == sentBefore, "no repair shops on the map: no job")
 	freeroam_facilities.getFacilities = realFacilities
 
@@ -5076,12 +5102,12 @@ check(
 		end,
 	}
 	jobs.registerType(test)
-	local offers = {}
-	for _ = 1, 4 do
-		local j = jobs.generate()
-		offers[j.type] = (offers[j.type] or 0) + 1
-	end
-	check(offers.tow == 2 and offers.test == 2, "making up jobs: the job types take turns")
+	local made = jobs.generate("test", 2)
+	local none, why = jobs.generate("nope", 1)
+	check(
+		made.type == "test" and made.tier == 2 and none == nil and why == "unknown job type nope",
+		"making up a job: by the job type the server asks for; an unknown one makes none"
+	)
 	local tj = {
 		id = 20,
 		type = "test",
@@ -5157,6 +5183,374 @@ check(
 		career_modules_playerAttributes.money() == moneyBefore and acks() == acksBefore + 1,
 		"after a reconnect: a payout sent again is only confirmed"
 	)
+
+	--== Taxi jobs ==
+	local taxi = sharedCareer_taxiJobs
+	cfgJ.ui.jobs = true
+	handlers.sc_configUpdate(json.encode(cfgJ))
+	extensions.hook("onCareerActive", true)
+	local told = lastSent("sc_jobsRequest")
+	check(
+		told and table.concat(told.types, ",") == "tow,taxi,test",
+		"the client tells the server its job types: towing, taxi (and the test one)"
+	)
+	handlers.sc_jobs(json.encode({ enabled = true, jobs = {} }))
+	world.playerVeh = 70
+	me.p = { x = 0, y = -20, z = 10 }
+	-- making one up: a passenger beside the road, a place of the map, the pay by the way by road
+	check(
+		taxi.payFor(1000, false, 1) == 140 and taxi.payFor(1000, true, 1) == 210 and taxi.payFor(1000, false, 4) == 210,
+		"taxi pay: $60 + $80 per km; a VIP pays 50 % more, tier 4 50 % more"
+	)
+	handlers.sc_jobGenerate(json.encode({ type = "taxi", tier = 2 }))
+	offer = lastSent("sc_jobOffer")
+	check(
+		offer
+			and offer.type == "taxi"
+			and offer.tier == 2
+			and (offer.title == "Passenger" or offer.title == "VIP")
+			and math.abs(math.abs(offer.pos.y) - 5.8) < 1e-6
+			and offer.length == jobs.roadLength(offer.pos, offer.dest.pos)
+			and offer.pay == taxi.payFor(offer.length, offer.data.vip, 2),
+		"the server asks for a taxi job: a passenger beside the road, a ride by road to a place, its pay"
+	)
+	local vips = { 0, 0 }
+	for i, tier in ipairs({ 1, 4 }) do
+		for _ = 1, 100 do
+			local j = taxi.generate(tier)
+			if j.data.vip then
+				vips[i] = vips[i] + 1
+			end
+			if j.title ~= (j.data.vip and "VIP" or "Passenger") then
+				vips[i] = -1000
+			end
+		end
+	end
+	check(
+		vips[1] == 0 and vips[2] > 25 and vips[2] < 75,
+		"VIPs: never in tier 1, about half in tier 4 (" .. table.concat(vips, "/") .. ")"
+	)
+	check(
+		#taxi.tags({ data = { vip = false } }) == 0 and taxi.tags({ data = { vip = true } })[1].text == "VIP",
+		"a VIP shows as a tag"
+	)
+	freeroam_facilities.getFacilities = function()
+		return {}
+	end
+	local noPlace, noPlaceWhy = taxi.generate(1)
+	freeroam_facilities.getFacilities = realFacilities
+	check(noPlace == nil and noPlaceWhy == "no places to go on this map", "no places on the map: no taxi job")
+	-- doing it: pick up the passenger, drive to the place, a smooth ride pays all
+	local ride = {
+		id = 30,
+		type = "taxi",
+		title = "Passenger",
+		pos = { x = 2000, y = -5.8, z = 10 },
+		dest = { name = "Belasco Auto", pos = doors.belasco },
+		length = 2000,
+		pay = 400,
+		data = { vip = false },
+		state = "mine",
+	}
+	handlers.sc_jobs(json.encode({ enabled = true, jobs = { ride } }))
+	st = jobs.appState()
+	check(
+		jobs.getActive()
+			and paths[#paths].x == 2000
+			and st.active.short == "Pick up the passenger"
+			and st.active.steps[2] == "Drive",
+		"the job is yours: the route leads to the passenger"
+	)
+	local walker = addVehicle(91, "0-91", true, "unicycle")
+	walker.p = { x = 2002, y = -8, z = 10 }
+	function walker:getPosition()
+		return self.p
+	end
+	world.playerVeh = 91
+	for _ = 1, 30 do
+		update(0.1)
+	end
+	check(
+		jobs.appState().active.step == 0 and jobs.appState().active.hint == "Pick them up in a car.",
+		"on foot next to them: they don't get in"
+	)
+	world.playerVeh = 70
+	me.p = { x = 2003, y = -9, z = 10 }
+	me.v = { x = 0, y = 0, z = 0 }
+	function me:getVelocity()
+		return self.v
+	end
+	_G.map.objects = { [70] = { damage = 100 } }
+	for _ = 1, 25 do
+		update(0.1)
+	end
+	st = jobs.appState()
+	check(
+		st.active.step == 1 and paths[#paths].x == 4000 and lastToastMsg() == "Passenger in: drive to Belasco Auto",
+		"stopped next to them in a car: they get in, the route leads to the place"
+	)
+	-- a hard stop is a jolt: once, not again right after
+	me.v = { x = 15, y = 0, z = 0 }
+	update(0.3)
+	me.v = { x = 0, y = 0, z = 0 }
+	update(0.3)
+	me.v = { x = 15, y = 0, z = 0 }
+	update(0.3)
+	me.v = { x = 0, y = 0, z = 0 }
+	update(0.3)
+	local active = jobs.getActive()
+	check(active.jolts == 1 and lastToastMsg() == "Drive smoother!", "a hard stop is one jolt")
+	st = jobs.appState()
+	check(
+		st.active.stars == 4 and st.active.payNow == 380 and st.active.pay == 400,
+		"the app shows it at once: 4 stars, the pay as it is now ($380 of $400)"
+	)
+	-- speeding: on the road (limit 20 m/s), more than 15 % over it for 2 s; again after 10 s more
+	me.p = { x = 2500, y = -2, z = 10 }
+	local function speedTo(v)
+		while math.abs(me.v.x - v) > 1e-9 do
+			me.v = { x = me.v.x + math.max(-1.5, math.min(1.5, v - me.v.x)), y = 0, z = 0 }
+			update(0.3)
+		end
+	end
+	local function drive(seconds)
+		for _ = 1, math.floor(seconds / 0.3 + 0.5) do
+			update(0.3)
+		end
+	end
+	speedTo(22.5)
+	drive(4)
+	check(active.speeding == 0 and active.jolts == 1, "up to 15 % over the limit: fine (speeding up gently is no jolt)")
+	speedTo(25.5)
+	me.p.y = -12
+	drive(4)
+	check(active.speeding == 0, "off the road: no speed limit")
+	me.p.y = -2
+	drive(1.5)
+	check(active.speeding == 0, "too fast, but not for 2 s yet: nothing")
+	drive(1)
+	check(active.speeding == 1 and lastToastMsg() == "Too fast!", 'too fast for 2 s: speeding, "Too fast!"')
+	drive(7)
+	check(active.speeding == 1, "still too fast: not counted again at once")
+	drive(4)
+	check(active.speeding == 2, "10 s later: counted again")
+	speedTo(0)
+	check(active.jolts == 1, "slowing down gently is no jolt")
+	world.playerVeh = nil
+	check(jobs.appState().active.short == "Back to your taxi", "out of the taxi: back to it")
+	world.playerVeh = 70
+	_G.map.objects[70].damage = 4100
+	me.p = { x = 4002, y = 48, z = 10 }
+	for _ = 1, 30 do
+		update(0.1)
+	end
+	local done = lastSent("sc_jobDone")
+	check(
+		done and done.id == 30 and math.abs(done.share - 0.8) < 1e-9 and done.tip == 0,
+		"standing in the ring: handed over; a jolt, speeding twice and new damage cost 20 % of the pay: 3 stars, no tip"
+	)
+	check(
+		taxi.starsFor(0) == 5
+			and taxi.starsFor(0.05) == 4
+			and taxi.starsFor(0.1) == 4
+			and taxi.starsFor(0.15) == 3
+			and taxi.starsFor(0.3) == 2
+			and taxi.starsFor(0.5) == 1,
+		"stars: 5 for a smooth ride, one less for about every 10 % it cost"
+	)
+	check(
+		taxi.tipFor(5) == 0.15 and taxi.tipFor(4) == 0.05 and taxi.tipFor(3) == 0 and taxi.tipFor(5, true) == 0.25,
+		"a tip: 15 % for 5 stars, 5 % for 4, none below; a VIP tips more"
+	)
+	handlers.sc_jobPaid(json.encode({
+		payout = "p-30",
+		job = 30,
+		type = "taxi",
+		title = "Passenger",
+		pay = 360,
+		deduction = 40,
+	}))
+	check(
+		world.moneyLabel == "Taxi job: Passenger" and lastToastMsg():find("%$40 rough ride%)") ~= nil,
+		'taxi pay: the toast says "rough ride", not "damage"'
+	)
+	handlers.sc_jobPaid(json.encode({
+		payout = "p-31",
+		job = 31,
+		type = "taxi",
+		title = "VIP",
+		pay = 575,
+		deduction = 0,
+		tip = 75,
+		xp = 40,
+	}))
+	check(lastToastMsg() == "Job done: +$575 (with $75 tip) · +40 XP", "a tip shows in the toast")
+	check(
+		math.abs(taxi.penalty({ job = { data = { vip = true } }, jolts = 1, speeding = 1 }) - 0.2) < 1e-9
+			and taxi.penalty({ job = { data = {} }, rough = true }) == 0.5
+			and taxi.penalty({ job = { data = {} }, jolts = 30 }) == 0.5,
+		"a VIP: jolts and speeding cost twice as much; a reset costs half; never more than half"
+	)
+
+	-- calls: only while on duty, the nearest ride rings the phone; not nagging
+	local phone = sharedCareer_phone
+	local rings = {} -- what the phone window got: a call, or false when it ended
+	local trigger0 = guihooks.trigger
+	guihooks.trigger = function(name, data)
+		if name == "SharedCareerPhoneCall" then
+			table.insert(rings, data.call or false)
+		end
+		return trigger0(name, data)
+	end
+	local function wait(seconds)
+		for _ = 1, math.floor(seconds / 0.5 + 0.5) do
+			update(0.5)
+		end
+	end
+	local function lastRing()
+		return rings[#rings]
+	end
+	local function rideAt(id, x)
+		return {
+			id = id,
+			type = "taxi",
+			title = "Passenger",
+			pos = { x = x, y = -5.8, z = 10 },
+			dest = { name = "Belasco Auto", pos = doors.belasco },
+			length = 2000,
+			pay = 300,
+			data = { vip = false },
+			state = "open",
+		}
+	end
+	local function listRides(...)
+		handlers.sc_jobs(json.encode({
+			enabled = true,
+			jobs = { ... },
+			levels = { taxi = { level = 1, xp = 0, from = 0, to = 100 } },
+		}))
+	end
+	wait(8)
+	handlers.sc_licenses(json.encode({
+		list = { { id = "taxi", name = "Taxi License", price = 5000, jobType = "taxi", owned = true } },
+	}))
+	me.p = { x = 2000, y = -2, z = 10 }
+	listRides(rideAt(41, 2600), rideAt(42, 4500))
+	local function taxiSection()
+		for _, sec in ipairs(jobs.appState().sections) do
+			if sec.type == "taxi" then
+				return sec
+			end
+		end
+	end
+	wait(6)
+	check(
+		jobs.getActive() == nil and #rings == 0 and taxiSection().duty == false and not taxi.isOnDuty(),
+		"off duty (on every join): no calls; the app shows the switch off"
+	)
+	jobs.uiDuty("taxi", true)
+	check(
+		taxiSection().duty == true and lastToastMsg() == "On duty: rides will call you",
+		'"On duty": the switch is on'
+	)
+	wait(4)
+	local ring = lastRing()
+	check(
+		ring
+			and ring.title == "Ride request"
+			and ring.text == "To Belasco Auto"
+			and ring.detail == "600 m away · $300"
+			and ring.icon == "taxi"
+			and ring.open.app == "jobs"
+			and ring.open.page == "taxi"
+			and phone.ringing(),
+		"on duty: the nearest ride rings the phone (the one 2.5 km away doesn't)"
+	)
+	phone.uiAnswer(false)
+	local ringsAfter = #rings
+	wait(60)
+	check(
+		lastRing() == false and #rings == ringsAfter,
+		"declined: the call ends; that ride doesn't call again, and nothing else is near"
+	)
+	me.p = { x = 4000, y = -2, z = 10 }
+	wait(4)
+	check(lastRing() and lastRing().text == "To Belasco Auto" and phone.ringing(), "nearer to another ride: it calls")
+	wait(16)
+	check(lastRing() == false and not phone.ringing() and taxi.isOnDuty(), "not answered: it rings out, still on duty")
+	listRides(rideAt(41, 2600), rideAt(42, 4500), rideAt(43, 3600))
+	wait(30)
+	check(lastRing() == false, "after a missed call: a pause before the next")
+	wait(20)
+	check(lastRing() and phone.ringing(), "after the pause: the next ride calls")
+	wait(16)
+	check(
+		not taxi.isOnDuty() and lastToastMsg() == "Off duty: calls missed" and taxiSection().duty == false,
+		"two calls missed in a row: off duty"
+	)
+	jobs.uiDuty("taxi", true)
+	listRides(rideAt(44, 4300))
+	wait(4)
+	check(phone.ringing(), "on duty again: a new ride calls")
+	listRides()
+	wait(3)
+	check(lastRing() == false and not phone.ringing(), "someone else took the ride: the call hangs up")
+	listRides(rideAt(45, 4200))
+	wait(4)
+	phone.uiAnswer(true)
+	check(lastSent("sc_jobTake").id == 45 and lastRing() == false, '"Accept": the ride is taken')
+	jobs.uiDuty("taxi", false)
+	check(not taxi.isOnDuty() and lastToastMsg() == "Off duty", "switched off: off duty")
+
+	--== The speed limit sign (speedLimit.lua) ==
+	local signs = {}
+	guihooks.trigger = function(name, data)
+		if name == "SharedCareerSpeedLimit" then
+			table.insert(signs, data)
+		end
+		return trigger0(name, data)
+	end
+	local units = "metric"
+	_G.settings = {
+		getValue = function(key)
+			return key == "uiUnitLength" and units or nil
+		end,
+	}
+	local function sign()
+		return signs[#signs]
+	end
+	world.playerVeh = 70
+	me.p, me.v = { x = 3000, y = -2, z = 10 }, { x = 0, y = 0, z = 0 }
+	sharedCareer_speedLimit.uiRequest() -- the window opens: it asks for the sign
+	wait(1)
+	check(
+		sign().limit == 70 and sign().unit == "km/h" and sign().over == false,
+		"on the road: its limit (20 m/s) in km/h, rounded to 5"
+	)
+	local count = #signs
+	wait(2)
+	check(#signs == count, "nothing changed: nothing sent")
+	me.v = { x = 22, y = 0, z = 0 }
+	wait(1)
+	check(#signs == count and sign().over == false, "up to 15 % over the limit: no warning")
+	me.v = { x = 24, y = 0, z = 0 }
+	wait(1)
+	check(sign().over == true, "more than 15 % over: the sign warns")
+	units = "imperial"
+	me.v = { x = 0, y = 0, z = 0 }
+	wait(1)
+	check(sign().limit == 45 and sign().unit == "mph" and sign().over == false, "imperial units: in mph")
+	me.p.y = -12
+	wait(1)
+	check(sign().limit == nil, "off the road: no sign")
+	me.p.y = -2
+	world.playerVeh = 91
+	wait(1)
+	check(sign().limit == nil, "on foot: no sign")
+	world.playerVeh = 70
+	_G.settings = nil
+	guihooks.trigger = trigger0
+	jobs.onBeamMPServerLeave()
 	_G.map, _G.freeroam_facilities, _G.jsonReadFile, _G.util_configListGenerator, _G.core_groundMarkers =
 		nil, nil, nil, nil, nil
 	_G.castRayStatic = nil

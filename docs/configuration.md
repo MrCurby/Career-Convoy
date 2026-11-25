@@ -112,11 +112,11 @@ The file is `Resources/Server/SharedCareer/config/config.json`. It is created on
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `server.jobs` | `true` | Jobs (for now towing jobs) and the Jobs app on the phone |
-| `server.jobsOpen` | `3` | Open jobs per level group: for beginners and for the highest level each player on the server has reached. New ones are made up as needed |
+| `server.jobs` | `true` | Jobs (towing and taxi jobs) and the Jobs app on the phone |
+| `server.jobsOpen` | `3` | Open jobs per kind of job and level group: for beginners and for the highest level each player on the server has reached. New ones are made up as needed |
 | `server.jobTimeoutMinutes` | `30` | A taken job is open again after this many minutes |
 | `server.jobPayMax` | `5000` | Highest pay of one job, in $ |
-| `client.jobPay` | `1` | Factor on the pay of every job (towing: $150 + $120 per km, 25 % more with a flat tire); `2` = double |
+| `client.jobPay` | `1` | Factor on the pay of every job (towing: $150 + $120 per km, 25 % more with a flat tire; taxi: $60 + $80 per km, 50 % more for a VIP); `2` = double |
 
 ### Money
 

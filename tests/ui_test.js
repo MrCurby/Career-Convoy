@@ -255,17 +255,13 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 	check(phone.levelText(sec.level) === 'Level 4 · 200 XP to level 5' && phone.levelText({level: 10}) === 'Level 10 · top level'
 		&& phone.levelText(null) === '', 'your level in words');
 	const jobTypes = phone.jobTypes;
-	check(jobTypes[0].id === 'tow' && !jobTypes[0].soon && jobTypes[1].id === 'taxi' && jobTypes[1].soon,
-		'start page: a card for towing first, taxi greyed out as coming soon');
+	check(jobTypes.length === 1 && jobTypes[0].id === 'tow', 'start page: a card for towing');
 	check(phone.jobTypes === jobTypes && phone.fuelSorts.map(o => o.id).join() === 'gasoline,diesel,distance',
 		'the lists get the same arrays until Lua sends new jobs (a new array each time never settles)');
-	check(phone.jobTypeText(jobTypes[0]) === '1 open' && phone.jobTypeText(jobTypes[1]) === 'Soon',
-		'on the cards: the open jobs, "Soon"');
+	check(phone.jobTypeText(jobTypes[0]) === '1 open', 'on the cards: the open jobs');
 	check(phone.jobTypeLevel('tow').level === 4 && phone.jobTypeLevel('taxi') === null, 'on the cards: your level, none without it');
 	phone.openApp({id: 'jobs', title: 'Jobs'});
 	check(phone.jobsType === null && !phone.canGoBackInApp() && phone.appTitle() === 'Jobs', 'the Jobs app opens on its start page');
-	phone.openJobType(jobTypes[1]);
-	check(phone.jobsType === null, 'taxi (coming soon) does not open');
 	phone.openJobType(jobTypes[0]);
 	check(phone.jobsType === 'tow' && phone.canGoBackInApp() && phone.appTitle() === 'Towing' && phone.jobsOpenIn() === 1,
 		'a card opens the page of its job type, the app bar shows its name');
@@ -278,9 +274,14 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 	phone.goHome();
 	phone.openApp({id: 'jobs', title: 'Jobs'});
 	check(phone.jobsType === null, 'opened again: the start page');
-	phone.emit('SharedCareerJobs', {enabled: true, sections: [{type: 'x', open: 1}]});
-	check(phone.jobTypes.some(function (t) { return t.id === 'x' && t.name === 'x' && !t.soon; })
-		&& phone.jobsOpenIn('tow') === 0, 'new job types get a card');
+	phone.emit('SharedCareerJobs', {enabled: true, sections: [{type: 'taxi', name: 'Taxi', icon: 'taxi', open: 2,
+		groups: []}, {type: 'x', open: 1}]});
+	check(phone.jobTypes.map(t => t.id + ':' + t.name + ':' + t.icon).join() === 'tow:Towing:tow,taxi:Taxi:taxi,x:x:jobs'
+		&& phone.jobsOpenIn('tow') === 0 && phone.jobTypeText(phone.jobTypes[1]) === '2 open',
+		'every job type Lua sends gets a card, towing first');
+	phone.openJobType(phone.jobTypes[1]);
+	check(phone.jobsType === 'taxi' && phone.appTitle() === 'Taxi', 'the taxi card opens the taxi jobs');
+	phone.goBack();
 	check(phone.jobs.sections[0].groups.length === 0 && phone.jobs.open === 0, 'nothing sent: empty lists');
 	check(!phone.jobLicenseMissing() && phone.jobs.licenses && !Array.isArray(phone.jobs.licenses),
 		'no licenses sent: nothing greyed out');
@@ -305,6 +306,16 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 		&& phone.jobs.active.tags.length === 0 && !phone.jobPaid(), 'your job, step 1: the texts of its job type');
 	phone.emit('SharedCareerJobs', {enabled: true, jobs: [], active: active({phase: 'running', step: 1, short: 'In the ring – wait'})});
 	check(phone.jobStep() === 1 && phone.jobStepText() === 'In the ring – wait', 'step 2');
+	check(phone.jobPayNow() === 820 && !phone.jobPayDropped() && phone.jobStars() === null,
+		'a towing job: its pay, no stars');
+	phone.emit('SharedCareerJobs', {enabled: true, jobs: [], active: active({type: 'taxi', phase: 'running', step: 1,
+		payNow: 738, stars: 4})});
+	check(phone.jobPayNow() === 738 && phone.jobPayDropped() && phone.jobStars() === 4 && phone.STAR_SLOTS.length === 5,
+		'a rough taxi ride: the pay as it is now (the old one struck through), 4 of 5 stars');
+	phone.emit('SharedCareerJobs', {enabled: true, jobs: [], active: active({type: 'taxi', phase: 'running', step: 1,
+		payNow: 820, stars: 5})});
+	check(phone.jobPayNow() === 820 && !phone.jobPayDropped() && phone.jobStars() === 5, 'a smooth ride: full pay, 5 stars');
+	phone.emit('SharedCareerJobs', {enabled: true, jobs: [], active: active({phase: 'running', step: 1, short: 'In the ring – wait'})});
 	phone.openApp({id: 'straps'});
 	const inStraps = phone.jobStripShown();
 	phone.openApp({id: 'fuel'});
@@ -319,6 +330,40 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 	phone.openJobs();
 	check(phone.currentApp && phone.currentApp.id === 'jobs' && !phone.currentApp.beta, 'the job strip opens the Jobs app without a beta marker');
 	phone.goHome();
+	// the "On duty" switch of a job type (taxi): shown only for a job type that has one
+	phone.emit('SharedCareerJobs', {enabled: true, sections: [{type: 'tow', open: 0, groups: []},
+		{type: 'taxi', name: 'Taxi', icon: 'taxi', open: 1, duty: false, groups: []}], licenses: {}});
+	check(phone.jobDuty('taxi') === false && phone.jobDuty('tow') === null, 'the switch: off for taxi, none for towing');
+	phone.openApp({id: 'jobs', title: 'Jobs'});
+	phone.openJobType({id: 'taxi'});
+	env.calls.length = 0;
+	phone.setDuty(true);
+	check(env.calls.some(c => c.indexOf('sharedCareer_jobs.uiDuty("taxi", true)') >= 0), '"On duty" goes to Lua');
+	phone.goHome();
+	// a call: the phone comes out, "Decline" puts it away again
+	if (phone.open) phone.toggle();
+	check(!phone.open, 'phone away');
+	const ride = {id: 'taxi-7', title: 'Ride request', text: 'To Belasco Auto', detail: '600 m away · $300', icon: 'taxi',
+		seconds: 15, open: {app: 'jobs', page: 'taxi'}};
+	phone.emit('SharedCareerPhoneCall', {call: ride});
+	check(phone.open && phone.call && phone.call.title === 'Ride request', 'a call: the phone comes out and shows it');
+	env.calls.length = 0;
+	phone.answerCall(false);
+	check(!phone.open && phone.call === null && env.calls.some(c => c.indexOf('sharedCareer_phone.uiAnswer(false)') >= 0),
+		'"Decline": Lua hears it, the phone goes away again');
+	phone.emit('SharedCareerPhoneCall', {call: ride});
+	phone.emit('SharedCareerPhoneCall', {});
+	check(!phone.open && phone.call === null, 'rang out (or hung up): the phone goes away again');
+	phone.emit('SharedCareerPhoneCall', {call: ride});
+	env.calls.length = 0;
+	phone.answerCall(true);
+	check(phone.open && phone.currentApp && phone.currentApp.id === 'jobs' && phone.jobsType === 'taxi'
+		&& env.calls.some(c => c.indexOf('sharedCareer_phone.uiAnswer(true)') >= 0),
+		'"Accept": the phone stays out on the taxi page');
+	phone.emit('SharedCareerPhoneCall', {});
+	check(phone.open && phone.jobsType === 'taxi', 'Lua ends the call after "Accept": the page stays');
+	phone.goHome();
+	if (phone.open) phone.toggle();
 	phone.destroy();
 	check(last(env, 'phone') === false && last(env, 'fuel') === false, 'phone window removed: not visible');
 }
@@ -439,7 +484,7 @@ if (process.argv[2]) {
 		.filter(b => !/^<use(?:\s[^>]*)?\/>$/.test(b.trim()) && !b.includes('scp-rope-path'));
 	check(inline.length === 0, 'no icon drawn inline in phone or app templates (' + inline.length + ')');
 	// the icon names Lua sends: the apps on the phone, the job types, the kinds of vehicle of a towing job
-	const lua = ['jobs', 'tow', 'straps', 'fuel', 'towJobs'].map(f => read('client/lua/ge/extensions/sharedCareer/' + f + '.lua'));
+	const lua = ['jobs', 'tow', 'straps', 'fuel', 'towJobs', 'taxiJobs'].map(f => read('client/lua/ge/extensions/sharedCareer/' + f + '.lua'));
 	const kinds = lua[4].match(/local KINDS = \{([\s\S]*?)\n\}/)[1];
 	const names = lua.flatMap(l => [...l.matchAll(/icon = "([a-z-]+)"/g)].map(m => m[1]))
 		.concat([...kinds.matchAll(/kind = "([a-z-]+)"/g)].map(m => m[1]), ['car']);
@@ -450,6 +495,23 @@ if (process.argv[2]) {
 	const phone = load(...PHONE, env);
 	check(phone.hasIcon('tow') && phone.hasIcon('car') && !phone.hasIcon('T') && !phone.hasIcon('') && !phone.hasIcon(undefined),
 		'hasIcon: true for an icon in icons.svg, false for anything else');
+}
+
+//== Speed limit sign (SharedCareer-SpeedLimit, data from speedLimit.lua) ==
+{
+	const read = (f) => require('fs').readFileSync(require('path').join(__dirname, '..', f), 'utf8');
+	const html = read('client/ui/modules/apps/SharedCareer-SpeedLimit/app.html');
+	check(/^<div\b/.test(html) && /<\/div>\s*$/.test(html), 'sign template: one root <div>, nothing before or after it');
+	const env = makeEnv({});
+	const sign = load('client/ui/modules/apps/SharedCareer-SpeedLimit/app.js', 'SharedCareerSpeedLimit', env);
+	check(env.calls.some(c => c.indexOf('sharedCareer_speedLimit.uiRequest()') >= 0) && !sign.sign.limit,
+		'the sign asks Lua for the limit when it opens; nothing shown before');
+	sign.emit('SharedCareerSpeedLimit', {limit: 50, unit: 'km/h', over: false});
+	check(sign.sign.limit === 50 && sign.sign.unit === 'km/h', 'a limit: shown in its unit');
+	sign.emit('SharedCareerSpeedLimit', {limit: 35, unit: 'mph', over: true});
+	check(sign.sign.unit === 'mph' && sign.sign.over === true, 'mph, too fast: the US sign warns');
+	sign.emit('SharedCareerSpeedLimit', {});
+	check(!sign.sign.limit, 'no limit (off the road, on foot): no sign');
 }
 
 process.exit(H.done() ? 1 : 0);
