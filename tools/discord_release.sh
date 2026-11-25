@@ -18,7 +18,7 @@ fi
 dir=$(mktemp -d)
 trap 'rm -rf "$dir"' EXIT
 {
-	echo "# SharedCareer $VERSION"
+	echo "# Career-Convoy $VERSION"
 	echo "<$URL>"
 	echo
 	cat "$NOTES"

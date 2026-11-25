@@ -8,7 +8,7 @@
 # "Generated with/by Claude Code" footers with their session link.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-REPO="${GITHUB_REPOSITORY:-MrCurby/SharedCareer}"
+REPO="${GITHUB_REPOSITORY:-MrCurby/Career-Convoy}"
 
 echo "Install on a server: \`./server.sh update\` (downloads this release automatically)."
 
