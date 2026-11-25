@@ -15,9 +15,10 @@
 --   doing it
 --     1. the route leads to the passenger (a yellow marker); stopping in a vehicle (not on foot)
 --        within PICKUP_RADIUS m of them for BOARD_STILL s: they get in. That vehicle is the taxi
---     2. the route leads to the place. A smooth ride pays all: every jolt (the taxi's speed
---        changes faster than JOLT_ACCEL m/s^2, measured over JOLT_WINDOW s so bumps and curbs
---        don't count: hard braking, a crash, a hard landing; at most one per JOLT_GAP s) costs JOLT_COST of the pay; speeding (on a road, faster than its speed
+--     2. the route leads to the place. A smooth ride pays all: every jolt (the taxi's speed on
+--        the ground or up/down changes faster than JOLT_ACCEL m/s^2, measured over JOLT_WINDOW s
+--        so bumps and curbs don't count; turning doesn't count either: hard braking, a crash, a
+--        hard landing; at most one per JOLT_GAP s) costs JOLT_COST of the pay; speeding (on a road, faster than its speed
 --        limit x speedLimit.TOLERANCE for SPEEDING_FOR s; again after every SPEEDING_AGAIN s more)
 --        SPEEDING_COST; new damage to the taxi up to PENALTY_MAX (DAMAGE_FOR_MAX damage points cost
 --        all of it), a reset (R) PENALTY_MAX; all together at most PENALTY_MAX. The speed limit
@@ -219,7 +220,8 @@ local function watchSpeed(a, taxi, dt)
 	end
 end
 
--- A jolt: the taxi's speed changed faster than JOLT_ACCEL over the last JOLT_WINDOW s.
+-- A jolt: the taxi's speed on the ground (not its direction: a tight turn is fine) or up/down
+-- changed faster than JOLT_ACCEL over the last JOLT_WINDOW s.
 local function watchJolts(a, taxi, dt)
 	local v = type(taxi.getVelocity) == "function" and U.vecOf(taxi:getVelocity())
 	if not v then
@@ -236,8 +238,9 @@ local function watchJolts(a, taxi, dt)
 	end
 	local span = a.velFor
 	a.lastVel, a.velFor = v, 0
-	local dx, dy, dz = v.x - last.x, v.y - last.y, v.z - last.z
-	if math.sqrt(dx * dx + dy * dy + dz * dz) / span > JOLT_ACCEL and clock - a.joltAt >= JOLT_GAP then
+	local ground = math.abs(math.sqrt(v.x * v.x + v.y * v.y) - math.sqrt(last.x * last.x + last.y * last.y))
+	local change = math.max(ground, math.abs(v.z - last.z))
+	if change / span > JOLT_ACCEL and clock - a.joltAt >= JOLT_GAP then
 		a.jolts, a.joltAt = a.jolts + 1, clock
 		U.toast("warning", "Drive smoother!", 3)
 	end

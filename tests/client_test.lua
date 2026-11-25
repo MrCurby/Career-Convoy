@@ -5295,6 +5295,25 @@ check(
 	me.v = { x = 0, y = 0, z = 0 }
 	update(0.02)
 	check(jobs.getActive().jolts == 0, "a bumpy road: no jolt")
+	-- a tight turn at 40 km/h (11 m/s around 10 m: 12 m/s^2 sideways): no jolt
+	for i = 1, 22 do -- speeding up gently first
+		me.v = { x = i * 0.5, y = 0, z = 0 }
+		update(0.1)
+	end
+	for i = 1, 30 do
+		local t = i * 0.05 * 1.1
+		me.v = { x = 11 * math.cos(t), y = 11 * math.sin(t), z = 0 }
+		update(0.05)
+	end
+	check(jobs.getActive().jolts == 0, "a tight turn: no jolt")
+	local turned = me.v
+	for i = 21, 0, -1 do -- and slowing down gently
+		me.v = { x = turned.x * i / 22, y = turned.y * i / 22, z = 0 }
+		update(0.1)
+	end
+	for _ = 1, 10 do
+		update(0.1)
+	end
 	-- a hard stop is a jolt: once, not again right after
 	me.v = { x = 15, y = 0, z = 0 }
 	update(0.3)
