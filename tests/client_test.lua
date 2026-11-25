@@ -2983,6 +2983,22 @@ check(
 		and files["settings/sharedCareer/state.json"].phoneAppAdded == true,
 	"phone tab added once, directly below the menu, only as big as the tab"
 )
+do
+	local signApp
+	for _, a in ipairs(files[CUSTOM].apps) do
+		if a.appName == "sharedCareerSpeedLimit" then
+			signApp = a
+		end
+	end
+	check(
+		signApp
+			and signApp.placement.right == "40px"
+			and signApp.placement.bottom == "300px"
+			and signApp.placement.top == ""
+			and files["settings/sharedCareer/state.json"].speedLimitAppAdded == true,
+		"speed limit sign added once, bottom right, left of the phone tab"
+	)
+end
 -- 2) player removes it again -> NOT added again on the next join
 local removedLayout = { apps = { { appName = "tacho2" } } }
 joinWith({ [CUSTOM] = removedLayout, ["settings/sharedCareer/state.json"] = { menuAppAdded = true } })
@@ -3032,7 +3048,12 @@ joinWith({
 			{ appName = "sharedCareerPhone", placement = { right = "0px", top = "920px" } },
 		},
 	},
-	["settings/sharedCareer/state.json"] = { menuAppAdded = true, fuelAppAdded = true, phoneAppAdded = true },
+	["settings/sharedCareer/state.json"] = {
+		menuAppAdded = true,
+		fuelAppAdded = true,
+		phoneAppAdded = true,
+		speedLimitAppAdded = true,
+	},
 })
 local names, phoneTop = {}, nil
 for _, a in ipairs(files[CUSTOM].apps) do
@@ -3097,7 +3118,7 @@ do
 	joinWith({}) -- fresh file mocks
 	files[CUSTOM] = { apps = { { appName = "tacho2" }, oldMenu, { appName = "sharedCareerPhone" } } }
 	files[OTHER] = { apps = { { appName = "sharedCareerTime" }, { appName = "sharedCareerMenu" } } }
-	files["settings/sharedCareer/state.json"] = { timeAppAdded = true, phoneAppAdded = true }
+	files["settings/sharedCareer/state.json"] = { timeAppAdded = true, phoneAppAdded = true, speedLimitAppAdded = true }
 	FS.findFiles = function(_, dir)
 		return dir == "settings/ui_apps/layouts/" and { CUSTOM, OTHER } or {}
 	end
@@ -5480,6 +5501,54 @@ check(
 	check(lastSent("sc_jobTake").id == 45 and lastRing() == false, '"Accept": the ride is taken')
 	jobs.uiDuty("taxi", false)
 	check(not taxi.isOnDuty() and lastToastMsg() == "Off duty", "switched off: off duty")
+
+	--== The speed limit sign (speedLimit.lua) ==
+	local signs = {}
+	guihooks.trigger = function(name, data)
+		if name == "SharedCareerSpeedLimit" then
+			table.insert(signs, data)
+		end
+		return trigger0(name, data)
+	end
+	local units = "metric"
+	_G.settings = {
+		getValue = function(key)
+			return key == "uiUnitLength" and units or nil
+		end,
+	}
+	local function sign()
+		return signs[#signs]
+	end
+	world.playerVeh = 70
+	me.p, me.v = { x = 3000, y = -2, z = 10 }, { x = 0, y = 0, z = 0 }
+	sharedCareer_speedLimit.uiRequest() -- the window opens: it asks for the sign
+	wait(1)
+	check(
+		sign().limit == 70 and sign().unit == "km/h" and sign().over == false,
+		"on the road: its limit (20 m/s) in km/h, rounded to 5"
+	)
+	local count = #signs
+	wait(2)
+	check(#signs == count, "nothing changed: nothing sent")
+	me.v = { x = 22, y = 0, z = 0 }
+	wait(1)
+	check(#signs == count and sign().over == false, "up to 15 % over the limit: no warning")
+	me.v = { x = 24, y = 0, z = 0 }
+	wait(1)
+	check(sign().over == true, "more than 15 % over: the sign warns")
+	units = "imperial"
+	me.v = { x = 0, y = 0, z = 0 }
+	wait(1)
+	check(sign().limit == 45 and sign().unit == "mph" and sign().over == false, "imperial units: in mph")
+	me.p.y = -12
+	wait(1)
+	check(sign().limit == nil, "off the road: no sign")
+	me.p.y = -2
+	world.playerVeh = 91
+	wait(1)
+	check(sign().limit == nil, "on foot: no sign")
+	world.playerVeh = 70
+	_G.settings = nil
 	guihooks.trigger = trigger0
 	jobs.onBeamMPServerLeave()
 	_G.map, _G.freeroam_facilities, _G.jsonReadFile, _G.util_configListGenerator, _G.core_groundMarkers =

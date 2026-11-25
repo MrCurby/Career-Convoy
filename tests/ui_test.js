@@ -497,4 +497,21 @@ if (process.argv[2]) {
 		'hasIcon: true for an icon in icons.svg, false for anything else');
 }
 
+//== Speed limit sign (SharedCareer-SpeedLimit, data from speedLimit.lua) ==
+{
+	const read = (f) => require('fs').readFileSync(require('path').join(__dirname, '..', f), 'utf8');
+	const html = read('client/ui/modules/apps/SharedCareer-SpeedLimit/app.html');
+	check(/^<div\b/.test(html) && /<\/div>\s*$/.test(html), 'sign template: one root <div>, nothing before or after it');
+	const env = makeEnv({});
+	const sign = load('client/ui/modules/apps/SharedCareer-SpeedLimit/app.js', 'SharedCareerSpeedLimit', env);
+	check(env.calls.some(c => c.indexOf('sharedCareer_speedLimit.uiRequest()') >= 0) && !sign.sign.limit,
+		'the sign asks Lua for the limit when it opens; nothing shown before');
+	sign.emit('SharedCareerSpeedLimit', {limit: 50, unit: 'km/h', over: false});
+	check(sign.sign.limit === 50 && sign.sign.unit === 'km/h', 'a limit: shown in its unit');
+	sign.emit('SharedCareerSpeedLimit', {limit: 35, unit: 'mph', over: true});
+	check(sign.sign.unit === 'mph' && sign.sign.over === true, 'mph, too fast: the US sign warns');
+	sign.emit('SharedCareerSpeedLimit', {});
+	check(!sign.sign.limit, 'no limit (off the road, on foot): no sign');
+}
+
 process.exit(H.done() ? 1 : 0);

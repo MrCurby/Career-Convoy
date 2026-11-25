@@ -18,12 +18,11 @@
 --     2. the route leads to the place. A smooth ride pays all: every jolt (the taxi's speed
 --        changes faster than JOLT_ACCEL m/s^2: hard braking, a crash, a hard landing; at most one
 --        per JOLT_GAP s) costs JOLT_COST of the pay; speeding (on a road, faster than its speed
---        limit x SPEED_TOLERANCE for SPEEDING_FOR s; again after every SPEEDING_AGAIN s more)
+--        limit x speedLimit.TOLERANCE for SPEEDING_FOR s; again after every SPEEDING_AGAIN s more)
 --        SPEEDING_COST; new damage to the taxi up to PENALTY_MAX (DAMAGE_FOR_MAX damage points cost
---        all of it), a reset (R) PENALTY_MAX; all together at most PENALTY_MAX. The speed limit is
---        the one of the road's link in the game's road network (map.findClosestRoad, link.speedLimit
---        in m/s); a road without one has no limit. The taxi gone (deleted): the passenger waits at
---        the pickup again
+--        all of it), a reset (R) PENALTY_MAX; all together at most PENALTY_MAX. The speed limit
+--        comes from speedLimit.lua (the sign shows it); a road without one has no limit. The taxi
+--        gone (deleted): the passenger waits at the pickup again
 --        The passenger rates the ride: 1..5 stars by what it has cost so far (STARS), shown live in
 --        the Jobs app with the pay as it is now
 --     3. you in the taxi, standing still in the drop-off zone (DROP_RADIUS m around the place's
@@ -50,11 +49,9 @@ local STOP_SPEED = 0.5 -- m/s: slower counts as standing still
 local JOLT_ACCEL = 7 -- m/s^2: the taxi's speed changing faster than this is a jolt
 local JOLT_GAP = 2 -- s: at most one jolt in this time (one hard stop counts once)
 local JOLT_COST = 0.05 -- share of the pay a jolt costs (twice that for a VIP)
-local SPEED_TOLERANCE = 1.15 -- faster than the speed limit x this is speeding
 local SPEEDING_FOR = 2 -- s of speeding before it counts
 local SPEEDING_AGAIN = 10 -- s more of speeding until it counts again
 local SPEEDING_COST = 0.05 -- share of the pay speeding costs each time (twice that for a VIP)
-local ROAD_MARGIN = 3 -- m beyond a road's edge that still count as on it
 local PENALTY_MAX = 0.5 -- share of the pay a bumpy ride can cost at most
 local DAMAGE_FOR_MAX = 40000 -- damage points (beamstate.damage) that cost PENALTY_MAX
 local PAY_BASE, PAY_PER_KM = 60, 80
@@ -205,26 +202,12 @@ local function board(a, id)
 	U.toast("info", "Passenger in: drive to " .. a.job.dest.name, 6)
 end
 
--- The speed limit (m/s) of the road at p, or nil (off the road, or a road without one).
-local function speedLimitAt(p)
-	local ok, limit = pcall(function()
-		local a, b, d = map.findClosestRoad(vec3(p.x, p.y, p.z))
-		local nodes = a and b and map.getMap().nodes
-		local n, m = nodes and nodes[a], nodes and nodes[b]
-		if not (n and m) or (tonumber(d) or math.huge) > (tonumber(n.radius) or 0) + ROAD_MARGIN then
-			return nil
-		end
-		local link = (n.links or {})[b] or (m.links or {})[a]
-		return type(link) == "table" and tonumber(link.speedLimit) or nil
-	end)
-	return ok and limit and limit > 0 and limit or nil
-end
-
--- Speeding: faster than the road's speed limit x SPEED_TOLERANCE for SPEEDING_FOR s.
+-- Speeding: faster than the road's speed limit x speedLimit.TOLERANCE for SPEEDING_FOR s.
 local function watchSpeed(a, taxi, dt)
 	local p = U.vecOf(taxi:getPosition())
-	local limit = p and speedLimitAt(p)
-	if not limit or J.speedOf(taxi) <= limit * SPEED_TOLERANCE then
+	local roads = U.ext("sharedCareer_speedLimit")
+	local limit = p and roads and roads.limitAt(p)
+	if not limit or J.speedOf(taxi) <= limit * roads.TOLERANCE then
 		a.speedingFor = 0
 		return
 	end
