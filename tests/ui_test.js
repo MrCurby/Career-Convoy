@@ -546,17 +546,27 @@ if (process.argv[2]) {
 	const sign = load('client/ui/modules/apps/SharedCareer-SpeedLimit/app.js', 'SharedCareerSpeedLimit', env);
 	check(env.calls.some(c => c.indexOf('sharedCareer_speedLimit.uiRequest()') >= 0) && !sign.sign.limit,
 		'the sign asks Lua for the limit when it opens; nothing shown before');
-	sign.emit('SharedCareerSpeedLimit', {limit: 50, unit: 'km/h', over: false});
-	check(sign.sign.limit === 50 && sign.sign.unit === 'km/h', 'a limit: shown in its unit');
-	sign.emit('SharedCareerSpeedLimit', {limit: 35, unit: 'mph', over: true});
-	check(sign.sign.unit === 'mph' && sign.sign.over === true, 'mph, too fast: the US sign warns');
+	sign.emit('SharedCareerSpeedLimit', {kmh: 50, mph: 30, unit: 'km/h', over: false});
+	check(sign.limit() === 50 && sign.unit() === 'km/h', 'a limit: shown in the game\'s unit (km/h)');
+	sign.emit('SharedCareerSpeedLimit', {kmh: 55, mph: 35, unit: 'mph', over: true});
+	check(sign.limit() === 35 && sign.unit() === 'mph' && sign.sign.over === true, 'mph, too fast: the US sign warns');
 	sign.emit('SharedCareerSpeedLimit', {});
-	check(!sign.sign.limit, 'no limit (off the road, on foot): no sign');
+	check(!sign.sign.kmh, 'no limit (off the road, on foot): no sign');
 	// when it shows: the player's choice on the phone (off by default), never while the menu is open
 	const menu = load('client/ui/modules/apps/SharedCareer-Menu/app.js', 'SharedCareerMenu', env);
 	const phone = load(...PHONE, env);
-	sign.emit('SharedCareerSpeedLimit', {limit: 50, unit: 'km/h', over: false, taxi: false});
+	sign.emit('SharedCareerSpeedLimit', {kmh: 50, mph: 30, unit: 'km/h', over: false, taxi: false});
 	check(phone.look.sign === 'off' && !sign.shown(), 'by default the sign is off');
+	// the unit: the game's by default, or the player's choice on the phone
+	check(phone.look.unit === 'game' && sign.unit() === 'km/h', 'by default the unit of the game\'s settings');
+	phone.setSpeedUnit('mph');
+	check(env.storage.sharedCareerSpeedUnit === 'mph' && sign.unit() === 'mph' && sign.limit() === 30,
+		'mph picked on the phone: the US sign in mph, although the game uses km/h');
+	phone.setSpeedUnit('kmh');
+	sign.emit('SharedCareerSpeedLimit', {kmh: 50, mph: 30, unit: 'mph', over: false, taxi: false});
+	check(sign.unit() === 'km/h' && sign.limit() === 50, 'km/h picked: km/h, although the game uses mph');
+	phone.setSpeedUnit('game');
+	check(sign.unit() === 'mph', 'back to the game\'s unit');
 	phone.setSignMode('always');
 	check(env.storage.sharedCareerSpeedSign === 'always' && sign.menuOpen && !sign.shown(),
 		'"Always", but the menu is open: hidden, so it never covers the menu');
@@ -564,14 +574,18 @@ if (process.argv[2]) {
 	check(!sign.menuOpen && sign.shown(), 'menu collapsed: the sign shows');
 	phone.setSignMode('taxi');
 	const offRide = sign.shown();
-	sign.emit('SharedCareerSpeedLimit', {limit: 50, unit: 'km/h', over: false, taxi: true});
+	sign.emit('SharedCareerSpeedLimit', {kmh: 50, mph: 30, unit: 'km/h', over: false, taxi: true});
 	check(!offRide && sign.shown(), '"Taxi rides": only on a taxi ride');
 	menu.toggleCollapsed();
 	check(sign.menuOpen && !sign.shown(), 'menu opened again: hidden');
 	const later = load('client/ui/modules/apps/SharedCareer-SpeedLimit/app.js', 'SharedCareerSpeedLimit',
 		makeEnv({sharedCareerSpeedSign: 'always', sharedCareerMenuCollapsed: '1'}));
-	later.emit('SharedCareerSpeedLimit', {limit: 50, unit: 'km/h', over: false, taxi: false});
+	later.emit('SharedCareerSpeedLimit', {kmh: 50, mph: 30, unit: 'km/h', over: false, taxi: false});
 	check(later.shown(), 'after a restart: the stored choice, the menu as it was left');
+	const laterMph = load('client/ui/modules/apps/SharedCareer-SpeedLimit/app.js', 'SharedCareerSpeedLimit',
+		makeEnv({sharedCareerSpeedUnit: 'mph'}));
+	laterMph.emit('SharedCareerSpeedLimit', {kmh: 50, mph: 30, unit: 'km/h', over: false, taxi: false});
+	check(laterMph.unit() === 'mph', 'after a restart: the stored unit');
 }
 
 process.exit(H.done() ? 1 : 0);

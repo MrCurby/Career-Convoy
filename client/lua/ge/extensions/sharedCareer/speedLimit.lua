@@ -6,9 +6,11 @@
 --
 -- The sign is the UI app ui/modules/apps/SharedCareer-SpeedLimit/ (cleanup.lua adds it to the
 -- career layout once, bottom right). Every CHECK_EVERY s while you drive a vehicle (not on foot)
--- this sends it guihook SharedCareerSpeedLimit {limit, unit, over, taxi}, only when something changed:
---   limit  the limit in the unit of the game's speedometer, rounded to 5 (nil: no sign)
---   unit   "km/h" or "mph", by the game's setting for units (uiUnitLength: metric / imperial)
+-- this sends it guihook SharedCareerSpeedLimit {kmh, mph, unit, over, taxi}, only when something changed:
+--   kmh    the limit in km/h, rounded to 5 (nil: no sign)
+--   mph    the limit in mph, rounded to 5
+--   unit   "km/h" or "mph", by the game's setting for units (uiUnitLength: metric / imperial); the
+--          player can pick the unit in the phone's Settings instead (the window chooses)
 --   over   you drive faster than the limit x TOLERANCE (the sign warns; a taxi ride loses pay)
 --   taxi   your job is a taxi ride (the player can show the sign only then: phone, Settings)
 -- Whether the sign shows at all is the player's choice (phone, Settings: off, taxi rides, always)
@@ -25,7 +27,7 @@ local MS_TO = { ["km/h"] = 3.6, mph = 2.23694 } -- m/s in each unit
 M.TOLERANCE = 1.15 -- faster than the limit x this is speeding
 
 local since = 0
-local shown = nil -- what the sign shows: "limit|unit|over|taxi"
+local shown = nil -- what the sign shows: "kmh|mph|unit|over|taxi"
 
 --- The speed limit (m/s) of the road at p ({x, y, z}), or nil (off the road, or a road without one).
 function M.limitAt(p)
@@ -50,7 +52,7 @@ function M.unit()
 	return ok and length == "imperial" and "mph" or "km/h"
 end
 
--- The sign now: {limit, unit, over}, or {} (no sign: on foot, off the road, no limit known).
+-- The sign now: {kmh, mph, unit, over, taxi}, or {} (no sign: on foot, off the road, no limit known).
 local function signNow()
 	local veh = type(getPlayerVehicle) == "function" and getPlayerVehicle(0) or nil
 	if not veh or U.modelOf(veh) == "unicycle" or not U.careerActive() then
@@ -67,7 +69,8 @@ local function signNow()
 	local jobs = U.ext("sharedCareer_jobs")
 	local job = jobs and type(jobs.getActive) == "function" and jobs.getActive() or nil
 	return {
-		limit = math.floor(limit * MS_TO[unit] / 5 + 0.5) * 5,
+		kmh = math.floor(limit * MS_TO["km/h"] / 5 + 0.5) * 5,
+		mph = math.floor(limit * MS_TO.mph / 5 + 0.5) * 5,
 		unit = unit,
 		over = speed > limit * M.TOLERANCE,
 		taxi = type(job) == "table" and type(job.type) == "table" and job.type.id == "taxi" and not job.paidAt,
@@ -84,7 +87,9 @@ function M.onUpdate(dtReal)
 	if not ok then
 		sign = {}
 	end
-	local key = tostring(sign.limit)
+	local key = tostring(sign.kmh)
+		.. "|"
+		.. tostring(sign.mph)
 		.. "|"
 		.. tostring(sign.unit)
 		.. "|"

@@ -197,7 +197,7 @@
 .scp-seg button:hover { background: var(--scp-control); }
 .scp-seg .scp-seg-on, .scp-seg .scp-seg-on:hover { background: var(--scp-accent); }
 .scp-seg button .scp-icon { width: 15px; height: 15px; }
-.scp-seg-label { flex: none; padding: 0 3px 0 5px; font-size: var(--scp-fs-xs); font-weight: 700; color: var(--scp-text-dim); }
+.scp-seg-label { flex: none; min-width: 34px; padding: 0 3px 0 5px; font-size: var(--scp-fs-xs); font-weight: 700; color: var(--scp-text-dim); }
 .scp-seg-label ~ button { padding: 0 2px; font-size: var(--scp-fs-s); }
 .scp-seg-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* needs your attention (Strength, while the winch is stuck) */

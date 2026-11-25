@@ -280,18 +280,22 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 	$scope.navigate = function (id) { fuelLua('uiNavigate(' + JSON.stringify(String(id)) + ')'); };
 	$scope.stopNavigate = function () { fuelLua('uiStopNavigate()'); };
 
-	//== Settings app: how the phone looks and when the speed limit sign shows, kept on this PC (localStorage) ==
+	//== Settings app: how the phone looks, when the speed limit sign shows and in which unit; kept on this PC (localStorage) ==
 	// A wallpaper is a file ui/sharedCareer/wallpapers/<id>.svg; an icon theme is a class
 	// scp-app-icon-<id> in app.css ("Colors": each app in the color it registered with). The speed
-	// limit sign (SharedCareer-SpeedLimit/app.js) reads its choice from the same key and hears a change
-	// as the window event "sharedCareerSpeedSign". The first of each list is the default.
+	// limit sign (SharedCareer-SpeedLimit/app.js) reads its choices from the same keys and hears a change
+	// as a window event (LOOK_EVENTS). The first of each list is the default.
 	$scope.WALLPAPERS = [{id: 'ember', name: 'Ember'}, {id: 'dusk', name: 'Dusk'}, {id: 'night-road', name: 'Night road'},
 		{id: 'contours', name: 'Contours'}, {id: 'hazard', name: 'Hazard'}, {id: 'carbon', name: 'Carbon'}];
 	$scope.ICON_THEMES = [{id: 'beamng', name: 'BeamNG'}, {id: 'colors', name: 'Colors'}, {id: 'dark', name: 'Dark'},
 		{id: 'glass', name: 'Glass'}];
 	$scope.SIGN_MODES = [{id: 'off', name: 'Off'}, {id: 'taxi', name: 'Taxi rides'}, {id: 'always', name: 'Always'}];
-	var LOOK_KEYS = {wallpaper: 'sharedCareerPhoneWallpaper', icons: 'sharedCareerPhoneIcons', sign: 'sharedCareerSpeedSign'};
-	var LOOK_LISTS = {wallpaper: $scope.WALLPAPERS, icons: $scope.ICON_THEMES, sign: $scope.SIGN_MODES};
+	// "BeamNG": the unit of the game's own settings
+	$scope.SPEED_UNITS = [{id: 'game', name: 'BeamNG'}, {id: 'kmh', name: 'km/h'}, {id: 'mph', name: 'mph'}];
+	var LOOK_KEYS = {wallpaper: 'sharedCareerPhoneWallpaper', icons: 'sharedCareerPhoneIcons', sign: 'sharedCareerSpeedSign',
+		unit: 'sharedCareerSpeedUnit'};
+	var LOOK_LISTS = {wallpaper: $scope.WALLPAPERS, icons: $scope.ICON_THEMES, sign: $scope.SIGN_MODES, unit: $scope.SPEED_UNITS};
+	var LOOK_EVENTS = {sign: 'sharedCareerSpeedSign', unit: 'sharedCareerSpeedUnit'};
 	// the id if the list has it, else the list's first (a stored id that is gone, nothing stored)
 	function lookId(what, id) {
 		var list = LOOK_LISTS[what];
@@ -304,14 +308,15 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 	function setLook(what, id) {
 		$scope.look[what] = lookId(what, id);
 		try { window.localStorage.setItem(LOOK_KEYS[what], $scope.look[what]); } catch (e) {}
+		if (LOOK_EVENTS[what]) {
+			try { window.dispatchEvent(new CustomEvent(LOOK_EVENTS[what], {detail: $scope.look[what]})); } catch (e) {}
+		}
 	}
-	$scope.look = {wallpaper: readLook('wallpaper'), icons: readLook('icons'), sign: readLook('sign')};
+	$scope.look = {wallpaper: readLook('wallpaper'), icons: readLook('icons'), sign: readLook('sign'), unit: readLook('unit')};
 	$scope.setWallpaper = function (id) { setLook('wallpaper', id); };
 	$scope.setIconTheme = function (id) { setLook('icons', id); };
-	$scope.setSignMode = function (id) {
-		setLook('sign', id);
-		try { window.dispatchEvent(new CustomEvent('sharedCareerSpeedSign', {detail: $scope.look.sign})); } catch (e) {}
-	};
+	$scope.setSignMode = function (id) { setLook('sign', id); };
+	$scope.setSpeedUnit = function (id) { setLook('unit', id); };
 	// a wallpaper as a background (default: the chosen one)
 	$scope.wallpaperStyle = function (id) {
 		return {'background-image': 'url(/ui/sharedCareer/wallpapers/' + (id || $scope.look.wallpaper) + '.svg)'};

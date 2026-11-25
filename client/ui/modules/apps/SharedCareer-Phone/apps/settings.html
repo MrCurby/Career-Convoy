@@ -1,6 +1,7 @@
 <!-- Settings, kept on this PC ("Settings app" in app.js): the wallpaper behind the home screen
      (ui/sharedCareer/wallpapers/) and the look of the app icons (app.css, scp-app-icon-<theme>),
-     each shown as it would look, and when the speed limit sign shows (SharedCareer-SpeedLimit) -->
+     each shown as it would look, and when the speed limit sign shows and in which unit
+     (SharedCareer-SpeedLimit) -->
 <div class="scp-appbody">
 	<div class="scp-section-title">Wallpaper</div>
 	<div class="scp-wallpapers" role="radiogroup">
@@ -27,5 +28,6 @@
 	</div>
 
 	<div class="scp-section-title">Speed limit sign</div>
-	<scp-segment-select options="SIGN_MODES" selected="look.sign" on-select="setSignMode(id)"></scp-segment-select>
+	<scp-segment-select label="Show" options="SIGN_MODES" selected="look.sign" on-select="setSignMode(id)"></scp-segment-select>
+	<scp-segment-select label="Unit" options="SPEED_UNITS" selected="look.unit" on-select="setSpeedUnit(id)"></scp-segment-select>
 </div>

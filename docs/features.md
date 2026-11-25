@@ -297,7 +297,7 @@ People wait at the roadside for a ride to a place on the map: a garage, a dealer
 
 ## Speed limit sign
 
-A road sign at the bottom right shows the speed limit of the road you drive on, in the unit of your speedometer: a round sign with a red ring in km/h, a US *SPEED LIMIT* sign in mph (the game's setting for units: metric or imperial). It pulses red while you drive more than 15 % too fast, the point where a taxi ride starts to lose pay.
+A road sign at the bottom right shows the speed limit of the road you drive on: a round sign with a red ring in km/h, a US *SPEED LIMIT* sign in mph. The unit is the game's (its setting for units: metric or imperial), or the one you pick in the phone's **Settings** app (**Unit**: BeamNG, km/h or mph). It pulses red while you drive more than 15 % too fast, the point where a taxi ride starts to lose pay.
 
 - It is **off** by default. Turn it on in the phone's **Settings** app: **Taxi rides** (only while you drive a taxi ride) or **Always**.
 - It shows only while you drive a vehicle on a road that has a speed limit in the game; on foot, off the road or on a road without one it is hidden.
@@ -318,7 +318,7 @@ Apps:
 - **Tow:** rope and winch as a remote control, see [Moving your vehicles by hand](#moving-your-vehicles-by-hand-rope-and-winch).
 - **Straps:** strap a car down on a truck or trailer, see [Strapping a car down](#strapping-a-car-down-straps).
 - **Fuel:** gas station prices, see [Fuel app on the phone](#fuel-app-on-the-phone).
-- **Settings:** pick a wallpaper, the look of the app icons (BeamNG orange, each app in its own color, dark or glass) and when the [speed limit sign](#speed-limit-sign) shows. The choice is kept on your PC.
+- **Settings:** pick a wallpaper, the look of the app icons (BeamNG orange, each app in its own color, dark or glass) and when the [speed limit sign](#speed-limit-sign) shows and in which unit. The choice is kept on your PC.
 
 <img src="images/phone-settings.png" width="240" alt="Settings app: wallpaper and app icons">
 

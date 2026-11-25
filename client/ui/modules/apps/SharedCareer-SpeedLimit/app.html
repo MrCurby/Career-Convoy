@@ -4,9 +4,9 @@
 	     Nothing may stand before this <div> (replace: true, see app.js). -->
 	<link rel="stylesheet" type="text/css" href="/ui/modules/apps/SharedCareer-SpeedLimit/app.css">
 	<div class="scs-sign" ng-if="shown()"
-		ng-class="{'scs-us': sign.unit === 'mph', 'scs-over': sign.over}"
-		title="{{ 'Speed limit: ' + sign.limit + ' ' + sign.unit }}">
-		<span class="scs-title" ng-if="sign.unit === 'mph'">SPEED<br>LIMIT</span>
-		<span class="scs-limit" ng-bind="sign.limit"></span>
+		ng-class="{'scs-us': unit() === 'mph', 'scs-over': sign.over}"
+		title="{{ 'Speed limit: ' + limit() + ' ' + unit() }}">
+		<span class="scs-title" ng-if="unit() === 'mph'">SPEED<br>LIMIT</span>
+		<span class="scs-limit" ng-bind="limit()"></span>
 	</div>
 </div>
