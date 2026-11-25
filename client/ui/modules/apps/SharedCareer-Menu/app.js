@@ -61,11 +61,31 @@ sharedCareerMenuApp.controller('SharedCareerMenu', ['$scope', '$element', functi
 		bngApi.engineLua('if sharedCareer_menu then sharedCareer_menu.uiVisible("menu", ' + (visible ? 'true' : 'false') + ') end');
 	}
 
+	// The open menu lies above the other apps: BeamNG's frame around an app catches clicks over
+	// its whole area, so an app placed over the menu (e.g. the hidden speed limit sign) would
+	// swallow its clicks. The frame is the nearest positioned element around the menu.
+	function frame() {
+		for (var el = $element[0].parentElement; el && el !== document.body; el = el.parentElement) {
+			var pos = window.getComputedStyle(el).position;
+			if (pos === "absolute" || pos === "fixed") return el;
+		}
+		return null;
+	}
+	function raiseFrame(open) {
+		try {
+			var el = frame();
+			if (el) el.style.zIndex = open ? "10" : "";
+		} catch (e) {}
+	}
+	// only after linking (the frame isn't there before)
+	setTimeout(function () { if (!$scope.$$destroyed) raiseFrame(!$scope.collapsed); }, 0);
+
 	// Menu and phone sit at the right edge: when one opens, the other one closes
 	// (window event "sharedCareerPanelOpen"). Every change is announced (window event
 	// "sharedCareerMenuShown", true = open): the speed limit sign hides while the menu is open.
 	function setCollapsed(value) {
 		$scope.collapsed = value;
+		raiseFrame(!value);
 		try { window.localStorage.setItem(STORAGE_KEY, value ? "1" : "0"); } catch (e) {}
 		reportVisible(!value);
 		try { window.dispatchEvent(new CustomEvent("sharedCareerMenuShown", {detail: !value})); } catch (e) {}
