@@ -1,4 +1,4 @@
-# SharedCareer :: releases (the "Run workflow" button) and their Discord post
+# Career-Convoy :: releases (the "Run workflow" button) and their Discord post
 #
 # Actions → Release → Run workflow (step by step: docs/releasing.md):
 #   step      patch (fixes), minor (new features) or major (a big update): the next version after
@@ -103,7 +103,7 @@ jobs:
           if [ "$REVIEW" = "true" ]; then draft=(--draft); fi
           gh release create "v$v" "SharedCareer-$v.zip" "${draft[@]}" \
             --target "$(git rev-parse HEAD)" \
-            --title "SharedCareer $v" \
+            --title "Career-Convoy $v" \
             --notes-file "$RUNNER_TEMP/notes.md"
           url=$(gh release view "v$v" --json url --jq .url)
           if [ "$REVIEW" = "true" ]; then
