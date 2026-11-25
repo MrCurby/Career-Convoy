@@ -30,7 +30,7 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 	menu.emit('SharedCareerToggle');
 	check(menu.collapsed && last(env, 'menu') === false, 'menu key (F7) collapses: reports not visible');
 	menu.toggleCollapsed();
-	menu.destroy();
+	menu.$destroy();
 	check(last(env, 'menu') === false, 'window removed: reports not visible');
 	n = env.calls.length;
 	env.advance(10000);
@@ -374,7 +374,7 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 	check(phone.open && phone.jobsType === 'taxi', 'Lua ends the call after "Accept": the page stays');
 	phone.goHome();
 	if (phone.open) phone.toggle();
-	phone.destroy();
+	phone.$destroy();
 	check(last(env, 'phone') === false && last(env, 'fuel') === false, 'phone window removed: not visible');
 }
 
@@ -410,6 +410,29 @@ const PHONE = ['client/ui/modules/apps/SharedCareer-Phone/app.js', 'SharedCareer
 	check(ok, '40 mixed clicks: the last report of every view always matches the screen');
 }
 
+
+//== UI rebuilt without ending the old apps (BeamNG while joining a server) ==
+{
+	const env = makeEnv({sharedCareerMenuCollapsed: '1'});
+	const oldPhone = load(...PHONE, env);
+	const oldMenu = load(...MENU, env);
+	oldPhone.element.removed = true;
+	oldMenu.element.removed = true;
+	const phone = load(...PHONE, env);
+	const menu = load(...MENU, env);
+	[oldPhone, phone].forEach(p => p.emit('SharedCareerPhone', {enabled: true, apps: []}));
+	check(oldPhone.$$destroyed && !phone.$$destroyed, 'a guihook ends the old phone, the new one stays');
+	[oldPhone, phone].forEach(p => p.emit('SharedCareerPhoneToggle'));
+	check(phone.open && !oldPhone.open, 'F4: only one phone comes out');
+	const dialog = {kind: 'welcome', buttons: [{label: 'OK', action: 'close'}]};
+	[oldMenu, menu].forEach(m => m.emit('SharedCareerDialog', dialog));
+	check(oldMenu.$$destroyed && !oldMenu.dialog && menu.dialog === dialog, 'a dialog comes once, in the new menu');
+	const quiet = load(...PHONE, env);
+	quiet.element.removed = true;
+	env.advance(1000);
+	check(quiet.$$destroyed, 'an old app ends itself within a second even without a guihook');
+	check(!menu.$$destroyed && !phone.$$destroyed, 'apps on the page keep running');
+}
 
 //== Timeline for tests/ui_replay.lua ==
 // Random clicks on the real menu and phone (waits of 0.3 to 12 s cross the 2 s reports and the

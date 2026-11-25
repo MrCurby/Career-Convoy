@@ -81,6 +81,24 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 	$scope.time = null;
 	$scope.connected = false;
 
+	// BeamNG may throw an app away without ending it (e.g. it rebuilds the UI a few times while
+	// joining a server): its scope lives on and still gets every guihook, and its phone on <body>
+	// stays: F4 opened two phones, and closing one left the other. So an app that is no
+	// longer on the page ends itself ($destroy cleans up), at once when a guihook comes (onHook)
+	// and every second.
+	function alive() {
+		try {
+			if (document.documentElement.contains($element[0])) return true;
+		} catch (e) { return true; }
+		if (!$scope.$$destroyed) $scope.$destroy();
+		return false;
+	}
+	var aliveTimer = setInterval(alive, 1000);
+	$scope.$on('$destroy', function () { clearInterval(aliveTimer); });
+	function onHook(name, fn) {
+		$scope.$on(name, function (event, data) { if (alive()) fn(event, data); });
+	}
+
 	function lua(cmd) {
 		bngApi.engineLua('if sharedCareer_phone then sharedCareer_phone.' + cmd + ' end');
 	}
@@ -218,7 +236,7 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 		if (s.load < 0.4) return 'scp-dot-ok';
 		return s.load < 0.7 ? 'scp-dot-high' : 'scp-dot-critical';
 	};
-	$scope.$on('SharedCareerStraps', function (event, data) {
+	onHook('SharedCareerStraps', function (event, data) {
 		$scope.$evalAsync(function () {
 			if (!data) return;
 			if (!Array.isArray(data.straps)) data.straps = [];
@@ -478,7 +496,7 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 		$scope.openApp(app);
 		if ($scope.jobs.active) $scope.jobsType = $scope.jobs.active.type || 'tow';
 	};
-	$scope.$on('SharedCareerJobs', function (event, data) {
+	onHook('SharedCareerJobs', function (event, data) {
 		$scope.$evalAsync(function () {
 			if (!data) return;
 			var active = data.active || null;
@@ -519,7 +537,7 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 		lua('uiAnswer(' + (accept ? 'true' : 'false') + ')');
 		endCallView(accept, c);
 	};
-	$scope.$on('SharedCareerPhoneCall', function (event, data) {
+	onHook('SharedCareerPhoneCall', function (event, data) {
 		$scope.$evalAsync(function () {
 			var c = data && data.call && typeof data.call === 'object' ? data.call : null;
 			if (c) {
@@ -534,7 +552,7 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 		});
 	});
 
-	$scope.$on('SharedCareerTow', function (event, data) {
+	onHook('SharedCareerTow', function (event, data) {
 		$scope.$evalAsync(function () {
 			if (!data) return;
 			if (!Array.isArray(data.nearby)) data.nearby = [];
@@ -580,7 +598,7 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 		return null;
 	}
 
-	$scope.$on('SharedCareerPhone', function (event, data) {
+	onHook('SharedCareerPhone', function (event, data) {
 		$scope.$evalAsync(function () {
 			if (!data) return;
 			$scope.enabled = data.enabled !== false;
@@ -588,13 +606,13 @@ sharedCareerPhoneApp.controller('SharedCareerPhone', ['$scope', '$element', func
 			if (!$scope.enabled) setOpen(false);
 		});
 	});
-	$scope.$on('SharedCareerPhoneToggle', function () {
+	onHook('SharedCareerPhoneToggle', function () {
 		$scope.$evalAsync(function () { if ($scope.enabled) setOpen(!$scope.open); });
 	});
-	$scope.$on('SharedCareerPhoneAway', function () {
+	onHook('SharedCareerPhoneAway', function () {
 		$scope.$evalAsync(function () { if ($scope.open) setOpen(false); });
 	});
-	$scope.$on('SharedCareerState', function (event, data) {
+	onHook('SharedCareerState', function (event, data) {
 		$scope.$evalAsync(function () {
 			if (!data) return;
 			$scope.time = typeof data.hour === 'number' ? data.hour : null;

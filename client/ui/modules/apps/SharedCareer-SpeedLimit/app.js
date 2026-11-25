@@ -26,6 +26,23 @@ sharedCareerSpeedLimitApp.directive('sharedCareerSpeedLimit', [function () {
 }]);
 
 sharedCareerSpeedLimitApp.controller('SharedCareerSpeedLimit', ['$scope', '$element', function ($scope, $element) {
+	// BeamNG may throw an app away without ending it (e.g. it rebuilds the UI a few times while
+	// joining a server): its scope lives on and still gets every guihook. So an app that is no
+	// longer on the page ends itself ($destroy cleans up), at once when a guihook comes (onHook)
+	// and every second.
+	function alive() {
+		try {
+			if (document.documentElement.contains($element[0])) return true;
+		} catch (e) { return true; }
+		if (!$scope.$$destroyed) $scope.$destroy();
+		return false;
+	}
+	var aliveTimer = setInterval(alive, 1000);
+	$scope.$on('$destroy', function () { clearInterval(aliveTimer); });
+	function onHook(name, fn) {
+		$scope.$on(name, function (event, data) { if (alive()) fn(event, data); });
+	}
+
 	var SIGN_KEY = 'sharedCareerSpeedSign'; // kept by the phone (SharedCareer-Phone/app.js)
 	var UNIT_KEY = 'sharedCareerSpeedUnit'; // kept by the phone
 	var MENU_KEY = 'sharedCareerMenuCollapsed'; // kept by the menu (SharedCareer-Menu/app.js)
@@ -49,7 +66,7 @@ sharedCareerSpeedLimitApp.controller('SharedCareerSpeedLimit', ['$scope', '$elem
 		return $scope.sign.unit === 'mph' ? 'mph' : 'km/h';
 	};
 	$scope.limit = function () { return $scope.unit() === 'mph' ? $scope.sign.mph : $scope.sign.kmh; };
-	$scope.$on('SharedCareerSpeedLimit', function (event, data) {
+	onHook('SharedCareerSpeedLimit', function (event, data) {
 		$scope.$evalAsync(function () {
 			$scope.sign = data && typeof data.kmh === 'number' ? data : {};
 		});

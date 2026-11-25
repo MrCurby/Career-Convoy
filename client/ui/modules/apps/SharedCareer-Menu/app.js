@@ -49,6 +49,24 @@ sharedCareerMenuApp.controller('SharedCareerMenu', ['$scope', '$element', functi
 	var LENGTHS = [1, 5, 10, 15, 20, 25, 30, 40, 50, 60, 75, 90, 105, 120, 150, 180, 210, 240,
 		300, 360, 420, 480, 540, 600];
 
+	// BeamNG may throw an app away without ending it (e.g. it rebuilds the UI a few times while
+	// joining a server): its scope lives on and still gets every guihook, and its dialog host on
+	// <body> stays: a dialog came twice and had to be closed twice. So an app that is no
+	// longer on the page ends itself ($destroy cleans up), at once when a guihook comes (onHook)
+	// and every second.
+	function alive() {
+		try {
+			if (document.documentElement.contains($element[0])) return true;
+		} catch (e) { return true; }
+		if (!$scope.$$destroyed) $scope.$destroy();
+		return false;
+	}
+	var aliveTimer = setInterval(alive, 1000);
+	$scope.$on('$destroy', function () { clearInterval(aliveTimer); });
+	function onHook(name, fn) {
+		$scope.$on(name, function (event, data) { if (alive()) fn(event, data); });
+	}
+
 	var STORAGE_KEY = "sharedCareerMenuCollapsed";
 
 	$scope.state = null;
@@ -109,7 +127,7 @@ sharedCareerMenuApp.controller('SharedCareerMenu', ['$scope', '$element', functi
 	$scope.$on('$destroy', function () {
 		if (dialogHost && dialogHost.parentNode) dialogHost.parentNode.removeChild(dialogHost);
 	});
-	$scope.$on('SharedCareerDialog', function (event, data) {
+	onHook('SharedCareerDialog', function (event, data) {
 		$scope.$evalAsync(function () { $scope.dialog = data || null; });
 	});
 	$scope.dialogButton = function (b) {
@@ -145,7 +163,7 @@ sharedCareerMenuApp.controller('SharedCareerMenu', ['$scope', '$element', functi
 	$scope.teleport = function (name) { players('uiTeleport(' + quote(name) + ')'); };
 
 	// menu key (default F7, see menu.lua): collapse/expand
-	$scope.$on('SharedCareerToggle', function () {
+	onHook('SharedCareerToggle', function () {
 		$scope.$evalAsync(function () { $scope.toggleCollapsed(); });
 	});
 
@@ -331,7 +349,7 @@ sharedCareerMenuApp.controller('SharedCareerMenu', ['$scope', '$element', functi
 		$scope.pending = p;
 	};
 
-	$scope.$on('SharedCareerState', function (event, data) {
+	onHook('SharedCareerState', function (event, data) {
 		$scope.$evalAsync(function () {
 			$scope.state = data || null;
 			// the server confirmed settings: remove pending values that are correct now
