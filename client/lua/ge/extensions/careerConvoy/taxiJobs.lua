@@ -22,7 +22,7 @@
 --   doing it
 --     1. the route leads to the passengers: the game's figure (PASSENGER_SHAPE, a static mesh only
 --        this client sees) for each, side by side at the roadside, facing the road, with a yellow
---        marker above; stopping in a vehicle (not on foot) within PICKUP_RADIUS m of them for
+--        marker above; stopping in a vehicle of your own (not on foot) within PICKUP_RADIUS m of them for
 --        BOARD_STILL s: they get in, if it has a seat for each (seatsIn; else "Too few seats").
 --        That vehicle is the taxi. The figures go; dummies sit in the taxi instead: the game's
 --        seat occupants (gameplay_seatOccupants.setDummyOccupant, PASSENGER_WEIGHT kg each),
@@ -48,8 +48,8 @@
 --        4 or 5 stars (TIPS)
 --   No vehicle is spawned. When the job ends (stop), the figures and the dummies go.
 --   Calls: with "On duty" on (the switch on the taxi page of the Jobs app; off on every join), the
---   nearest open ride within CALL_RANGE m rings the phone (phone.ring) while you drive a vehicle
---   with a seat for each of its passengers (a vehicle that can't be counted: rides for one only),
+--   nearest open ride within CALL_RANGE m rings the phone (phone.ring) while you sit in a vehicle of
+--   your own (not on foot, not in another player's you watch) with a seat for each of its passengers (a vehicle that can't be counted: rides for one only),
 --   own the Taxi License and have no job; the call says how many they are ("3 people to …").
 --   The Jobs app lists every ride, whatever you drive. "Accept" takes it. Not nagging: after a call that wasn't
 --   taken the next one waits CALL_PAUSE s (and that ride doesn't call again), after a ride
@@ -221,11 +221,12 @@ local function isVip(a)
 	return type(a.job.data) == "table" and a.job.data.vip == true
 end
 
--- The vehicle you drive and its id, or nil (on foot, or none).
+-- The vehicle you sit in and its id, if it is yours; else nil (on foot, none, or another player's
+-- vehicle you watch).
 local function myVehicle()
 	local id = be:getPlayerVehicleID(0)
 	local veh = id and id >= 0 and be:getObjectByID(id)
-	if not veh or U.modelOf(veh) == "unicycle" then
+	if not veh or U.modelOf(veh) == "unicycle" or not U.isOwnVehicle(id) then
 		return nil
 	end
 	return veh, id

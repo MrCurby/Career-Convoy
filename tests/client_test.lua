@@ -5841,6 +5841,22 @@ check(
 	)
 	phone.uiAnswer(false)
 	jobs.uiDuty("taxi", false)
+	-- calls only while you sit in a vehicle of your own
+	listRides(rideAt(47, 4250))
+	local friend = addVehicle(92, "1-92", false)
+	world.playerVeh = 92 -- watching another player in their car
+	jobs.uiDuty("taxi", true)
+	wait(6)
+	check(not phone.ringing(), "in another player's car: no calls")
+	world.playerVeh = 91 -- on foot
+	wait(4)
+	check(not phone.ringing(), "on foot: no calls")
+	world.playerVeh = 70
+	wait(4)
+	check(phone.ringing(), "back in your own car: the ride calls")
+	phone.uiAnswer(false)
+	jobs.uiDuty("taxi", false)
+	friend.deleted = true
 	_G.gameplay_seatOccupants = nil
 
 	--== The speed limit sign (speedLimit.lua) ==

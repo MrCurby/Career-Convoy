@@ -154,6 +154,17 @@ function M.myPosition()
 	return nil
 end
 
+--- Whether vehicle `id` is yours: on a BeamMP server not another player's (MPVehicleGE.isOwn: you
+--- may sit in theirs to watch them); off a server, every vehicle.
+function M.isOwnVehicle(id)
+	local mp = rawget(_G, "MPVehicleGE")
+	if type(mp) ~= "table" or type(mp.isOwn) ~= "function" then
+		return true
+	end
+	local ok, own = pcall(mp.isOwn, id)
+	return ok and own == true
+end
+
 --- A vehicle's model ("pickup"; "unicycle" for a player on foot), or nil.
 function M.modelOf(veh)
 	local model = veh.JBeam
