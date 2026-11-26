@@ -5,9 +5,12 @@
 --   making one up (generate), by tier (TIERS: the higher, the longer the ride and the better paid;
 --   flatter than towing: a ride is easier than a tow, and a smooth one earns a tip)
 --     a pickup    beside a normal road (jobs.randomRoadside), far from every vehicle
---     a place     a facility of the map (garage, dealership, gas station, ...: jobs.facilityPlaces,
---                 the middle of its doors), as far away as the tier says in a straight line
---                 (jobs.pickDestination: the nearest fit if none is)
+--     a place     by STREET_SHARE a street: another place beside a road (jobs.randomRoadside) as
+--                 far away as the tier says in a straight line, named after a facility within
+--                 NEAR_PLACE m ("Near Belasco Auto"), else "Street in town" / "Country road"; else
+--                 (or no such street found) a facility of the map (garage, dealership, gas
+--                 station, ...: jobs.facilityPlaces, the middle of its doors), as far away as the
+--                 tier says (jobs.pickDestination: the nearest fit if none is)
 --     the town    the pickup is in town (jobs.inTown) by TOWN_START, the place by TOWN_END, each on
 --                 its own: most rides touch the town, every mix stays possible (in town, out of
 --                 town, into it, past it). None that fits there (a map without a town, a long ride
@@ -92,6 +95,9 @@ local FIGURE_GAP = 0.8 -- m between two passengers waiting side by side
 local MAX_PASSENGERS = 5
 local TOWN_START = 0.6 -- share of rides that start in town
 local TOWN_END = 0.6 -- share of rides that end in town (on its own: 84 % touch the town)
+local STREET_SHARE = 0.5 -- share of rides to a street instead of a facility
+local STREET_TRIES = 20 -- places beside a road tried for a street at the right distance
+local NEAR_PLACE = 400 -- m: a street this close to a facility is named after it
 -- the chances of 1, 2, 3, 4, 5 passengers by tier
 local PASSENGERS = {
 	{ 0.8, 0.2 },
@@ -159,14 +165,33 @@ function M.passengersOf(job)
 	return math.max(1, math.min(MAX_PASSENGERS, math.floor(n or 1)))
 end
 
+-- A street as the place to go: beside a road, in town or not (inTown), between min and max m from
+-- `from` in a straight line: {name, pos} or nil (none found).
+local function streetEnd(from, inTown, min, max, places)
+	for _ = 1, STREET_TRIES do
+		local spot = J.randomRoadside(inTown)
+		local d = spot and J.dist2D(spot.pos, from)
+		if d and d >= min and d <= max then
+			local near, nearD = nil, NEAR_PLACE
+			for _, place in ipairs(places) do
+				local pd = J.dist2D(place.pos, spot.pos)
+				if pd <= nearD then
+					near, nearD = place, pd
+				end
+			end
+			local name = near and ("Near " .. near.name) or (J.inTown(spot.pos) and "Street in town" or "Country road")
+			return { name = name, pos = spot.pos }
+		end
+	end
+	return nil
+end
+
 --- Makes up a taxi job of a tier on this map, or returns nil and why not.
 function M.generate(tier)
 	local t = tierOf(tier)
 	local places = J.facilityPlaces()
-	if #places == 0 then
-		return nil, "no places to go on this map"
-	end
 	local startInTown, endInTown = math.random() < TOWN_START, math.random() < TOWN_END
+	local toStreet = #places == 0 or math.random() < STREET_SHARE
 	local ends = {}
 	for _, place in ipairs(places) do
 		if J.inTown(place.pos) == endInTown then
@@ -179,19 +204,23 @@ function M.generate(tier)
 			return nil, why
 		end
 		if spot and J.farFromVehicles(spot.pos, FAR_FROM_VEHICLES) then
-			local pick = J.pickDestination(ends, spot.pos, t.destMin, t.destMax)
-			if not pick or pick.d < t.destMin or pick.d > t.destMax then
-				pick = J.pickDestination(places, spot.pos, t.destMin, t.destMax) or pick
+			local dest = toStreet and streetEnd(spot.pos, endInTown, t.destMin, t.destMax, places)
+			if not dest then
+				local pick = J.pickDestination(ends, spot.pos, t.destMin, t.destMax)
+				if not pick or pick.d < t.destMin or pick.d > t.destMax then
+					pick = J.pickDestination(places, spot.pos, t.destMin, t.destMax) or pick
+				end
+				dest = pick and { name = pick.place.name, pos = pick.place.pos }
 			end
-			if pick then
-				local length = J.roadLength(spot.pos, pick.place.pos)
+			if dest then
+				local length = J.roadLength(spot.pos, dest.pos)
 				local vip = math.random() < t.vip
 				-- spot.dir runs along the road; the road is to the left of it
 				local face = spot.dir and { x = J.roundTo(-spot.dir.y, 0.01), y = J.roundTo(spot.dir.x, 0.01) }
 				return {
 					title = vip and "VIP" or "Passenger",
 					pos = spot.pos,
-					dest = { name = pick.place.name, pos = pick.place.pos },
+					dest = dest,
 					length = length,
 					pay = M.payFor(length, vip, tier),
 					data = { vip = vip, passengers = M.rollPassengers(tier), face = face },
@@ -199,7 +228,7 @@ function M.generate(tier)
 			end
 		end
 	end
-	return nil, "no free place found"
+	return nil, #places == 0 and "no places to go on this map" or "no free place found"
 end
 
 --- The labels of a taxi job in the Jobs app.

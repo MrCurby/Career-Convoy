@@ -5358,9 +5358,37 @@ check(
 	freeroam_facilities.getFacilities = function()
 		return {}
 	end
-	local noPlace, noPlaceWhy = taxi.generate(1)
+	local toStreet = taxi.generate(1)
 	freeroam_facilities.getFacilities = realFacilities
-	check(noPlace == nil and noPlaceWhy == "no places to go on this map", "no places on the map: no taxi job")
+	check(
+		toStreet
+			and toStreet.dest.name == "Country road"
+			and math.abs(math.abs(toStreet.dest.pos.y) - 5.8) < 1e-6
+			and math.abs(toStreet.dest.pos.x - toStreet.pos.x) >= 600
+			and math.abs(toStreet.dest.pos.x - toStreet.pos.x) <= 2000,
+		"no places on the map: a ride to a street, as far away as the tier says"
+	)
+	-- to a street about half the time, named after a place nearby; else to a place
+	local streets, toPlaces, named = 0, 0, true
+	math.randomseed(11)
+	for _ = 1, 60 do
+		local ride = taxi.generate(1)
+		local street = ride and math.abs(math.abs(ride.dest.pos.y) - 5.8) < 1e-6
+		if street then
+			streets = streets + 1
+			local nearBelasco = jobs.dist2D(ride.dest.pos, doors.belasco) <= 400
+			local nearHome = jobs.dist2D(ride.dest.pos, doors.home) <= 400
+			named = named
+				and ride.dest.name
+					== (nearBelasco and "Near Belasco Auto" or nearHome and "Near Home Garage" or "Country road")
+		elseif ride then
+			toPlaces = toPlaces + 1
+		end
+	end
+	check(
+		streets >= 15 and toPlaces >= 15 and named,
+		'rides to streets ("Near Belasco Auto", "Country road") and to places, about half each'
+	)
 	-- doing it: pick up the passenger, drive to the place, a smooth ride pays all
 	local ride = {
 		id = 30,

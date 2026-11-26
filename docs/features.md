@@ -268,7 +268,7 @@ Every job you finish gives you **XP**, and with enough XP you reach the next **l
 
 ## Taxi jobs
 
-People wait at the roadside for a ride to a place on the map: a garage, a dealership, a gas station. Most rides start or end in town; some go from town out into the country, some the other way, some never touch the town. As with towing jobs, there is **one list for everyone**.
+People wait at the roadside for a ride to a place on the map (a garage, a dealership, a gas station) or, about half of them, to a street: *Near Belasco Auto*, *Street in town*, *Country road*. Most rides start or end in town; some go from town out into the country, some the other way, some never touch the town. As with towing jobs, there is **one list for everyone**.
 
 **License needed:** taxi jobs need the **Taxi License** ($5,000) from the **License Office**.
 
