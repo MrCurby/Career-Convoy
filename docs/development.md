@@ -205,7 +205,17 @@ Every icon of the UI apps is in **one file**, `client/ui/careerConvoy/icons.svg`
 - **Use one:** on the phone `<scp-icon name="car"></scp-icon>`, by a name from Lua `<scp-icon name="{{ j.icon }}"></scp-icon>` (directive `scpIcon` in the phone's `app.js`); in the menu `<svg><use href="#sc-icon-car"/></svg>`. The size comes from the CSS of the place it is in (on the phone 18 px by default, `.scp-icon`).
 - **Icon or text:** the phone's `hasIcon(name)` tells whether `icons.svg` has an icon of that name; an app that registered a letter (`icon = "T"`) shows the letter.
 - **Add one:** a new `<symbol>` in `icons.svg`, in its group. Never draw an icon inline in `app.html`.
-- `tests/ui_test.js` checks it: every name the apps and Lua use is in `icons.svg`, and no icon is drawn inline.
+- **One style:** things (apps, vehicles, places) are solid shapes; details inside them (windows, a check mark) are drawn in a dark see-through color on top (`rgba(0,0,0,0.3)` to `0.45`), so they work in every icon theme. Controls (arrows, chevrons, plus, tools) are lines. Lines come in three widths only: `2` (normal), `2.4` (bold: arrows, chevrons, plus, a crane's arm) and `1.2` (thin detail, e.g. the rim of a wheel).
+- **App colors** (only the "Colors" icon theme uses them; a new app takes one no other app has):
+
+  | App | Color |
+  |---|---|
+  | Jobs | `#2d6fd8` |
+  | Tow | `#e8730c` |
+  | Straps | `#c9971c` |
+  | Fuel | `#2a9d55` |
+  | Settings | `#6e7581` |
+- `tests/ui_test.js` checks it: every name the apps and Lua use is in `icons.svg`, no icon is drawn inline, only the three line widths are used, and every app's color is its own and in the table above.
 
 The icons in `docs/icons/` are only for the README and docs on GitHub.
 
