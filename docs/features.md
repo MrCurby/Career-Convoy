@@ -273,7 +273,7 @@ People wait at the roadside for a ride to a place on the map: a garage, a dealer
 **License needed:** taxi jobs need the **Taxi License** ($5,000) from the **License Office**.
 
 1. **Find a ride:** phone (**F4**) → **Jobs** → **Taxi**. Every ride shows where the passenger wants to go, how far you have to drive to them, the length of the ride (both by road), your pay and the XP.
-2. **Pick them up:** the route leads you to the passenger, a yellow marker beside the road. Drive there in any vehicle (not on foot) and stop next to them for 2 seconds: they get in. That vehicle is your taxi now.
+2. **Pick them up:** the route leads you to the passenger, a figure beside the road with a yellow marker above. Drive there in any vehicle (not on foot) and stop next to them for 2 seconds: they get in and sit on a free seat. That vehicle is your taxi now. (Older or modded vehicles without seats for passengers carry them unseen.)
 3. **Drive them:** the route leads to the place. A ring on the ground there shows the drop-off zone. Stop in it for 2 seconds, sitting in your taxi. The pay goes to your account.
 
 - **Pay:** $60 plus $80 per km of the ride, more for longer rides and for your level. The server can change it (`client.jobPay`). A ride pays less than a tow of the same length: it is quicker and easier, and a smooth one earns a tip.

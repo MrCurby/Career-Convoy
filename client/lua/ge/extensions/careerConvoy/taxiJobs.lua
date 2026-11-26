@@ -11,10 +11,17 @@
 --     a VIP       by the tier's VIP share: pays PAY_VIP times more, jolts and speeding cost twice as much
 --     the pay     (PAY_BASE + PAY_PER_KM per km of the ride (jobs.roadLength)) x the tier's pay,
 --                 x PAY_VIP for a VIP, x client.jobPay
---     job.data = {vip}; job.title = "Passenger" or "VIP"
+--     job.data = {vip, face (x, y: the way the passenger looks, towards the road)};
+--     job.title = "Passenger" or "VIP"
 --   doing it
---     1. the route leads to the passenger (a yellow marker); stopping in a vehicle (not on foot)
---        within PICKUP_RADIUS m of them for BOARD_STILL s: they get in. That vehicle is the taxi
+--     1. the route leads to the passenger: the game's figure (PASSENGER_SHAPE, a static mesh only
+--        this client sees) at the roadside, facing the road, with a yellow marker above; stopping
+--        in a vehicle (not on foot) within PICKUP_RADIUS m of them for BOARD_STILL s: they get in.
+--        That vehicle is the taxi. The figure goes; a dummy sits in the taxi instead: the game's
+--        seat occupants (gameplay_seatOccupants.setDummyOccupant, PASSENGER_WEIGHT kg) on a free
+--        seat that isn't the driver's, the front first. A vehicle without such seats (older or mod
+--        vehicles) gets no dummy; the ride is the same. Every SEAT_CHECK s the dummy is seated
+--        again if the game took it out (the taxi rebuilt in the garage)
 --     2. the route leads to the place. A smooth ride pays all: every jolt (the taxi's speed on
 --        the ground or up/down changes faster than JOLT_ACCEL m/s^2, measured over JOLT_WINDOW s
 --        so bumps and curbs don't count; turning doesn't count either: hard braking, a crash, a
@@ -27,8 +34,9 @@
 --        The passenger rates the ride: 1..5 stars by what it has cost so far (STARS), shown live in
 --        the Jobs app with the pay as it is now
 --     3. you in the taxi, standing still in the drop-off zone (DROP_RADIUS m around the place's
---        doors) for DROP_STILL s: handed over (jobs.handOver), with a tip for 4 or 5 stars (TIPS)
---   No vehicle is spawned: the passenger is a marker, nothing to clean up when the job ends.
+--        doors) for DROP_STILL s: the dummy gets out, handed over (jobs.handOver), with a tip for
+--        4 or 5 stars (TIPS)
+--   No vehicle is spawned. When the job ends (stop), the figure and the dummy go.
 --   Calls: with "On duty" on (the switch on the taxi page of the Jobs app; off on every join), the
 --   nearest open ride within CALL_RANGE m rings the phone (phone.ring) while you drive a vehicle,
 --   own the Taxi License and have no job. "Accept" takes it. Not nagging: after a call that wasn't
@@ -64,6 +72,9 @@ local STARS = { { 5, 0.01 }, { 4, 0.1 }, { 3, 0.2 }, { 2, 0.35 } } -- else 1 sta
 local TIPS = { [5] = 0.15, [4] = 0.05 }
 local TIPS_VIP = { [5] = 0.25, [4] = 0.1 }
 local MARKER_COLOR = { 1, 0.82, 0.1 } -- taxi yellow
+local PASSENGER_SHAPE = "/vehicles/simple_traffic/traffic_character.dae" -- the game's figure: body and head
+local PASSENGER_WEIGHT = 89 -- kg: the dummy in the taxi (the game's own default for a seat occupant)
+local SEAT_CHECK = 2 -- s between two looks whether the dummy still sits in the taxi
 local CALL_CHECK = 2 -- s between two looks for a ride to call about
 local CALL_RANGE = 2000 -- m (straight line): rides closer than this call
 local CALL_FIRST = 3 -- s after going on duty before the first call
@@ -121,13 +132,15 @@ function M.generate(tier)
 			if pick then
 				local length = J.roadLength(spot.pos, pick.place.pos)
 				local vip = math.random() < t.vip
+				-- spot.dir runs along the road; the road is to the left of it
+				local face = spot.dir and { x = J.roundTo(-spot.dir.y, 0.01), y = J.roundTo(spot.dir.x, 0.01) }
 				return {
 					title = vip and "VIP" or "Passenger",
 					pos = spot.pos,
 					dest = { name = pick.place.name, pos = pick.place.pos },
 					length = length,
 					pay = M.payFor(length, vip, tier),
-					data = { vip = vip },
+					data = { vip = vip, face = face },
 				}
 			end
 		end
@@ -195,12 +208,94 @@ function M.tipFor(stars, vip)
 	return (vip and TIPS_VIP or TIPS)[stars] or 0
 end
 
+-- The passenger at the roadside: the game's figure, facing the road (job.data.face).
+local function showFigure(a)
+	if a.figure or type(createObject) ~= "function" then
+		return
+	end
+	local p = U.vecOf(a.job.pos)
+	if not p then
+		return
+	end
+	local ok, err = pcall(function()
+		local o = createObject("TSStatic")
+		o.shapeName = PASSENGER_SHAPE
+		local rot = { x = 0, y = 0, z = 0, w = 1 }
+		local face = type(a.job.data) == "table" and U.vecOf(a.job.data.face)
+		if face and type(quatFromDir) == "function" then
+			rot = quatFromDir(vec3(face.x, face.y, 0), vec3(0, 0, 1))
+		end
+		o:setPosRot(p.x, p.y, p.z, rot.x, rot.y, rot.z, rot.w)
+		o:registerObject("")
+		a.figure = o
+	end)
+	if not ok then
+		U.log("W", "jobs", "could not place the passenger: " .. tostring(err))
+	end
+end
+
+local function hideFigure(a)
+	if a.figure then
+		pcall(function()
+			a.figure:delete()
+		end)
+		a.figure = nil
+	end
+end
+
+-- The game's seat occupants (newer game versions), or nil.
+local function seatSystem()
+	local so = U.ext("gameplay_seatOccupants")
+	return so and type(so.getSeats) == "function" and type(so.setDummyOccupant) == "function" and so or nil
+end
+
+-- The seats of a vehicle (gameplay_seatOccupants.getSeats), {} without them.
+local function seatsOf(so, id)
+	local ok, seats = pcall(so.getSeats, id)
+	return ok and type(seats) == "table" and seats or {}
+end
+
+-- The dummy sits in the taxi: on its seat while it is still there, else on a free seat that isn't
+-- the driver's (the game lists them by name: the front first). No free seat: no dummy.
+local function seatPassenger(a)
+	local so = seatSystem()
+	if not so or not a.taxiId then
+		return
+	end
+	local free
+	for _, seat in ipairs(seatsOf(so, a.taxiId)) do
+		if seat.seatId == a.seatId and seat.occupantType == "dummy" then
+			return
+		end
+		if not free and not seat.isDriver and not seat.occupied then
+			free = seat.seatId
+		end
+	end
+	a.seatId = nil
+	if free then
+		local ok, seated = pcall(so.setDummyOccupant, a.taxiId, free, PASSENGER_WEIGHT)
+		a.seatId = ok and seated == true and free or nil
+	end
+end
+
+-- The dummy gets out of the taxi.
+local function unseatPassenger(a)
+	local so = seatSystem()
+	if so and a.taxiId and a.seatId then
+		pcall(so.clearDummyOccupant, a.taxiId, a.seatId)
+	end
+	a.seatId = nil
+end
+
 -- The passenger gets into this vehicle: it is the taxi now.
 local function board(a, id)
 	a.phase, a.stillFor = "toDestination", 0
 	a.taxiId, a.damageStart = id, damageOf(id)
 	a.jolts, a.joltAt, a.lastVel, a.velFor, a.rough = 0, -math.huge, nil, 0, false
 	a.speeding, a.speedingFor = 0, 0
+	hideFigure(a)
+	a.seatId, a.seatCheck = nil, 0
+	seatPassenger(a)
 	U.toast("info", "Passenger in: drive to " .. a.job.dest.name, 6)
 end
 
@@ -248,6 +343,7 @@ end
 
 function M.start(a)
 	a.phase, a.stillFor = "toPassenger", 0
+	showFigure(a)
 	U.toast("info", "Route set: pick up the passenger", 6)
 end
 
@@ -255,6 +351,7 @@ function M.step(a, dt)
 	local job = a.job
 	local veh, id = myVehicle()
 	if a.phase == "toPassenger" then
+		showFigure(a)
 		local p = veh and U.vecOf(veh:getPosition())
 		local near = p and J.dist2D(p, job.pos) <= PICKUP_RADIUS and J.speedOf(veh) <= STOP_SPEED
 		a.stillFor = near and a.stillFor + dt or 0
@@ -267,8 +364,14 @@ function M.step(a, dt)
 	if not taxi then
 		U.log("W", "jobs", "the taxi of job " .. tostring(job.id) .. " is gone")
 		U.toast("warning", "Taxi gone – pick them up again", 6)
-		a.phase, a.taxiId, a.stillFor = "toPassenger", nil, 0
+		a.phase, a.taxiId, a.seatId, a.stillFor = "toPassenger", nil, nil, 0
+		showFigure(a)
 		return
+	end
+	a.seatCheck = (a.seatCheck or 0) + dt
+	if a.seatCheck >= SEAT_CHECK then
+		a.seatCheck = 0
+		seatPassenger(a)
 	end
 	watchJolts(a, taxi, dt)
 	watchSpeed(a, taxi, dt)
@@ -292,6 +395,7 @@ function M.step(a, dt)
 			)
 		)
 		local stars = M.starsFor(penalty)
+		unseatPassenger(a)
 		J.handOver(a, 1 - penalty, M.tipFor(stars, isVip(a)))
 	end
 end
@@ -335,7 +439,9 @@ function M.status(a)
 	}
 end
 
-function M.stop()
+function M.stop(a)
+	hideFigure(a)
+	unseatPassenger(a)
 	nextCallAt = math.max(nextCallAt, clock + CALL_AFTER_RIDE)
 end
 

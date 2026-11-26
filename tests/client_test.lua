@@ -5283,6 +5283,10 @@ check(
 			and offer.pay == taxi.payFor(offer.length, offer.data.vip, 2),
 		"the server asks for a taxi job: a passenger beside the road, a ride by road to a place, its pay"
 	)
+	check(
+		offer.data.face and offer.data.face.x == 0 and offer.data.face.y * offer.pos.y < 0,
+		"the passenger looks towards the road"
+	)
 	local vips = { 0, 0 }
 	for i, tier in ipairs({ 1, 4 }) do
 		for _ = 1, 100 do
@@ -5321,7 +5325,55 @@ check(
 		data = { vip = false },
 		state = "mine",
 	}
+	-- the game's figure at the roadside and its seat occupants (a dummy in the taxi)
+	local figures = {}
+	_G.createObject = function(class)
+		local o = { class = class }
+		function o:setPosRot(x, y, z)
+			self.pos = { x = x, y = y, z = z }
+		end
+		function o:registerObject()
+			figures[#figures + 1] = self
+		end
+		function o:delete()
+			self.deleted = true
+		end
+		return o
+	end
+	local seatClaims = {}
+	local seatList = { { seatId = "FL", isDriver = true }, { seatId = "FR" }, { seatId = "RL" } }
+	_G.gameplay_seatOccupants = {
+		getSeats = function(id)
+			local out = {}
+			for _, seat in ipairs(id == 70 and seatList or {}) do
+				local claim = seatClaims[seat.seatId]
+				out[#out + 1] = {
+					seatId = seat.seatId,
+					isDriver = seat.isDriver == true,
+					occupied = claim ~= nil,
+					occupantType = claim,
+				}
+			end
+			return out
+		end,
+		setDummyOccupant = function(id, seatId)
+			seatClaims[seatId] = "dummy"
+			return true
+		end,
+		clearDummyOccupant = function(id, seatId)
+			seatClaims[seatId] = nil
+			return true
+		end,
+	}
 	handlers.sc_jobs(json.encode({ enabled = true, jobs = { ride } }))
+	check(
+		#figures == 1
+			and figures[1].class == "TSStatic"
+			and figures[1].shapeName:find("traffic_character", 1, true)
+			and figures[1].pos.x == 2000
+			and not figures[1].deleted,
+		"the job is yours: the passenger stands at the roadside"
+	)
 	st = jobs.appState()
 	check(
 		jobs.getActive()
@@ -5358,6 +5410,15 @@ check(
 		st.active.step == 1 and paths[#paths].x == 4000 and lastToastMsg() == "Passenger in: drive to Belasco Auto",
 		"stopped next to them in a car: they get in, the route leads to the place"
 	)
+	check(
+		figures[1].deleted and #figures == 1 and seatClaims.FR == "dummy" and seatClaims.FL == nil,
+		"they get in: gone from the roadside, a dummy on the front seat that isn't the driver's"
+	)
+	seatClaims.FR = nil -- the game took it out (the taxi rebuilt in the garage)
+	for _ = 1, 25 do
+		update(0.1)
+	end
+	check(seatClaims.FR == "dummy", "the dummy taken out: it sits down again")
 	-- a bumpy road: the taxi shakes from frame to frame, but that is no jolt
 	for i = 1, 40 do
 		me.v = { x = 0, y = 0, z = (i % 2 == 0) and 1.5 or -1.5 }
@@ -5458,6 +5519,8 @@ check(
 		done and done.id == 30 and math.abs(done.share - 0.8) < 1e-9 and done.tip == 0,
 		"standing in the ring: handed over; a jolt, speeding twice and new damage cost 20 % of the pay: 3 stars, no tip"
 	)
+	check(next(seatClaims) == nil and #figures == 1, "at the place: the dummy gets out")
+	_G.createObject, _G.gameplay_seatOccupants = nil, nil
 	check(
 		taxi.starsFor(0) == 5
 			and taxi.starsFor(0.05) == 4
