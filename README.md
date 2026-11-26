@@ -80,15 +80,15 @@ How to switch things off: [Settings & commands](docs/configuration.md).
 The mod only runs while you are on a Career-Convoy server (BeamMP only loads it there). While it runs:
 
 - **Console and world editor are locked**, and time, weather and traffic in the pause menu are display-only. This keeps the shared world the same for everyone. The server can allow both.
-- **Two game settings are set by the server** (simplified traffic cars, optionally simplified cars of other players). Your own values come back when you leave.
-- **Your UI layout gets the Career-Convoy menu and the phone tab**, once. If you remove them, they don't come back.
+- **Three game settings are set by the server** (simplified traffic cars, no mod cars in the traffic, optionally simplified cars of other players). Your own values come back when you leave.
+- **Your UI layout gets the Career-Convoy menu, the phone tab and the speed limit sign**, once. If you remove them, they don't come back.
 - **If you played on a server with the Mileage mod before**, its apps are still in your UI layout and show up as red "Unknown app" boxes once Mileage is gone. Career-Convoy removes those boxes, after a backup of the layout file.
 - **On West Coast USA, the garage computer zones are bigger** (the mod ships a changed copy of that map file).
 
 These changes stay after you leave:
 
 - **Your save** is a normal career save in your BeamNG user folder, named after your BeamMP account.
-- **Your UI layout** keeps the two Career-Convoy apps (you can remove them). If old Mileage boxes were removed, they stay removed.
+- **Your UI layout** keeps the Career-Convoy apps (you can remove them). If old Mileage boxes were removed, they stay removed.
 - **A small file** `settings/careerConvoy/state.json` remembers choices like "Don't show again".
 
 For server owners: settings move to new defaults automatically on updates, and `./server.sh update` installs the newest release. See [Server setup](docs/server-setup.md).
@@ -171,7 +171,7 @@ Career-Convoy is under active development and was tested with **BeamNG.drive 0.4
 Good to know before you play:
 
 - **West Coast USA** is the map Career-Convoy is made for. Other maps work, with smaller garage-computer zones.
-- **A crashed car takes its driver's shape on your screen once it stands still for a moment.** While it drives on, it can look a bit different for you.
+- **A crashed car can look a bit different on each PC.** BeamMP only shares the parts that break off.
 - **Missions run per player.** Others don't see your mission props and cones.
 - **Money lives in your own save.** The server only checks money transfers.
 - **A BeamNG or BeamMP update can break things** until Career-Convoy is updated. The log then names what is missing.

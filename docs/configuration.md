@@ -10,7 +10,7 @@
 |---|---|
 | `/pay <name> <amount>` | Send money to another player. Part of the name is enough, and names may contain spaces. |
 | `/players` | Who is on the server, and who is still loading |
-| `/schelp` | Short help |
+| `/schelp` or `/help` | Short help |
 
 ## Console commands (server)
 
@@ -87,7 +87,7 @@ The file is `Resources/Server/CareerConvoy/config/config.json`. It is created on
 | `server.allowTeleport` | `false` | **Go** in the Players tab: teleport your vehicle to another player |
 | `client.showPlayerStatus` | `true` | Status after other players' names: `[Mission]`, `[On foot]`, `[Loading]` |
 | `client.showWelcome` | `true` | Welcome dialog on join (everyone can still pick "Don't show again") |
-| `client.addApps` | `true` | Add the Career-Convoy menu and the phone tab to the career UI once, on the first join |
+| `client.addApps` | `true` | Add the Career-Convoy menu, the phone tab and the speed limit sign to the career UI once, on the first join |
 | `client.cleanupMileageApps` | `true` | For players who used the Mileage mod before: remove its apps that are left in their UI layouts (red "Unknown app" boxes) and bring back the BeamMP player list |
 
 ### Vehicles and collisions

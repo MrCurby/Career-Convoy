@@ -17,7 +17,7 @@
 --   players   Players tab (navigate, watch, teleport), status on name tags
 --   fuel      shared fuel prices; fuel deliveries make stations cheaper for everyone
 --   welcome   welcome dialog on join (with "Don't show again")
---   licenses  the license office: a circle on the map, F opens the license shop
+--   licenses  the license office: a career marker on the map, its card opens the license shop
 --   nodegrab  node grabber in the career also in a vehicle / free camera (client.allowNodeGrabber)
 --   rope      ropes between your vehicles: the core of the Tow and Straps apps (client.allowRopes)
 --   ropeRemote  the remote for a rope's loose end (move it, where it would hook on): Tow, Straps

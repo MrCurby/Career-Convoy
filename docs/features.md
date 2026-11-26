@@ -52,7 +52,7 @@ One window for everything you can change in the game. **Every change applies to 
 
 - A small table: **driving** and **parked** cars **per player** and the **server max** (∞ = no limit), changed live
 - **AI style**: *Careful*, *Normal* or *Fast*
-- Below: how many cars you get right now (the server max is shared between all players). "Rejoin for more" shows when you would get more than the cars loaded at your join.
+- Below: how many cars you get right now (the server max is shared between all players). "rejoin for more" shows when you would get more than the cars loaded at your join.
 
 ### Options tab
 
@@ -67,7 +67,7 @@ See [Finding other players](#finding-other-players).
 
 ### Who may change settings
 
-By default everybody may. A server admin can lock settings with `sc set server.allowPlayerSettings false` (traffic and options) or `sc set server.allowPlayerTimeControl false` (time). The menu then only shows the values. To keep the server calm, each player can send at most one change per half second. Fast clicks are combined into one change.
+By default everybody may. A server admin can lock settings with `sc set server.allowPlayerSettings false` (traffic and options) or `sc set server.allowPlayerTimeControl false` (time). The menu then only shows the values. To keep the server calm, each player can change a setting at most every half second, and the time at most once a second. Fast clicks are combined into one change.
 
 ## Welcome dialog
 
@@ -134,7 +134,7 @@ Open the phone (**F4**) and tap **Fuel**:
 **Changing the amount live:** when you join, you spawn your traffic plus a small hidden **reserve** (default 4 cars). The menu shows or hides cars from that pool, the same way the game does for missions.
 
 - **Lowering** the amount always works immediately.
-- **Raising** it works immediately up to the pool size, shown as "live up to …" in the menu. Anything above that applies on your next join.
+- **Raising** it works immediately up to the cars loaded at your join. Anything above that applies on your next join ("rejoin for more" in the menu).
 
 Spawning new cars in the middle of the game would make BeamMP build them on every PC at once, which causes stutter. That is why the mod uses a reserve instead.
 
@@ -335,4 +335,4 @@ Apps:
 
 Part of the name is enough, and names may contain spaces. The money is taken from your save first and then added to the receiver's save. If the receiver leaves or doesn't confirm within 30 seconds, you get the money back. Limits are set by the server (`server.paymentMax`, `server.paymentCooldownSeconds`).
 
-Other chat commands: `/players` (who is here, who is still loading) and `/schelp` (help).
+Other chat commands: `/players` (who is here, who is still loading) and `/schelp` or `/help` (help).
