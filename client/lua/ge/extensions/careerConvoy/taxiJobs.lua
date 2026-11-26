@@ -29,8 +29,9 @@
 --     3. you in the taxi, standing still in the drop-off zone (DROP_RADIUS m around the place's
 --        doors) for DROP_STILL s: handed over (jobs.handOver), with a tip for 4 or 5 stars (TIPS)
 --   No vehicle is spawned: the passenger is a marker, nothing to clean up when the job ends.
---   Calls: with "On duty" on (the switch on the taxi page of the Jobs app; off on every join), the
---   nearest open ride within CALL_RANGE m rings the phone (phone.ring) while you drive a vehicle,
+--   Calls: with "On duty" on (the switch on the taxi page of the Jobs app; off on every join and
+--   when the Jobs app is removed), the nearest open ride within CALL_RANGE m rings the phone
+--   (phone.ring) while you drive a vehicle,
 --   own the Taxi License and have no job. "Accept" takes it. Not nagging: after a call that wasn't
 --   taken the next one waits CALL_PAUSE s (and that ride doesn't call again), after a ride
 --   CALL_AFTER_RIDE s; MISSED_MAX calls missed in a row put you off duty. A call whose ride someone

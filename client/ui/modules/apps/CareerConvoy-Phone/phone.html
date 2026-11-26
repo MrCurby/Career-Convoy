@@ -47,8 +47,8 @@
 							<span ng-bind="timeInfo.isDay ? '☾' : '☀'"></span>
 						</div>
 					</div>
-					<div class="scp-grid" ng-if="apps.length">
-						<button class="scp-app" ng-repeat="app in apps track by app.id" ng-click="openApp(app)"
+					<div class="scp-grid" ng-if="homeApps.length">
+						<button class="scp-app" ng-repeat="app in homeApps track by app.id" ng-click="openApp(app)"
 							title="{{ app.title }}">
 							<span class="scp-app-icon" ng-class="appIconClass()" ng-style="appIconStyle(app)">
 								<scp-icon ng-if="hasIcon(app.icon)" name="{{ app.icon }}"></scp-icon>
@@ -57,7 +57,7 @@
 							<span class="scp-app-title" ng-bind="app.title"></span>
 						</button>
 					</div>
-					<div class="scp-card scp-empty" ng-if="!apps.length">
+					<div class="scp-card scp-empty" ng-if="!homeApps.length">
 						<scp-icon name="logo"></scp-icon>
 						<b>No apps yet</b>
 						<span>Apps show up here.</span>

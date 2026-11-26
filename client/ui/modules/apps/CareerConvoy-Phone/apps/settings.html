@@ -17,7 +17,7 @@
 		<button class="scp-option scp-card" ng-repeat="t in ICON_THEMES track by t.id" ng-click="setIconTheme(t.id)"
 			ng-class="{'scp-option-on': look.icons === t.id}" role="radio" aria-checked="{{ look.icons === t.id }}">
 			<span class="scp-theme-icons">
-				<span class="scp-app-icon scp-app-icon-mini" ng-repeat="app in apps | limitTo:3 track by app.id"
+				<span class="scp-app-icon scp-app-icon-mini" ng-repeat="app in homeApps | limitTo:3 track by app.id"
 					ng-class="appIconClass(t.id)" ng-style="appIconStyle(app, t.id)">
 					<scp-icon ng-if="hasIcon(app.icon)" name="{{ app.icon }}"></scp-icon>
 					<span ng-if="!hasIcon(app.icon)" ng-bind="app.icon"></span>

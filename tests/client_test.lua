@@ -2409,12 +2409,13 @@ local st = lastPhone("CareerConvoyPhone")
 check(
 	st
 		and st.enabled == true
-		and #st.apps == 4
+		and #st.apps == 5
 		and st.apps[1].id == "tow"
 		and st.apps[2].id == "straps"
 		and st.apps[3].id == "fuel"
-		and st.apps[4].id == "settings",
-	"phone on, with the built-in apps Tow, Straps and Fuel, Settings last"
+		and st.apps[4].id == "apps"
+		and st.apps[5].id == "settings",
+	"phone on, with the built-in apps Tow, Straps and Fuel, then Apps, Settings last"
 )
 phoneHooks = {}
 phoneKey.onDown()
@@ -2472,7 +2473,7 @@ for _, app in ipairs(st.apps) do
 	table.insert(ids, app.id)
 end
 check(
-	table.concat(ids, ",") == "bank,jobs,tow,straps,fuel,taxi,settings",
+	table.concat(ids, ",") == "bank,jobs,tow,straps,fuel,taxi,apps,settings",
 	"apps sorted by order, then title: " .. table.concat(ids, ",")
 )
 check(
@@ -2483,7 +2484,61 @@ check(careerConvoy_phone.uiOpenApp("taxi") == true and opened == 1, "a tap opens
 check(careerConvoy_phone.uiOpenApp("bank") == true, "an app that fails to open doesn't break the phone")
 check(careerConvoy_phone.uiOpenApp("nope") == false, "unknown app: nothing happens")
 careerConvoy_phone.unregisterApp("bank")
-check(#lastPhone("CareerConvoyPhone").apps == 6, "an app can be removed again")
+check(#lastPhone("CareerConvoyPhone").apps == 7, "an app can be unregistered again")
+-- Apps app: remove and install apps, kept in state.json; Apps and Settings always stay
+do
+	local saved = {}
+	local readFile, writeFile = _G.jsonReadFile, _G.jsonWriteFile
+	_G.jsonReadFile = function(path)
+		return saved[path]
+	end
+	_G.jsonWriteFile = function(path, data)
+		saved[path] = data
+		return true
+	end
+	local function appIn(id)
+		for _, app in ipairs(lastPhone("CareerConvoyPhone").apps) do
+			if app.id == id then
+				return app
+			end
+		end
+	end
+	check(careerConvoy_phone.uiInstall("taxi", false) == true, "an app can be removed")
+	local stateFile = saved["settings/careerConvoy/state.json"]
+	check(
+		appIn("taxi").installed == false and stateFile and stateFile.removedApps[1] == "taxi",
+		"removed: off the home screen, kept in state.json"
+	)
+	check(careerConvoy_phone.uiOpenApp("taxi") == true and opened == 2, "a removed app can still be opened")
+	check(
+		careerConvoy_phone.uiInstall("settings", false) == false
+			and careerConvoy_phone.uiInstall("apps", false) == false
+			and appIn("settings").installed
+			and appIn("apps").installed
+			and not appIn("settings").removable,
+		"Apps and Settings can't be removed"
+	)
+	check(careerConvoy_phone.uiInstall("nope", false) == false, "unknown app: nothing happens")
+	careerConvoy_phone.uiInstall("taxi", true)
+	check(
+		appIn("taxi").installed == true and #saved["settings/careerConvoy/state.json"].removedApps == 0,
+		"installed again: back on the home screen"
+	)
+	local removedCalls = 0
+	careerConvoy_phone.registerApp({
+		id = "radio",
+		title = "Radio",
+		onRemove = function()
+			removedCalls = removedCalls + 1
+		end,
+	})
+	careerConvoy_phone.uiInstall("radio", false)
+	careerConvoy_phone.uiInstall("radio", false)
+	check(removedCalls == 1, "removing an app calls its onRemove once")
+	careerConvoy_phone.uiInstall("radio", true)
+	careerConvoy_phone.unregisterApp("radio")
+	_G.jsonReadFile, _G.jsonWriteFile = readFile, writeFile
+end
 -- switched off on the server: hidden, key does nothing, apps don't open
 cfgP.phone = false
 handlers.sc_configUpdate(json.encode(cfgP))
@@ -2491,7 +2546,7 @@ check(lastPhone("CareerConvoyPhone").enabled == false, "switched off: the window
 phoneHooks = {}
 phoneKey.onDown()
 check(lastPhone("CareerConvoyPhoneToggle") == nil, "switched off: F4 does nothing")
-check(careerConvoy_phone.uiOpenApp("taxi") == false and opened == 1, "switched off: apps don't open")
+check(careerConvoy_phone.uiOpenApp("taxi") == false and opened == 2, "switched off: apps don't open")
 _G.MPKeybindsGE = nil
 
 --== 7c. Time of day and pause menu ==========================================
@@ -5610,6 +5665,11 @@ check(
 	check(lastSent("sc_jobTake").id == 45 and lastRing() == false, '"Accept": the ride is taken')
 	jobs.uiDuty("taxi", false)
 	check(not taxi.isOnDuty() and lastToastMsg() == "Off duty", "switched off: off duty")
+	jobs.uiDuty("taxi", true)
+	phone.uiInstall("jobs", false)
+	check(not taxi.isOnDuty() and taxiSection().duty == false, "Jobs app removed: off duty")
+	phone.uiInstall("jobs", true)
+	check(not taxi.isOnDuty(), "installed again: still off duty until switched on")
 
 	--== The speed limit sign (speedLimit.lua) ==
 	local signs = {}

@@ -2,7 +2,8 @@
 // The phone shows the server time, the number of players, the connection and the apps that
 // Career-Convoy extensions registered (lua/ge/extensions/careerConvoy/phone.lua). Built-in app
 // screens: Jobs (jobs.lua with its job types: towJobs.lua, taxiJobs.lua), Tow (rope and winch, tow.lua), Straps (ratchet straps,
-// straps.lua), Fuel (gas station prices, fuel.lua) and Settings (wallpaper and app icons, kept on this PC).
+// straps.lua), Fuel (gas station prices, fuel.lua), Apps (install and remove apps, kept by phone.lua)
+// and Settings (wallpaper and app icons, kept on this PC).
 // The home screen has, below the clock, how long until day or night (with a bar for the part
 // of it that is over), and the app icons.
 //
@@ -77,6 +78,7 @@ careerConvoyPhoneApp.controller('CareerConvoyPhone', ['$scope', '$element', func
 	$scope.enabled = true;
 	$scope.open = false;
 	$scope.apps = [];
+	$scope.homeApps = []; // the installed apps: the ones on the home screen
 	$scope.currentApp = null;
 	$scope.time = null;
 	$scope.connected = false;
@@ -166,7 +168,7 @@ careerConvoyPhoneApp.controller('CareerConvoyPhone', ['$scope', '$element', func
 		if ($scope.canGoBackInApp()) $scope.jobsType = null; else closeApp();
 	};
 	// the screen of the open app, if it is a built-in one with its own (apps/<id>.html); else null
-	var APP_SCREENS = ['jobs', 'tow', 'straps', 'fuel', 'settings'];
+	var APP_SCREENS = ['jobs', 'tow', 'straps', 'fuel', 'apps', 'settings'];
 	$scope.appScreen = function () {
 		var id = $scope.currentApp && $scope.currentApp.id;
 		return APP_SCREENS.indexOf(id) >= 0 ? '/ui/modules/apps/CareerConvoy-Phone/apps/' + id + '.html' : null;
@@ -307,6 +309,11 @@ careerConvoyPhoneApp.controller('CareerConvoyPhone', ['$scope', '$element', func
 	function fuelLua(cmd) { bngApi.engineLua('if careerConvoy_fuel then careerConvoy_fuel.' + cmd + ' end'); }
 	$scope.navigate = function (id) { fuelLua('uiNavigate(' + JSON.stringify(String(id)) + ')'); };
 	$scope.stopNavigate = function () { fuelLua('uiStopNavigate()'); };
+
+	//== Apps app: install and remove apps (phone.lua uiInstall, kept in state.json) ==
+	$scope.setInstalled = function (app, install) {
+		lua('uiInstall(' + JSON.stringify(String(app.id)) + ', ' + (install ? 'true' : 'false') + ')');
+	};
 
 	//== Settings app: how the phone looks, when the speed limit sign shows and in which unit; kept on this PC (localStorage) ==
 	// A wallpaper is a file ui/careerConvoy/wallpapers/<id>.svg; an icon theme is a class
@@ -613,6 +620,7 @@ careerConvoyPhoneApp.controller('CareerConvoyPhone', ['$scope', '$element', func
 			if (!data) return;
 			$scope.enabled = data.enabled !== false;
 			$scope.apps = Array.isArray(data.apps) ? data.apps : [];
+			$scope.homeApps = $scope.apps.filter(function (app) { return app.installed !== false; });
 			if (!$scope.enabled) setOpen(false);
 		});
 	});
