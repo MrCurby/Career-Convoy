@@ -5773,7 +5773,10 @@ check(
 	check(not phone.ringing(), "a group of three, two free seats: no call")
 	table.insert(seats, { seatId = "RR" })
 	wait(4)
-	check(phone.ringing(), "a seat for each: the group calls")
+	check(
+		phone.ringing() and lastRing().text == "3 people to Belasco Auto",
+		"a seat for each: the group calls, saying how many they are"
+	)
 	phone.uiAnswer(false)
 	jobs.uiDuty("taxi", false)
 	_G.gameplay_seatOccupants = nil

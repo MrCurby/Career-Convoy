@@ -44,7 +44,8 @@
 --   Calls: with "On duty" on (the switch on the taxi page of the Jobs app; off on every join), the
 --   nearest open ride within CALL_RANGE m rings the phone (phone.ring) while you drive a vehicle
 --   with a seat for each of its passengers (a vehicle that can't be counted: rides for one only),
---   own the Taxi License and have no job. The Jobs app lists every ride, whatever you drive. "Accept" takes it. Not nagging: after a call that wasn't
+--   own the Taxi License and have no job; a group's call says how many they are ("3 people to …").
+--   The Jobs app lists every ride, whatever you drive. "Accept" takes it. Not nagging: after a call that wasn't
 --   taken the next one waits CALL_PAUSE s (and that ride doesn't call again), after a ride
 --   CALL_AFTER_RIDE s; MISSED_MAX calls missed in a row put you off duty. A call whose ride someone
 --   else took hangs up.
@@ -667,11 +668,13 @@ local function checkCalls()
 	if not job then
 		return
 	end
+	local n = M.passengersOf(job)
+	local dest = tostring(job.dest and job.dest.name or "?")
 	local rang = phone
 		and phone.ring({
 			id = callId(job.id),
 			title = "Ride request",
-			text = "To " .. tostring(job.dest and job.dest.name or "?"),
+			text = n > 1 and (n .. " people to " .. dest) or ("To " .. dest),
 			detail = distText(d) .. " away · $" .. math.floor(tonumber(job.pay) or 0),
 			icon = M.icon,
 			open = { app = "jobs", page = M.id },
