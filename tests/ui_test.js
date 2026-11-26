@@ -541,6 +541,17 @@ if (process.argv[2]) {
 		.concat([...kinds.matchAll(/kind = "([a-z-]+)"/g)].map(m => m[1]), ['car']);
 	const unknown = names.filter(n => !icons.includes(n));
 	check(names.length >= 11 && unknown.length === 0, 'every icon name from Lua is in icons.svg ' + unknown.join(','));
+	// one style: lines only in the three widths of docs/development.md ("Icons")
+	const widths = [...sprite.matchAll(/stroke-width="([0-9.]+)"/g)].map(m => m[1]).filter(w => !['1.2', '2', '2.4'].includes(w));
+	check(widths.length === 0, 'icons.svg: lines only 1.2, 2 or 2.4 wide ' + widths.join(','));
+	// every app on the phone has a color of its own, listed in docs/development.md ("App colors")
+	const code = lua.map(l => l.split('\n').filter(line => !/^\s*--/.test(line)).join('\n'));
+	const appColors = code.flatMap(l => [...l.matchAll(/registerApp\(\{[^}]*?id = "([a-z]+)"[^}]*?color = "(#[0-9a-f]{6})"/g)])
+		.map(m => ({id: m[1], color: m[2]}));
+	const docs = read('docs/development.md');
+	const notListed = appColors.filter(a => !new RegExp('\\| ' + a.id + ' \\| `' + a.color + '` \\|', 'i').test(docs));
+	check(appColors.length >= 5 && new Set(appColors.map(a => a.color)).size === appColors.length && notListed.length === 0,
+		'every phone app has its own color, listed in docs/development.md ' + notListed.map(a => a.id).join(','));
 	// in the window: an icon by name, text for a name without one ("T" of an app)
 	const env = makeEnv({});
 	const phone = load(...PHONE, env);
