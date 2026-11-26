@@ -94,8 +94,8 @@ local SEAT_CHECK = 2 -- s between two looks whether the dummies still sit in the
 local FIGURE_GAP = 0.8 -- m between two passengers waiting side by side
 local MAX_PASSENGERS = 5
 local TOWN_START = 0.6 -- share of rides that start in town
-local TOWN_END = 0.6 -- share of rides that end in town (on its own: 84 % touch the town)
-local STREET_SHARE = 0.5 -- share of rides to a street instead of a facility
+local TOWN_END = 0.75 -- share of rides that end in town (on its own: 90 % touch the town)
+local STREET_SHARE = 0.75 -- share of rides to a street instead of a facility
 local STREET_TRIES = 20 -- places beside a road tried for a street at the right distance
 local NEAR_PLACE = 400 -- m: a street this close to a facility is named after it
 -- the chances of 1, 2, 3, 4, 5 passengers by tier

@@ -5368,7 +5368,7 @@ check(
 			and math.abs(toStreet.dest.pos.x - toStreet.pos.x) <= 2000,
 		"no places on the map: a ride to a street, as far away as the tier says"
 	)
-	-- to a street about half the time, named after a place nearby; else to a place
+	-- mostly to a street, named after a place nearby; else to a place
 	local streets, toPlaces, named = 0, 0, true
 	math.randomseed(11)
 	for _ = 1, 60 do
@@ -5386,8 +5386,8 @@ check(
 		end
 	end
 	check(
-		streets >= 15 and toPlaces >= 15 and named,
-		'rides to streets ("Near Belasco Auto", "Country road") and to places, about half each'
+		streets >= 35 and toPlaces >= 5 and named,
+		'rides mostly to streets ("Near Belasco Auto", "Country road"), some to places'
 	)
 	-- doing it: pick up the passenger, drive to the place, a smooth ride pays all
 	local ride = {
