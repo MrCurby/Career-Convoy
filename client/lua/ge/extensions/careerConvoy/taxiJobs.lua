@@ -302,15 +302,13 @@ local function seatsOf(so, id)
 	return ok and type(seats) == "table" and seats or {}
 end
 
--- The seats of a vehicle passengers can take: not the driver's, not taken by someone else (a
--- dummy of ours, in `ours` (seat id -> true), is free). The rear ones and the front ones, each in
--- the game's order (by name).
-local function freeSeats(so, id, ours)
+-- The seats of a vehicle passengers can take: not the driver's, not taken. The rear ones and the
+-- front ones, each in the game's order (by name).
+local function freeSeats(so, id)
 	local rear, front = {}, {}
 	for _, seat in ipairs(seatsOf(so, id)) do
 		local seatId = seat.seatId
-		local mine = ours and ours[seatId] and seat.occupantType == "dummy"
-		if type(seatId) == "string" and not seat.isDriver and (not seat.occupied or mine) then
+		if type(seatId) == "string" and not seat.isDriver and not seat.occupied then
 			table.insert(seatId:sub(1, 1) == "F" and front or rear, seatId)
 		end
 	end
@@ -368,7 +366,9 @@ local function seatPassengers(a)
 	if a.seats then
 		local dummies = {}
 		for _, seat in ipairs(seatsOf(so, a.taxiId)) do
-			dummies[seat.seatId] = seat.occupantType == "dummy"
+			if seat.seatId ~= nil then
+				dummies[seat.seatId] = seat.occupantType == "dummy"
+			end
 		end
 		local all = true
 		for _, seatId in ipairs(a.seats) do

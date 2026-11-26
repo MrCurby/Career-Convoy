@@ -5572,7 +5572,10 @@ check(
 		tip = 75,
 		xp = 40,
 	}))
-	check(lastToastMsg() == "Job done: +$575 · +40 XP · Smooth ride bonus", "a tip: one total and a short hint")
+	check(
+		lastToastMsg() == "Job done: +$575 · +40 XP · Smooth ride bonus +$75",
+		"a tip: one total, the tip with its amount"
+	)
 	handlers.sc_jobPaid(json.encode({
 		payout = "p-32",
 		job = 32,
@@ -5584,8 +5587,8 @@ check(
 		xp = 38,
 	}))
 	check(
-		lastToastMsg() == "Job done: +$231 · +38 XP · Smooth ride bonus",
-		"a tip and a deduction: one total, the hint for what weighed more"
+		lastToastMsg() == "Job done: +$231 · +38 XP · Smooth ride bonus +$12",
+		"a tip and a deduction: one total, the tip with its amount"
 	)
 	handlers.sc_jobPaid(json.encode({
 		payout = "p-33",
@@ -5597,7 +5600,7 @@ check(
 		tip = 10,
 		xp = 30,
 	}))
-	check(lastToastMsg() == "Job done: +$200 · +30 XP", "the tip as much as the deduction: no hint")
+	check(lastToastMsg() == "Job done: +$200 · +30 XP · Smooth ride bonus +$10", "a small tip shows too")
 	check(
 		math.abs(taxi.penalty({ job = { data = { vip = true } }, jolts = 1, speeding = 1 }) - 0.2) < 1e-9
 			and taxi.penalty({ job = { data = {} }, rough = true }) == 0.5
