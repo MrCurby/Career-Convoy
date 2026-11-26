@@ -555,12 +555,21 @@ if (process.argv[2]) {
 	// in the window: an icon by name, text for a name without one ("T" of an app)
 	const env = makeEnv({});
 	const phone = load(...PHONE, env);
-	const screenIds = ['jobs', 'tow', 'straps', 'fuel', 'settings'];
+	const screenIds = ['jobs', 'tow', 'straps', 'fuel', 'apps', 'settings'];
 	const screens = screenIds.map(id => { phone.openApp({id: id}); return phone.appScreen(); });
 	phone.openApp({id: 'radio'});
 	check(screens.every((s, i) => s === '/ui/modules/apps/CareerConvoy-Phone/apps/' + screenIds[i] + '.html'
 		&& fs.existsSync(require('path').join(__dirname, '../client', s))) && phone.appScreen() === null,
 		'the built-in apps load their screen (apps/<id>.html); an app without one gets none');
+	// Apps: the home screen shows only the installed apps, the others move up; Install / Remove go to Lua
+	const appsEnv = makeEnv({});
+	const appsPhone = load(...PHONE, appsEnv);
+	appsPhone.emit('CareerConvoyPhone', {enabled: true, apps: [{id: 'jobs', installed: true, removable: true},
+		{id: 'tow', installed: false, removable: true}, {id: 'apps', installed: true, removable: false}]});
+	check(appsPhone.homeApps.map(a => a.id).join(',') === 'jobs,apps' && appsPhone.apps.length === 3,
+		'Apps: a removed app is off the home screen (the others move up), but still listed in Apps');
+	appsPhone.setInstalled({id: 'tow'}, true);
+	check(appsEnv.calls.some(c => c.includes('careerConvoy_phone.uiInstall("tow", true)')), 'Apps: Install asks Lua');
 	// Settings: the wallpaper and the app icons, kept on this PC; a stored id that is gone falls back to the first
 	const css = read(phoneDir + 'app.css');
 	check(phone.WALLPAPERS.every(w => fs.existsSync(require('path').join(__dirname, '../client/ui/careerConvoy/wallpapers', w.id + '.svg')))

@@ -51,14 +51,15 @@
 --        doors) for DROP_STILL s: the dummies get out, handed over (jobs.handOver), with a tip for
 --        4 or 5 stars (TIPS)
 --   No vehicle is spawned. When the job ends (stop), the figures and the dummies go.
---   Calls: with "On duty" on (the switch on the taxi page of the Jobs app; off on every join), the
---   nearest open ride within CALL_RANGE m rings the phone (phone.ring) while you sit in a vehicle of
---   your own (not on foot, not in another player's you watch) with a seat for each of its passengers (a vehicle that can't be counted: rides for one only),
---   own the Taxi License and have no job; the call says how many they are ("3 people to …").
---   The Jobs app lists every ride, whatever you drive. "Accept" takes it. Not nagging: after a call that wasn't
---   taken the next one waits CALL_PAUSE s (and that ride doesn't call again), after a ride
---   CALL_AFTER_RIDE s; MISSED_MAX calls missed in a row put you off duty. A call whose ride someone
---   else took hangs up.
+--   Calls: with "On duty" on (the switch on the taxi page of the Jobs app; off on every join and
+--   when the Jobs app is removed), the nearest open ride within CALL_RANGE m rings the phone
+--   (phone.ring) while you sit in a vehicle of your own (not on foot, not in another player's you
+--   watch) with a seat for each of its passengers (a vehicle that can't be counted: rides for one
+--   only), own the Taxi License and have no job; the call says how many they are ("3 people to
+--   …"). The Jobs app lists every ride, whatever you drive. "Accept" takes it. Not nagging: after a
+--   call that wasn't taken the next one waits CALL_PAUSE s (and that ride doesn't call again), after
+--   a ride CALL_AFTER_RIDE s; MISSED_MAX calls missed in a row put you off duty. A call whose ride
+--   someone else took hangs up.
 
 local M = {}
 

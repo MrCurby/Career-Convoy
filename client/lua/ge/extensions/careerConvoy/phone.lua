@@ -2,8 +2,9 @@
 --
 -- A phone in the game, the home for Career-Convoy apps. The home screen shows the server time,
 -- how long until day or night (with a bar), the number of players and the app grid. Apps so far:
--- Jobs (jobs.lua), Tow (tow.lua), Straps (straps.lua), Fuel (fuel.lua) and Settings (the phone's
--- own: wallpaper and app icons, kept by the window on this PC; registered here).
+-- Jobs (jobs.lua), Tow (tow.lua), Straps (straps.lua), Fuel (fuel.lua), Apps and Settings (the
+-- phone's own, registered here: Apps installs and removes apps, Settings picks wallpaper and app
+-- icons, kept by the window on this PC).
 --
 -- The UI is the app ui/modules/apps/CareerConvoy-Phone/: a small tab with a phone icon at the
 -- right screen edge (below the menu); the phone itself opens above it. Key: F4 by default
@@ -16,11 +17,16 @@
 --                                   order = 10, onOpen = function() ... end, onClose = ...})
 -- The phone shows every registered app on the home screen; a tap calls uiOpenApp(id), which
 -- calls the app's onOpen; leaving the app (home, putting the phone away) calls uiCloseApp(id) ->
--- onClose. Apps are only listed while client.phone is on. Jobs, Tow, Straps, Fuel and Settings have
--- their own screens in the phone window (apps/<id>.html).
+-- onClose. Apps are only listed while client.phone is on. Jobs, Tow, Straps, Fuel, Apps and Settings
+-- have their own screens in the phone window (apps/<id>.html).
 --
 -- icon: the name of an icon in ui/careerConvoy/icons.svg ("jobs", "tow", ...), else a short text (letter).
 -- color: the icon's color with the "Colors" app icons (Settings); the other icon themes don't use it.
+-- removable: false for an app the player can't remove in the Apps app (Apps, Settings); default true.
+-- onRemove: called when the player removes the app (e.g. Jobs: off duty).
+--
+-- Installed apps: the player removes and installs apps in the Apps app (uiInstall). The ones removed
+-- are kept in state.json ("removedApps") and stay off the home screen; the others move up.
 --
 -- Calls: an extension can ring the phone (ring, e.g. taxiJobs.lua: a ride nearby while you are on
 -- duty). The phone comes out and shows the call (title, two lines, Accept / Decline) until it is
@@ -28,7 +34,7 @@
 -- onAnswer(accepted, missed) learns which; "Accept" also opens the app (and page) the call names.
 -- One call at a time, only while you drive (no game menu open).
 --
--- guihooks: CareerConvoyPhone {enabled, apps = [{id, title, icon, color}]} (state),
+-- guihooks: CareerConvoyPhone {enabled, apps = [{id, title, icon, color, removable, installed}]} (state),
 --           CareerConvoyPhoneToggle (key), CareerConvoyPhoneAway (a game menu is open),
 --           CareerConvoyPhoneCall {call = {id, title, text, detail, icon, seconds, open = {app, page}}}
 --           (a call rings; without call: it is over).
@@ -42,7 +48,8 @@ local ACTION = "careerConvoyPhone"
 local KEY = "f4"
 local RING_SECONDS = 15 -- s a call rings before it counts as missed
 
-local apps = {} -- id -> {id, title, icon, color, order, onOpen, onClose}
+local apps = {} -- id -> {id, title, icon, color, order, removable, onOpen, onClose, onRemove}
+local removed = nil -- id -> true: the apps the player removed (state.json "removedApps"), read once
 local keyRegistered = false
 local screen = "play" -- the game's current screen (UI route), from onUiChangedState
 local call = nil -- the call that rings: {id, title, text, detail, icon, open, onAnswer, left}
@@ -58,11 +65,48 @@ local function trigger(name, data)
 	end
 end
 
---- State for the phone window: on/off and the registered apps (sorted, without functions).
+-- The apps the player removed, from state.json on first use.
+local function removedApps()
+	if not removed then
+		removed = {}
+		local list = U.readState().removedApps
+		if type(list) == "table" then
+			for _, id in ipairs(list) do
+				if type(id) == "string" then
+					removed[id] = true
+				end
+			end
+		end
+	end
+	return removed
+end
+
+local function saveRemovedApps()
+	local list = {}
+	for id in pairs(removedApps()) do
+		table.insert(list, id)
+	end
+	table.sort(list)
+	local state = U.readState()
+	state.removedApps = list
+	U.writeState(state)
+end
+
+--- State for the phone window: on/off and the registered apps (sorted, without functions), each
+--- with whether the player can remove it and whether it is installed.
 function M.state()
+	local gone = removedApps()
 	local list = {}
 	for _, app in pairs(apps) do
-		table.insert(list, { id = app.id, title = app.title, icon = app.icon, color = app.color, order = app.order })
+		table.insert(list, {
+			id = app.id,
+			title = app.title,
+			icon = app.icon,
+			color = app.color,
+			order = app.order,
+			removable = app.removable,
+			installed = not app.removable or not gone[app.id],
+		})
 	end
 	table.sort(list, function(a, b)
 		if a.order ~= b.order then
@@ -77,7 +121,8 @@ local function push()
 	trigger("CareerConvoyPhone", M.state())
 end
 
---- Registers an app on the phone. def = {id, title, icon (icon name or short text), color, order, onOpen, onClose}.
+--- Registers an app on the phone. def = {id, title, icon (icon name or short text), color, order,
+--- removable (default true), onOpen, onClose, onRemove}.
 function M.registerApp(def)
 	if type(def) ~= "table" or type(def.id) ~= "string" or def.id == "" then
 		return false
@@ -88,8 +133,10 @@ function M.registerApp(def)
 		icon = tostring(def.icon or string.upper(def.id:sub(1, 1))),
 		color = type(def.color) == "string" and def.color or "#ff6600",
 		order = tonumber(def.order) or 100,
+		removable = def.removable ~= false,
 		onOpen = type(def.onOpen) == "function" and def.onOpen or nil,
 		onClose = type(def.onClose) == "function" and def.onClose or nil,
+		onRemove = type(def.onRemove) == "function" and def.onRemove or nil,
 	}
 	push()
 	return true
@@ -134,6 +181,27 @@ function M.uiCloseApp(id)
 	if not ok then
 		U.log("E", "phone", "app '" .. tostring(id) .. "' failed to close: " .. tostring(err))
 	end
+end
+
+--- From the Apps app: installs (true) or removes (false) an app; removing it calls its onRemove.
+--- Apps the player can't remove (Apps, Settings) and unknown ones stay as they are.
+function M.uiInstall(id, install)
+	local app = apps[id]
+	if not app or not app.removable then
+		return false
+	end
+	local gone = removedApps()
+	local removing = install ~= true and not gone[id]
+	gone[id] = install ~= true or nil
+	saveRemovedApps()
+	if removing and app.onRemove then
+		local ok, err = pcall(app.onRemove)
+		if not ok then
+			U.log("E", "phone", "app '" .. tostring(id) .. "' failed to remove: " .. tostring(err))
+		end
+	end
+	push()
+	return true
 end
 
 -- Driving (no game menu open): "play", or the screen the game drives on right now (e.g. a mission's).
@@ -272,7 +340,15 @@ end
 
 function M.onExtensionLoaded()
 	U = extensions.careerConvoy_util
-	M.registerApp({ id = "settings", title = "Settings", icon = "settings", color = "#6e7581", order = 1000 })
+	M.registerApp({ id = "apps", title = "Apps", icon = "apps", color = "#1597a8", order = 990, removable = false })
+	M.registerApp({
+		id = "settings",
+		title = "Settings",
+		icon = "settings",
+		color = "#6e7581",
+		order = 1000,
+		removable = false,
+	})
 end
 
 M.onInit = function()

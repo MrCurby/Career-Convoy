@@ -37,7 +37,8 @@
 --   draw(a)          optional, every frame: markers in the world
 --   vehicleReset(a, id)  optional: a vehicle was reset (R)
 --   isOnDuty(), setOnDuty(on)  optional: an "On duty" switch on its page in the Jobs app (taxi:
---                    while on duty, rides nearby call you); openJobsOf gives it the jobs to call about
+--                    while on duty, rides nearby call you; removing the Jobs app puts every type
+--                    off duty); openJobsOf gives it the jobs to call about
 -- (Not named like the game's hooks – onUpdate, onVehicleResetted, ... – the game calls those on
 -- every extension.)
 --
@@ -957,6 +958,16 @@ function M.setAppOpen(on)
 	pushApp()
 end
 
+-- Every job type off duty (the Jobs app was removed: nothing may call you about a job any more).
+local function offDuty()
+	for _, t in pairs(types) do
+		if t.setOnDuty and t.isOnDuty and t.isOnDuty() then
+			t.setOnDuty(false)
+		end
+	end
+	pushApp()
+end
+
 function M.registerApp()
 	local phone = U.ext("careerConvoy_phone")
 	if not phone or type(phone.registerApp) ~= "function" then
@@ -975,6 +986,7 @@ function M.registerApp()
 			onClose = function()
 				M.setAppOpen(false)
 			end,
+			onRemove = offDuty,
 		})
 	else
 		phone.unregisterApp("jobs")

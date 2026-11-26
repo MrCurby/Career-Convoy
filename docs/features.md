@@ -320,6 +320,7 @@ Apps:
 - **Tow:** rope and winch as a remote control, see [Moving your vehicles by hand](#moving-your-vehicles-by-hand-rope-and-winch).
 - **Straps:** strap a car down on a truck or trailer, see [Strapping a car down](#strapping-a-car-down-straps).
 - **Fuel:** gas station prices, see [Fuel app on the phone](#fuel-app-on-the-phone).
+- **Apps:** remove the apps you don't use from the home screen, or install them again. Removing Jobs puts you off duty. The choice is kept on your PC.
 - **Settings:** pick a wallpaper, the look of the app icons (BeamNG orange, each app in its own color, dark or glass) and when the [speed limit sign](#speed-limit-sign) shows and in which unit. The choice is kept on your PC.
 
 <img src="images/phone-settings.png" width="240" alt="Settings app: wallpaper and app icons">
