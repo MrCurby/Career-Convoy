@@ -32,7 +32,8 @@ function makeEnv(storage) {
 	};
 	env.CustomEvent = function (type, init) { this.type = type; this.detail = init && init.detail; };
 	env.icons = ['tow', 'jobs', 'car'];
-	env.document = {body: {appendChild: () => {}},
+	// an element is on the page unless a test takes it off (element.removed = true)
+	env.document = {body: {appendChild: () => {}}, documentElement: {contains: (el) => !el.removed},
 		getElementById: (id) => (env.icons.some(n => id === 'sc-icon-' + n) ? {id} : null)};
 	return env;
 }
@@ -44,7 +45,7 @@ function makeScope() {
 		$evalAsync: (f) => f(),
 		$$destroyed: false,
 		emit: (n, data) => (handlers[n] || []).forEach(f => f({}, data)),
-		destroy: () => { scope.$$destroyed = true; (handlers.$destroy || []).forEach(f => f()); },
+		$destroy: () => { scope.$$destroyed = true; (handlers.$destroy || []).forEach(f => f()); },
 	};
 	return scope;
 }
@@ -62,6 +63,7 @@ function load(file, ctrlName, env, root) {
 	const scope = makeScope();
 	const element = [{querySelector: () => null}];
 	controller(scope, element);
+	scope.element = element[0];
 	return scope;
 }
 

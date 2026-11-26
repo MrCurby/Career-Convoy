@@ -2597,13 +2597,50 @@ check(#uiEvents > n, "window is updated every second")
 env.uiShiftHour(1)
 local ctl = lastSent("sc_timeControl")
 check(ctl and ctl.action == "set" and math.abs(ctl.hour - 20.5) < 0.01, "+1 h goes to the server")
+-- the server drops a second change within 1 s: quick clicks wait and are sent one by one
+do
+	local function sentCount(event)
+		local n = 0
+		for _, sent in ipairs(sentToServer) do
+			if sent.event == event then
+				n = n + 1
+			end
+		end
+		return n
+	end
+	local sentControls = sentCount("sc_timeControl")
+	env.uiShiftHour(1)
+	check(sentCount("sc_timeControl") == sentControls, "second +1 h right away: waits instead of getting lost")
+	update(0.5)
+	check(sentCount("sc_timeControl") == sentControls, "still waiting before the gap is over")
+	update(1)
+	check(
+		sentCount("sc_timeControl") == sentControls + 1 and math.abs(lastSent("sc_timeControl").hour - 21.5) < 0.01,
+		"then sent; +1 h, +1 h add up to +2 h before the server answered"
+	)
+	update(1.4)
+	env.uiSetHour(7)
+	env.uiSetHour(12)
+	env.uiSetHour(23)
+	check(math.abs(lastSent("sc_timeControl").hour - 7) < 0.01, "Morning goes out at once")
+	update(1.4)
+	update(1.4)
+	check(
+		math.abs(lastSent("sc_timeControl").hour - 23) < 0.01 and sentCount("sc_timeControl") == sentControls + 3,
+		"Noon, then Night while waiting: only Night is sent"
+	)
+end
 env.uiShiftHour(-21)
-check(math.abs(lastSent("sc_timeControl").hour - 22.5) < 0.01, "calculating across midnight")
+update(1.4)
+check(math.abs(lastSent("sc_timeControl").hour - 2) < 0.01, "calculating across midnight")
 env.uiSetLengths(45, 10)
+update(1.4)
 ctl = lastSent("sc_timeControl")
 check(ctl.action == "lengths" and ctl.dayMinutes == 45 and ctl.nightMinutes == 10, "lengths go to the server")
 
 -- clock paused
+update(1.4)
+sharedCareer_menu.uiVisible("menu", true) -- the open window reports every 2 s
 env.uiSetPaused(true)
 check(
 	lastSent("sc_timeControl").action == "pause" and lastSent("sc_timeControl").paused == true,
@@ -2628,6 +2665,8 @@ update(1.1)
 check(setCalls == setsPaused, "paused: no speed switching")
 
 -- real time (the server's clock)
+update(1.4)
+sharedCareer_menu.uiVisible("menu", true) -- the open window reports every 2 s
 env.uiSetRealtime(true)
 check(
 	lastSent("sc_timeControl").action == "realtime" and lastSent("sc_timeControl").on == true,

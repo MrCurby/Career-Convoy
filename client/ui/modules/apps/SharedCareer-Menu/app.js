@@ -49,6 +49,24 @@ sharedCareerMenuApp.controller('SharedCareerMenu', ['$scope', '$element', functi
 	var LENGTHS = [1, 5, 10, 15, 20, 25, 30, 40, 50, 60, 75, 90, 105, 120, 150, 180, 210, 240,
 		300, 360, 420, 480, 540, 600];
 
+	// BeamNG may throw an app away without ending it (e.g. it rebuilds the UI a few times while
+	// joining a server): its scope lives on and still gets every guihook, and its dialog host on
+	// <body> stays: a dialog came twice and had to be closed twice. So an app that is no
+	// longer on the page ends itself ($destroy cleans up), at once when a guihook comes (onHook)
+	// and every second.
+	function alive() {
+		try {
+			if (document.documentElement.contains($element[0])) return true;
+		} catch (e) { return true; }
+		if (!$scope.$$destroyed) $scope.$destroy();
+		return false;
+	}
+	var aliveTimer = setInterval(alive, 1000);
+	$scope.$on('$destroy', function () { clearInterval(aliveTimer); });
+	function onHook(name, fn) {
+		$scope.$on(name, function (event, data) { if (alive()) fn(event, data); });
+	}
+
 	var STORAGE_KEY = "sharedCareerMenuCollapsed";
 
 	$scope.state = null;
@@ -61,31 +79,11 @@ sharedCareerMenuApp.controller('SharedCareerMenu', ['$scope', '$element', functi
 		bngApi.engineLua('if sharedCareer_menu then sharedCareer_menu.uiVisible("menu", ' + (visible ? 'true' : 'false') + ') end');
 	}
 
-	// The open menu lies above the other apps: BeamNG's frame around an app catches clicks over
-	// its whole area, so an app placed over the menu (e.g. the hidden speed limit sign) would
-	// swallow its clicks. The frame is the nearest positioned element around the menu.
-	function frame() {
-		for (var el = $element[0].parentElement; el && el !== document.body; el = el.parentElement) {
-			var pos = window.getComputedStyle(el).position;
-			if (pos === "absolute" || pos === "fixed") return el;
-		}
-		return null;
-	}
-	function raiseFrame(open) {
-		try {
-			var el = frame();
-			if (el) el.style.zIndex = open ? "10" : "";
-		} catch (e) {}
-	}
-	// only after linking (the frame isn't there before)
-	setTimeout(function () { if (!$scope.$$destroyed) raiseFrame(!$scope.collapsed); }, 0);
-
 	// Menu and phone sit at the right edge: when one opens, the other one closes
 	// (window event "sharedCareerPanelOpen"). Every change is announced (window event
 	// "sharedCareerMenuShown", true = open): the speed limit sign hides while the menu is open.
 	function setCollapsed(value) {
 		$scope.collapsed = value;
-		raiseFrame(!value);
 		try { window.localStorage.setItem(STORAGE_KEY, value ? "1" : "0"); } catch (e) {}
 		reportVisible(!value);
 		try { window.dispatchEvent(new CustomEvent("sharedCareerMenuShown", {detail: !value})); } catch (e) {}
@@ -129,8 +127,26 @@ sharedCareerMenuApp.controller('SharedCareerMenu', ['$scope', '$element', functi
 	$scope.$on('$destroy', function () {
 		if (dialogHost && dialogHost.parentNode) dialogHost.parentNode.removeChild(dialogHost);
 	});
-	$scope.$on('SharedCareerDialog', function (event, data) {
-		$scope.$evalAsync(function () { $scope.dialog = data || null; });
+	// The same dialog only once: if the menu is on the page more than once (e.g. twice in the
+	// player's layout), every copy gets the guihook. The one that shows a dialog last lies in front;
+	// it tells the others (window event "sharedCareerDialogShown"), and a copy with a dialog of the
+	// same kind behind it closes that without a word (no button is sent to Lua).
+	var me = {};
+	function onOtherDialog(ev) {
+		var d = ev && ev.detail;
+		if (!d || d.from === me || !$scope.dialog || $scope.dialog.kind !== d.kind) return;
+		$scope.$evalAsync(function () { $scope.dialog = null; });
+	}
+	window.addEventListener("sharedCareerDialogShown", onOtherDialog);
+	$scope.$on('$destroy', function () { window.removeEventListener("sharedCareerDialogShown", onOtherDialog); });
+	onHook('SharedCareerDialog', function (event, data) {
+		$scope.$evalAsync(function () {
+			$scope.dialog = data || null;
+			if (!$scope.dialog) return;
+			try {
+				window.dispatchEvent(new CustomEvent("sharedCareerDialogShown", {detail: {from: me, kind: $scope.dialog.kind}}));
+			} catch (e) {}
+		});
 	});
 	$scope.dialogButton = function (b) {
 		var d = $scope.dialog;
@@ -165,7 +181,7 @@ sharedCareerMenuApp.controller('SharedCareerMenu', ['$scope', '$element', functi
 	$scope.teleport = function (name) { players('uiTeleport(' + quote(name) + ')'); };
 
 	// menu key (default F7, see menu.lua): collapse/expand
-	$scope.$on('SharedCareerToggle', function () {
+	onHook('SharedCareerToggle', function () {
 		$scope.$evalAsync(function () { $scope.toggleCollapsed(); });
 	});
 
@@ -351,7 +367,7 @@ sharedCareerMenuApp.controller('SharedCareerMenu', ['$scope', '$element', functi
 		$scope.pending = p;
 	};
 
-	$scope.$on('SharedCareerState', function (event, data) {
+	onHook('SharedCareerState', function (event, data) {
 		$scope.$evalAsync(function () {
 			$scope.state = data || null;
 			// the server confirmed settings: remove pending values that are correct now

@@ -31,3 +31,6 @@
 	to { box-shadow: inset 0 0 0 2px #fff, inset 0 0 0 4px #111, 0 0 0 9px rgba(255, 40, 40, 0); }
 }
 @media (prefers-reduced-motion: reduce) { .scs-over { animation: none; outline: 3px solid #ff2828; } }
+/* the app's frame while the menu is open: off the screen, so it never takes the menu's clicks
+   (set on the game's frame by app.js; !important beats the frame's own styles) */
+.scs-frame-away { transform: translateX(-300vw) !important; visibility: hidden !important; }
