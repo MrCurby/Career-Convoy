@@ -2509,7 +2509,7 @@ do
 		appIn("taxi").installed == false and stateFile and stateFile.removedApps[1] == "taxi",
 		"removed: off the home screen, kept in state.json"
 	)
-	check(careerConvoy_phone.uiOpenApp("taxi") == true, "a removed app can still be opened")
+	check(careerConvoy_phone.uiOpenApp("taxi") == true and opened == 2, "a removed app can still be opened")
 	check(
 		careerConvoy_phone.uiInstall("settings", false) == false
 			and careerConvoy_phone.uiInstall("apps", false) == false
@@ -2546,7 +2546,7 @@ check(lastPhone("CareerConvoyPhone").enabled == false, "switched off: the window
 phoneHooks = {}
 phoneKey.onDown()
 check(lastPhone("CareerConvoyPhoneToggle") == nil, "switched off: F4 does nothing")
-check(careerConvoy_phone.uiOpenApp("taxi") == false and opened == 1, "switched off: apps don't open")
+check(careerConvoy_phone.uiOpenApp("taxi") == false and opened == 2, "switched off: apps don't open")
 _G.MPKeybindsGE = nil
 
 --== 7c. Time of day and pause menu ==========================================
