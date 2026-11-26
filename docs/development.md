@@ -104,7 +104,7 @@ One line per problem. Each file starts with a comment that explains the details.
 | Other players' vehicles blow up after someone pauses ("Instability detected") and wreck cars next to them | On a pause BeamMP sets the game speed to 0, and `positionVE` divides by it. The guard keeps the last real speed and skips `positionVE` while paused | `sharedCareerSyncGuard.lua` |
 | BeamMP's sync pushes invalid values (NaN, infinite) into other players' vehicles; they blow up and wreck the cars next to them | Nothing of BeamMP checks the numbers. `velocityVE`'s corrections and `positionGE.setPositionRotationVelocity` (setting a car in place) drop a call with a value that is not a finite number, or for a car that is already broken | `sharedCareerSyncGuard.lua`, `instability.lua` |
 | Other players' parked cars and traffic blow up ("Instability detected") and wreck the cars next to them | BeamMP sends every own car's position up to 50 times a second and holds each copy to it with forces while the last packet is younger than 0.1 s, also a parked car standing still. `positionGE.sendVehiclePosRot` drops positions of your parked cars standing still (once a second), of traffic far from every other player (twice a second) and of hidden cars (none); in between BeamMP leaves the copy to the game's physics. Like Mileage's send rate | `sendRate.lua`, `vehicles.lua` (`trafficKind`) |
-| A physics glitch goes unnoticed: which cars blew up, and whose | BeamMP cleans up after a glitch itself (`onInstabilityDetected`: physics reset, which puts your car back where it was spawned, in the career the garage). SharedCareer leaves that as it is and shows one toast per glitch that hits one of your cars, naming the other players whose cars blew up in the same moment; the log lists every vehicle | `instability.lua` |
+| A physics glitch goes unnoticed: which cars blew up, and whose | BeamMP cleans up after a glitch itself (`onInstabilityDetected`: physics reset, which puts your car back where it was spawned, in the career the garage). Career-Convoy leaves that as it is and shows one toast per glitch that hits one of your cars, naming the other players whose cars blew up in the same moment; the log lists every vehicle | `instability.lua` |
 | A trailer or dolly follows the truck but hangs uncoupled on other PCs | BeamMP sends a coupling only once. Every client reports its own couplings (`sc_couplings`), and the others retry missing ones with BeamMP's `couplerVE.toggleCouplerState` until they hold | `couplings.lua`, server |
 | **Duplicate cars** when tuning, changing parts or painting | BeamMP rebuilds the wrong car, so `getPlayerVehicle(0)` points at the right one for that call | `garage.lua` |
 | Other players on foot are invisible | A visible BeamMP unicycle variant | `garage.lua` |
@@ -118,7 +118,7 @@ One line per problem. Each file starts with a comment that explains the details.
 | Different traffic light cycles | The server syncs the signal timer | `core.lua`, server |
 | Finding friends on the map | Players tab: navigate, watch, optional teleport, status on name tags | `players.lua` |
 | Fuel prices differ per player, and deliveries have no effect on the world | Shared base prices, deliveries lower prices for everyone | `fuel.lua`, server |
-| Settings can only be changed in the console | The SharedCareer menu syncs every change to all players | `ui/…/SharedCareer-Menu`, `menu.lua`, `env.lua` (time) |
+| Settings can only be changed in the console | The Career-Convoy menu syncs every change to all players | `ui/…/SharedCareer-Menu`, `menu.lua`, `env.lua` (time) |
 | New players don't know the features | Welcome dialog with "Don't show again" | `welcome.lua` |
 | Red "Unknown app" boxes after switching from Mileage | Mileage apps are removed from the players' layouts, with a backup first | `cleanup.lua` |
 | The career blocks the node grabber in a vehicle and in the free camera | After every input filter change (hook `onActionFilterUpdated`) only the career's group `careerNodeGrabberActions` is lifted; other blocks (certification test) stay | `nodegrab.lua` |
@@ -128,7 +128,7 @@ One line per problem. Each file starts with a comment that explains the details.
 | A rope must never pull a vehicle that was reset or teleported back to its old anchor, or drag a torn-off part | The vehicle drops the rope on a reset, a jump or a torn-off tie node (`onRopeLost`); the GE side also releases it after a reset and when the vehicle stops reporting | `sharedCareerVeh.lua`, `rope.lua` |
 | The rope end stuttered (the vehicle reports its grip only 10 times per second) | The GE side draws the rope end from the tie node's position every frame | `rope.lua` |
 | A vehicle wrapped around a lamp post can't be pulled free, and the career's "Tow to road" costs $75 | "To the road" in the Tow app uses the game's own `spawn.teleportToLastRoad`, free, while the vehicle stands still and isn't chased by the police | `tow.lua` |
-| One place for SharedCareer apps | The phone with an app registry (`phone.registerApp`); the UI app is only a tab at the screen edge | `phone.lua`, `ui/…/SharedCareer-Phone` |
+| One place for Career-Convoy apps | The phone with an app registry (`phone.registerApp`); the UI app is only a tab at the screen edge | `phone.lua`, `ui/…/SharedCareer-Phone` |
 | Sending money to other players | `/pay` as a two-step transfer with refund | `money.lua`, server |
 | Jobs for everyone | The server keeps one job list and asks a client to make up each job. What all jobs share (taking, giving up, the route, the Jobs app, levels, a pay that arrives exactly once, also after a crash or reconnect: `config/payouts.json`, `sc_jobPaid` / `sc_jobPaidAck`) is in `jobs.lua`; each kind of job is a job type, see [Job types](#job-types) | `jobs.lua`, server, `ui/…/SharedCareer-Phone` |
 | Job levels per player, but one job list for everyone | The server keeps every player's XP per job type (`config/progress.json`) and decides: which tiers you can take, your pay, the XP. It keeps tier 1 and every online player's highest tier stocked. See [Job levels](#job-levels) | server, `jobs.lua` |
@@ -216,14 +216,14 @@ The mod ships a modified copy of a West Coast USA level file (`career_garage/gar
 ## Known limitations
 
 - The game interfaces the mod hooks into (`career_career`, `core_vehicles`, BeamMP's `MPVehicleGE`, …) come from BeamNG 0.39/0.40. If BeamNG changes them, the mod needs an update. Errors show up in `beamng.log` under `sharedCareer.*`.
-- BeamMP itself only syncs parts that break off, so how a crashed car is bent can look different on each PC. Per-part paint, races and drag strips are not part of SharedCareer.
+- BeamMP itself only syncs parts that break off, so how a crashed car is bent can look different on each PC. Per-part paint, races and drag strips are not part of Career-Convoy.
 - Coupling sync (`couplings.lua`) uses BeamMP's own coupling and leaves couplings that involve one of your own vehicles to your physics.
 - Missions run per player. Others don't see your mission props and cones.
 - Money lives in the local save. Someone who edits their save can cheat. The server only checks transfers.
 
 ## Project status
 
-At its core, SharedCareer brings the **normal BeamNG career** to multiplayer: everything the career can do should work stably on a server. On top of that come extras for playing together (see [Features](../README.md#features)), each of which the server can switch off.
+At its core, Career-Convoy brings the **normal BeamNG career** to multiplayer: everything the career can do should work stably on a server. On top of that come extras for playing together (see [Features](../README.md#features)), each of which the server can switch off.
 
 Tested with BeamNG.drive 0.40.5, BeamMP 4.23.1 and BeamMP-Server 3.9.3 (Linux).
 

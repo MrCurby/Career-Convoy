@@ -3,7 +3,7 @@
 Everything players see and use in the game. All texts in the game are in English.
 
 - [Joining](#joining)
-- [The SharedCareer menu](#the-sharedcareer-menu)
+- [The Career-Convoy menu](#the-career-convoy-menu)
 - [Welcome dialog](#welcome-dialog)
 - [Finding other players](#finding-other-players)
 - [Shared fuel prices](#shared-fuel-prices)
@@ -22,13 +22,13 @@ Everything players see and use in the game. All texts in the game are in English
 
 ## Joining
 
-When you join, the map loads and your career **starts on its own**. It opens your own save, or creates one in *Open World* mode on your first visit. Other players' cars are protected while your career loads. Without SharedCareer the game would delete them.
+When you join, the map loads and your career **starts on its own**. It opens your own save, or creates one in *Open World* mode on your first visit. Other players' cars are protected while your career loads. Without Career-Convoy the game would delete them.
 
 Important messages appear as a notification or a dialog in the game, not only in the chat. This includes career loaded, career start failed, version mismatch and money transfers. If the career doesn't load within 60 seconds, the loading screen is released and the server is told what happened, so you never get stuck in a loading screen.
 
-## The SharedCareer menu
+## The Career-Convoy menu
 
-![SharedCareer menu: Time, Traffic, Options and Players tabs](images/menu.png)
+![Career-Convoy menu: Time, Traffic, Options and Players tabs](images/menu.png)
 
 One window for everything you can change in the game. **Every change applies to all players at once**, and everybody sees a short notification about who changed what. If several players have the menu open, all of them see the new values immediately.
 
@@ -100,7 +100,7 @@ The **Players** tab lists everyone on the server with what they are doing right 
 
 A small shared economy that makes delivery jobs matter for everyone:
 
-- **Everybody pays the same price at a station.** Normally the game rolls a random price per player when the map loads. SharedCareer uses the map's base price without the random part.
+- **Everybody pays the same price at a station.** Normally the game rolls a random price per player when the map loads. Career-Convoy uses the map's base price without the random part.
 - **Deliver gasoline or diesel to a station** with a tanker delivery job, and **that fuel gets cheaper at that station for everyone**: by default 5 % per 1,000 liters, up to 30 %.
 - **The discount slowly wears off**, by default 1 percentage point every 5 minutes. A station only stays cheap if people keep delivering.
 - The **price signs at the road** show the current price.
@@ -140,13 +140,13 @@ Spawning new cars in the middle of the game would make BeamMP build them on ever
 
 ## Everyone sees the same cars
 
-In BeamMP every car belongs to one player: only that player's PC really drives it, and everyone else sees a copy. SharedCareer keeps those copies true to the original:
+In BeamMP every car belongs to one player: only that player's PC really drives it, and everyone else sees a copy. Career-Convoy keeps those copies true to the original:
 
 - **Hidden and shown cars:** the game keeps swapping traffic cars in and out, and the career hides cars in the garage. Every player reports what is hidden every second, so nobody bumps into a car only they can see.
 - **Spawning:** your traffic and parked cars keep about 40 m away from other players, so they don't appear on top of them or vanish right next to them.
 - **Trailers and dollies** stay coupled for everyone, also for players who join later.
 - **Pausing:** opening a menu, the big map or a garage computer pauses your game. Other players' cars no longer blow up because of that.
-- **Physics glitches:** a car can suddenly blow up ("Instability detected"), often with a loud bang. SharedCareer blocks broken sync data from other players that causes this. If one of your cars blows up anyway, BeamMP puts it back (in the career: in the garage), and a short message says so and names the other players whose cars blew up at the same moment.
+- **Physics glitches:** a car can suddenly blow up ("Instability detected"), often with a loud bang. Career-Convoy blocks broken sync data from other players that causes this. If one of your cars blows up anyway, BeamMP puts it back (in the career: in the garage), and a short message says so and names the other players whose cars blew up at the same moment.
 - **Calmer sync of parked cars and traffic:** your parked cars send their position only once a second while they stand still, and traffic far from other players twice a second. Other players' games then let them simply stand instead of pushing them into place all the time, which made cars blow up.
 
 ## Time of day
@@ -162,15 +162,15 @@ The server runs one clock for everybody. By default a day lasts **50 real minute
 
 ## Node grabber
 
-The normal career only lets you use the node grabber (grab and pull vehicles with the mouse) while walking. On a SharedCareer server you can also use it in a vehicle and in the free camera, for example to put a flipped car back on its wheels or to help a friend out of a ditch. The vehicle certification test still blocks it, so test results stay fair.
+The normal career only lets you use the node grabber (grab and pull vehicles with the mouse) while walking. On a Career-Convoy server you can also use it in a vehicle and in the free camera, for example to put a flipped car back on its wheels or to help a friend out of a ditch. The vehicle certification test still blocks it, so test results stay fair.
 
 Server admins can switch back to the career's rule with `sc set client.allowNodeGrabber false`. It applies immediately.
 
-**The pull is weaker than in freeroam.** BeamNG limits the grab force in the career inside the game engine; the single-player career is just as weak. A mod can't change that, so in the career the node grabber is good for nudging and turning cars, but not for throwing them around. For heavier work, use SharedCareer's rope and winch in the Tow app, see below.
+**The pull is weaker than in freeroam.** BeamNG limits the grab force in the career inside the game engine; the single-player career is just as weak. A mod can't change that, so in the career the node grabber is good for nudging and turning cars, but not for throwing them around. For heavier work, use Career-Convoy's rope and winch in the Tow app, see below.
 
 ## Moving your vehicles by hand (rope and winch)
 
-The game's node grabber is too weak in the career to move a heavy car, so SharedCareer has a rope with a winch. It's made for vehicles that can't drive anymore: drag one out of a ditch, pull it onto a tow truck, or tow it behind another car. Everything runs in the **Tow** app on the phone, like a remote control.
+The game's node grabber is too weak in the career to move a heavy car, so Career-Convoy has a rope with a winch. It's made for vehicles that can't drive anymore: drag one out of a ditch, pull it onto a tow truck, or tow it behind another car. Everything runs in the **Tow** app on the phone, like a remote control.
 
 ### Using the Tow app
 
@@ -301,14 +301,14 @@ A road sign at the bottom right shows the speed limit of the road you drive on: 
 
 - It is **off** by default. Turn it on in the phone's **Settings** app: **Taxi rides** (only while you drive a taxi ride) or **Always**.
 - It shows only while you drive a vehicle on a road that has a speed limit in the game; on foot, off the road or on a road without one it is hidden.
-- It hides while the SharedCareer menu is open, so it never covers the menu.
+- It hides while the Career-Convoy menu is open, so it never covers the menu.
 - It is a UI app of its own (*SharedCareer Speed Limit*), added to your career layout once. Move or remove it in the game's UI editor like any other app; once removed, it isn't added again.
 
 ## Phone
 
-<img src="images/phone.png" width="240" alt="The SharedCareer phone">
+<img src="images/phone.png" width="240" alt="The Career-Convoy phone">
 
-Press **F4** or click the phone tab at the right screen edge (directly below the SharedCareer menu's tab) to take out your phone. It shows the server's time, how many players are on the server and whether you're connected. Below the clock it says how long until night (or day), with a bar for how much of the day or night is over.
+Press **F4** or click the phone tab at the right screen edge (directly below the Career-Convoy menu's tab) to take out your phone. It shows the server's time, how many players are on the server and whether you're connected. Below the clock it says how long until night (or day), with a bar for how much of the day or night is over.
 
 The phone goes away when you open a game menu (pause menu, map, garage, ...); there, **F4** only puts it away.
 
@@ -323,7 +323,7 @@ Apps:
 <img src="images/phone-settings.png" width="240" alt="Settings app: wallpaper and app icons">
 
 - The bar at the bottom goes back to the home screen from an app, or puts the phone away.
-- Opening the phone collapses the SharedCareer menu, and the other way round.
+- Opening the phone collapses the Career-Convoy menu, and the other way round.
 - The key is rebindable under *Options → Controls → BeamMP*, entry "SharedCareer: phone".
 - Server admins can switch it off with `sc set client.phone false`.
 

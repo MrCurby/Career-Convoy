@@ -32,11 +32,11 @@ Map = "/levels/west_coast_usa/info.json"
 Run this inside your BeamMP server folder, the one that contains `BeamMP-Server` and `ServerConfig.toml`:
 
 ```bash
-curl -fsSL -o server.sh https://raw.githubusercontent.com/MrCurby/SharedCareer/main/tools/server.sh && chmod +x server.sh
+curl -fsSL -o server.sh https://raw.githubusercontent.com/MrCurby/Career-Convoy/main/tools/server.sh && chmod +x server.sh
 ```
 
 ```bash
-echo 'REPO="MrCurby/SharedCareer"' > server.conf
+echo 'REPO="MrCurby/Career-Convoy"' > server.conf
 ```
 
 ```bash
@@ -62,7 +62,7 @@ On the first start the mod creates its settings in `Resources/Server/SharedCaree
 | `./server.sh start` | Start the server in the background |
 | `./server.sh stop` | Stop it cleanly (SIGTERM, killed if it is not gone after 20 s) |
 | `./server.sh restart` | Stop and start |
-| `./server.sh status` | Is it running, and which SharedCareer version is loaded |
+| `./server.sh status` | Is it running, and which Career-Convoy version is loaded |
 | `./server.sh console` | Open the live server console. Leave with **Ctrl+B, then D**. **Ctrl+C stops the server.** |
 | `./server.sh logs [n]` | Show the last *n* lines of `Server.log` (default 100) |
 | `./server.sh follow` | Follow `Server.log` live (Ctrl+C only stops following) |
@@ -78,7 +78,7 @@ On the first start the mod creates its settings in `Resources/Server/SharedCaree
 **`server.conf`** sits next to `server.sh`:
 
 ```bash
-REPO="MrCurby/SharedCareer"   # where releases come from
+REPO="MrCurby/Career-Convoy"   # where releases come from
 GITHUB_TOKEN=""               # only needed for a private repository (token with read access)
 BACKUPS_KEEP=5                # update backups to keep; 0 = keep all
 ```
@@ -120,7 +120,7 @@ BRANCH=""
 4. Backs up the current mod **and your settings** to `sharedcareer-backup-<date>.tgz`.
 5. Unpacks the release. This replaces the mod code and the client mod, but **never touches your settings**. `server.sh` itself is only replaced by a newer one (a higher `SCRIPT_REVISION`), so going back to an older release keeps the newer script.
 6. Deletes old release zips (the newest three stay) and old backups (the newest `BACKUPS_KEEP` stay, 5 by default).
-7. Starts the server again and shows the SharedCareer startup lines.
+7. Starts the server again and shows the Career-Convoy startup lines.
 
 After an update:
 
@@ -133,7 +133,7 @@ After an update:
 
 ## Manual installation and updates
 
-A release is the file `SharedCareer-<version>.zip` from the [releases page](https://github.com/MrCurby/SharedCareer/releases). It contains:
+A release is the file `SharedCareer-<version>.zip` from the [releases page](https://github.com/MrCurby/Career-Convoy/releases). It contains:
 
 ```
 server.sh                                   server control script
@@ -188,7 +188,7 @@ Saves are stored in the player's BeamNG user folder under `settings/cloud/saves/
 
 ## Switching from Mileage
 
-SharedCareer and Mileage must **never run on the same server at the same time**.
+Career-Convoy and Mileage must **never run on the same server at the same time**.
 
 1. Check whether Mileage used a save suffix:
    ```bash
@@ -198,7 +198,7 @@ SharedCareer and Mileage must **never run on the same server at the same time**.
    ```bash
    mkdir -p <server-folder>/mileage-backup && mv <server-folder>/Resources/Server/Mileage <server-folder>/Resources/Client/Mileage.zip <server-folder>/mileage-backup/
    ```
-3. Install SharedCareer as described above and start the server.
+3. Install Career-Convoy as described above and start the server.
 4. If Mileage used a suffix (for example `_wcusa`), set the same one: `sc set client.saveSuffix _wcusa`. Otherwise leave it empty. The Mileage saves then keep working, because the profile name is built the same way.
 5. Every player should back up their save folder before the first join (`<BeamNG user folder>/current/settings/cloud/saves/<name>`).
-6. Players who used Mileage still have its apps in their UI layout; without Mileage they show up as red "Unknown app" boxes. SharedCareer removes them automatically on join (`client.cleanupMileageApps`). The mod backs up the layout files first as `.sharedcareer-backup`.
+6. Players who used Mileage still have its apps in their UI layout; without Mileage they show up as red "Unknown app" boxes. Career-Convoy removes them automatically on join (`client.cleanupMileageApps`). The mod backs up the layout files first as `.sharedcareer-backup`.

@@ -24,7 +24,7 @@
 #   ./server.sh check          show the installed version and the newest release and dev build
 #
 # Put the GitHub repository into server.conf (same folder):
-#   REPO="MrCurby/SharedCareer"
+#   REPO="MrCurby/Career-Convoy"
 #   CHANNEL="release"          what "update" installs: "release" or "dev" (a test server)
 #   BRANCH=""                  with CHANNEL="dev": only dev builds of this branch (empty = any)
 #   GITHUB_TOKEN=""            only needed for a private repository (token with read access)
