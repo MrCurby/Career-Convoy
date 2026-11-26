@@ -278,7 +278,7 @@ People wait at the roadside for a ride to a place on the map: a garage, a dealer
 
 - **Pay:** $60 plus $80 per km of the ride, more for longer rides and for your level. The server can change it (`client.jobPay`). A ride pays less than a tow of the same length: it is quicker and easier, and a smooth one earns a tip.
 - **Drive smoothly:** every jolt (hard braking, a crash, a hard landing) costs 5 % of the pay; *Drive smoother!* tells you.
-- **Keep to the speed limit:** more than 15 % over the road's speed limit for 2 seconds costs 5 % of the pay; *Too fast!* tells you, and the [speed limit sign](#speed-limit-sign) shows the limit if you turned it on. Staying too fast costs 5 % again every 10 seconds. Roads without a speed limit in the game don't count.
+- **Keep to the speed limit:** more than 10 % over the road's speed limit for 2 seconds and your passengers complain (*Slow down, please!*), still free. Still too fast 5 seconds later costs 5 % of the pay (*Too fast! Less pay.*). Staying too fast, they complain again and it costs again every 10 seconds. The [speed limit sign](#speed-limit-sign) shows the limit if you turned it on. Roads without a speed limit in the game don't count.
 - New damage to your taxi costs too, and resetting it (**R**) during the ride costs half. All together it never costs more than half.
 - **Stars:** the passenger rates the ride with 1 to 5 stars. Every jolt, speeding and damage costs stars. In the Jobs app your ride shows the stars and the pay as it is now (the full pay struck through once it drops).
 - **Tip:** 5 stars earn a tip of 15 % on top of the pay, 4 stars 5 %. Below that, no tip.
@@ -299,7 +299,7 @@ People wait at the roadside for a ride to a place on the map: a garage, a dealer
 
 ## Speed limit sign
 
-A road sign at the bottom right shows the speed limit of the road you drive on: a round sign with a red ring in km/h, a US *SPEED LIMIT* sign in mph. The unit is the game's (its setting for units: metric or imperial), or the one you pick in the phone's **Settings** app (**Unit**: BeamNG, km/h or mph). It pulses red while you drive more than 15 % too fast, the point where a taxi ride starts to lose pay.
+A road sign at the bottom right shows the speed limit of the road you drive on: a round sign with a red ring in km/h, a US *SPEED LIMIT* sign in mph. The unit is the game's (its setting for units: metric or imperial), or the one you pick in the phone's **Settings** app (**Unit**: BeamNG, km/h or mph). It pulses red while you drive more than 10 % too fast, the point where taxi passengers start to complain.
 
 - It is **off** by default. Turn it on in the phone's **Settings** app: **Taxi rides** (only while you drive a taxi ride) or **Always**.
 - It shows only while you drive a vehicle on a road that has a speed limit in the game; on foot, off the road or on a road without one it is hidden.

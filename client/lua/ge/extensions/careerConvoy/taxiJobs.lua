@@ -29,9 +29,11 @@
 --     2. the route leads to the place. A smooth ride pays all: every jolt (the taxi's speed on
 --        the ground or up/down changes faster than JOLT_ACCEL m/s^2, measured over JOLT_WINDOW s
 --        so bumps and curbs don't count; turning doesn't count either: hard braking, a crash, a
---        hard landing; at most one per JOLT_GAP s) costs JOLT_COST of the pay; speeding (on a road, faster than its speed
---        limit x speedLimit.TOLERANCE for SPEEDING_FOR s; again after every SPEEDING_AGAIN s more)
---        SPEEDING_COST; new damage to the taxi up to PENALTY_MAX (DAMAGE_FOR_MAX damage points cost
+--        hard landing; at most one per JOLT_GAP s) costs JOLT_COST of the pay. Speeding (on a road,
+--        faster than its speed limit x speedLimit.TOLERANCE): after COMPLAIN_AFTER s the passengers
+--        complain ("Slow down, please!", free); still too fast after SPEEDING_FOR s it costs
+--        SPEEDING_COST ("Too fast! Less pay."); staying too fast, they complain and it costs again
+--        every SPEEDING_AGAIN s. New damage to the taxi up to PENALTY_MAX (DAMAGE_FOR_MAX damage points cost
 --        all of it), a reset (R) PENALTY_MAX; all together at most PENALTY_MAX. The speed limit
 --        comes from speedLimit.lua (the sign shows it); a road without one has no limit. The taxi
 --        gone (deleted): the passenger waits at the pickup again
@@ -65,8 +67,9 @@ local JOLT_ACCEL = 9 -- m/s^2: the taxi's speed changing faster than this is a j
 local JOLT_WINDOW = 0.5 -- s: the change is measured over this long (not every frame: bumps don't count)
 local JOLT_GAP = 2 -- s: at most one jolt in this time (one hard stop counts once)
 local JOLT_COST = 0.05 -- share of the pay a jolt costs (twice that for a VIP)
-local SPEEDING_FOR = 2 -- s of speeding before it counts
-local SPEEDING_AGAIN = 10 -- s more of speeding until it counts again
+local COMPLAIN_AFTER = 2 -- s of speeding before the passengers complain (free)
+local SPEEDING_FOR = 7 -- s of speeding before it costs (5 s after they complained)
+local SPEEDING_AGAIN = 10 -- s more of speeding until they complain and it costs again
 local SPEEDING_COST = 0.05 -- share of the pay speeding costs each time (twice that for a VIP)
 local PENALTY_MAX = 0.5 -- share of the pay a bumpy ride can cost at most
 local DAMAGE_FOR_MAX = 40000 -- damage points (beamstate.damage) that cost PENALTY_MAX
@@ -402,7 +405,9 @@ local function board(a, id)
 	U.toast("info", who .. " in: drive to " .. a.job.dest.name, 6)
 end
 
--- Speeding: faster than the road's speed limit x speedLimit.TOLERANCE for SPEEDING_FOR s.
+-- Speeding: faster than the road's speed limit x speedLimit.TOLERANCE. The passengers complain
+-- after COMPLAIN_AFTER s; after SPEEDING_FOR s it costs. Staying too fast: both again every
+-- SPEEDING_AGAIN s (speedingFor goes back by that much, so it passes COMPLAIN_AFTER again).
 local function watchSpeed(a, taxi, dt)
 	local p = U.vecOf(taxi:getPosition())
 	local roads = U.ext("careerConvoy_speedLimit")
@@ -411,10 +416,14 @@ local function watchSpeed(a, taxi, dt)
 		a.speedingFor = 0
 		return
 	end
-	a.speedingFor = a.speedingFor + dt
+	local before = a.speedingFor
+	a.speedingFor = before + dt
+	if before < COMPLAIN_AFTER and a.speedingFor >= COMPLAIN_AFTER and a.speedingFor < SPEEDING_FOR then
+		U.toast("warning", "Slow down, please!", 3)
+	end
 	if a.speedingFor >= SPEEDING_FOR then
-		a.speeding, a.speedingFor = a.speeding + 1, SPEEDING_FOR - SPEEDING_AGAIN
-		U.toast("warning", "Too fast!", 3)
+		a.speeding, a.speedingFor = a.speeding + 1, a.speedingFor - SPEEDING_AGAIN
+		U.toast("warning", "Too fast! Less pay.", 3)
 	end
 end
 

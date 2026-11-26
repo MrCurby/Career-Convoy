@@ -5478,7 +5478,8 @@ check(
 		st.active.stars == 4 and st.active.payNow == 380 and st.active.pay == 400,
 		"the app shows it at once: 4 stars, the pay as it is now ($380 of $400)"
 	)
-	-- speeding: on the road (limit 20 m/s), more than 15 % over it for 2 s; again after 10 s more
+	-- speeding: on the road (limit 20 m/s), more than 10 % over it: after 2 s they complain, after
+	-- 7 s it costs; staying too fast, both again every 10 s
 	me.p = { x = 2500, y = -2, z = 10 }
 	-- the speed limit sign learns that this is a taxi ride (the player may show it only then)
 	local rideSign
@@ -5504,9 +5505,9 @@ check(
 			update(0.3)
 		end
 	end
-	speedTo(22.5)
+	speedTo(21.5)
 	drive(4)
-	check(active.speeding == 0 and active.jolts == 1, "up to 15 % over the limit: fine (speeding up gently is no jolt)")
+	check(active.speeding == 0 and active.jolts == 1, "up to 10 % over the limit: fine (speeding up gently is no jolt)")
 	speedTo(25.5)
 	me.p.y = -12
 	drive(4)
@@ -5515,11 +5516,18 @@ check(
 	drive(1.5)
 	check(active.speeding == 0, "too fast, but not for 2 s yet: nothing")
 	drive(1)
-	check(active.speeding == 1 and lastToastMsg() == "Too fast!", 'too fast for 2 s: speeding, "Too fast!"')
-	drive(7)
-	check(active.speeding == 1, "still too fast: not counted again at once")
+	check(
+		active.speeding == 0 and lastToastMsg() == "Slow down, please!",
+		"too fast for 2 s: the passengers complain, it costs nothing yet"
+	)
 	drive(4)
-	check(active.speeding == 2, "10 s later: counted again")
+	check(active.speeding == 0, "still too fast, but less than 5 s after they complained: free")
+	drive(1)
+	check(active.speeding == 1 and lastToastMsg() == "Too fast! Less pay.", "5 s after they complained: it costs")
+	drive(5)
+	check(active.speeding == 1 and lastToastMsg() == "Slow down, please!", "staying too fast: they complain again")
+	drive(5)
+	check(active.speeding == 2, "10 s after the first: it costs again")
 	speedTo(0)
 	check(active.jolts == 1, "slowing down gently is no jolt")
 	world.playerVeh = nil
@@ -5816,12 +5824,12 @@ check(
 	local count = #signs
 	wait(2)
 	check(#signs == count, "nothing changed: nothing sent")
-	me.v = { x = 22, y = 0, z = 0 }
+	me.v = { x = 21.5, y = 0, z = 0 }
 	wait(1)
-	check(#signs == count and sign().over == false, "up to 15 % over the limit: no warning")
-	me.v = { x = 24, y = 0, z = 0 }
+	check(#signs == count and sign().over == false, "up to 10 % over the limit: no warning")
+	me.v = { x = 22.5, y = 0, z = 0 }
 	wait(1)
-	check(sign().over == true, "more than 15 % over: the sign warns")
+	check(sign().over == true, "more than 10 % over: the sign warns")
 	units = "imperial"
 	me.v = { x = 0, y = 0, z = 0 }
 	wait(1)
