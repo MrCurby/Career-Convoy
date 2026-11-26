@@ -2293,7 +2293,7 @@ function sc_careerResult(player_id, data)
 	else
 		entry.careerActive = false
 		entry.startFailed = true
-		local reason = tostring(result.reason or "unbekannt"):sub(1, 200)
+		local reason = tostring(result.reason or "unknown"):sub(1, 200)
 		log(playerName(player_id) .. ": career start failed: " .. reason)
 		if Config.server.kickOnFailedStart then
 			MP.DropPlayer(player_id, "Career-Convoy: career could not start")
