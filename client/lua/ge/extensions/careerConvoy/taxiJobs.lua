@@ -1,41 +1,65 @@
--- Career-Convoy :: taxi jobs: a passenger at the roadside, driven to a place on the map
+-- Career-Convoy :: taxi jobs: passengers at the roadside, driven to a place on the map
 --
 -- A job type of the Jobs app (jobs.lua: the shared list, taking, giving up, the pay). This file
 -- brings what a taxi job is about:
 --   making one up (generate), by tier (TIERS: the higher, the longer the ride and the better paid;
 --   flatter than towing: a ride is easier than a tow, and a smooth one earns a tip)
 --     a pickup    beside a normal road (jobs.randomRoadside), far from every vehicle
---     a place     a facility of the map (garage, dealership, gas station, ...: jobs.facilityPlaces,
---                 the middle of its doors), as far away as the tier says in a straight line
---                 (jobs.pickDestination: the nearest fit if none is)
+--     a place     by STREET_SHARE a street: another place beside a road (jobs.randomRoadside) as
+--                 far away as the tier says in a straight line, named after a facility within
+--                 NEAR_PLACE m ("Near Belasco Auto"), else "Street in town" / "Country road"; else
+--                 (or no such street found) a facility of the map (garage, dealership, gas
+--                 station, ...: jobs.facilityPlaces, the middle of its doors), as far away as the
+--                 tier says (jobs.pickDestination: the nearest fit if none is)
+--     the town    the pickup is in town (jobs.inTown) by TOWN_START, the place by TOWN_END, each on
+--                 its own: most rides touch the town, every mix stays possible (in town, out of
+--                 town, into it, past it). None that fits there (a map without a town, a long ride
+--                 from a small one): anywhere
 --     a VIP       by the tier's VIP share: pays PAY_VIP times more, jolts and speeding cost twice as much
+--     passengers  1..5, at random by the tier's chances (PASSENGERS): a higher tier (unlocked by a
+--                 higher level) makes a group more likely, but a ride for one stays common
 --     the pay     (PAY_BASE + PAY_PER_KM per km of the ride (jobs.roadLength)) x the tier's pay,
---                 x PAY_VIP for a VIP, x client.jobPay
---     job.data = {vip}; job.title = "Passenger" or "VIP"
+--                 x PAY_VIP for a VIP, + PAY_PER_PASSENGER for every passenger after the first
+--                 (a group needs a bigger car), x client.jobPay
+--     job.data = {vip, passengers, face (x, y: the way the passengers look, towards the road)};
+--     job.title = "Passenger" or "VIP"; a group has a tag ("3 people")
 --   doing it
---     1. the route leads to the passenger (a yellow marker); stopping in a vehicle (not on foot)
---        within PICKUP_RADIUS m of them for BOARD_STILL s: they get in. That vehicle is the taxi
+--     1. the route leads to the passengers: the game's figure (PASSENGER_SHAPE, a static mesh only
+--        this client sees) for each, side by side at the roadside, facing the road, with a yellow
+--        marker above; stopping in a vehicle of your own (not on foot) within PICKUP_RADIUS m of them for
+--        BOARD_STILL s: they get in, if it has a seat for each (seatsIn; else "Too few seats").
+--        That vehicle is the taxi. The figures go; dummies sit in the taxi instead: the game's
+--        seat occupants (gameplay_seatOccupants.setDummyOccupant, PASSENGER_WEIGHT kg each),
+--        spread evenly over the rear seats (spreadSeats), the front passenger seat only when the
+--        rear is full. A vehicle without such seats (older or mod vehicles) can't be counted: they
+--        get in unseen; the ride is the same. Every SEAT_CHECK s the dummies are seated again if
+--        the game took one out (the taxi rebuilt in the garage)
 --     2. the route leads to the place. A smooth ride pays all: every jolt (the taxi's speed on
 --        the ground or up/down changes faster than JOLT_ACCEL m/s^2, measured over JOLT_WINDOW s
 --        so bumps and curbs don't count; turning doesn't count either: hard braking, a crash, a
---        hard landing; at most one per JOLT_GAP s) costs JOLT_COST of the pay; speeding (on a road, faster than its speed
---        limit x speedLimit.TOLERANCE for SPEEDING_FOR s; again after every SPEEDING_AGAIN s more)
---        SPEEDING_COST; new damage to the taxi up to PENALTY_MAX (DAMAGE_FOR_MAX damage points cost
+--        hard landing; at most one per JOLT_GAP s) costs JOLT_COST of the pay. Speeding (on a road,
+--        faster than its speed limit x speedLimit.TOLERANCE): after COMPLAIN_AFTER s the passengers
+--        complain ("Slow down, please!", free); still too fast after SPEEDING_FOR s it costs
+--        SPEEDING_COST ("Too fast! Less pay."); staying too fast, they complain and it costs again
+--        every SPEEDING_AGAIN s. New damage to the taxi up to PENALTY_MAX (DAMAGE_FOR_MAX damage points cost
 --        all of it), a reset (R) PENALTY_MAX; all together at most PENALTY_MAX. The speed limit
 --        comes from speedLimit.lua (the sign shows it); a road without one has no limit. The taxi
 --        gone (deleted): the passenger waits at the pickup again
 --        The passenger rates the ride: 1..5 stars by what it has cost so far (STARS), shown live in
 --        the Jobs app with the pay as it is now
 --     3. you in the taxi, standing still in the drop-off zone (DROP_RADIUS m around the place's
---        doors) for DROP_STILL s: handed over (jobs.handOver), with a tip for 4 or 5 stars (TIPS)
---   No vehicle is spawned: the passenger is a marker, nothing to clean up when the job ends.
+--        doors) for DROP_STILL s: the dummies get out, handed over (jobs.handOver), with a tip for
+--        4 or 5 stars (TIPS)
+--   No vehicle is spawned. When the job ends (stop), the figures and the dummies go.
 --   Calls: with "On duty" on (the switch on the taxi page of the Jobs app; off on every join and
 --   when the Jobs app is removed), the nearest open ride within CALL_RANGE m rings the phone
---   (phone.ring) while you drive a vehicle,
---   own the Taxi License and have no job. "Accept" takes it. Not nagging: after a call that wasn't
---   taken the next one waits CALL_PAUSE s (and that ride doesn't call again), after a ride
---   CALL_AFTER_RIDE s; MISSED_MAX calls missed in a row put you off duty. A call whose ride someone
---   else took hangs up.
+--   (phone.ring) while you sit in a vehicle of your own (not on foot, not in another player's you
+--   watch) with a seat for each of its passengers (a vehicle that can't be counted: rides for one
+--   only), own the Taxi License and have no job; the call says how many they are ("3 people to
+--   …"). The Jobs app lists every ride, whatever you drive. "Accept" takes it. Not nagging: after a
+--   call that wasn't taken the next one waits CALL_PAUSE s (and that ride doesn't call again), after
+--   a ride CALL_AFTER_RIDE s; MISSED_MAX calls missed in a row put you off duty. A call whose ride
+--   someone else took hangs up.
 
 local M = {}
 
@@ -52,19 +76,38 @@ local JOLT_ACCEL = 9 -- m/s^2: the taxi's speed changing faster than this is a j
 local JOLT_WINDOW = 0.5 -- s: the change is measured over this long (not every frame: bumps don't count)
 local JOLT_GAP = 2 -- s: at most one jolt in this time (one hard stop counts once)
 local JOLT_COST = 0.05 -- share of the pay a jolt costs (twice that for a VIP)
-local SPEEDING_FOR = 2 -- s of speeding before it counts
-local SPEEDING_AGAIN = 10 -- s more of speeding until it counts again
+local COMPLAIN_AFTER = 2 -- s of speeding before the passengers complain (free)
+local SPEEDING_FOR = 7 -- s of speeding before it costs (5 s after they complained)
+local SPEEDING_AGAIN = 10 -- s more of speeding until they complain and it costs again
 local SPEEDING_COST = 0.05 -- share of the pay speeding costs each time (twice that for a VIP)
 local PENALTY_MAX = 0.5 -- share of the pay a bumpy ride can cost at most
 local DAMAGE_FOR_MAX = 40000 -- damage points (beamstate.damage) that cost PENALTY_MAX
 local PAY_BASE, PAY_PER_KM = 60, 80
 local PAY_VIP = 1.5
+local PAY_PER_PASSENGER = 0.15 -- share of the pay on top for every passenger after the first
 -- the stars: the most a ride may have cost (share of the pay) for each rating, the best first
 local STARS = { { 5, 0.01 }, { 4, 0.1 }, { 3, 0.2 }, { 2, 0.35 } } -- else 1 star
 -- the tip by stars, as a share of the pay; a VIP tips more
 local TIPS = { [5] = 0.15, [4] = 0.05 }
 local TIPS_VIP = { [5] = 0.25, [4] = 0.1 }
 local MARKER_COLOR = { 1, 0.82, 0.1 } -- taxi yellow
+local PASSENGER_SHAPE = "/vehicles/simple_traffic/traffic_character.dae" -- the game's figure: body and head
+local PASSENGER_WEIGHT = 89 -- kg: a dummy in the taxi (the game's own default for a seat occupant)
+local SEAT_CHECK = 2 -- s between two looks whether the dummies still sit in the taxi
+local FIGURE_GAP = 0.8 -- m between two passengers waiting side by side
+local MAX_PASSENGERS = 5
+local TOWN_START = 0.6 -- share of rides that start in town
+local TOWN_END = 0.75 -- share of rides that end in town (on its own: 90 % touch the town)
+local STREET_SHARE = 0.75 -- share of rides to a street instead of a facility
+local STREET_TRIES = 20 -- places beside a road tried for a street at the right distance
+local NEAR_PLACE = 400 -- m: a street this close to a facility is named after it
+-- the chances of 1, 2, 3, 4, 5 passengers by tier
+local PASSENGERS = {
+	{ 0.8, 0.2 },
+	{ 0.55, 0.3, 0.15 },
+	{ 0.4, 0.3, 0.15, 0.1, 0.05 },
+	{ 0.3, 0.25, 0.2, 0.15, 0.1 },
+}
 local CALL_CHECK = 2 -- s between two looks for a ride to call about
 local CALL_RANGE = 2000 -- m (straight line): rides closer than this call
 local CALL_FIRST = 3 -- s after going on duty before the first call
@@ -83,7 +126,8 @@ M.id = "taxi"
 M.name = "Taxi"
 M.icon = "taxi"
 M.branch = "commercial"
-M.deduction = "rough ride"
+M.deduction = "Rough ride"
+M.bonus = "Smooth ride bonus"
 M.steps = { "Pick up", "Drive", "Paid" }
 
 local clock = 0
@@ -99,49 +143,141 @@ local function tierOf(tier)
 	return TIERS[math.max(1, math.min(#TIERS, tonumber(tier) or 1))]
 end
 
---- The pay for a ride of `length` m at level 1 (a VIP and a higher tier pay more).
-function M.payFor(length, vip, tier)
-	local pay = (PAY_BASE + PAY_PER_KM * length / 1000) * tierOf(tier).pay * (vip and PAY_VIP or 1) * J.payFactor()
+--- The pay for a ride of `length` m at level 1 (a VIP, a group and a higher tier pay more).
+function M.payFor(length, vip, tier, passengers)
+	local group = 1 + PAY_PER_PASSENGER * (math.max(1, tonumber(passengers) or 1) - 1)
+	local pay = (PAY_BASE + PAY_PER_KM * length / 1000)
+		* tierOf(tier).pay
+		* (vip and PAY_VIP or 1)
+		* group
+		* J.payFactor()
 	return J.roundTo(pay, 10)
 end
 
---- Makes up a taxi job of a tier on this map, or returns nil and why not.
+--- How many passengers a ride of this tier has: 1..MAX_PASSENGERS, at random by PASSENGERS.
+function M.rollPassengers(tier)
+	local chances = PASSENGERS[math.max(1, math.min(#PASSENGERS, tonumber(tier) or 1))]
+	local r = math.random()
+	for n, chance in ipairs(chances) do
+		r = r - chance
+		if r < 0 then
+			return n
+		end
+	end
+	return #chances
+end
+
+--- How many passengers a job has (1..MAX_PASSENGERS).
+function M.passengersOf(job)
+	local n = type(job) == "table" and type(job.data) == "table" and tonumber(job.data.passengers)
+	return math.max(1, math.min(MAX_PASSENGERS, math.floor(n or 1)))
+end
+
+-- A street as the place to go: beside a road, in town or not (inTown), between min and max m from
+-- `from` in a straight line: {name, pos} or nil (none found).
+local function streetEnd(from, inTown, min, max, places)
+	for _ = 1, STREET_TRIES do
+		local spot = J.randomRoadside(inTown)
+		local d = spot and J.dist2D(spot.pos, from)
+		if d and d >= min and d <= max then
+			local near, nearD = nil, NEAR_PLACE
+			for _, place in ipairs(places) do
+				local pd = J.dist2D(place.pos, spot.pos)
+				if pd <= nearD then
+					near, nearD = place, pd
+				end
+			end
+			local name = near and ("Near " .. near.name) or (J.inTown(spot.pos) and "Street in town" or "Country road")
+			return { name = name, pos = spot.pos }
+		end
+	end
+	return nil
+end
+
+-- A taxi job from this roadside spot to dest.
+local function rideOf(spot, dest, tier)
+	local t = tierOf(tier)
+	local length = J.roadLength(spot.pos, dest.pos)
+	local vip = math.random() < t.vip
+	local passengers = M.rollPassengers(tier)
+	-- spot.dir runs along the road; the road is to the left of it
+	local face = spot.dir and { x = J.roundTo(-spot.dir.y, 0.01), y = J.roundTo(spot.dir.x, 0.01) }
+	return {
+		title = vip and "VIP" or "Passenger",
+		pos = spot.pos,
+		dest = dest,
+		length = length,
+		pay = M.payFor(length, vip, tier, passengers),
+		data = { vip = vip, passengers = passengers, face = face },
+	}
+end
+
+--- Makes up a taxi job of a tier on this map, or returns nil and why not. The ride's length comes
+--- first: a place to go as far away as the tier says, if there is one; then a street rather than a
+--- facility (STREET_SHARE) and in town or not (TOWN_END), as rolled. A spot with no place to go at
+--- the right distance: another spot; none at all (a small map): the nearest place from the first.
 function M.generate(tier)
 	local t = tierOf(tier)
 	local places = J.facilityPlaces()
-	if #places == 0 then
-		return nil, "no places to go on this map"
+	-- in town or not: only on a map with a town (else nil: anywhere)
+	local startInTown, endInTown = nil, nil
+	if J.hasTown() then
+		startInTown, endInTown = math.random() < TOWN_START, math.random() < TOWN_END
 	end
+	local toStreet = #places == 0 or math.random() < STREET_SHARE
+	local ends = {}
+	for _, place in ipairs(places) do
+		if endInTown == nil or J.inTown(place.pos) == endInTown then
+			table.insert(ends, place)
+		end
+	end
+	local function facility(from, list)
+		local pick = J.pickDestination(list, from, t.destMin, t.destMax)
+		return pick and pick.d >= t.destMin and pick.d <= t.destMax and { name = pick.place.name, pos = pick.place.pos }
+	end
+	local function street(from, inTown)
+		return streetEnd(from, inTown, t.destMin, t.destMax, places)
+	end
+	local fallback = nil
 	for _ = 1, PLACE_TRIES do
-		local spot, why = J.randomRoadside()
+		local spot, why = J.randomRoadside(startInTown)
 		if why then
 			return nil, why
 		end
 		if spot and J.farFromVehicles(spot.pos, FAR_FROM_VEHICLES) then
-			local pick = J.pickDestination(places, spot.pos, t.destMin, t.destMax)
-			if pick then
-				local length = J.roadLength(spot.pos, pick.place.pos)
-				local vip = math.random() < t.vip
-				return {
-					title = vip and "VIP" or "Passenger",
-					pos = spot.pos,
-					dest = { name = pick.place.name, pos = pick.place.pos },
-					length = length,
-					pay = M.payFor(length, vip, tier),
-					data = { vip = vip },
-				}
+			local from = spot.pos
+			local dest
+			if toStreet then
+				dest = street(from, endInTown) or facility(from, ends) or street(from, nil) or facility(from, places)
+			else
+				dest = facility(from, ends) or street(from, endInTown) or facility(from, places) or street(from, nil)
+			end
+			if dest then
+				return rideOf(spot, dest, tier)
+			end
+			local nearest = not fallback and J.pickDestination(places, from, t.destMin, t.destMax)
+			if nearest then
+				fallback = rideOf(spot, { name = nearest.place.name, pos = nearest.place.pos }, tier)
 			end
 		end
 	end
-	return nil, "no free place found"
+	if fallback then
+		return fallback
+	end
+	return nil, #places == 0 and "no places to go on this map" or "no free place found"
 end
 
 --- The labels of a taxi job in the Jobs app.
 function M.tags(job)
+	local tags = {}
 	if type(job.data) == "table" and job.data.vip == true then
-		return { { text = "VIP", kind = "vip" } }
+		table.insert(tags, { text = "VIP", kind = "vip" })
 	end
-	return {}
+	local n = M.passengersOf(job)
+	if n > 1 then
+		table.insert(tags, { text = n .. " people", kind = "group" })
+	end
+	return tags
 end
 
 --== Doing it ======================================================================
@@ -150,11 +286,12 @@ local function isVip(a)
 	return type(a.job.data) == "table" and a.job.data.vip == true
 end
 
--- The vehicle you drive and its id, or nil (on foot, or none).
+-- The vehicle you sit in and its id, if it is yours; else nil (on foot, none, or another player's
+-- vehicle you watch).
 local function myVehicle()
 	local id = be:getPlayerVehicleID(0)
 	local veh = id and id >= 0 and be:getObjectByID(id)
-	if not veh or U.modelOf(veh) == "unicycle" then
+	if not veh or U.modelOf(veh) == "unicycle" or not U.isOwnVehicle(id) then
 		return nil
 	end
 	return veh, id
@@ -196,16 +333,163 @@ function M.tipFor(stars, vip)
 	return (vip and TIPS_VIP or TIPS)[stars] or 0
 end
 
+-- The passengers at the roadside: the game's figure for each, side by side along the road,
+-- facing it (job.data.face).
+local function showFigures(a)
+	if a.figures or type(createObject) ~= "function" then
+		return
+	end
+	local p = U.vecOf(a.job.pos)
+	if not p then
+		return
+	end
+	a.figures = {}
+	local face = type(a.job.data) == "table" and U.vecOf(a.job.data.face)
+	local rot = { x = 0, y = 0, z = 0, w = 1 }
+	if face and type(quatFromDir) == "function" then
+		rot = quatFromDir(vec3(face.x, face.y, 0), vec3(0, 0, 1))
+	end
+	local along = face and { x = face.y, y = -face.x } or { x = 1, y = 0 }
+	local n = M.passengersOf(a.job)
+	for i = 1, n do
+		local off = (i - (n + 1) / 2) * FIGURE_GAP
+		local ok, err = pcall(function()
+			local o = createObject("TSStatic")
+			o.shapeName = PASSENGER_SHAPE
+			o:setPosRot(p.x + along.x * off, p.y + along.y * off, p.z, rot.x, rot.y, rot.z, rot.w)
+			o:registerObject("")
+			table.insert(a.figures, o)
+		end)
+		if not ok then
+			U.log("W", "jobs", "could not place a passenger: " .. tostring(err))
+		end
+	end
+end
+
+local function hideFigures(a)
+	for _, o in ipairs(a.figures or {}) do
+		pcall(function()
+			o:delete()
+		end)
+	end
+	a.figures = nil
+end
+
+-- The game's seat occupants (newer game versions), or nil.
+local function seatSystem()
+	local so = U.ext("gameplay_seatOccupants")
+	return so and type(so.getSeats) == "function" and type(so.setDummyOccupant) == "function" and so or nil
+end
+
+-- The seats of a vehicle (gameplay_seatOccupants.getSeats), {} without them.
+local function seatsOf(so, id)
+	local ok, seats = pcall(so.getSeats, id)
+	return ok and type(seats) == "table" and seats or {}
+end
+
+-- The seats of a vehicle passengers can take: not the driver's, not taken. The rear ones and the
+-- front ones, each in the game's order (by name).
+local function freeSeats(so, id)
+	local rear, front = {}, {}
+	for _, seat in ipairs(seatsOf(so, id)) do
+		local seatId = seat.seatId
+		if type(seatId) == "string" and not seat.isDriver and not seat.occupied then
+			table.insert(seatId:sub(1, 1) == "F" and front or rear, seatId)
+		end
+	end
+	return rear, front
+end
+
+--- How many passengers vehicle `id` has seats for, or nil when the game can't tell (no seat
+--- occupants in this game version, or none in this vehicle).
+function M.seatsIn(id)
+	local so = seatSystem()
+	if not so or not id or #seatsOf(so, id) == 0 then
+		return nil
+	end
+	local rear, front = freeSeats(so, id)
+	return #rear + #front
+end
+
+--- Where n passengers sit: spread evenly over the rear seats (two of three: the outer ones; one of
+--- two: the second), the front seats only for those the rear has no room for.
+function M.spreadSeats(rear, front, n)
+	local out = {}
+	if n >= #rear then
+		for _, seatId in ipairs(rear) do
+			table.insert(out, seatId)
+		end
+		for i = 1, math.min(n - #rear, #front) do
+			table.insert(out, front[i])
+		end
+		return out
+	end
+	for i = 1, n do
+		table.insert(out, rear[math.floor((i - 0.5) * #rear / n) + 1])
+	end
+	return out
+end
+
+-- The dummies get out of the taxi.
+local function unseatPassengers(a)
+	local so = seatSystem()
+	for _, seatId in ipairs(a.seats or {}) do
+		if so and a.taxiId then
+			pcall(so.clearDummyOccupant, a.taxiId, seatId)
+		end
+	end
+	a.seats = nil
+end
+
+-- The dummies sit in the taxi: nothing to do while all of them are still on their seats; else
+-- they all sit down again (spreadSeats). Seats there's no room for: those passengers ride unseen.
+local function seatPassengers(a)
+	local so = seatSystem()
+	if not so or not a.taxiId then
+		return
+	end
+	if a.seats then
+		local dummies = {}
+		for _, seat in ipairs(seatsOf(so, a.taxiId)) do
+			if seat.seatId ~= nil then
+				dummies[seat.seatId] = seat.occupantType == "dummy"
+			end
+		end
+		local all = true
+		for _, seatId in ipairs(a.seats) do
+			all = all and dummies[seatId] == true
+		end
+		if all then
+			return
+		end
+	end
+	unseatPassengers(a)
+	a.seats = {}
+	local rear, front = freeSeats(so, a.taxiId)
+	for _, seatId in ipairs(M.spreadSeats(rear, front, M.passengersOf(a.job))) do
+		local ok, seated = pcall(so.setDummyOccupant, a.taxiId, seatId, PASSENGER_WEIGHT)
+		if ok and seated == true then
+			table.insert(a.seats, seatId)
+		end
+	end
+end
+
 -- The passenger gets into this vehicle: it is the taxi now.
 local function board(a, id)
 	a.phase, a.stillFor = "toDestination", 0
 	a.taxiId, a.damageStart = id, damageOf(id)
 	a.jolts, a.joltAt, a.lastVel, a.velFor, a.rough = 0, -math.huge, nil, 0, false
 	a.speeding, a.speedingFor = 0, 0
-	U.toast("info", "Passenger in: drive to " .. a.job.dest.name, 6)
+	hideFigures(a)
+	a.seats, a.seatCheck = nil, 0
+	seatPassengers(a)
+	local who = M.passengersOf(a.job) > 1 and "Passengers" or "Passenger"
+	U.toast("info", who .. " in: drive to " .. a.job.dest.name, 6)
 end
 
--- Speeding: faster than the road's speed limit x speedLimit.TOLERANCE for SPEEDING_FOR s.
+-- Speeding: faster than the road's speed limit x speedLimit.TOLERANCE. The passengers complain
+-- after COMPLAIN_AFTER s; after SPEEDING_FOR s it costs. Staying too fast: both again every
+-- SPEEDING_AGAIN s (speedingFor goes back by that much, so it passes COMPLAIN_AFTER again).
 local function watchSpeed(a, taxi, dt)
 	local p = U.vecOf(taxi:getPosition())
 	local roads = U.ext("careerConvoy_speedLimit")
@@ -214,10 +498,14 @@ local function watchSpeed(a, taxi, dt)
 		a.speedingFor = 0
 		return
 	end
-	a.speedingFor = a.speedingFor + dt
+	local before = a.speedingFor
+	a.speedingFor = before + dt
+	if before < COMPLAIN_AFTER and a.speedingFor >= COMPLAIN_AFTER and a.speedingFor < SPEEDING_FOR then
+		U.toast("warning", "Slow down, please!", 3)
+	end
 	if a.speedingFor >= SPEEDING_FOR then
-		a.speeding, a.speedingFor = a.speeding + 1, SPEEDING_FOR - SPEEDING_AGAIN
-		U.toast("warning", "Too fast!", 3)
+		a.speeding, a.speedingFor = a.speeding + 1, a.speedingFor - SPEEDING_AGAIN
+		U.toast("warning", "Too fast! Less pay.", 3)
 	end
 end
 
@@ -249,6 +537,7 @@ end
 
 function M.start(a)
 	a.phase, a.stillFor = "toPassenger", 0
+	showFigures(a)
 	U.toast("info", "Route set: pick up the passenger", 6)
 end
 
@@ -256,9 +545,12 @@ function M.step(a, dt)
 	local job = a.job
 	local veh, id = myVehicle()
 	if a.phase == "toPassenger" then
+		showFigures(a)
 		local p = veh and U.vecOf(veh:getPosition())
 		local near = p and J.dist2D(p, job.pos) <= PICKUP_RADIUS and J.speedOf(veh) <= STOP_SPEED
-		a.stillFor = near and a.stillFor + dt or 0
+		local seats = near and M.seatsIn(id)
+		a.tooFewSeats = near and seats and seats < M.passengersOf(job) or false
+		a.stillFor = near and not a.tooFewSeats and a.stillFor + dt or 0
 		if a.stillFor >= BOARD_STILL then
 			board(a, id)
 		end
@@ -268,8 +560,14 @@ function M.step(a, dt)
 	if not taxi then
 		U.log("W", "jobs", "the taxi of job " .. tostring(job.id) .. " is gone")
 		U.toast("warning", "Taxi gone – pick them up again", 6)
-		a.phase, a.taxiId, a.stillFor = "toPassenger", nil, 0
+		a.phase, a.taxiId, a.seats, a.stillFor = "toPassenger", nil, nil, 0
+		showFigures(a)
 		return
+	end
+	a.seatCheck = (a.seatCheck or 0) + dt
+	if a.seatCheck >= SEAT_CHECK then
+		a.seatCheck = 0
+		seatPassengers(a)
 	end
 	watchJolts(a, taxi, dt)
 	watchSpeed(a, taxi, dt)
@@ -293,6 +591,7 @@ function M.step(a, dt)
 			)
 		)
 		local stars = M.starsFor(penalty)
+		unseatPassengers(a)
 		J.handOver(a, 1 - penalty, M.tipFor(stars, isVip(a)))
 	end
 end
@@ -326,17 +625,26 @@ function M.status(a)
 			hint = "No bumps, no speeding.",
 		}
 	end
+	local whom = M.passengersOf(a.job) > 1 and "passengers" or "passenger"
+	local hint = "Pick them up in a car."
+	if a.tooFewSeats then
+		hint = "Too few seats. Take a bigger car."
+	elseif myVehicle() then
+		hint = "Stop next to them."
+	end
 	return {
 		step = 0,
 		target = a.job.pos,
 		inZone = inZone,
-		text = inZone and "Wait – they get in" or "to the passenger",
-		short = inZone and "Wait – they get in" or "Pick up the passenger",
-		hint = myVehicle() and "Stop next to them." or "Pick them up in a car.",
+		text = inZone and "Wait – they get in" or ("to the " .. whom),
+		short = inZone and "Wait – they get in" or ("Pick up the " .. whom),
+		hint = hint,
 	}
 end
 
-function M.stop()
+function M.stop(a)
+	hideFigures(a)
+	unseatPassengers(a)
 	nextCallAt = math.max(nextCallAt, clock + CALL_AFTER_RIDE)
 end
 
@@ -390,13 +698,14 @@ local function distText(m)
 	return m < 1000 and string.format("%d m", math.floor(m / 10 + 0.5) * 10) or string.format("%.1f km", m / 1000)
 end
 
--- The nearest ride you could take now that hasn't called before, within CALL_RANGE m, or nil.
-local function rideToCall(me)
+-- The nearest ride you could take now that hasn't called before, within CALL_RANGE m, with no
+-- more passengers than `seats` (nil: the vehicle can't be counted – rides for one only), or nil.
+local function rideToCall(me, seats)
 	local best, bestD = nil, CALL_RANGE
 	for _, job in ipairs(J.openJobsOf(M.id)) do
 		local p = type(job.pos) == "table" and U.vecOf(job.pos)
 		local d = p and J.dist2D(me, p)
-		if d and d <= bestD and not declined[job.id] then
+		if d and d <= bestD and not declined[job.id] and M.passengersOf(job) <= (seats or 1) then
 			best, bestD = job, d
 		end
 	end
@@ -441,20 +750,22 @@ local function checkCalls()
 	if clock < nextCallAt or J.getActive() or not U.careerActive() or not (lic and lic.has("taxi")) then
 		return
 	end
-	local veh = myVehicle()
+	local veh, id = myVehicle()
 	local me = veh and U.vecOf(veh:getPosition())
 	if not me then
 		return
 	end
-	local job, d = rideToCall(me)
+	local job, d = rideToCall(me, M.seatsIn(id))
 	if not job then
 		return
 	end
+	local n = M.passengersOf(job)
+	local dest = tostring(job.dest and job.dest.name or "?")
 	local rang = phone
 		and phone.ring({
 			id = callId(job.id),
 			title = "Ride request",
-			text = "To " .. tostring(job.dest and job.dest.name or "?"),
+			text = (n > 1 and n .. " people" or "1 person") .. " to " .. dest,
 			detail = distText(d) .. " away · $" .. math.floor(tonumber(job.pay) or 0),
 			icon = M.icon,
 			open = { app = "jobs", page = M.id },

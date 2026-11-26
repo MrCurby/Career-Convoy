@@ -151,7 +151,7 @@
 .scp-pill-warn, .scp-tag-tire, .scp-tag-vip { color: var(--scp-warn-text); background: var(--scp-warn-soft); }
 .scp-tag-engine, .scp-tag-clutch, .scp-tag-gearbox, .scp-tag-radiator, .scp-tag-oilpan,
 .scp-tag-crash { color: var(--scp-danger-text); background: var(--scp-danger-soft); }
-.scp-pill-info, .scp-tag-heavy { color: var(--scp-info-text); background: var(--scp-info-soft); }
+.scp-pill-info, .scp-tag-heavy, .scp-tag-group { color: var(--scp-info-text); background: var(--scp-info-soft); }
 
 /* a button: grey; orange for the main action (and a chosen one), green, amber or red where that is
    what it does; scp-btn-remove turns red only under the mouse */

@@ -11,7 +11,8 @@
 --   mph    the limit in mph, rounded to 5
 --   unit   "km/h" or "mph", by the game's setting for units (uiUnitLength: metric / imperial); the
 --          player can pick the unit in the phone's Settings instead (the window chooses)
---   over   you drive faster than the limit x TOLERANCE (the sign warns; a taxi ride loses pay)
+--   over   you drive faster than the limit x TOLERANCE (the sign warns; on a taxi ride the
+--          passengers complain, then it costs pay)
 --   taxi   your job is a taxi ride (the player can show the sign only then: phone, Settings)
 -- Whether the sign shows at all is the player's choice (phone, Settings: off, taxi rides, always)
 -- and is kept by the window.
@@ -24,7 +25,7 @@ local CHECK_EVERY = 0.25 -- s between two looks at the road
 local ROAD_MARGIN = 3 -- m beyond a road's edge that still count as on it
 local MS_TO = { ["km/h"] = 3.6, mph = 2.23694 } -- m/s in each unit
 
-M.TOLERANCE = 1.15 -- faster than the limit x this is speeding
+M.TOLERANCE = 1.1 -- faster than the limit x this is speeding
 
 local since = 0
 local shown = nil -- what the sign shows: "kmh|mph|unit|over|taxi"

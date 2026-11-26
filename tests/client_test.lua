@@ -5027,8 +5027,8 @@ check(
 	check(
 		career_modules_playerAttributes.money() == 1450
 			and lastToastMsg():find("%+%$450")
-			and lastToastMsg():find("%$150 damage"),
-		"paid: +$450 in the career, the deduction is shown"
+			and lastToastMsg():find(" · Damage$"),
+		"paid: +$450 in the career, a short hint for the deduction"
 	)
 	check(
 		world.moneyLabel == "Towing job: Gavril Grand Marshal" and jobs.appState().active.step == 2,
@@ -5260,7 +5260,7 @@ check(
 	handlers.sc_jobPaid(
 		json.encode({ payout = "p-20", job = 20, type = "test", title = "Box", pay = 90, deduction = 10 })
 	)
-	check(world.moneyLabel == "Test job: Box" and lastToastMsg():find("%$10 damage"), "paid, named after its job type")
+	check(world.moneyLabel == "Test job: Box" and lastToastMsg():find("Damage"), "paid, named after its job type")
 	for _ = 1, 70 do
 		update(0.1)
 	end
@@ -5323,8 +5323,12 @@ check(
 	me.p = { x = 0, y = -20, z = 10 }
 	-- making one up: a passenger beside the road, a place of the map, the pay by the way by road
 	check(
-		taxi.payFor(1000, false, 1) == 140 and taxi.payFor(1000, true, 1) == 210 and taxi.payFor(1000, false, 4) == 210,
-		"taxi pay: $60 + $80 per km; a VIP pays 50 % more, tier 4 50 % more"
+		taxi.payFor(1000, false, 1) == 140
+			and taxi.payFor(1000, true, 1) == 210
+			and taxi.payFor(1000, false, 4) == 210
+			and taxi.payFor(1000, false, 1, 3) == 180
+			and taxi.payFor(1000, false, 1, 5) == 220,
+		"taxi pay: $60 + $80 per km; a VIP pays 50 % more, tier 4 50 % more, 15 % for every passenger after the first"
 	)
 	handlers.sc_jobGenerate(json.encode({ type = "taxi", tier = 2 }))
 	offer = lastSent("sc_jobOffer")
@@ -5335,9 +5339,61 @@ check(
 			and (offer.title == "Passenger" or offer.title == "VIP")
 			and math.abs(math.abs(offer.pos.y) - 5.8) < 1e-6
 			and offer.length == jobs.roadLength(offer.pos, offer.dest.pos)
-			and offer.pay == taxi.payFor(offer.length, offer.data.vip, 2),
+			and offer.pay == taxi.payFor(offer.length, offer.data.vip, 2, offer.data.passengers),
 		"the server asks for a taxi job: a passenger beside the road, a ride by road to a place, its pay"
 	)
+	check(
+		offer.data.face and offer.data.face.x == 0 and offer.data.face.y * offer.pos.y < 0,
+		"the passenger looks towards the road"
+	)
+	-- a town: a grid of streets (10 x 10 junctions, 50 m apart) next to the long road; like the
+	-- game, each link is kept at one of its ends only
+	local realGetMap = map.getMap
+	local townNodes = {}
+	for name, n in pairs(nodes) do
+		townNodes[name] = n
+	end
+	local function street(i, j)
+		return "t" .. i .. "_" .. j
+	end
+	for i = 0, 9 do
+		for j = 0, 9 do
+			townNodes[street(i, j)] = { pos = vec3(6000 + i * 50, 2000 + j * 50, 10), radius = 4, links = {} }
+		end
+	end
+	for i = 0, 9 do
+		for j = 0, 9 do
+			for _, d in ipairs({ { 1, 0 }, { 0, 1 } }) do
+				local a, b = street(i, j), street(i + d[1], j + d[2])
+				if townNodes[b] then
+					townNodes[a].links[b] = { drivability = 1 }
+				end
+			end
+		end
+	end
+	map.getMap = function()
+		return { nodes = townNodes }
+	end
+	check(
+		jobs.inTown({ x = 6200, y = 2200 }) and not jobs.inTown({ x = 2000, y = 0 }),
+		"a town: where road junctions are dense"
+	)
+	local inTown, outside = 0, 0
+	for _ = 1, 20 do
+		local spot = jobs.randomRoadside(true)
+		inTown = inTown + (spot and jobs.inTown(spot.pos) and 1 or 0)
+		spot = jobs.randomRoadside(false)
+		outside = outside + (spot and not jobs.inTown(spot.pos) and 1 or 0)
+	end
+	check(inTown == 20 and outside == 20, "a place beside the road in town, or outside it, as asked")
+	local startsInTown = 0
+	math.randomseed(3)
+	for _ = 1, 100 do
+		local ride = taxi.generate(1)
+		startsInTown = startsInTown + (ride and jobs.inTown(ride.pos) and 1 or 0)
+	end
+	check(startsInTown >= 45 and startsInTown <= 75, "most taxi rides start in town, the others outside")
+	map.getMap = realGetMap
 	local vips = { 0, 0 }
 	for i, tier in ipairs({ 1, 4 }) do
 		for _ = 1, 100 do
@@ -5361,9 +5417,58 @@ check(
 	freeroam_facilities.getFacilities = function()
 		return {}
 	end
-	local noPlace, noPlaceWhy = taxi.generate(1)
+	local toStreet = taxi.generate(1)
 	freeroam_facilities.getFacilities = realFacilities
-	check(noPlace == nil and noPlaceWhy == "no places to go on this map", "no places on the map: no taxi job")
+	check(
+		toStreet
+			and toStreet.dest.name == "Country road"
+			and math.abs(math.abs(toStreet.dest.pos.y) - 5.8) < 1e-6
+			and math.abs(toStreet.dest.pos.x - toStreet.pos.x) >= 600
+			and math.abs(toStreet.dest.pos.x - toStreet.pos.x) <= 2000,
+		"no places on the map: a ride to a street, as far away as the tier says"
+	)
+	-- mostly to a street, named after a place nearby; else to a place
+	local streets, toPlaces, named = 0, 0, true
+	math.randomseed(11)
+	for _ = 1, 60 do
+		local ride = taxi.generate(1)
+		local street = ride and math.abs(math.abs(ride.dest.pos.y) - 5.8) < 1e-6
+		if street then
+			streets = streets + 1
+			local nearBelasco = jobs.dist2D(ride.dest.pos, doors.belasco) <= 400
+			local nearHome = jobs.dist2D(ride.dest.pos, doors.home) <= 400
+			named = named
+				and ride.dest.name
+					== (nearBelasco and "Near Belasco Auto" or nearHome and "Near Home Garage" or "Country road")
+		elseif ride then
+			toPlaces = toPlaces + 1
+		end
+	end
+	check(
+		streets >= 35 and toPlaces >= 5 and named,
+		'rides mostly to streets ("Near Belasco Auto", "Country road"), some to places'
+	)
+	-- a higher level: longer rides and more passengers
+	local function rides(tier)
+		local inRange, people, count = 0, 0, 0
+		local range = ({ { 600, 2000 }, nil, nil, { 3000, 7000 } })[tier]
+		for _ = 1, 40 do
+			local ride = taxi.generate(tier)
+			if ride then
+				local d = jobs.dist2D(ride.pos, ride.dest.pos)
+				inRange = inRange + (d >= range[1] and d <= range[2] and 1 or 0)
+				people = people + ride.data.passengers
+				count = count + 1
+			end
+		end
+		return inRange / count, people / count
+	end
+	local shortShare, fewPeople = rides(1)
+	local longShare, morePeople = rides(4)
+	check(
+		shortShare == 1 and longShare == 1 and morePeople > fewPeople + 0.5,
+		"level 1: rides of 0.6-2 km; level 8: of 3-7 km, with more passengers"
+	)
 	-- doing it: pick up the passenger, drive to the place, a smooth ride pays all
 	local ride = {
 		id = 30,
@@ -5373,15 +5478,65 @@ check(
 		dest = { name = "Belasco Auto", pos = doors.belasco },
 		length = 2000,
 		pay = 400,
-		data = { vip = false },
+		data = { vip = false, passengers = 3 },
 		state = "mine",
 	}
+	-- the game's figure at the roadside and its seat occupants (a dummy in the taxi)
+	local figures = {}
+	_G.createObject = function(class)
+		local o = { class = class }
+		function o:setPosRot(x, y, z)
+			self.pos = { x = x, y = y, z = z }
+		end
+		function o:registerObject()
+			figures[#figures + 1] = self
+		end
+		function o:delete()
+			self.deleted = true
+		end
+		return o
+	end
+	local seatClaims = {}
+	local seatList = { { seatId = "FL", isDriver = true }, { seatId = "FR" }, { seatId = "RL" } }
+	_G.gameplay_seatOccupants = {
+		getSeats = function(id)
+			local out = {}
+			for _, seat in ipairs(id == 70 and seatList or {}) do
+				local claim = seatClaims[seat.seatId]
+				out[#out + 1] = {
+					seatId = seat.seatId,
+					isDriver = seat.isDriver == true,
+					occupied = claim ~= nil,
+					occupantType = claim,
+				}
+			end
+			return out
+		end,
+		setDummyOccupant = function(id, seatId)
+			seatClaims[seatId] = "dummy"
+			return true
+		end,
+		clearDummyOccupant = function(id, seatId)
+			seatClaims[seatId] = nil
+			return true
+		end,
+	}
 	handlers.sc_jobs(json.encode({ enabled = true, jobs = { ride } }))
+	check(
+		#figures == 3
+			and figures[1].class == "TSStatic"
+			and figures[1].shapeName:find("traffic_character", 1, true)
+			and figures[2].pos.x == 2000
+			and math.abs(figures[1].pos.x - figures[3].pos.x) > 1
+			and figures[1].pos.y == figures[3].pos.y
+			and not figures[1].deleted,
+		"the job is yours: three passengers stand side by side along the road"
+	)
 	st = jobs.appState()
 	check(
 		jobs.getActive()
 			and paths[#paths].x == 2000
-			and st.active.short == "Pick up the passenger"
+			and st.active.short == "Pick up the passengers"
 			and st.active.steps[2] == "Drive",
 		"the job is yours: the route leads to the passenger"
 	)
@@ -5408,11 +5563,34 @@ check(
 	for _ = 1, 25 do
 		update(0.1)
 	end
+	check(
+		jobs.appState().active.step == 0 and jobs.appState().active.hint == "Too few seats. Take a bigger car.",
+		"three passengers, two free seats: they don't get in"
+	)
+	table.insert(seatList, { seatId = "RR" })
+	for _ = 1, 25 do
+		update(0.1)
+	end
 	st = jobs.appState()
 	check(
-		st.active.step == 1 and paths[#paths].x == 4000 and lastToastMsg() == "Passenger in: drive to Belasco Auto",
+		st.active.step == 1 and paths[#paths].x == 4000 and lastToastMsg() == "Passengers in: drive to Belasco Auto",
 		"stopped next to them in a car: they get in, the route leads to the place"
 	)
+	check(
+		figures[1].deleted
+			and figures[3].deleted
+			and #figures == 3
+			and seatClaims.RL == "dummy"
+			and seatClaims.RR == "dummy"
+			and seatClaims.FR == "dummy"
+			and not seatClaims.FL,
+		"they get in: gone from the roadside, dummies on the rear seats and, the rear full, the front one"
+	)
+	seatClaims.RL = nil -- the game took one out (the taxi rebuilt in the garage)
+	for _ = 1, 25 do
+		update(0.1)
+	end
+	check(seatClaims.RL == "dummy" and seatClaims.RR == "dummy", "a dummy taken out: they sit down again")
 	-- a bumpy road: the taxi shakes from frame to frame, but that is no jolt
 	for i = 1, 40 do
 		me.v = { x = 0, y = 0, z = (i % 2 == 0) and 1.5 or -1.5 }
@@ -5442,13 +5620,13 @@ check(
 	end
 	-- a hard stop is a jolt: once, not again right after
 	me.v = { x = 15, y = 0, z = 0 }
-	update(0.3)
+	update(0.6)
 	me.v = { x = 0, y = 0, z = 0 }
-	update(0.3)
+	update(0.6)
 	me.v = { x = 15, y = 0, z = 0 }
-	update(0.3)
+	update(0.6)
 	me.v = { x = 0, y = 0, z = 0 }
-	update(0.3)
+	update(0.6)
 	local active = jobs.getActive()
 	check(active.jolts == 1 and lastToastMsg() == "Drive smoother!", "a hard stop is one jolt")
 	st = jobs.appState()
@@ -5456,7 +5634,8 @@ check(
 		st.active.stars == 4 and st.active.payNow == 380 and st.active.pay == 400,
 		"the app shows it at once: 4 stars, the pay as it is now ($380 of $400)"
 	)
-	-- speeding: on the road (limit 20 m/s), more than 15 % over it for 2 s; again after 10 s more
+	-- speeding: on the road (limit 20 m/s), more than 10 % over it: after 2 s they complain, after
+	-- 7 s it costs; staying too fast, both again every 10 s
 	me.p = { x = 2500, y = -2, z = 10 }
 	-- the speed limit sign learns that this is a taxi ride (the player may show it only then)
 	local rideSign
@@ -5482,9 +5661,9 @@ check(
 			update(0.3)
 		end
 	end
-	speedTo(22.5)
+	speedTo(21.5)
 	drive(4)
-	check(active.speeding == 0 and active.jolts == 1, "up to 15 % over the limit: fine (speeding up gently is no jolt)")
+	check(active.speeding == 0 and active.jolts == 1, "up to 10 % over the limit: fine (speeding up gently is no jolt)")
 	speedTo(25.5)
 	me.p.y = -12
 	drive(4)
@@ -5493,11 +5672,18 @@ check(
 	drive(1.5)
 	check(active.speeding == 0, "too fast, but not for 2 s yet: nothing")
 	drive(1)
-	check(active.speeding == 1 and lastToastMsg() == "Too fast!", 'too fast for 2 s: speeding, "Too fast!"')
-	drive(7)
-	check(active.speeding == 1, "still too fast: not counted again at once")
+	check(
+		active.speeding == 0 and lastToastMsg() == "Slow down, please!",
+		"too fast for 2 s: the passengers complain, it costs nothing yet"
+	)
 	drive(4)
-	check(active.speeding == 2, "10 s later: counted again")
+	check(active.speeding == 0, "still too fast, but less than 5 s after they complained: free")
+	drive(1)
+	check(active.speeding == 1 and lastToastMsg() == "Too fast! Less pay.", "5 s after they complained: it costs")
+	drive(5)
+	check(active.speeding == 1 and lastToastMsg() == "Slow down, please!", "staying too fast: they complain again")
+	drive(5)
+	check(active.speeding == 2, "10 s after the first: it costs again")
 	speedTo(0)
 	check(active.jolts == 1, "slowing down gently is no jolt")
 	world.playerVeh = nil
@@ -5513,6 +5699,8 @@ check(
 		done and done.id == 30 and math.abs(done.share - 0.8) < 1e-9 and done.tip == 0,
 		"standing in the ring: handed over; a jolt, speeding twice and new damage cost 20 % of the pay: 3 stars, no tip"
 	)
+	check(next(seatClaims) == nil and #figures == 3, "at the place: the dummies get out")
+	_G.createObject, _G.gameplay_seatOccupants = nil, nil
 	check(
 		taxi.starsFor(0) == 5
 			and taxi.starsFor(0.05) == 4
@@ -5535,8 +5723,8 @@ check(
 		deduction = 40,
 	}))
 	check(
-		world.moneyLabel == "Taxi job: Passenger" and lastToastMsg():find("%$40 rough ride%)") ~= nil,
-		'taxi pay: the toast says "rough ride", not "damage"'
+		world.moneyLabel == "Taxi job: Passenger" and lastToastMsg() == "Job done: +$360 · Rough ride",
+		'taxi pay: one total and "Rough ride", not "Damage"'
 	)
 	handlers.sc_jobPaid(json.encode({
 		payout = "p-31",
@@ -5548,12 +5736,76 @@ check(
 		tip = 75,
 		xp = 40,
 	}))
-	check(lastToastMsg() == "Job done: +$575 (with $75 tip) · +40 XP", "a tip shows in the toast")
+	check(
+		lastToastMsg() == "Job done: +$575 · +40 XP · Smooth ride bonus +$75",
+		"a tip: one total, the tip with its amount"
+	)
+	handlers.sc_jobPaid(json.encode({
+		payout = "p-32",
+		job = 32,
+		type = "taxi",
+		title = "Passenger",
+		pay = 231,
+		deduction = 11,
+		tip = 12,
+		xp = 38,
+	}))
+	check(
+		lastToastMsg() == "Job done: +$231 · +38 XP · Smooth ride bonus +$12",
+		"a tip and a deduction: one total, the tip with its amount"
+	)
+	handlers.sc_jobPaid(json.encode({
+		payout = "p-33",
+		job = 33,
+		type = "taxi",
+		title = "Passenger",
+		pay = 200,
+		deduction = 10,
+		tip = 10,
+		xp = 30,
+	}))
+	check(lastToastMsg() == "Job done: +$200 · +30 XP · Smooth ride bonus +$10", "a small tip shows too")
 	check(
 		math.abs(taxi.penalty({ job = { data = { vip = true } }, jolts = 1, speeding = 1 }) - 0.2) < 1e-9
 			and taxi.penalty({ job = { data = {} }, rough = true }) == 0.5
 			and taxi.penalty({ job = { data = {} }, jolts = 30 }) == 0.5,
 		"a VIP: jolts and speeding cost twice as much; a reset costs half; never more than half"
+	)
+	-- passengers: 1..5, a higher tier makes a group more likely
+	local function share(tier, n)
+		math.randomseed(7)
+		local hits = 0
+		for _ = 1, 2000 do
+			hits = hits + (taxi.rollPassengers(tier) == n and 1 or 0)
+		end
+		return hits / 2000
+	end
+	check(share(1, 1) > 0.7 and share(1, 3) == 0, "tier 1: mostly one passenger, never three")
+	check(
+		share(4, 1) > 0.2 and share(4, 5) > 0.05 and share(4, 5) < 0.2 and share(4, 6) == 0,
+		"tier 4: still often one passenger, sometimes five, never more"
+	)
+	check(
+		taxi.passengersOf({ data = { passengers = 3 } }) == 3
+			and taxi.passengersOf({ data = {} }) == 1
+			and taxi.passengersOf({ data = { passengers = 9 } }) == 5,
+		"a ride has 1..5 passengers"
+	)
+	check(
+		taxi.tags({ data = { passengers = 3 } })[1].text == "3 people"
+			and #taxi.tags({ data = { passengers = 1 } }) == 0,
+		'a group shows "3 people" in the app'
+	)
+	local function seatsText(rear, front, n)
+		return table.concat(taxi.spreadSeats(rear, front, n), ",")
+	end
+	check(
+		seatsText({ "RL", "RM", "RR" }, { "FR" }, 2) == "RL,RR"
+			and seatsText({ "RL", "RM", "RR" }, { "FR" }, 1) == "RM"
+			and seatsText({ "RL", "RR" }, { "FR" }, 1) == "RR"
+			and seatsText({ "RL", "RM", "RR" }, { "FR" }, 4) == "RL,RM,RR,FR"
+			and seatsText({ "R1L", "R1R", "R2L", "R2R" }, {}, 2) == "R1R,R2R",
+		"passengers spread evenly over the rear seats; the front seat only when the rear is full"
 	)
 
 	-- calls: only while on duty, the nearest ride rings the phone; not nagging
@@ -5622,7 +5874,7 @@ check(
 	check(
 		ring
 			and ring.title == "Ride request"
-			and ring.text == "To Belasco Auto"
+			and ring.text == "1 person to Belasco Auto"
 			and ring.detail == "600 m away · $300"
 			and ring.icon == "taxi"
 			and ring.open.app == "jobs"
@@ -5639,7 +5891,10 @@ check(
 	)
 	me.p = { x = 4000, y = -2, z = 10 }
 	wait(4)
-	check(lastRing() and lastRing().text == "To Belasco Auto" and phone.ringing(), "nearer to another ride: it calls")
+	check(
+		lastRing() and lastRing().text == "1 person to Belasco Auto" and phone.ringing(),
+		"nearer to another ride: it calls"
+	)
 	wait(16)
 	check(lastRing() == false and not phone.ringing() and taxi.isOnDuty(), "not answered: it rings out, still on duty")
 	listRides(rideAt(41, 2600), rideAt(42, 4500), rideAt(43, 3600))
@@ -5665,6 +5920,52 @@ check(
 	check(lastSent("sc_jobTake").id == 45 and lastRing() == false, '"Accept": the ride is taken')
 	jobs.uiDuty("taxi", false)
 	check(not taxi.isOnDuty() and lastToastMsg() == "Off duty", "switched off: off duty")
+	-- a group calls only when your vehicle has a seat for each; the app lists it anyway
+	local group = rideAt(46, 4200)
+	group.data.passengers = 3
+	listRides(group)
+	jobs.uiDuty("taxi", true)
+	wait(6)
+	check(
+		not phone.ringing() and #jobs.openJobsOf("taxi") == 1,
+		"a group of three: listed, but no call in a vehicle whose seats can't be counted"
+	)
+	local seats = { { seatId = "FL", isDriver = true }, { seatId = "FR" }, { seatId = "RL" } }
+	_G.gameplay_seatOccupants = {
+		getSeats = function()
+			return seats
+		end,
+		setDummyOccupant = function()
+			return true
+		end,
+	}
+	wait(4)
+	check(not phone.ringing(), "a group of three, two free seats: no call")
+	table.insert(seats, { seatId = "RR" })
+	wait(4)
+	check(
+		phone.ringing() and lastRing().text == "3 people to Belasco Auto",
+		"a seat for each: the group calls, saying how many they are"
+	)
+	phone.uiAnswer(false)
+	jobs.uiDuty("taxi", false)
+	-- calls only while you sit in a vehicle of your own
+	listRides(rideAt(47, 4250))
+	local friend = addVehicle(92, "1-92", false)
+	world.playerVeh = 92 -- watching another player in their car
+	jobs.uiDuty("taxi", true)
+	wait(6)
+	check(not phone.ringing(), "in another player's car: no calls")
+	world.playerVeh = 91 -- on foot
+	wait(4)
+	check(not phone.ringing(), "on foot: no calls")
+	world.playerVeh = 70
+	wait(4)
+	check(phone.ringing(), "back in your own car: the ride calls")
+	phone.uiAnswer(false)
+	jobs.uiDuty("taxi", false)
+	friend.deleted = true
+	_G.gameplay_seatOccupants = nil
 	jobs.uiDuty("taxi", true)
 	phone.uiInstall("jobs", false)
 	check(not taxi.isOnDuty() and taxiSection().duty == false, "Jobs app removed: off duty")
@@ -5703,12 +6004,12 @@ check(
 	local count = #signs
 	wait(2)
 	check(#signs == count, "nothing changed: nothing sent")
-	me.v = { x = 22, y = 0, z = 0 }
+	me.v = { x = 21.5, y = 0, z = 0 }
 	wait(1)
-	check(#signs == count and sign().over == false, "up to 15 % over the limit: no warning")
-	me.v = { x = 24, y = 0, z = 0 }
+	check(#signs == count and sign().over == false, "up to 10 % over the limit: no warning")
+	me.v = { x = 22.5, y = 0, z = 0 }
 	wait(1)
-	check(sign().over == true, "more than 15 % over: the sign warns")
+	check(sign().over == true, "more than 10 % over: the sign warns")
 	units = "imperial"
 	me.v = { x = 0, y = 0, z = 0 }
 	wait(1)
