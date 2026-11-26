@@ -1,0 +1,16 @@
+<!-- Apps: every app on the phone, to install or remove (phone.lua uiInstall, kept in state.json).
+     A removed app is greyed out here and gone from the home screen; Apps itself and Settings
+     always stay, so they have no button. -->
+<div class="scp-appbody">
+	<div class="scp-row" ng-repeat="app in apps track by app.id" ng-class="{'scp-app-off': !app.installed}">
+		<span class="scp-app-icon scp-app-icon-mini" ng-class="appIconClass()" ng-style="appIconStyle(app)">
+			<scp-icon ng-if="hasIcon(app.icon)" name="{{ app.icon }}"></scp-icon>
+			<span ng-if="!hasIcon(app.icon)" ng-bind="app.icon"></span>
+		</span>
+		<span class="scp-row-name" ng-bind="app.title"></span>
+		<button class="scp-btn scp-btn-s" ng-if="app.removable && app.installed"
+			ng-click="setInstalled(app, false)">Remove</button>
+		<button class="scp-btn scp-btn-s scp-btn-primary" ng-if="app.removable && !app.installed"
+			ng-click="setInstalled(app, true)">Install</button>
+	</div>
+</div>

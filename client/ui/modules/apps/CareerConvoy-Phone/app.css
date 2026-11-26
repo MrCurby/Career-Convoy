@@ -538,6 +538,9 @@ button.scp-row:hover .scp-row-go { opacity: 1; }
 .scp-app-icon-mini { width: 30px; height: 30px; border-radius: var(--scp-r-m); font-size: var(--scp-fs-l); }
 .scp-app-icon-mini .scp-icon { width: 18px; height: 18px; }
 
+/*== Apps app (apps/apps.html): a removed app is greyed out ==*/
+.scp-app-off .scp-app-icon, .scp-app-off .scp-row-name { opacity: 0.45; }
+
 /*== Remote for a rope's loose end (shared/remote.html) ==*/
 .scp-remote { display: flex; align-items: center; justify-content: center; gap: 16px; }
 .scp-pad { display: grid; grid-template-columns: 40px 40px 40px; grid-template-rows: 33px 33px 33px; gap: 4px; }
