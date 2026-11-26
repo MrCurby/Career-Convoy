@@ -36,7 +36,7 @@ Type these into the server console, or send them with `./server.sh cmd "..."`.
 
 ## Settings (`config.json`)
 
-The file is `Resources/Server/SharedCareer/config/config.json`. It is created on the first start. Change settings with `sc set` while the server runs, or edit the file and use `sc reload`.
+The file is `Resources/Server/CareerConvoy/config/config.json`. It is created on the first start. Change settings with `sc set` while the server runs, or edit the file and use `sc reload`.
 
 `server.*` settings are used by the server, and `client.*` settings are sent to every player. Many of them can also be changed by players in the [Career-Convoy menu](features.md#the-career-convoy-menu), unless you lock it.
 

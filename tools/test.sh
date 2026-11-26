@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 for f in $(find client -name '*.lua'); do luajit -e "assert(loadfile('$f'))"; done
-lua5.3 -e "assert(loadfile('Resources/Server/SharedCareer/main.lua'))"
+lua5.3 -e "assert(loadfile('Resources/Server/CareerConvoy/main.lua'))"
 luajit tests/client_test.lua
 lua5.3 tests/server_test.lua
 lua5.3 tests/config_update_test.lua

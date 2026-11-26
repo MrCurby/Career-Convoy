@@ -1,4 +1,4 @@
-// SharedCareer :: stand-ins for AngularJS, bngApi, timers, localStorage and window events, so the
+// Career-Convoy :: stand-ins for AngularJS, bngApi, timers, localStorage and window events, so the
 // menu and phone controllers (ui/modules/apps/…/app.js) run in node, outside the game.
 // Used by tests/ui_test.js.
 const fs = require('fs');
@@ -25,7 +25,8 @@ function makeEnv(storage) {
 		env.now = end;
 	};
 	env.window = {
-		localStorage: {getItem: (k) => (k in env.storage ? env.storage[k] : null), setItem: (k, v) => { env.storage[k] = String(v); }},
+		localStorage: {getItem: (k) => (k in env.storage ? env.storage[k] : null), setItem: (k, v) => { env.storage[k] = String(v); },
+			removeItem: (k) => { delete env.storage[k]; }},
 		addEventListener: (n, f) => { (env.listeners[n] = env.listeners[n] || []).push(f); },
 		removeEventListener: (n, f) => { env.listeners[n] = (env.listeners[n] || []).filter(x => x !== f); },
 		dispatchEvent: (ev) => { (env.listeners[ev.type] || []).slice().forEach(f => f(ev)); return true; },
@@ -69,7 +70,7 @@ function load(file, ctrlName, env, root) {
 
 // all uiVisible reports so far, as [view, bool]
 function reports(env, from) {
-	return env.calls.slice(from || 0).map(c => c.match(/sharedCareer_menu\.uiVisible\("(\w+)", (true|false)\)/))
+	return env.calls.slice(from || 0).map(c => c.match(/careerConvoy_menu\.uiVisible\("(\w+)", (true|false)\)/))
 		.filter(Boolean).map(m => [m[1], m[2] === 'true']);
 }
 function last(env, view) {

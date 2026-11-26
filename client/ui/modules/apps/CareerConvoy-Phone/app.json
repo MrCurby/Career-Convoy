@@ -1,0 +1,17 @@
+{
+  "domElement": "<career-convoy-phone></career-convoy-phone>",
+  "name": "Career-Convoy Phone",
+  "types": [
+    "ui.apps.categories.beammp"
+  ],
+  "css": {
+    "right": "0px",
+    "top": "790px",
+    "width": "30px",
+    "height": "80px"
+  },
+  "description": "Career-Convoy: your phone. Tab at the right screen edge (key F4); home for Career-Convoy apps.",
+  "author": "Career-Convoy",
+  "version": "1.0",
+  "directive": "careerConvoyPhone"
+}

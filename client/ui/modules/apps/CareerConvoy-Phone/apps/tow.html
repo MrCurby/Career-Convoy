@@ -1,0 +1,131 @@
+<!-- Tow: rope and winch, as a remote control (tow.lua). Without a rope: attach it (where you look, or
+     to one of your vehicles nearby). With a rope, all on one screen: the rope at a glance, the winch,
+     and the anchor (the remote; near a vehicle, "Hook on" puts it where the ring shows). -->
+<div class="scp-appbody">
+	<div class="scp-card scp-hint" ng-if="!tow.attached && !tow.allowed">Ropes are off on this server.</div>
+
+	<!-- no rope yet: where you look (big), help for a stuck vehicle, your vehicles nearby -->
+	<div class="scp-stack" ng-if="!tow.attached && tow.allowed">
+		<button class="scp-btn scp-btn-primary scp-item scp-attach" ng-click="towCall('uiAttachView()')"
+			title="Aim with the screen center">
+			<span class="scp-item-icon"><scp-icon name="aim"></scp-icon></span>
+			<span class="scp-item-text"><b>Attach rope</b><span>Where you look</span></span>
+		</button>
+		<button class="scp-btn scp-btn-block scp-appear" ng-if="tow.flip" ng-click="towCall('uiFlipUpright()')"
+			title="Put the vehicle you look at on its wheels (free)">
+			<scp-icon name="flip"></scp-icon>Flip upright
+		</button>
+		<button class="scp-btn scp-btn-block scp-btn-road" ng-if="tow.towToRoad" ng-click="towCall('uiTowToRoad()')"
+			title="Put the vehicle you look at back on the road (free)">
+			<scp-icon name="road"></scp-icon>To the road
+		</button>
+		<div class="scp-section-title" ng-if="tow.nearby.length">Your vehicles</div>
+		<button class="scp-row" ng-repeat="v in tow.nearby track by v.id" ng-click="towCall('uiAttachVehicle(' + v.id + ')')"
+			title="Attach the rope">
+			<span class="scp-row-icon"><scp-icon name="car-front"></scp-icon></span>
+			<span class="scp-row-name" ng-bind="v.name"></span>
+			<span class="scp-dim-text" ng-bind="v.distance + ' m'"></span>
+			<scp-icon class="scp-row-go" name="plus"></scp-icon>
+		</button>
+		<div class="scp-hint" ng-if="!tow.nearby.length">No vehicle nearby.</div>
+	</div>
+
+	<!-- rope on: the rope at a glance, then the winch and the anchor, all on one screen -->
+	<div class="scp-stack" ng-if="tow.attached">
+		<div class="scp-tow-head">
+			<span class="scp-tow-name" ng-bind="tow.vehicle"></span>
+			<button class="scp-btn scp-btn-icon scp-btn-road" ng-if="tow.towToRoad" ng-click="towCall('uiTowToRoad()')"
+				title="Put it back on the road (free)"><scp-icon name="road"></scp-icon></button>
+			<button class="scp-btn scp-btn-icon scp-btn-remove" ng-click="towCall('uiRelease()')"
+				title="Remove the rope"><scp-icon name="cut"></scp-icon></button>
+		</div>
+
+		<button class="scp-btn scp-btn-block scp-appear" ng-if="tow.flip" ng-click="towCall('uiFlipUpright()')"
+			title="Put it on its wheels (free)">
+			<scp-icon name="flip"></scp-icon>Flip upright
+		</button>
+
+		<!-- the rope: vehicle – rope (sags when slack, colored by its load, marks run while the winch
+		     turns) – anchor -->
+		<div class="scp-card scp-ropeview" ng-class="ropeState().cls">
+			<span class="scp-ropeend scp-ropeend-car" title="{{ tow.vehicle }}"><scp-icon name="car-front"></scp-icon></span>
+			<span class="scp-ropeline">
+				<svg viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
+					<path class="scp-rope-path" ng-attr-d="{{ ropePath() }}" vector-effect="non-scaling-stroke" />
+					<path class="scp-rope-marks" ng-if="ropeRunning()" ng-class="{'scp-rope-in': tow.winch === 1}"
+						ng-attr-d="{{ ropePath() }}" vector-effect="non-scaling-stroke" />
+				</svg>
+				<span class="scp-pill scp-rope-len" ng-bind="meters(tow.length)"></span>
+				<span class="scp-pill scp-rope-state" ng-bind="ropeState().text"></span>
+			</span>
+			<span class="scp-ropeend" ng-class="{'scp-ropeend-hooked': tow.anchorVehicle}"
+				title="{{ tow.anchorVehicle || 'Anchor' }}">
+				<scp-icon ng-if="tow.anchorVehicle" name="anchor-vehicle"></scp-icon>
+				<scp-icon ng-if="!tow.anchorVehicle" name="anchor"></scp-icon>
+			</span>
+		</div>
+
+		<!-- Winch: its load, three buttons, the strength -->
+		<div class="scp-card scp-panel">
+			<div class="scp-panel-head">
+				<span class="scp-section-title"><scp-icon name="winch"></scp-icon>Winch</span>
+				<span class="scp-segs" title="How hard the winch works">
+					<i ng-repeat="n in winchSegs track by $index" ng-style="segStyle($index)"></i>
+				</span>
+				<span class="scp-meter-text" ng-class="{'scp-meter-limit': tow.winch === 1 && tow.strain >= 0.95}"
+					ng-bind="winchText()"></span>
+			</div>
+			<div class="scp-winch">
+				<button class="scp-btn scp-btn-tile" ng-class="{'scp-btn-primary': tow.winch === -1}"
+					ng-click="towCall('uiWinch(-1)')" title="The rope gets longer">
+					<scp-icon name="winch-out"></scp-icon>Pay out
+				</button>
+				<button class="scp-btn scp-btn-tile" ng-class="{'scp-btn-primary': tow.winch === 0}"
+					ng-click="towCall('uiWinch(0)')" title="Lock the rope">
+					<scp-icon name="stop"></scp-icon>Stop
+				</button>
+				<button class="scp-btn scp-btn-tile" ng-class="{'scp-btn-primary': tow.winch === 1}"
+					ng-click="towCall('uiWinch(1)')" title="Pull the vehicle to the anchor">
+					<scp-icon name="winch-in"></scp-icon>Haul in
+				</button>
+			</div>
+			<scp-segment-select label="Strength" options="tow.strengthOptions" selected="tow.strength"
+				on-select="towCall('uiStrength(' + id + ')')" ng-class="{'scp-attention': tow.stuck}"
+				title="Pull strength, in % of the vehicle's weight"></scp-segment-select>
+			<div class="scp-hint scp-hint-warn" ng-if="tow.stuck">Too heavy? Use more strength.</div>
+		</div>
+
+		<!-- Anchor: hooked onto a vehicle, or the remote to move it -->
+		<div class="scp-card scp-panel">
+			<div class="scp-panel-head">
+				<span class="scp-section-title"><scp-icon name="anchor"></scp-icon>Anchor</span>
+				<span class="scp-panel-info" ng-if="!tow.anchorVehicle && tow.distance !== undefined"
+					ng-bind="meters(tow.distance)" title="From the vehicle to the anchor"></span>
+				<button class="scp-btn scp-btn-s scp-panel-end" ng-if="!tow.anchorVehicle" ng-class="{'scp-btn-primary': tow.fine}"
+					ng-click="towCall('uiFine(' + !tow.fine + ')')" title="Slower, for exact placing">Fine</button>
+			</div>
+			<div class="scp-card scp-card-ok scp-item" ng-if="tow.anchorVehicle">
+				<span class="scp-item-icon scp-item-icon-ok"><scp-icon name="anchor-vehicle"></scp-icon></span>
+				<span class="scp-item-text">
+					<span ng-bind="tow.anchorHitch ? 'On the hitch of' : 'Hooked onto'"></span>
+					<b ng-bind="tow.anchorVehicle"></b>
+				</span>
+				<button class="scp-btn scp-btn-s" ng-click="towCall('uiUnhook()')"
+					title="The anchor stays where it is">Unhook</button>
+			</div>
+			<button class="scp-btn scp-btn-primary scp-item scp-appear" ng-if="tow.strapDown" ng-disabled="tow.strapBusy"
+				ng-click="towCall('uiStrapDown()')" title="Strap it onto this vehicle">
+				<span class="scp-item-icon"><scp-icon name="straps"></scp-icon></span>
+				<span class="scp-item-text"><b>Strap down</b><span ng-bind="tow.anchorVehicle"></span></span>
+			</button>
+			<div ng-if="!tow.anchorVehicle" ng-include="'/ui/modules/apps/CareerConvoy-Phone/shared/remote.html'"></div>
+			<!-- "Hook on": only while the anchor is near a point it can hook onto; green on a tow hitch -->
+			<button class="scp-btn scp-item scp-appear" ng-if="!tow.anchorVehicle && tow.hookOn"
+				ng-class="tow.hookOn.hitch ? 'scp-btn-ok' : 'scp-btn-primary'" ng-click="towCall('uiHookOn()')"
+				title="Put the anchor where the ring is">
+				<span class="scp-item-icon"><scp-icon name="anchor-vehicle"></scp-icon></span>
+				<span class="scp-item-text"><b>Hook on</b><span ng-bind="tow.hookOn.vehicle"></span></span>
+			</button>
+		</div>
+	</div>
+</div>

@@ -19,8 +19,8 @@ if [ -n "$(git diff --name-only "$(git merge-base "$BASE" HEAD)" HEAD -- "$SCRIP
 	fi
 	echo "Version check: $SCRIPT revision ${R_OLD:-0} -> $R_NEW."
 fi
-SERVER=$(sed -n 's/^local VERSION = "\(.*\)"$/\1/p' Resources/Server/SharedCareer/main.lua)
-CLIENT=$(sed -n 's/^M.VERSION = "\(.*\)"$/\1/p' client/lua/ge/extensions/sharedCareer/util.lua)
+SERVER=$(sed -n 's/^local VERSION = "\(.*\)"$/\1/p' Resources/Server/CareerConvoy/main.lua)
+CLIENT=$(sed -n 's/^M.VERSION = "\(.*\)"$/\1/p' client/lua/ge/extensions/careerConvoy/util.lua)
 if [ "$SERVER" != "dev" ] || [ "$CLIENT" != "dev" ]; then
 	echo "Version check failed: the version in the code must stay \"dev\" (server: $SERVER, client: $CLIENT)." >&2
 	echo "A release sets it: Actions → Release → Run workflow (docs/releasing.md)." >&2

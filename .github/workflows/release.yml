@@ -7,7 +7,7 @@
 #   review    optional: a draft first. Edit its text on GitHub (Releases), then "Publish
 #             release" – only that posts it to Discord and lets servers install it.
 # The run: stops with a note if the mod is unchanged since the last release; otherwise runs all
-# tests, builds SharedCareer-<version>.zip with the version stamped in (tools/package.sh) and
+# tests, builds CareerConvoy-<version>.zip with the version stamped in (tools/package.sh) and
 # creates release v<version> with the notes of the pull requests since the last release
 # (tools/release_notes.sh), then posts it to Discord (tools/discord_release.sh, if the secret
 # DISCORD_RELEASE_WEBHOOK holds a webhook of the releases channel).
@@ -101,7 +101,9 @@ jobs:
           fi
           draft=()
           if [ "$REVIEW" = "true" ]; then draft=(--draft); fi
-          gh release create "v$v" "SharedCareer-$v.zip" "${draft[@]}" \
+          # the same zip under the name from before the rename, for servers whose server.sh only knows that
+          cp "CareerConvoy-$v.zip" "SharedCareer-$v.zip"
+          gh release create "v$v" "CareerConvoy-$v.zip" "SharedCareer-$v.zip" "${draft[@]}" \
             --target "$(git rev-parse HEAD)" \
             --title "Career-Convoy $v" \
             --notes-file "$RUNNER_TEMP/notes.md"

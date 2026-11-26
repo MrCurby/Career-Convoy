@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 268 566" preserveAspectRatio="xMidYMid slice">
+	<!-- Career-Convoy phone wallpaper: Hazard, a band of warning stripes -->
+	<defs>
+		<pattern id="p" width="28" height="28" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="14" height="28" fill="#ff9d1a"/><rect x="14" width="14" height="28" fill="#17181c"/></pattern>
+		<linearGradient id="d" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1d1f24"/><stop offset="1" stop-color="#111215"/></linearGradient>
+	</defs>
+	<rect width="268" height="566" fill="url(#d)"/>
+	<g transform="rotate(-18 134 440)">
+		<rect x="-80" y="404" width="430" height="64" fill="url(#p)" opacity="0.85"/>
+		<rect x="-80" y="398" width="430" height="4" fill="#ff9d1a" opacity="0.5"/>
+		<rect x="-80" y="470" width="430" height="4" fill="#ff9d1a" opacity="0.5"/>
+	</g>
+</svg>

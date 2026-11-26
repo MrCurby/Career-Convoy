@@ -4,7 +4,7 @@
 package.path = "./tests/?.lua;" .. package.path
 local json = require("json")
 -- the version in the code ("dev"; a release stamps its own in, see tools/package.sh)
-local VERSION = io.open("client/lua/ge/extensions/sharedCareer/util.lua"):read("*a"):match('M%.VERSION = "(.-)"')
+local VERSION = io.open("client/lua/ge/extensions/careerConvoy/util.lua"):read("*a"):match('M%.VERSION = "(.-)"')
 
 local ROOT = "client/lua/ge/extensions/"
 local clock = 0
@@ -240,7 +240,7 @@ local function resetWorld()
 		_G[name] = m
 		table.insert(order, name)
 	end
-	assert(loadfile("client/scripts/sharedCareer/modScript.lua"))()
+	assert(loadfile("client/scripts/careerConvoy/modScript.lua"))()
 end
 
 local function addVehicle(gameId, serverId, own, jbeam)
@@ -434,7 +434,7 @@ installCareer()
 extensions.hook("onWorldReadyState", 2)
 handlers.sc_config(json.encode(config))
 check(ran.b == true, "handler after the failing one still runs")
-check(sharedCareer_protect.getFailures()[1] == "career_modules_a", "error is logged")
+check(careerConvoy_protect.getFailures()[1] == "career_modules_a", "error is logged")
 update()
 local ok = pcall(extensions.hook, "onCareerActive", true)
 check(not ok, "after the start the protection is gone again (game behavior unchanged)")
@@ -474,7 +474,7 @@ for _ = 1, 5 do
 end
 local depth = 0
 local fn = core_vehicles.replaceVehicle
-check(sharedCareer_util.isOurs(fn), "wrapper is in place")
+check(careerConvoy_util.isOurs(fn), "wrapper is in place")
 -- A reloaded module (new function) is wrapped again, but never twice
 core_vehicles.replaceVehicle = function(m, o, other)
 	world.rebuilt = getPlayerVehicle(0).id
@@ -482,7 +482,7 @@ end
 update(1.1)
 local w1 = core_vehicles.replaceVehicle
 update(1.1)
-check(w1 == core_vehicles.replaceVehicle and sharedCareer_util.isOurs(w1), "no double wrapping")
+check(w1 == core_vehicles.replaceVehicle and careerConvoy_util.isOurs(w1), "no double wrapping")
 
 -- unicycle visible
 core_vehicles.spawnNewVehicle("unicycle", { config = "vehicles/unicycle/without_mesh.pc" })
@@ -807,7 +807,7 @@ _G.log = function(level, tag, msg)
 end
 local fakeAi, fakeEgo, fakeTraffic = makeFakeAi()
 _G.ai = fakeAi
-local veh = dofile("client/lua/vehicle/extensions/auto/sharedCareerVeh.lua")
+local veh = dofile("client/lua/vehicle/extensions/auto/careerConvoyVeh.lua")
 local gameSight = fakeTraffic.Rfl_fun
 check(veh.setAiTuning(1.0, 5) == true, "AI tables found through nested upvalues")
 check(fakeEgo.race_time_gap == 1.0, "safety gap set to 1 s (game 0.3 s)")
@@ -834,14 +834,14 @@ _G.ai = {
 		return 1
 	end,
 }
-veh = dofile("client/lua/vehicle/extensions/auto/sharedCareerVeh.lua")
+veh = dofile("client/lua/vehicle/extensions/auto/careerConvoyVeh.lua")
 vehLogs = {}
 check(veh.setAiTuning(1.0, 5) == false and veh.setAiTuning(1.0, 5) == false, "internals not found: nothing changed")
 check(#vehLogs == 1 and vehLogs[1]:find("not found"), "internals not found: logged once")
 -- debug library not available: nothing changed
 fakeAi, fakeEgo = makeFakeAi()
 _G.ai = fakeAi
-veh = dofile("client/lua/vehicle/extensions/auto/sharedCareerVeh.lua")
+veh = dofile("client/lua/vehicle/extensions/auto/careerConvoyVeh.lua")
 local savedDebug = _G.debug
 _G.debug = nil
 local okNoDebug = veh.setAiTuning(1.0, 5)
@@ -1073,7 +1073,7 @@ do
 		})
 	end
 	local function loadVeh(withHook)
-		local chunk = assert(loadfile("client/lua/vehicle/extensions/auto/sharedCareerVeh.lua"))
+		local chunk = assert(loadfile("client/lua/vehicle/extensions/auto/careerConvoyVeh.lua"))
 		setfenv(chunk, makeEnv(withHook))
 		return chunk()
 	end
@@ -1139,7 +1139,7 @@ do
 	local reply = body.ge[#body.ge] or ""
 	local rt, rx = reply:match("onRopeTied%(77, 1, ([%d%.]+), ([-%d%.]+),")
 	check(
-		reply:find("sharedCareer_rope.onRopeTied")
+		reply:find("careerConvoy_rope.onRopeTied")
 			and math.abs(tonumber(rt) - 8) < 0.01
 			and math.abs(tonumber(rx) - 2) < 0.01,
 		"ties to the node you point at (front-most on the ray) and reports grip and distance: " .. reply
@@ -1455,13 +1455,13 @@ local function placedVeh(id, x, y, z, jbeam, remote)
 end
 -- the id of the tow rope (the vehicle reports with it)
 function rid() -- global: the test file is at its limit of 200 locals
-	local r = sharedCareer_tow.rope()
+	local r = careerConvoy_tow.rope()
 	return r and r.id or -1
 end
 -- last rope command sent to a vehicle: name and numbers, without the rope id (and the kind of a tie)
 local function lastHand(v)
 	for i = #v.lua, 1, -1 do
-		local name, args = v.lua[i]:match("sharedCareerVeh%.(rope%a+)%(([^)]*)%)")
+		local name, args = v.lua[i]:match("careerConvoyVeh%.(rope%a+)%(([^)]*)%)")
 		if name then
 			local nums = {}
 			for n in args:gmatch("[-%d%.]+") do
@@ -1479,13 +1479,13 @@ end
 local alive = nil
 local function handState(id, ...)
 	alive = { id, ... }
-	sharedCareer_rope.onRopeState(id, rid(), ...)
+	careerConvoy_rope.onRopeState(id, rid(), ...)
 end
 local function frames(seconds, dt)
 	dt = dt or 1 / 60
 	for i = 1, math.floor(seconds / dt + 0.5) do
-		if alive and i % 6 == 0 and sharedCareer_tow.isHolding() then
-			sharedCareer_rope.onRopeState(alive[1], rid(), unpack(alive, 2))
+		if alive and i % 6 == 0 and careerConvoy_tow.isHolding() then
+			careerConvoy_rope.onRopeState(alive[1], rid(), unpack(alive, 2))
 		end
 		extensions.hook("onUpdate", dt)
 	end
@@ -1510,9 +1510,9 @@ end
 check(ropeKeys == 0, "no keys for the rope: everything runs in the Tow app")
 -- attach where I look: the view ray passes the truck
 fwd = { x = 1, y = 0, z = -0.1 }
-check(sharedCareer_tow.uiAttachView(), "attach where I look")
+check(careerConvoy_tow.uiAttachView(), "attach where I look")
 local name, a = lastHand(truck)
-check(sharedCareer_tow.isHolding() and name == "ropeTieRay", "rope attached: the view ray is sent to the vehicle")
+check(careerConvoy_tow.isHolding() and name == "ropeTieRay", "rope attached: the view ray is sent to the vehicle")
 check(
 	a and a[1] == 0 and a[2] == 0 and a[3] == 2 and a[4] > 0.99 and a[7] == 120 and a[8] == 1 and a[9] == 60,
 	"camera position, view direction, speed 1 m/s and strength 60 % sent along"
@@ -1520,7 +1520,7 @@ check(
 frames(0.2)
 check(lastHand(truck) == "ropeTieRay", "nothing is sent until the vehicle reports where the rope is tied")
 -- the vehicle reports where it tied the rope: the anchor starts there
-sharedCareer_rope.onRopeTied(60, rid(), 9.0, 9, 0, 1)
+careerConvoy_rope.onRopeTied(60, rid(), 9.0, 9, 0, 1)
 handState(60, 9, 0, 1, 0, 1, 0)
 frames(0.1)
 name, a = lastHand(truck)
@@ -1537,15 +1537,15 @@ frames(0.2)
 name, a = lastHand(truck)
 check(a[1] == 9 and a[2] == 0, "looking around: the anchor stays where it is")
 -- winch on
-sharedCareer_tow.uiWinch(1)
+careerConvoy_tow.uiWinch(1)
 frames(0.1)
 name, a = lastHand(truck)
 check(a[4] == 1, "winch on")
 -- move the anchor 4 m towards you with the remote (seen from the camera: x is forward)
 fwd = { x = 1, y = 0, z = 0 }
-sharedCareer_tow.uiNudge(-1, 0, 0)
+careerConvoy_tow.uiNudge(-1, 0, 0)
 frames(4)
-sharedCareer_tow.uiNudgeStop()
+careerConvoy_tow.uiNudgeStop()
 frames(0.1)
 name, a = lastHand(truck)
 check(
@@ -1559,10 +1559,10 @@ frames(0.1)
 name, a = lastHand(truck)
 check(a[6] == 0.5 and a[7] == 60, "settings applied live; the player's pick (60 %) stays")
 -- pull strength picked in the Tow app, capped at the server's maximum
-sharedCareer_tow.uiStrength(150)
+careerConvoy_tow.uiStrength(150)
 frames(0.1)
 name, a = lastHand(truck)
-local st = sharedCareer_tow.appState()
+local st = careerConvoy_tow.appState()
 check(
 	a[7] == 150 and st.strength == 150 and st.maxStrength == 150 and #st.strengths == 4,
 	"Tow app: 150 % picked, sent to the vehicle right away"
@@ -1571,16 +1571,16 @@ cfgG.winchStrength = 100
 handlers.sc_configUpdate(json.encode(cfgG))
 frames(0.1)
 name, a = lastHand(truck)
-st = sharedCareer_tow.appState()
+st = careerConvoy_tow.appState()
 check(
 	a[7] == 100 and st.strength == 100 and #st.strengths == 3 and st.strengths[3] == 100,
 	"server maximum 100 %: the pick is capped, 150 % is not offered"
 )
 cfgG.winchStrength = 80
 handlers.sc_configUpdate(json.encode(cfgG))
-st = sharedCareer_tow.appState()
+st = careerConvoy_tow.appState()
 check(st.strengths[#st.strengths] == 80 and st.strength == 80, "odd server maximum (80 %) is offered as its own choice")
-sharedCareer_tow.uiStrength(60)
+careerConvoy_tow.uiStrength(60)
 cfgG.winchSpeed, cfgG.winchStrength = 1, 150
 handlers.sc_configUpdate(json.encode(cfgG))
 -- drawing: rope grey when slack, the color of the rope's own load when taut (its color while safe,
@@ -1655,7 +1655,7 @@ frames(1)
 drawn = {}
 frames(1 / 60)
 check(near(drawn[1].c.g, 0.84), "then the rope's own color again")
-sharedCareer_tow.uiWinch(0)
+careerConvoy_tow.uiWinch(0)
 handState(60, 9, 0, 1, 0, 1, 4)
 frames(1)
 drawn = {}
@@ -1664,25 +1664,25 @@ check(
 	near(drawn[1].c.r, 0.7) and near(drawn[1].c.g, 0.7) and drawn[#drawn - 2].c.r == 1 and drawn[#drawn - 2].c.g == 1,
 	"slack rope: grey line (faded); winch off: white anchor"
 )
-sharedCareer_tow.uiNudge(0, 0, 0)
+careerConvoy_tow.uiNudge(0, 0, 0)
 drawn = {}
 frames(1 / 60)
 check(drawn[#drawn - 2].c.b > 0.9 and drawn[#drawn - 2].c.r < 0.5, "moving the anchor: cyan anchor")
-sharedCareer_tow.uiNudgeStop()
+careerConvoy_tow.uiNudgeStop()
 do
 	-- sag: a slack rope is drawn as a curve below the straight line, a taut one straight
 	check(
-		sharedCareer_rope.sagDepth(4, 4, 4) == 0 and sharedCareer_rope.sagDepth(4, 4, 3) == 0,
+		careerConvoy_rope.sagDepth(4, 4, 4) == 0 and careerConvoy_rope.sagDepth(4, 4, 3) == 0,
 		"sag: none when the rope is as long as the distance or shorter"
 	)
-	local s5 = sharedCareer_rope.sagDepth(4, 4, 5)
+	local s5 = careerConvoy_rope.sagDepth(4, 4, 5)
 	check(math.abs(s5 - math.sqrt(1.5)) < 1e-6 and 4 + 8 * s5 ^ 2 / 12 == 5, "sag: parabola about as long as the rope")
 	check(
-		sharedCareer_rope.sagDepth(4, 0, 6) == 0
-			and sharedCareer_rope.sagDepth(4, 2, 6) < sharedCareer_rope.sagDepth(4, 4, 6),
+		careerConvoy_rope.sagDepth(4, 0, 6) == 0
+			and careerConvoy_rope.sagDepth(4, 2, 6) < careerConvoy_rope.sagDepth(4, 4, 6),
 		"sag: a steep rope hangs along itself"
 	)
-	check(sharedCareer_rope.sagDepth(10, 10, 60) == 6, "sag: limited")
+	check(careerConvoy_rope.sagDepth(10, 10, 60) == 6, "sag: limited")
 	local function lowest()
 		local z = math.huge
 		for _, d in ipairs(drawn) do
@@ -1746,7 +1746,7 @@ do
 			end
 		end
 	end
-	sharedCareer_rope.resetShapes()
+	careerConvoy_rope.resetShapes()
 	shapes = {}
 	frames(1 / 60)
 	check(
@@ -1765,7 +1765,7 @@ do
 		find("cylinder").a.x == 9 and math.abs(find("cylinder").b.x - 5) < 0.1,
 		"rope: a cylinder from the grip to the anchor"
 	)
-	sharedCareer_tow.setAppOpen(true)
+	careerConvoy_tow.setAppOpen(true)
 	shapes = {}
 	frames(1 / 60)
 	local sg = find("text")
@@ -1773,7 +1773,7 @@ do
 		sg and sg.t == "Locked",
 		"Tow app open, winch stopped: the sign says it is locked (" .. tostring(sg and sg.t) .. ")"
 	)
-	sharedCareer_tow.uiWinch(1)
+	careerConvoy_tow.uiWinch(1)
 	shapes = {}
 	frames(1 / 60)
 	sg = find("text")
@@ -1781,10 +1781,10 @@ do
 		sg and sg.t:find("^Winch %d+ %%"),
 		"hauling in: the sign shows the winch's load (" .. tostring(sg and sg.t) .. ")"
 	)
-	sharedCareer_tow.uiWinch(0)
-	sharedCareer_tow.setAppOpen(false)
+	careerConvoy_tow.uiWinch(0)
+	careerConvoy_tow.setAppOpen(false)
 	-- winch hauling in: the pin's ball pulses
-	sharedCareer_tow.uiWinch(1)
+	careerConvoy_tow.uiWinch(1)
 	local radii = {}
 	for _ = 1, 20 do
 		shapes = {}
@@ -1802,7 +1802,7 @@ do
 		lo, hi = math.min(lo, r), math.max(hi, r)
 	end
 	check(hi - lo > 0.03, string.format("winch hauling in: the anchor ball pulses (%.3f-%.3f)", lo, hi))
-	sharedCareer_tow.uiWinch(0)
+	careerConvoy_tow.uiWinch(0)
 	-- a missing shape falls back to lines, without errors
 	_G.debugDrawer.drawSphere = nil
 	shapes = {}
@@ -1812,7 +1812,7 @@ do
 		"no drawSphere: balls drawn as crosses"
 	)
 	_G.debugDrawer, _G.String, _G.ColorI = lineOnly, nil, nil
-	sharedCareer_rope.resetShapes()
+	careerConvoy_rope.resetShapes()
 	-- the winch gauge above the anchor: a ring facing the camera that fills with the winch's load
 	fwd = { x = 1, y = 0, z = 0 }
 	local function gauge()
@@ -1833,7 +1833,7 @@ do
 		end
 		return ring, filled, red
 	end
-	sharedCareer_tow.uiWinch(1)
+	careerConvoy_tow.uiWinch(1)
 	handState(60, 9, 0, 1, 0.5, 0, 4, 0.1)
 	frames(0.3)
 	local ring, filled, red = gauge()
@@ -1844,7 +1844,7 @@ do
 	handState(60, 9, 0, 1, 1, 0, 4, 0.1)
 	ring, filled, red = gauge()
 	check(red >= 46, "winch at its limit: the gauge is full and red (it blinks)")
-	sharedCareer_tow.uiWinch(0)
+	careerConvoy_tow.uiWinch(0)
 	handState(60, 9, 0, 1, 0, 1, 4, 0)
 	ring = gauge()
 	check(ring == 0, "rope slack and the winch stopped: no gauge")
@@ -1879,7 +1879,7 @@ do
 		local length = 4
 		for _ = 1, seconds * 10 do
 			length = length + rate * 0.1
-			sharedCareer_rope.onRopeState(60, rid(), 9, 0, 1, 0.5, 0, length)
+			careerConvoy_rope.onRopeState(60, rid(), 9, 0, 1, 0.5, 0, length)
 			frames(0.1)
 		end
 		drawn = {}
@@ -1912,8 +1912,8 @@ do
 	drawn = {}
 	frames(1 / 60)
 	local anchorAt = drawn[1].p2
-	sharedCareer_tow.uiRelease()
-	check(not sharedCareer_tow.isHolding() and lastHand(truck) == "ropeRelease", "remove rope: ropeRelease sent")
+	careerConvoy_tow.uiRelease()
+	check(not careerConvoy_tow.isHolding() and lastHand(truck) == "ropeRelease", "remove rope: ropeRelease sent")
 	drawn = {}
 	frames(1 / 60)
 	local snapStart = drawn[1]
@@ -1945,25 +1945,25 @@ do
 	local function attachTruck()
 		alive = nil
 		fwd = { x = 1, y = 0, z = -0.1 }
-		sharedCareer_tow.uiAttachView()
-		sharedCareer_rope.onRopeTied(60, rid(), 9.0, 9, 0, 1, 7)
+		careerConvoy_tow.uiAttachView()
+		careerConvoy_rope.onRopeTied(60, rid(), 9.0, 9, 0, 1, 7)
 		handState(60, 9, 0, 1, 0, 1, 0)
 	end
 	fwd = { x = 1, y = 0, z = -0.1 }
 	alive = nil
-	sharedCareer_tow.uiAttachView()
+	careerConvoy_tow.uiAttachView()
 	frames(2.5)
 	check(
-		not sharedCareer_tow.isHolding() and lastToast():find("Can't attach"),
+		not careerConvoy_tow.isHolding() and lastToast():find("Can't attach"),
 		"the vehicle never reports a grip: released after 2 s, with a message"
 	)
 	attachTruck()
 	alive = nil
 	frames(1.5)
-	check(sharedCareer_tow.isHolding(), "a short silence is fine")
+	check(careerConvoy_tow.isHolding(), "a short silence is fine")
 	frames(1)
 	check(
-		not sharedCareer_tow.isHolding() and lastToast():find("came loose"),
+		not careerConvoy_tow.isHolding() and lastToast():find("came loose"),
 		"no word from the vehicle for 2 s (its Lua was reloaded): released"
 	)
 	attachTruck()
@@ -1971,37 +1971,37 @@ do
 	for _ = 1, 300 do
 		extensions.hook("onUpdate", 1 / 60, 0)
 	end
-	check(sharedCareer_tow.isHolding(), "game paused (no game time): the watchdog waits")
+	check(careerConvoy_tow.isHolding(), "game paused (no game time): the watchdog waits")
 	attachTruck()
-	sharedCareer_rope.onRopeLost(60, rid(), 1)
+	careerConvoy_rope.onRopeLost(60, rid(), 1)
 	check(
-		not sharedCareer_tow.isHolding() and lastToast():find("reset"),
+		not careerConvoy_tow.isHolding() and lastToast():find("reset"),
 		"the vehicle drops the rope after a reset: released"
 	)
 	attachTruck()
-	sharedCareer_rope.onRopeLost(60, rid(), 3)
+	careerConvoy_rope.onRopeLost(60, rid(), 3)
 	check(
-		not sharedCareer_tow.isHolding() and lastToast():find("tore off"),
+		not careerConvoy_tow.isHolding() and lastToast():find("tore off"),
 		"a torn-off part: released with its own message"
 	)
 	attachTruck()
-	sharedCareer_rope.onRopeLost(60, rid(), 4)
+	careerConvoy_rope.onRopeLost(60, rid(), 4)
 	check(
-		not sharedCareer_tow.isHolding() and lastToast():find("snapped"),
+		not careerConvoy_tow.isHolding() and lastToast():find("snapped"),
 		"the rope snapped (overload): released with its own message"
 	)
 	attachTruck()
-	sharedCareer_rope.onRopeLost(61, rid(), 1)
-	check(sharedCareer_tow.isHolding(), "another vehicle's report doesn't touch the rope")
+	careerConvoy_rope.onRopeLost(61, rid(), 1)
+	check(careerConvoy_tow.isHolding(), "another vehicle's report doesn't touch the rope")
 	extensions.hook("onVehicleResetted", 60)
-	check(not sharedCareer_tow.isHolding() and lastHand(truck) == "ropeRelease", "vehicle reset (R): rope removed")
+	check(not careerConvoy_tow.isHolding() and lastHand(truck) == "ropeRelease", "vehicle reset (R): rope removed")
 	-- a hitch: the anchor remote moves at most MAX_STEP worth
 	attachTruck()
 	frames(0.1)
 	fwd = { x = 1, y = 0, z = 0 }
-	sharedCareer_tow.uiNudge(1, 0, 0)
+	careerConvoy_tow.uiNudge(1, 0, 0)
 	frames(1, 1)
-	sharedCareer_tow.uiNudgeStop()
+	careerConvoy_tow.uiNudgeStop()
 	frames(0.1)
 	local _, h = lastHand(truck)
 	check(
@@ -2027,26 +2027,26 @@ do
 	check(drawn[1].p1.x == 9, "an implausible node position falls back to the last report")
 	truck.getNodePosition = nil
 	-- at the limit for a while (while hauling in): shown in the Tow app and on the sign
-	sharedCareer_tow.uiWinch(1)
+	careerConvoy_tow.uiWinch(1)
 	handState(60, 9, 0, 1, 1, 0, 4)
 	frames(1)
-	check(not sharedCareer_tow.appState().stuck, "at the limit for a moment: not stuck yet")
+	check(not careerConvoy_tow.appState().stuck, "at the limit for a moment: not stuck yet")
 	frames(1.5)
-	check(sharedCareer_tow.appState().stuck, "at the limit for 2 s: the Tow app says so")
+	check(careerConvoy_tow.appState().stuck, "at the limit for 2 s: the Tow app says so")
 	handState(60, 9, 0, 1, 0.3, 0, 4)
 	frames(0.2)
-	check(not sharedCareer_tow.appState().stuck, "it pulls easier again: no longer stuck")
+	check(not careerConvoy_tow.appState().stuck, "it pulls easier again: no longer stuck")
 	handState(60, 9, 0, 1, 1, 0, 4)
-	sharedCareer_tow.uiWinch(0)
+	careerConvoy_tow.uiWinch(0)
 	frames(2.5)
-	check(not sharedCareer_tow.appState().stuck, "stopped (locked): never stuck")
+	check(not careerConvoy_tow.appState().stuck, "stopped (locked): never stuck")
 	-- a floating anchor: dashed drop line and a disc on the ground (castRayStatic)
 	_G.castRayStatic = function(from, dir, range)
 		return from.z - 0
 	end -- ground at z = 0
-	sharedCareer_tow.uiNudge(0, 0, 1)
+	careerConvoy_tow.uiNudge(0, 0, 1)
 	frames(1)
-	sharedCareer_tow.uiNudgeStop()
+	careerConvoy_tow.uiNudgeStop()
 	drawn = {}
 	frames(1 / 60)
 	local drops = 0
@@ -2065,7 +2065,7 @@ do
 	-- let go of a slack rope: its loose end drops and the rope fades out
 	handState(60, 9, 0, 1, 0, 1, 4)
 	frames(1)
-	sharedCareer_tow.uiRelease()
+	careerConvoy_tow.uiRelease()
 	drawn = {}
 	frames(1 / 60)
 	local dropStart = drawn[1]
@@ -2099,7 +2099,7 @@ end
 local before = #truck.lua
 frames(1)
 check(probeCount(before) == 0, "on foot without the Tow app: no preview")
-sharedCareer_tow.setAppOpen(true)
+careerConvoy_tow.setAppOpen(true)
 before = #truck.lua
 frames(1)
 local probes = probeCount(before)
@@ -2107,25 +2107,25 @@ check(
 	probes >= 4 and probes <= 6,
 	"Tow app open: the vehicle is asked where the rope would attach (" .. probes .. "x per second)"
 )
-sharedCareer_rope.onTieProbe(60, 9, 0, 1)
+careerConvoy_rope.onTieProbe(60, 9, 0, 1)
 drawn = {}
 frames(1 / 60)
 check(#drawn == 3 and drawn[1].c.b > 0.9, "preview: a blue cross where the rope would attach")
-sharedCareer_tow.setAppOpen(false)
+careerConvoy_tow.setAppOpen(false)
 drawn = {}
 frames(1 / 60)
 check(#drawn == 0, "Tow app closed: preview gone")
 fwd = nil
 -- Tow app on the phone
 local towApp
-for _, app in ipairs(sharedCareer_phone.state().apps) do
+for _, app in ipairs(careerConvoy_phone.state().apps) do
 	if app.id == "tow" then
 		towApp = app
 	end
 end
 check(towApp and towApp.title == "Tow" and towApp.icon == "tow", "the Tow app is on the phone")
-sharedCareer_phone.uiOpenApp("tow")
-local appSt = sharedCareer_tow.appState()
+careerConvoy_phone.uiOpenApp("tow")
+local appSt = careerConvoy_tow.appState()
 check(
 	appSt.allowed
 		and not appSt.attached
@@ -2139,52 +2139,52 @@ for _, v in ipairs(appSt.nearby) do
 end
 -- attach from the list: at the vehicle's point closest to you
 check(
-	sharedCareer_tow.uiAttachVehicle(60) and lastHand(truck) == "ropeTieNearest",
+	careerConvoy_tow.uiAttachVehicle(60) and lastHand(truck) == "ropeTieNearest",
 	"attach from the list: rope at the closest point"
 )
-sharedCareer_rope.onRopeTied(60, rid(), 9, 9, 0, 1)
+careerConvoy_rope.onRopeTied(60, rid(), 9, 9, 0, 1)
 handState(60, 9, 0, 1, 0, 1, 0)
-appSt = sharedCareer_tow.appState()
+appSt = careerConvoy_tow.appState()
 check(appSt.attached and appSt.vehicle == "Pickup" and appSt.winch == 0, "app shows the roped vehicle, winch stopped")
 -- remote control: hold "forward" -> the anchor moves away (seen from the camera), rope pays out
 fwd = { x = 1, y = 0, z = 0 }
-sharedCareer_tow.uiNudge(1, 0, 0)
+careerConvoy_tow.uiNudge(1, 0, 0)
 frames(1)
 name, a = lastHand(truck)
 check(
 	math.abs(a[1] - 10) < 0.1 and a[5] == 1,
 	string.format("hold forward: anchor 1 m/s away, rope pays out (x = %.2f)", a[1])
 )
-sharedCareer_tow.uiNudge(0, 1, 0)
+careerConvoy_tow.uiNudge(0, 1, 0)
 frames(1)
 name, a = lastHand(truck)
 check(math.abs(a[2] + 1) < 0.1, string.format("hold right: anchor 1 m to the right (y = %.2f)", a[2]))
-sharedCareer_tow.uiNudge(0, 0, 1)
-sharedCareer_tow.uiFine(true)
+careerConvoy_tow.uiNudge(0, 0, 1)
+careerConvoy_tow.uiFine(true)
 frames(1)
 name, a = lastHand(truck)
 check(
 	math.abs(a[3] - 1.25) < 0.05 and a[6] == 0.25,
 	string.format("fine mode: up at a quarter speed, winch quarter speed (z = %.2f)", a[3])
 )
-sharedCareer_tow.uiFine(false)
-sharedCareer_tow.uiNudgeStop()
+careerConvoy_tow.uiFine(false)
+careerConvoy_tow.uiNudgeStop()
 frames(0.2)
 name, a = lastHand(truck)
 check(a[5] == 0, "button released: anchor stays, rope no longer pays out")
 -- winch: haul in / stop / pay out
-sharedCareer_tow.uiWinch(1)
+careerConvoy_tow.uiWinch(1)
 frames(0.1)
 check(select(2, lastHand(truck))[4] == 1, "winch: haul in")
-sharedCareer_tow.uiWinch(-1)
+careerConvoy_tow.uiWinch(-1)
 frames(0.1)
 check(select(2, lastHand(truck))[4] == -1, "winch: pay out")
-sharedCareer_tow.uiWinch(0)
+careerConvoy_tow.uiWinch(0)
 frames(0.1)
 check(select(2, lastHand(truck))[4] == 0, "winch: stop")
 -- anchor to the middle of the view at its distance
 fwd = { x = 0, y = 1, z = 0 }
-sharedCareer_tow.uiToView()
+careerConvoy_tow.uiToView()
 frames(1 / 60)
 name, a = lastHand(truck)
 check(
@@ -2193,8 +2193,8 @@ check(
 )
 frames(0.1)
 check(select(2, lastHand(truck))[5] == 0, "... only once")
-sharedCareer_tow.uiRelease()
-check(not sharedCareer_tow.isHolding() and lastHand(truck) == "ropeRelease", "remove rope from the app")
+careerConvoy_tow.uiRelease()
+check(not careerConvoy_tow.isHolding() and lastHand(truck) == "ropeRelease", "remove rope from the app")
 -- tow to the road: the game's own recovery (damage stays), free, for the vehicle on the rope
 local towed = {}
 _G.spawn = {
@@ -2203,28 +2203,28 @@ _G.spawn = {
 	end,
 }
 local towToasts = {}
-local realToast = sharedCareer_util.toast
-sharedCareer_util.toast = function(_, msg)
+local realToast = careerConvoy_util.toast
+careerConvoy_util.toast = function(_, msg)
 	table.insert(towToasts, msg)
 end
-check(sharedCareer_tow.appState().towToRoad == true, "Tow app: tow to the road offered")
+check(careerConvoy_tow.appState().towToRoad == true, "Tow app: tow to the road offered")
 fwd = { x = -1, y = -1, z = 0 }
 check(
-	not sharedCareer_tow.uiTowToRoad() and #towed == 0 and towToasts[#towToasts]:find("Look at"),
+	not careerConvoy_tow.uiTowToRoad() and #towed == 0 and towToasts[#towToasts]:find("Look at"),
 	"tow to the road without a rope: needs a vehicle in view"
 )
 fwd = { x = 1, y = 0, z = -0.1 }
 check(
-	sharedCareer_tow.uiTowToRoad() and #towed == 1 and towed[1].id == 60 and towed[1].opts.resetVehicle == false,
+	careerConvoy_tow.uiTowToRoad() and #towed == 1 and towed[1].id == 60 and towed[1].opts.resetVehicle == false,
 	"tow to the road without a rope: the vehicle you look at"
 )
 towed = {}
-sharedCareer_tow.uiAttachView()
+careerConvoy_tow.uiAttachView()
 truck.getVelocity = function()
 	return { x = 5, y = 0, z = 0 }
 end
 check(
-	not sharedCareer_tow.uiTowToRoad() and #towed == 0 and towToasts[#towToasts]:find("Stop the vehicle"),
+	not careerConvoy_tow.uiTowToRoad() and #towed == 0 and towToasts[#towToasts]:find("Stop the vehicle"),
 	"tow to the road: not while the vehicle moves"
 )
 truck.getVelocity = function()
@@ -2236,7 +2236,7 @@ _G.gameplay_traffic = {
 	end,
 }
 check(
-	not sharedCareer_tow.uiTowToRoad() and #towed == 0 and towToasts[#towToasts]:find("police"),
+	not careerConvoy_tow.uiTowToRoad() and #towed == 0 and towToasts[#towToasts]:find("police"),
 	"tow to the road: not during a police chase"
 )
 _G.gameplay_traffic = {
@@ -2245,15 +2245,15 @@ _G.gameplay_traffic = {
 	end,
 }
 check(
-	sharedCareer_tow.uiTowToRoad() and #towed == 1 and towed[1].id == 60 and towed[1].opts.resetVehicle == false,
+	careerConvoy_tow.uiTowToRoad() and #towed == 1 and towed[1].id == 60 and towed[1].opts.resetVehicle == false,
 	"tow to the road with a rope: the vehicle on the rope, damage kept"
 )
-check(not sharedCareer_tow.isHolding() and lastHand(truck) == "ropeRelease", "tow to the road: the rope comes off")
-sharedCareer_tow.uiAttachView()
+check(not careerConvoy_tow.isHolding() and lastHand(truck) == "ropeRelease", "tow to the road: the rope comes off")
+careerConvoy_tow.uiAttachView()
 cfgG.allowTowToRoad = false
 handlers.sc_configUpdate(json.encode(cfgG))
 check(
-	sharedCareer_tow.appState().towToRoad == false and not sharedCareer_tow.uiTowToRoad() and #towed == 1,
+	careerConvoy_tow.appState().towToRoad == false and not careerConvoy_tow.uiTowToRoad() and #towed == 1,
 	"tow to the road switched off on the server"
 )
 cfgG.allowTowToRoad = true
@@ -2274,8 +2274,8 @@ do
 		return { x = 0, y = 0, z = 1 }
 	end
 	check(
-		sharedCareer_tow.appState().flip == false
-			and not sharedCareer_tow.uiFlipUpright()
+		careerConvoy_tow.appState().flip == false
+			and not careerConvoy_tow.uiFlipUpright()
 			and #flipped == 0
 			and towToasts[#towToasts]:find("wheels"),
 		"flip upright: not for a vehicle on its wheels (no button)"
@@ -2283,9 +2283,9 @@ do
 	truck.getDirectionVectorUp = function()
 		return { x = 0, y = 0.2, z = -0.98 }
 	end
-	check(sharedCareer_tow.appState().flip == true, "on its roof: the Tow app offers Flip upright")
+	check(careerConvoy_tow.appState().flip == true, "on its roof: the Tow app offers Flip upright")
 	check(
-		sharedCareer_tow.uiFlipUpright()
+		careerConvoy_tow.uiFlipUpright()
 			and #flipped == 1
 			and flipped[1].id == 60
 			and flipped[1].reset == false
@@ -2293,20 +2293,20 @@ do
 			and towToasts[#towToasts] == "On its wheels",
 		"flipped where it is, facing the same way, damage kept"
 	)
-	check(not sharedCareer_tow.isHolding(), "flip upright: the rope comes off")
+	check(not careerConvoy_tow.isHolding(), "flip upright: the rope comes off")
 	truck.getDirectionVector, truck.getDirectionVectorUp, _G.quatFromDir = nil, nil, nil
 end
-sharedCareer_tow.release()
+careerConvoy_tow.release()
 truck.getVelocity, fwd = nil, nil
 _G.spawn, _G.gameplay_traffic = nil, nil
-sharedCareer_util.toast = realToast
-sharedCareer_phone.uiCloseApp("tow")
+careerConvoy_util.toast = realToast
+careerConvoy_phone.uiCloseApp("tow")
 fwd = nil
 -- switched off on the server: the app leaves the phone
 cfgG.allowRopes = false
 handlers.sc_configUpdate(json.encode(cfgG))
 local stillThere = false
-for _, app in ipairs(sharedCareer_phone.state().apps) do
+for _, app in ipairs(careerConvoy_phone.state().apps) do
 	if app.id == "tow" then
 		stillThere = true
 	end
@@ -2328,23 +2328,23 @@ end
 fwd = { x = 1, y = 0, z = -0.1 }
 world.playerVeh = 60
 toasts = {}
-sharedCareer_tow.uiAttachView()
-check(not sharedCareer_tow.isHolding() and lastToast():find("Get out"), "the vehicle you are in can't be roped")
+careerConvoy_tow.uiAttachView()
+check(not careerConvoy_tow.isHolding() and lastToast():find("Get out"), "the vehicle you are in can't be roped")
 core_camera.getActiveGlobalCameraName = function()
 	return "free"
 end
-sharedCareer_tow.uiAttachView()
-check(sharedCareer_tow.isHolding(), "from the free camera it can")
-sharedCareer_tow.release()
+careerConvoy_tow.uiAttachView()
+check(careerConvoy_tow.isHolding(), "from the free camera it can")
+careerConvoy_tow.release()
 core_camera.getActiveGlobalCameraName = nil
 world.playerVeh = nil
 -- refusals (attach where I look)
 local function tryRope(dir)
 	fwd = dir
 	toasts = {}
-	sharedCareer_tow.uiAttachView()
-	local held = sharedCareer_tow.isHolding()
-	sharedCareer_tow.release()
+	careerConvoy_tow.uiAttachView()
+	local held = careerConvoy_tow.isHolding()
+	careerConvoy_tow.release()
 	return held, lastToast()
 end
 placedVeh(61, -10, 10, 1, nil, true)
@@ -2364,11 +2364,11 @@ check(not held and msg:find("off on this server"), "switched off on the server: 
 cfgG.allowRopes = true
 handlers.sc_configUpdate(json.encode(cfgG))
 fwd = { x = 1, y = 0, z = -0.1 }
-sharedCareer_tow.uiAttachView()
+careerConvoy_tow.uiAttachView()
 cfgG.allowRopes = false
 handlers.sc_configUpdate(json.encode(cfgG))
 frames(0.05)
-check(not sharedCareer_tow.isHolding() and lastHand(truck) == "ropeRelease", "switched off while holding: lets go")
+check(not careerConvoy_tow.isHolding() and lastHand(truck) == "ropeRelease", "switched off while holding: lets go")
 fwd = nil
 _G.core_camera, _G.MPKeybindsGE = nil, nil
 
@@ -2378,7 +2378,7 @@ installCareer()
 local phoneKey
 _G.MPKeybindsGE = {
 	addAction = function(name, def)
-		if name == "sharedCareerPhone" then
+		if name == "careerConvoyPhone" then
 			phoneKey = def
 		end
 	end,
@@ -2405,7 +2405,7 @@ local function lastPhone(name)
 	end
 end
 check(phoneKey and phoneKey.default == "f4" and phoneKey.title:find("phone"), "phone key registered via BeamMP (F4)")
-local st = lastPhone("SharedCareerPhone")
+local st = lastPhone("CareerConvoyPhone")
 check(
 	st
 		and st.enabled == true
@@ -2418,15 +2418,15 @@ check(
 )
 phoneHooks = {}
 phoneKey.onDown()
-check(lastPhone("SharedCareerPhoneToggle") ~= nil, "F4 takes the phone out / puts it away")
+check(lastPhone("CareerConvoyPhoneToggle") ~= nil, "F4 takes the phone out / puts it away")
 -- game menus: opening one puts the phone away; F4 there only puts it away, never takes it out
 phoneHooks = {}
-sharedCareer_phone.onUiChangedState("pause", "play")
-check(lastPhone("SharedCareerPhoneAway") ~= nil, "a game menu opens: the phone goes away")
+careerConvoy_phone.onUiChangedState("pause", "play")
+check(lastPhone("CareerConvoyPhoneAway") ~= nil, "a game menu opens: the phone goes away")
 phoneHooks = {}
 phoneKey.onDown()
 check(
-	lastPhone("SharedCareerPhoneAway") ~= nil and lastPhone("SharedCareerPhoneToggle") == nil,
+	lastPhone("CareerConvoyPhoneAway") ~= nil and lastPhone("CareerConvoyPhoneToggle") == nil,
 	"F4 in a game menu: puts the phone away, doesn't take it out"
 )
 _G.ui_menuManager = {
@@ -2435,16 +2435,16 @@ _G.ui_menuManager = {
 	end,
 }
 phoneHooks = {}
-sharedCareer_phone.onUiChangedState("mission.play", "pause")
-check(lastPhone("SharedCareerPhoneAway") == nil, "back to driving (a mission's screen): the phone stays")
+careerConvoy_phone.onUiChangedState("mission.play", "pause")
+check(lastPhone("CareerConvoyPhoneAway") == nil, "back to driving (a mission's screen): the phone stays")
 phoneKey.onDown()
-check(lastPhone("SharedCareerPhoneToggle") ~= nil, "F4 while driving a mission: takes the phone out")
+check(lastPhone("CareerConvoyPhoneToggle") ~= nil, "F4 while driving a mission: takes the phone out")
 _G.ui_menuManager = nil
-sharedCareer_phone.onUiChangedState("play", "mission.play")
+careerConvoy_phone.onUiChangedState("play", "mission.play")
 -- apps register themselves (for later): sorted by order, then title; no functions in the window state
 local opened = 0
 check(
-	sharedCareer_phone.registerApp({
+	careerConvoy_phone.registerApp({
 		id = "taxi",
 		title = "Taxi",
 		icon = "T",
@@ -2456,8 +2456,8 @@ check(
 	}),
 	"an app can register"
 )
-sharedCareer_phone.registerApp({ id = "jobs", title = "Jobs", order = 10 })
-sharedCareer_phone.registerApp({
+careerConvoy_phone.registerApp({ id = "jobs", title = "Jobs", order = 10 })
+careerConvoy_phone.registerApp({
 	id = "bank",
 	title = "Bank",
 	order = 10,
@@ -2465,8 +2465,8 @@ sharedCareer_phone.registerApp({
 		error("boom")
 	end,
 })
-check(not sharedCareer_phone.registerApp({ title = "no id" }), "an app without an id is refused")
-st = lastPhone("SharedCareerPhone")
+check(not careerConvoy_phone.registerApp({ title = "no id" }), "an app without an id is refused")
+st = lastPhone("CareerConvoyPhone")
 local ids = {}
 for _, app in ipairs(st.apps) do
 	table.insert(ids, app.id)
@@ -2479,25 +2479,25 @@ check(
 	st.apps[2].icon == "J" and st.apps[2].color == "#ff6600" and st.apps[1].onOpen == nil,
 	"defaults for icon and color; no functions sent to the window"
 )
-check(sharedCareer_phone.uiOpenApp("taxi") == true and opened == 1, "a tap opens the app")
-check(sharedCareer_phone.uiOpenApp("bank") == true, "an app that fails to open doesn't break the phone")
-check(sharedCareer_phone.uiOpenApp("nope") == false, "unknown app: nothing happens")
-sharedCareer_phone.unregisterApp("bank")
-check(#lastPhone("SharedCareerPhone").apps == 6, "an app can be removed again")
+check(careerConvoy_phone.uiOpenApp("taxi") == true and opened == 1, "a tap opens the app")
+check(careerConvoy_phone.uiOpenApp("bank") == true, "an app that fails to open doesn't break the phone")
+check(careerConvoy_phone.uiOpenApp("nope") == false, "unknown app: nothing happens")
+careerConvoy_phone.unregisterApp("bank")
+check(#lastPhone("CareerConvoyPhone").apps == 6, "an app can be removed again")
 -- switched off on the server: hidden, key does nothing, apps don't open
 cfgP.phone = false
 handlers.sc_configUpdate(json.encode(cfgP))
-check(lastPhone("SharedCareerPhone").enabled == false, "switched off: the window hides the phone")
+check(lastPhone("CareerConvoyPhone").enabled == false, "switched off: the window hides the phone")
 phoneHooks = {}
 phoneKey.onDown()
-check(lastPhone("SharedCareerPhoneToggle") == nil, "switched off: F4 does nothing")
-check(sharedCareer_phone.uiOpenApp("taxi") == false and opened == 1, "switched off: apps don't open")
+check(lastPhone("CareerConvoyPhoneToggle") == nil, "switched off: F4 does nothing")
+check(careerConvoy_phone.uiOpenApp("taxi") == false and opened == 1, "switched off: apps don't open")
 _G.MPKeybindsGE = nil
 
 --== 7c. Time of day and pause menu ==========================================
 resetWorld()
 installCareer()
-local env = sharedCareer_env
+local env = careerConvoy_env
 check(
 	env.toGame(12) == 0 and env.toGame(18) == 0.25 and env.toGame(0) == 0.5 and env.toGame(6) == 0.75,
 	"conversion hour -> BeamNG (0 = noon)"
@@ -2564,12 +2564,12 @@ check(setCalls == calls, "no constant resetting")
 local uiEvents = {}
 _G.guihooks = {
 	trigger = function(name, data)
-		if name == "SharedCareerState" then
+		if name == "CareerConvoyState" then
 			table.insert(uiEvents, data)
 		end
 	end,
 }
-sharedCareer_menu.onBeamMPServerLeave() -- nothing visible
+careerConvoy_menu.onBeamMPServerLeave() -- nothing visible
 handlers.sc_time(json.encode({
 	hour = 19.5,
 	play = true,
@@ -2585,7 +2585,7 @@ handlers.sc_time(json.encode({
 update(1.1)
 update(1.1)
 check(#uiEvents == 0, "menu collapsed, phone away: no state built or sent (neither on news nor every second)")
-sharedCareer_menu.uiVisible("menu", true)
+careerConvoy_menu.uiVisible("menu", true)
 check(#uiEvents == 1, "menu expanded: the state comes at once")
 local ui = uiEvents[#uiEvents]
 check(ui and ui.connected and ui.canControl and ui.isDay == true, "window gets the state (day, may control)")
@@ -2640,7 +2640,7 @@ check(ctl.action == "lengths" and ctl.dayMinutes == 45 and ctl.nightMinutes == 1
 
 -- clock paused
 update(1.4)
-sharedCareer_menu.uiVisible("menu", true) -- the open window reports every 2 s
+careerConvoy_menu.uiVisible("menu", true) -- the open window reports every 2 s
 env.uiSetPaused(true)
 check(
 	lastSent("sc_timeControl").action == "pause" and lastSent("sc_timeControl").paused == true,
@@ -2666,7 +2666,7 @@ check(setCalls == setsPaused, "paused: no speed switching")
 
 -- real time (the server's clock)
 update(1.4)
-sharedCareer_menu.uiVisible("menu", true) -- the open window reports every 2 s
+careerConvoy_menu.uiVisible("menu", true) -- the open window reports every 2 s
 env.uiSetRealtime(true)
 check(
 	lastSent("sc_timeControl").action == "realtime" and lastSent("sc_timeControl").on == true,
@@ -2704,7 +2704,7 @@ handlers.sc_time(json.encode({
 }))
 
 do
-	local menu = sharedCareer_menu
+	local menu = careerConvoy_menu
 	-- who looks: reports with a lease (windows report every 2 s while visible)
 	local function pushesDuring(seconds, beat)
 		local before, t, sinceBeat = #uiEvents, 0, 0
@@ -2775,8 +2775,8 @@ do
 	)
 	-- the Fuel app open: fuel prices at once (nil: this test map has no gas stations)
 	local fuelAsked = 0
-	local realOverview = sharedCareer_fuel.overview
-	sharedCareer_fuel.overview = function()
+	local realOverview = careerConvoy_fuel.overview
+	careerConvoy_fuel.overview = function()
 		fuelAsked = fuelAsked + 1
 		return { stations = { { id = "apex" } } }
 	end
@@ -2801,7 +2801,7 @@ do
 		fuelAsked == asked and uiEvents[#uiEvents].fuel == false,
 		"Fuel app closed: no prices computed, phone still updated"
 	)
-	sharedCareer_fuel.overview = function()
+	careerConvoy_fuel.overview = function()
 		return nil
 	end
 	menu.uiVisible("fuel", true)
@@ -2809,7 +2809,7 @@ do
 		uiEvents[#uiEvents].fuel == nil,
 		"Fuel app open on a map without stations: fuel = nil (empty list, not false)"
 	)
-	sharedCareer_fuel.overview = function()
+	careerConvoy_fuel.overview = function()
 		error("broken")
 	end
 	menu.uiVisible("fuel", false)
@@ -2818,7 +2818,7 @@ do
 		uiEvents[#uiEvents].hour ~= nil and uiEvents[#uiEvents].fuel == nil,
 		"a fuel error doesn't break the rest of the state"
 	)
-	sharedCareer_fuel.overview = realOverview
+	careerConvoy_fuel.overview = realOverview
 	-- odd reports are ignored; uiRequest (window rebuilt) always answers; leaving the server resets
 	before = #uiEvents
 	menu.uiVisible("radio", true)
@@ -2922,16 +2922,16 @@ check(career.apps[3].placement.top == "240px", "BeamMP list in place of the Mile
 local free = files["/settings/ui_apps/layouts/default/freeroam.uilayout.json"]
 check(#free.apps == 1 and free.apps[1].appName == "beammpPlayerListVue", "no duplicate player list")
 check(
-	files["/settings/ui_apps/layouts/default/career.uilayout.json.sharedcareer-backup"].apps[3].appName
+	files["/settings/ui_apps/layouts/default/career.uilayout.json.careerconvoy-backup"].apps[3].appName
 		== "mileageplayerlist",
 	"original is backed up first"
 )
 check(
-	files["/settings/ui_apps/layouts/default/eigenes.uilayout.json.sharedcareer-backup"] == nil,
+	files["/settings/ui_apps/layouts/default/eigenes.uilayout.json.careerconvoy-backup"] == nil,
 	"unchanged layouts are not touched"
 )
 check(#toasts > toastsBefore, "player gets a notice")
-check(sharedCareer_cleanup.run() == 0, "second run finds nothing")
+check(careerConvoy_cleanup.run() == 0, "second run finds nothing")
 -- switched off
 resetWorld()
 installCareer()
@@ -2958,7 +2958,7 @@ check(
 	"switched off: cleanup does not run"
 )
 
---== 7e. SharedCareer apps into the career layout once ========================
+--== 7e. Career-Convoy apps into the career layout once ========================
 local function joinWith(filesInit, cfgChange)
 	resetWorld()
 	installCareer()
@@ -2993,7 +2993,7 @@ local CUSTOM = "settings/ui_apps/layouts/default/career.uilayout.json"
 local ORIGINAL = "settings/ui_apps/originalLayouts/default/career.uilayout.json"
 local function hasMenuApp(layout)
 	for _, a in ipairs(layout and layout.apps or {}) do
-		if a.appName == "sharedCareerMenu" then
+		if a.appName == "careerConvoyMenu" then
 			return true
 		end
 	end
@@ -3009,10 +3009,10 @@ check(
 	files[CUSTOM].apps[2].placement.top == "600px" and files[CUSTOM].apps[2].placement.height == "190px",
 	"placed right, below the player list"
 )
-check(files["settings/sharedCareer/state.json"].menuAppAdded == true, "remembered: already added")
+check(files["settings/careerConvoy/state.json"].menuAppAdded == true, "remembered: already added")
 local phoneApp
 for _, a in ipairs(files[CUSTOM].apps) do
-	if a.appName == "sharedCareerPhone" then
+	if a.appName == "careerConvoyPhone" then
 		phoneApp = a
 	end
 end
@@ -3020,13 +3020,13 @@ check(
 	phoneApp
 		and phoneApp.placement.top == "790px"
 		and phoneApp.placement.width == "30px"
-		and files["settings/sharedCareer/state.json"].phoneAppAdded == true,
+		and files["settings/careerConvoy/state.json"].phoneAppAdded == true,
 	"phone tab added once, directly below the menu, only as big as the tab"
 )
 do
 	local signApp
 	for _, a in ipairs(files[CUSTOM].apps) do
-		if a.appName == "sharedCareerSpeedLimit" then
+		if a.appName == "careerConvoySpeedLimit" then
 			signApp = a
 		end
 	end
@@ -3035,34 +3035,34 @@ do
 			and signApp.placement.right == "40px"
 			and signApp.placement.bottom == "300px"
 			and signApp.placement.top == ""
-			and files["settings/sharedCareer/state.json"].speedLimitAppAdded == true,
+			and files["settings/careerConvoy/state.json"].speedLimitAppAdded == true,
 		"speed limit sign added once, bottom right, left of the phone tab"
 	)
 end
 -- 2) player removes it again -> NOT added again on the next join
 local removedLayout = { apps = { { appName = "tacho2" } } }
-joinWith({ [CUSTOM] = removedLayout, ["settings/sharedCareer/state.json"] = { menuAppAdded = true } })
+joinWith({ [CUSTOM] = removedLayout, ["settings/careerConvoy/state.json"] = { menuAppAdded = true } })
 check(not hasMenuApp(files[CUSTOM]), "removed window is not forced back")
 -- 3) own layout is kept, a backup is created
 joinWith({ [CUSTOM] = { apps = { { appName = "meineApp" } } } })
 check(files[CUSTOM].apps[1].appName == "meineApp" and hasMenuApp(files[CUSTOM]), "own layout stays, window is added")
-check(files[CUSTOM .. ".sharedcareer-backup"].apps[1].appName == "meineApp", "backup of the own layout")
+check(files[CUSTOM .. ".careerconvoy-backup"].apps[1].appName == "meineApp", "backup of the own layout")
 -- 4) already there (added by the player) -> not twice
-joinWith({ [CUSTOM] = { apps = { { appName = "sharedCareerMenu" } } } })
+joinWith({ [CUSTOM] = { apps = { { appName = "careerConvoyMenu" } } } })
 local menuCount, phoneCount = 0, 0
 for _, a in ipairs(files[CUSTOM].apps) do
-	if a.appName == "sharedCareerMenu" then
+	if a.appName == "careerConvoyMenu" then
 		menuCount = menuCount + 1
 	end
-	if a.appName == "sharedCareerPhone" then
+	if a.appName == "careerConvoyPhone" then
 		phoneCount = phoneCount + 1
 	end
 end
 check(menuCount == 1 and phoneCount == 1, "menu not duplicated, phone tab is added")
 -- phone: own flag – players who remove the phone tab don't get it back
 joinWith({
-	[CUSTOM] = { apps = { { appName = "sharedCareerMenu" } } },
-	["settings/sharedCareer/state.json"] = {
+	[CUSTOM] = { apps = { { appName = "careerConvoyMenu" } } },
+	["settings/careerConvoy/state.json"] = {
 		menuAppAdded = true,
 		phoneAppAdded = true,
 		fuelAppRetired = true,
@@ -3073,7 +3073,7 @@ joinWith({
 })
 local phoneBack = 0
 for _, a in ipairs(files[CUSTOM].apps) do
-	if a.appName == "sharedCareerPhone" then
+	if a.appName == "careerConvoyPhone" then
 		phoneBack = phoneBack + 1
 	end
 end
@@ -3083,12 +3083,12 @@ check(phoneBack == 0, "removed phone tab is not forced back")
 joinWith({
 	[CUSTOM] = {
 		apps = {
-			{ appName = "sharedCareerMenu", placement = { right = "0px", top = "600px", height = "300px" } },
+			{ appName = "careerConvoyMenu", placement = { right = "0px", top = "600px", height = "300px" } },
 			{ appName = "sharedCareerFuel", placement = { right = "0px", top = "760px" } },
-			{ appName = "sharedCareerPhone", placement = { right = "0px", top = "920px" } },
+			{ appName = "careerConvoyPhone", placement = { right = "0px", top = "920px" } },
 		},
 	},
-	["settings/sharedCareer/state.json"] = {
+	["settings/careerConvoy/state.json"] = {
 		menuAppAdded = true,
 		fuelAppAdded = true,
 		phoneAppAdded = true,
@@ -3098,12 +3098,12 @@ joinWith({
 local names, phoneTop = {}, nil
 for _, a in ipairs(files[CUSTOM].apps) do
 	table.insert(names, a.appName)
-	if a.appName == "sharedCareerPhone" then
+	if a.appName == "careerConvoyPhone" then
 		phoneTop = a.placement.top
 	end
 end
 check(
-	table.concat(names, ",") == "sharedCareerMenu,sharedCareerPhone",
+	table.concat(names, ",") == "careerConvoyMenu,careerConvoyPhone",
 	"old fuel window removed from the layout (no red 'Unknown app' box): " .. table.concat(names, ",")
 )
 check(
@@ -3112,7 +3112,7 @@ check(
 		and files[CUSTOM].apps[1].placement.height == "300px",
 	"phone tab moved up below the menu; a menu the player resized keeps its size"
 )
-local st = files["settings/sharedCareer/state.json"]
+local st = files["settings/careerConvoy/state.json"]
 check(
 	st.fuelAppRetired == true and st.phoneTabUp == true and st.menuTaller == true and st.phoneTabBelowTallerMenu == true,
 	"all changes remembered (only once)"
@@ -3122,16 +3122,16 @@ joinWith({
 	[CUSTOM] = {
 		apps = {
 			{
-				appName = "sharedCareerMenu",
+				appName = "careerConvoyMenu",
 				placement = { right = "0px", top = "600px", width = "345px", height = "160px" },
 			},
 			{
-				appName = "sharedCareerPhone",
+				appName = "careerConvoyPhone",
 				placement = { right = "0px", top = "760px", width = "30px", height = "80px" },
 			},
 		},
 	},
-	["settings/sharedCareer/state.json"] = {
+	["settings/careerConvoy/state.json"] = {
 		menuAppAdded = true,
 		phoneAppAdded = true,
 		fuelAppRetired = true,
@@ -3144,49 +3144,81 @@ check(
 )
 -- the player moved the phone tab somewhere else -> it stays there
 joinWith({
-	[CUSTOM] = { apps = { { appName = "sharedCareerPhone", placement = { right = "120px", top = "300px" } } } },
-	["settings/sharedCareer/state.json"] = { menuAppAdded = true, phoneAppAdded = true },
+	[CUSTOM] = { apps = { { appName = "careerConvoyPhone", placement = { right = "120px", top = "300px" } } } },
+	["settings/careerConvoy/state.json"] = { menuAppAdded = true, phoneAppAdded = true },
 })
 check(
 	files[CUSTOM].apps[1].placement.right == "120px" and files[CUSTOM].apps[1].placement.top == "300px",
 	"the player's own position stays"
 )
--- 0.15.0: the menu app was renamed sharedCareerTime -> sharedCareerMenu
+-- 0.15.0: the menu app was renamed sharedCareerTime -> careerConvoyMenu
 do
 	local OTHER = "settings/ui_apps/layouts/default/freeroam.uilayout.json"
 	local oldMenu = { appName = "sharedCareerTime", placement = { right = "0px", top = "650px" } }
 	joinWith({}) -- fresh file mocks
-	files[CUSTOM] = { apps = { { appName = "tacho2" }, oldMenu, { appName = "sharedCareerPhone" } } }
-	files[OTHER] = { apps = { { appName = "sharedCareerTime" }, { appName = "sharedCareerMenu" } } }
-	files["settings/sharedCareer/state.json"] = { timeAppAdded = true, phoneAppAdded = true, speedLimitAppAdded = true }
+	files[CUSTOM] = { apps = { { appName = "tacho2" }, oldMenu, { appName = "careerConvoyPhone" } } }
+	files[OTHER] = { apps = { { appName = "sharedCareerTime" }, { appName = "careerConvoyMenu" } } }
+	files["settings/careerConvoy/state.json"] = { timeAppAdded = true, phoneAppAdded = true, speedLimitAppAdded = true }
 	FS.findFiles = function(_, dir)
 		return dir == "settings/ui_apps/layouts/" and { CUSTOM, OTHER } or {}
 	end
-	check(sharedCareer_cleanup.renameAppsOnce() == 2, "rename: one in the career layout, one duplicate elsewhere")
+	check(careerConvoy_cleanup.renameAppsOnce() == 2, "rename: one in the career layout, one duplicate elsewhere")
 	local names = {}
 	for _, a in ipairs(files[CUSTOM].apps) do
 		table.insert(names, a.appName)
 	end
 	check(
-		table.concat(names, ",") == "tacho2,sharedCareerMenu,sharedCareerPhone"
+		table.concat(names, ",") == "tacho2,careerConvoyMenu,careerConvoyPhone"
 			and files[CUSTOM].apps[2].placement.top == "650px",
 		"career layout: renamed in place, the player's position stays (" .. table.concat(names, ",") .. ")"
 	)
 	check(
-		#files[OTHER].apps == 1 and files[OTHER].apps[1].appName == "sharedCareerMenu",
+		#files[OTHER].apps == 1 and files[OTHER].apps[1].appName == "careerConvoyMenu",
 		"other layout: the old duplicate is removed"
 	)
-	local st = files["settings/sharedCareer/state.json"]
+	local st = files["settings/careerConvoy/state.json"]
 	check(
 		st.menuAppRenamed == true and st.menuAppAdded == true and st.timeAppAdded == nil,
 		"state: rename remembered, old flag timeAppAdded becomes menuAppAdded"
 	)
-	check(sharedCareer_cleanup.addAppsOnce() == 0, "a menu the player once removed isn't added back after the rename")
+	check(careerConvoy_cleanup.addAppsOnce() == 0, "a menu the player once removed isn't added back after the rename")
 	files[CUSTOM] = { apps = { { appName = "sharedCareerTime" } } }
 	check(
-		sharedCareer_cleanup.renameAppsOnce() == 0 and files[CUSTOM].apps[1].appName == "sharedCareerTime",
+		careerConvoy_cleanup.renameAppsOnce() == 0 and files[CUSTOM].apps[1].appName == "sharedCareerTime",
 		"rename runs only once"
 	)
+end
+-- the mod was called SharedCareer: its state file and apps take the new names, nothing comes twice
+do
+	joinWith({}) -- fresh file mocks
+	local OLD_STATE, STATE = "settings/sharedCareer/state.json", "settings/careerConvoy/state.json"
+	files[STATE] = nil
+	files[OLD_STATE] = { menuAppAdded = true, phoneAppAdded = true, speedLimitAppAdded = true, menuAppRenamed = true }
+	FS.removeFile = function(_, path)
+		files[path] = nil
+	end
+	files[CUSTOM] = {
+		apps = {
+			{ appName = "sharedCareerMenu", placement = { right = "0px", top = "600px" } },
+			{ appName = "sharedCareerPhone" },
+			{ appName = "sharedCareerSpeedLimit" },
+		},
+	}
+	FS.findFiles = function(_, dir)
+		return dir == "settings/ui_apps/layouts/" and { CUSTOM } or {}
+	end
+	check(careerConvoy_cleanup.renameAppsOnce() == 3, "the three apps renamed")
+	local names = {}
+	for _, a in ipairs(files[CUSTOM].apps) do
+		table.insert(names, a.appName)
+	end
+	check(
+		table.concat(names, ",") == "careerConvoyMenu,careerConvoyPhone,careerConvoySpeedLimit"
+			and files[CUSTOM].apps[1].placement.top == "600px",
+		"apps keep their place under the new names (" .. table.concat(names, ",") .. ")"
+	)
+	check(files[OLD_STATE] == nil and files[STATE] and files[STATE].menuAppAdded == true, "state file moved")
+	check(careerConvoy_cleanup.addAppsOnce() == 0, "no app added twice after the rename")
 end
 -- 5) switched off
 joinWith({ [ORIGINAL] = { apps = {} } }, { addApps = false })
@@ -3194,7 +3226,7 @@ check(files[CUSTOM] == nil, "addApps = false: nothing added")
 -- 6) no layout found -> nothing broken, try again later
 joinWith({})
 check(
-	(files["settings/sharedCareer/state.json"] or {}).menuAppAdded == nil and lastSent("sc_careerResult").ok == true,
+	(files["settings/careerConvoy/state.json"] or {}).menuAppAdded == nil and lastSent("sc_careerResult").ok == true,
 	"without a layout: career starts, retry next time"
 )
 
@@ -3231,16 +3263,16 @@ check(activeRoad == 8 and activeParked == 7, "more than the pool: limited (rest 
 local menuPushes = {}
 _G.guihooks = {
 	trigger = function(name, data)
-		if name == "SharedCareerState" then
+		if name == "CareerConvoyState" then
 			table.insert(menuPushes, data)
 		end
 	end,
 }
-sharedCareer_menu.uiVisible("menu", false)
+careerConvoy_menu.uiVisible("menu", false)
 cfgM.roadTraffic = 8
 handlers.sc_configUpdate(json.encode(cfgM))
 check(#menuPushes == 0, "menu collapsed: another player's change is not sent to it")
-sharedCareer_menu.uiVisible("menu", true)
+careerConvoy_menu.uiVisible("menu", true)
 check(
 	#menuPushes == 1 and menuPushes[1].settings.roadTraffic == 8,
 	"expanding the menu: it shows the current value at once"
@@ -3252,18 +3284,18 @@ check(
 	#menuPushes == 1 and menuPushes[1].settings.roadTraffic == 9,
 	"menu shows another player's change immediately (without the 1 s tick)"
 )
-local st = sharedCareer_menu.settingsState()
+local st = careerConvoy_menu.settingsState()
 check(
 	st.poolRoad == 8 and st.poolParked == 7 and st.canEdit == true and st.shareRoad == 20,
 	"menu knows pool and share"
 )
-sharedCareer_menu.uiSetSetting("client.roadTraffic", 9)
+careerConvoy_menu.uiSetSetting("client.roadTraffic", 9)
 check(
 	lastSent("sc_setSetting").key == "client.roadTraffic" and lastSent("sc_setSetting").value == 9,
 	"menu sends a setting"
 )
 local n2 = #sentToServer
-sharedCareer_menu.uiSetSetting("client.saveSuffix", "x")
+careerConvoy_menu.uiSetSetting("client.saveSuffix", "x")
 check(#sentToServer == n2, "menu only sends allowed settings");
 
 --== 7f2. Missions hide the traffic instead of deleting it =====================
@@ -3334,7 +3366,7 @@ end
 local keyAction
 _G.MPKeybindsGE = {
 	addAction = function(name, def)
-		if name == "sharedCareerMenu" then
+		if name == "careerConvoyMenu" then
 			keyAction = { name = name, def = def }
 		end
 	end,
@@ -3342,7 +3374,7 @@ _G.MPKeybindsGE = {
 local toggled = 0
 _G.guihooks = {
 	trigger = function(n)
-		if n == "SharedCareerToggle" then
+		if n == "CareerConvoyToggle" then
 			toggled = toggled + 1
 		end
 	end,
@@ -3356,7 +3388,7 @@ extensions.hook("onWorldReadyState", 2)
 handlers.sc_config(json.encode(cfgPl))
 update()
 check(
-	keyAction and keyAction.def.default == "f7" and keyAction.def.title:find("SharedCareer"),
+	keyAction and keyAction.def.default == "f7" and keyAction.def.title:find("Career-Convoy", 1, true),
 	"menu key via BeamMP (F7)"
 )
 keyAction.def.onDown()
@@ -3377,21 +3409,21 @@ handlers.sc_players(json.encode({
 	},
 }))
 check(
-	suffixes["Ben"] and suffixes["Ben"].text == "[Mission]" and suffixes["Ben"].src == "sharedCareer",
+	suffixes["Ben"] and suffixes["Ben"].text == "[Mission]" and suffixes["Ben"].src == "careerConvoy",
 	"name tag: [Mission]"
 )
 check(suffixes["John Doe_99"] == nil, "own name tag unchanged")
 handlers.sc_players(json.encode({ players = { { id = 1, name = "Ben", status = "driving" } } }))
 check(suffixes["Ben"].text == "", "status gone -> suffix removed (empty text, not nil)")
-local ps = sharedCareer_players.state()
+local ps = careerConvoy_players.state()
 check(#ps.list == 1 and ps.canTeleport == false, "Players state for the menu")
-sharedCareer_players.uiNavigate("Ben")
+careerConvoy_players.uiNavigate("Ben")
 check(
-	mpCalls[#mpCalls][1] == "nav" and mpCalls[#mpCalls][2] == "Ben" and sharedCareer_players.state().navigating == "Ben",
+	mpCalls[#mpCalls][1] == "nav" and mpCalls[#mpCalls][2] == "Ben" and careerConvoy_players.state().navigating == "Ben",
 	"Navigate"
 )
-sharedCareer_players.uiStopNavigate()
-check(mpCalls[#mpCalls][2] == nil and sharedCareer_players.state().navigating == nil, "stop navigation")
+careerConvoy_players.uiStopNavigate()
+check(mpCalls[#mpCalls][2] == nil and careerConvoy_players.state().navigating == nil, "stop navigation")
 -- a job route after navigating to a player: following stops, or BeamMP puts the route back to the player
 do
 	local routes = {}
@@ -3403,21 +3435,21 @@ do
 			table.insert(routes, p or false)
 		end,
 	}
-	sharedCareer_players.uiNavigate("Ben")
-	sharedCareer_util.setRoute("jobs", { x = 7, y = 8, z = 9 })
+	careerConvoy_players.uiNavigate("Ben")
+	careerConvoy_util.setRoute("jobs", { x = 7, y = 8, z = 9 })
 	check(
-		mpCalls[#mpCalls][1] == "nav" and mpCalls[#mpCalls][2] == nil and sharedCareer_players.state().navigating == nil,
+		mpCalls[#mpCalls][1] == "nav" and mpCalls[#mpCalls][2] == nil and careerConvoy_players.state().navigating == nil,
 		"job route: following the player stops"
 	)
 	check(routes[#routes] and routes[#routes].x == 7, "job route: route goes to the job")
 	local before = #routes
-	sharedCareer_players.uiStopNavigate()
-	sharedCareer_util.clearRoute("fuel")
+	careerConvoy_players.uiStopNavigate()
+	careerConvoy_util.clearRoute("fuel")
 	check(#routes == before, "others don't clear the job route")
-	sharedCareer_players.uiNavigate("Ben")
-	sharedCareer_util.clearRoute("jobs")
-	check(#routes == before and sharedCareer_players.state().navigating == "Ben", "job end keeps following the player")
-	sharedCareer_players.uiStopNavigate()
+	careerConvoy_players.uiNavigate("Ben")
+	careerConvoy_util.clearRoute("jobs")
+	check(#routes == before and careerConvoy_players.state().navigating == "Ben", "job end keeps following the player")
+	careerConvoy_players.uiStopNavigate()
 	_G.vec3, _G.core_groundMarkers = nil, nil
 end
 local own = addVehicle(50, "0-50", true)
@@ -3426,17 +3458,17 @@ local focus = {}
 gameplay_traffic.setFocus = function(kind, opt)
 	table.insert(focus, { kind, opt })
 end
-sharedCareer_players.uiWatch("Ben")
+careerConvoy_players.uiWatch("Ben")
 check(mpCalls[#mpCalls][1] == "watch" and focus[#focus][2].vehId == 50, "Watch: traffic stays around the own car")
 world.playerVeh = 999
-sharedCareer_players.uiBack()
+careerConvoy_players.uiBack()
 check(world.playerVeh == 50 and focus[#focus][1] == nil, "Back: back into the own car")
 local nCalls = #mpCalls
-sharedCareer_players.uiTeleport("Ben")
+careerConvoy_players.uiTeleport("Ben")
 check(#mpCalls == nCalls, "teleport forbidden if the server doesn't allow it")
 cfgPl.ui.allowTeleport = true
 handlers.sc_configUpdate(json.encode(cfgPl))
-sharedCareer_players.uiTeleport("Ben")
+careerConvoy_players.uiTeleport("Ben")
 check(mpCalls[#mpCalls][1] == "tp", "teleport allowed -> done")
 cfgPl.showPlayerStatus = false
 handlers.sc_players(json.encode({ players = { { id = 1, name = "Ben", status = "walking" } } }))
@@ -3529,9 +3561,9 @@ local realPos = freeroam_facilities.getAverageDoorPositionForFacility
 freeroam_facilities.getAverageDoorPositionForFacility = function()
 	return nil
 end
-check(sharedCareer_fuel.overview().stations[1].canNavigate == false, "position not known yet")
+check(careerConvoy_fuel.overview().stations[1].canNavigate == false, "position not known yet")
 freeroam_facilities.getAverageDoorPositionForFacility = realPos
-local ov = sharedCareer_fuel.overview()
+local ov = careerConvoy_fuel.overview()
 local apexOv = ov and ov.stations[1]
 check(apexOv and apexOv.id == "apex" and apexOv.fuels.diesel.unit == "gal", "overview: station with prices (map unit)")
 check(
@@ -3549,13 +3581,13 @@ _G.core_groundMarkers = {
 _G.vec3 = function(x, y, z)
 	return { x = x, y = y, z = z }
 end
-sharedCareer_fuel.uiNavigate("apex")
+careerConvoy_fuel.uiNavigate("apex")
 check(
-	type(pathSet) == "table" and pathSet.x == 300 and sharedCareer_fuel.overview().navigating == "apex",
+	type(pathSet) == "table" and pathSet.x == 300 and careerConvoy_fuel.overview().navigating == "apex",
 	"Go: route to the station"
 )
-sharedCareer_fuel.uiStopNavigate()
-check(pathSet == nil and sharedCareer_fuel.overview().navigating == nil, "Stop: route off")
+careerConvoy_fuel.uiStopNavigate()
+check(pathSet == nil and careerConvoy_fuel.overview().navigating == nil, "Stop: route off")
 -- issue #1: the door function gives the same point for every gas station -> use the pumps
 do
 	local stationsNow = freeroam_facilities.getFacilities("west_coast_usa").gasStations
@@ -3592,9 +3624,9 @@ do
 	freeroam_facilities.getAverageDoorPositionForFacility = function()
 		return { x = 300, y = 400, z = 0 }
 	end
-	sharedCareer_fuel.forgetPositions()
+	careerConvoy_fuel.forgetPositions()
 	local byId = {}
-	for _, st in ipairs(sharedCareer_fuel.overview().stations) do
+	for _, st in ipairs(careerConvoy_fuel.overview().stations) do
 		byId[st.id] = st
 	end
 	check(byId.apex and math.abs(byId.apex.distance - 1005) < 1e-6, "issue #1: position = middle of the pumps (1005 m)")
@@ -3603,22 +3635,22 @@ do
 		byId.nodeolin and byId.nodeolin.distance == nil and byId.nodeolin.canNavigate == false,
 		"no pumps found: the door point is shared by several stations, so it isn't used"
 	)
-	local src = sharedCareer_fuel.positionSources()
+	local src = careerConvoy_fuel.positionSources()
 	check(src.pumps == 2 and src.doors == 0 and src.none == 1, "position sources: 2 pumps, 1 unknown")
 	_G.core_groundMarkers = {
 		setPath = function(pos)
 			pathSet = pos
 		end,
 	}
-	sharedCareer_fuel.uiNavigate("apex")
+	careerConvoy_fuel.uiNavigate("apex")
 	check(type(pathSet) == "table" and pathSet.x == 1005 and pathSet.z == 10, "Go: route to the pumps, at their height")
 	-- a believable door point of its own is still used as a fallback
 	freeroam_facilities.getAverageDoorPositionForFacility = function(st)
 		return st.id == "nodeolin" and { x = 0, y = 700, z = 5 } or { x = 300, y = 400, z = 0 }
 	end
-	sharedCareer_fuel.forgetPositions()
+	careerConvoy_fuel.forgetPositions()
 	byId = {}
-	for _, st in ipairs(sharedCareer_fuel.overview().stations) do
+	for _, st in ipairs(careerConvoy_fuel.overview().stations) do
 		byId[st.id] = st
 	end
 	check(byId.nodeolin.distance == 700 and byId.apex.distance > 1000, "fallback: a station's own door point")
@@ -3626,9 +3658,9 @@ do
 	freeroam_facilities.getAverageDoorPositionForFacility = function()
 		return { x = 0, y = 0, z = 0 }
 	end
-	sharedCareer_fuel.forgetPositions()
+	careerConvoy_fuel.forgetPositions()
 	byId = {}
-	for _, st in ipairs(sharedCareer_fuel.overview().stations) do
+	for _, st in ipairs(careerConvoy_fuel.overview().stations) do
 		byId[st.id] = st
 	end
 	check(byId.nodeolin.distance == nil, "door point at the map origin is ignored")
@@ -3637,7 +3669,7 @@ do
 	table.remove(stationsNow)
 	stationsNow[1].pumps = nil
 	freeroam_facilities.getAverageDoorPositionForFacility = realPos
-	sharedCareer_fuel.forgetPositions()
+	careerConvoy_fuel.forgetPositions()
 end
 _G.core_levels, _G.core_groundMarkers = nil, nil
 
@@ -3700,7 +3732,7 @@ _G.career_modules_delivery_progress, _G.career_modules_delivery_generator = nil,
 local function welcomeJoin(stateFile, cfgChange)
 	resetWorld()
 	installCareer()
-	local wfiles = { ["settings/sharedCareer/state.json"] = stateFile }
+	local wfiles = { ["settings/careerConvoy/state.json"] = stateFile }
 	_G.jsonReadFile = function(path)
 		return wfiles[path] and json.decode(json.encode(wfiles[path])) or nil
 	end
@@ -3717,7 +3749,7 @@ local function welcomeJoin(stateFile, cfgChange)
 		end,
 	}
 	local dialogs = {}
-	-- the dialog comes via the UI (guihook "SharedCareerDialog"); BeamMP's dialog must never be used
+	-- the dialog comes via the UI (guihook "CareerConvoyDialog"); BeamMP's dialog must never be used
 	_G.MPGameNetwork = {
 		spawnUiDialog = function()
 			error("BeamMP dialog must not be used")
@@ -3725,7 +3757,7 @@ local function welcomeJoin(stateFile, cfgChange)
 	}
 	_G.guihooks = {
 		trigger = function(name, data)
-			if name == "SharedCareerDialog" then
+			if name == "CareerConvoyDialog" then
 				table.insert(dialogs, data)
 			end
 		end,
@@ -3756,13 +3788,13 @@ check(#dialogs == 0, "dialog not immediately (only after loading)")
 for _ = 1, 50 do
 	update(0.1)
 end
-check(#dialogs == 1 and dialogs[1].title == "Welcome to SharedCareer", "welcome dialog after a few seconds")
+check(#dialogs == 1 and dialogs[1].title == "Welcome to Career-Convoy", "welcome dialog after a few seconds")
 check(#navigated == 1 and navigated[1] == "play", "main menu after the career start -> back into the game")
 _G.ui_router.getCurrentRoute = function()
 	return "play"
 end
 navigated = {}
-check(sharedCareer_welcome.ensurePlayScreen() == false and #navigated == 0, "already in the game: don't switch")
+check(careerConvoy_welcome.ensurePlayScreen() == false and #navigated == 0, "already in the game: don't switch")
 _G.ui_router = nil
 check(
 	dialogs[1].buttons[1].action == "never" and dialogs[1].buttons[1].label == "Don't show again",
@@ -3778,12 +3810,12 @@ for _ = 1, 50 do
 end
 check(#dialogs == 1, "only once per join")
 -- Regression 0.8.2: the window was hidden (main menu) and rebuilds itself -> dialog back
-sharedCareer_welcome.uiRequestDialog()
-check(#dialogs == 2 and dialogs[2].title == "Welcome to SharedCareer", "rebuilt window gets the open dialog")
+careerConvoy_welcome.uiRequestDialog()
+check(#dialogs == 2 and dialogs[2].title == "Welcome to Career-Convoy", "rebuilt window gets the open dialog")
 -- player clicks "Don't show again" in the window
-sharedCareer_welcome.uiDialogButton("welcome", "never")
-check(wfiles["settings/sharedCareer/state.json"].welcomeHidden == true, "choice is saved")
-sharedCareer_welcome.uiRequestDialog()
+careerConvoy_welcome.uiDialogButton("welcome", "never")
+check(wfiles["settings/careerConvoy/state.json"].welcomeHidden == true, "choice is saved")
+careerConvoy_welcome.uiRequestDialog()
 check(#dialogs == 2, "no open dialog after a button press")
 -- next join: no dialog any more
 dialogs = welcomeJoin({ welcomeHidden = true })
@@ -3791,7 +3823,7 @@ for _ = 1, 60 do
 	update(0.1)
 end
 check(#dialogs == 0, "no dialog after 'Don't show again'")
-sharedCareer_welcome.show(true)
+careerConvoy_welcome.show(true)
 check(#dialogs == 1, "click on the logo shows it anyway")
 -- Regression 0.8.0: loading screen still open -> dialog only once it is gone
 resetWorld()
@@ -3813,7 +3845,7 @@ _G.FS = {
 }
 _G.guihooks = {
 	trigger = function(name, data)
-		if name == "SharedCareerDialog" then
+		if name == "CareerConvoyDialog" then
 			table.insert(hangDialogs, data)
 		end
 	end,
@@ -3836,7 +3868,7 @@ end
 check(#dialogs == 0, "showWelcome = false: no dialog")
 -- message from the server (e.g. guest notice) appears as a dialog in the window
 handlers.sc_dialog(
-	json.encode({ title = "SharedCareer: you are playing as a guest", body = "Your progress...", warning = false })
+	json.encode({ title = "Career-Convoy: you are playing as a guest", body = "Your progress...", warning = false })
 )
 check(
 	#dialogs == 1
@@ -3875,7 +3907,7 @@ _G.MPGameNetwork = nil
 			refreshed[name] = true
 		end,
 	}
-	local guard = assert(loadfile("client/lua/vehicle/extensions/auto/sharedCareerSyncGuard.lua"))()
+	local guard = assert(loadfile("client/lua/vehicle/extensions/auto/careerConvoySyncGuard.lua"))()
 	guard.onExtensionLoaded()
 	check(refreshed.updateGFX and refreshed.onPhysicsStep, "hook lists refreshed after wrapping")
 	positionVE.updateGFX(0.016)
@@ -3967,7 +3999,7 @@ end)();
 	update(1.1)
 	-- a glitch: your car, your parked car and Borian's car at once
 	toasts = {}
-	local beammp = { instabilityHandled = true } -- BeamMP handles it; SharedCareer leaves it so
+	local beammp = { instabilityHandled = true } -- BeamMP handles it; Career-Convoy leaves it so
 	extensions.hook("onInstabilityDetected", 80, {})
 	extensions.hook("onInstabilityDetected", 70, beammp)
 	extensions.hook("onInstabilityDetected", 70, {})
@@ -4019,13 +4051,13 @@ end)();
 	positionGE.setPositionRotationVelocity(80, data())
 	check(#placed == 1, "invalid values, a broken rotation or an already broken car: dropped")
 	local logged = {}
-	local realLog = sharedCareer_util.log
-	sharedCareer_util.log = function(_, tag, msg)
+	local realLog = careerConvoy_util.log
+	careerConvoy_util.log = function(_, tag, msg)
 		table.insert(logged, msg)
 	end
 	clock = clock + 11
 	update(1.1)
-	sharedCareer_util.log = realLog
+	careerConvoy_util.log = realLog
 	check(
 		logged[1] and logged[1]:find("blocked 3 placement") and logged[1]:find("Borian"),
 		"dropped placements logged: " .. tostring(logged[1])
@@ -4237,7 +4269,7 @@ check(
 
 --== 9. Leaving the server resets everything ====================================
 extensions.hook("onBeamMPServerLeave")
-check(sharedCareer_core.getConfig() == nil and not sharedCareer_core.isStarted(), "state reset")
+check(careerConvoy_core.getConfig() == nil and not careerConvoy_core.isStarted(), "state reset")
 check(
 	settings.getValue("trafficSimpleVehicles") == false
 		and settings.getValue("simplifyRemoteVehicles") == false
@@ -4394,7 +4426,7 @@ check(
 		end
 		return ""
 	end
-	local jobs, tow = sharedCareer_jobs, sharedCareer_towJobs
+	local jobs, tow = careerConvoy_jobs, careerConvoy_towJobs
 
 	-- making up a job: on a normal road, off the road, far from every vehicle, a shop 0.8-6 km away
 	check(
@@ -4681,7 +4713,7 @@ check(
 	end
 	sendList("open")
 	local jobsApp
-	for _, app in ipairs(sharedCareer_phone.state().apps) do
+	for _, app in ipairs(careerConvoy_phone.state().apps) do
 		if app.id == "jobs" then
 			jobsApp = app
 		end
@@ -4702,7 +4734,7 @@ check(
 	check(next(st.licenses) == nil, "no licenses from the server yet: nothing greyed out")
 	local trigger, pushed = guihooks.trigger, false
 	guihooks.trigger = function(name)
-		pushed = pushed or name == "SharedCareerJobs"
+		pushed = pushed or name == "CareerConvoyJobs"
 	end
 	handlers.sc_licenses(json.encode({
 		list = {
@@ -4719,7 +4751,7 @@ check(
 			and pushed,
 		"the Jobs app learns which licenses its job types need and which you own, at once"
 	)
-	sharedCareer_licenses.uiRoute()
+	careerConvoy_licenses.uiRoute()
 	check(paths[#paths] and math.abs(paths[#paths].x + 500.092) < 0.01, '"Route" leads to the license office')
 	handlers.sc_licenses(json.encode({
 		list = { { id = "towing", name = "Towing License", price = 5000, jobType = "tow", owned = true } },
@@ -4807,7 +4839,7 @@ check(
 	extensions.hook("onSetProfile", "/saves/slot1", "ben")
 	extensions.hook("onSaveCurrentProfile", "/saves/slot1")
 	check(
-		saved["/saves/slot1/career/sharedCareerJobLevels.json"].levels.tow.level == 4,
+		saved["/saves/slot1/career/careerConvoyJobLevels.json"].levels.tow.level == 4,
 		"saving the career: a copy of the levels goes with it"
 	)
 	jobs.onBeamMPServerLeave()
@@ -4877,7 +4909,7 @@ check(
 	extensions.hook("onVehicleResetted", 80)
 	check(
 		#spawnedVeh.lua == cmds + 1
-			and lastCmd(spawnedVeh):find("jobBreakDown%(true, {engine = true}%); sharedCareerVeh.jobCoolDown%(%)"),
+			and lastCmd(spawnedVeh):find("jobBreakDown%(true, {engine = true}%); careerConvoyVeh.jobCoolDown%(%)"),
 		"reset (R): broken down again; the player is there, so the engine isn't kept hot"
 	)
 	tow.onJobBrokenDown(80, 100)
@@ -5205,7 +5237,7 @@ check(
 	cfgJ.ui.jobs = false
 	handlers.sc_configUpdate(json.encode(cfgJ))
 	local still = false
-	for _, app in ipairs(sharedCareer_phone.state().apps) do
+	for _, app in ipairs(careerConvoy_phone.state().apps) do
 		if app.id == "jobs" then
 			still = true
 		end
@@ -5222,7 +5254,7 @@ check(
 	)
 
 	--== Taxi jobs ==
-	local taxi = sharedCareer_taxiJobs
+	local taxi = careerConvoy_taxiJobs
 	cfgJ.ui.jobs = true
 	handlers.sc_configUpdate(json.encode(cfgJ))
 	extensions.hook("onCareerActive", true)
@@ -5375,12 +5407,12 @@ check(
 	local rideSign
 	local trigger1 = guihooks.trigger
 	guihooks.trigger = function(name, data)
-		if name == "SharedCareerSpeedLimit" then
+		if name == "CareerConvoySpeedLimit" then
 			rideSign = data
 		end
 		return trigger1(name, data)
 	end
-	sharedCareer_speedLimit.uiRequest()
+	careerConvoy_speedLimit.uiRequest()
 	update(0.3)
 	guihooks.trigger = trigger1
 	check(rideSign and rideSign.kmh and rideSign.taxi == true, "on a taxi ride: the speed limit sign knows it")
@@ -5470,11 +5502,11 @@ check(
 	)
 
 	-- calls: only while on duty, the nearest ride rings the phone; not nagging
-	local phone = sharedCareer_phone
+	local phone = careerConvoy_phone
 	local rings = {} -- what the phone window got: a call, or false when it ended
 	local trigger0 = guihooks.trigger
 	guihooks.trigger = function(name, data)
-		if name == "SharedCareerPhoneCall" then
+		if name == "CareerConvoyPhoneCall" then
 			table.insert(rings, data.call or false)
 		end
 		return trigger0(name, data)
@@ -5582,7 +5614,7 @@ check(
 	--== The speed limit sign (speedLimit.lua) ==
 	local signs = {}
 	guihooks.trigger = function(name, data)
-		if name == "SharedCareerSpeedLimit" then
+		if name == "CareerConvoySpeedLimit" then
 			table.insert(signs, data)
 		end
 		return trigger0(name, data)
@@ -5598,7 +5630,7 @@ check(
 	end
 	world.playerVeh = 70
 	me.p, me.v = { x = 3000, y = -2, z = 10 }, { x = 0, y = 0, z = 0 }
-	sharedCareer_speedLimit.uiRequest() -- the window opens: it asks for the sign
+	careerConvoy_speedLimit.uiRequest() -- the window opens: it asks for the sign
 	wait(1)
 	check(
 		sign().kmh == 70
@@ -5695,7 +5727,7 @@ end)();
 			end,
 		},
 	}, { __index = _G })
-	local chunk = assert(loadfile("client/lua/vehicle/extensions/auto/sharedCareerVeh.lua"))
+	local chunk = assert(loadfile("client/lua/vehicle/extensions/auto/careerConvoyVeh.lua"))
 	setfenv(chunk, env)
 	local veh = chunk()
 	veh.jobBreakDown(true, { engine = true })
@@ -5704,7 +5736,7 @@ end)();
 		all == "engine off, gear 0, parkingbrake 1, ignition 2, hazard true, flat",
 		"breakdown: engine off, ignition on, neutral, parking brake on, hazard lights, flat tire (" .. all .. ")"
 	)
-	check(ge[#ge]:find("sharedCareer_towJobs.onJobBrokenDown%(80, 1234%.5%)"), "reports the damage so far")
+	check(ge[#ge]:find("careerConvoy_towJobs.onJobBrokenDown%(80, 1234%.5%)"), "reports the damage so far")
 	veh.jobReportDamage()
 	check(ge[#ge]:find("onJobDamage%(80, 1234%.5%)"), "reports the damage at the drop-off")
 	-- other faults: the engine keeps running, the windshield and tail lights break
@@ -5882,7 +5914,7 @@ end)();
 			end,
 		},
 	}, { __index = _G })
-	local chunk = assert(loadfile("client/lua/vehicle/extensions/auto/sharedCareerVeh.lua"))
+	local chunk = assert(loadfile("client/lua/vehicle/extensions/auto/careerConvoyVeh.lua"))
 	setfenv(chunk, env)
 	local veh = chunk()
 	local MASS, PHYS = 2000, 1 / 2000
@@ -5993,13 +6025,13 @@ end)();
 			end,
 		},
 	}, { __index = _G })
-	local chunk = assert(loadfile("client/lua/vehicle/extensions/auto/sharedCareerVeh.lua"))
+	local chunk = assert(loadfile("client/lua/vehicle/extensions/auto/careerConvoyVeh.lua"))
 	setfenv(chunk, env)
 	local veh = chunk()
 	local WEIGHT, PHYS = 2000 * 9.81, 1 / 2000
 	-- two ropes on one vehicle at once: a strap (rope 3) and a tow rope (rope 4)
 	check(veh.ropeTieNode(3, 1, 0) and veh.ropeInfo(3).kind == 1, "a strap is tied at the node it is given")
-	check((body.ge[#body.ge] or ""):find("sharedCareer_rope.onRopeTied%(78, 3, "), "... and reported with its rope id")
+	check((body.ge[#body.ge] or ""):find("careerConvoy_rope.onRopeTied%(78, 3, "), "... and reported with its rope id")
 	veh.ropeTie(4, 0, 2, 0.8, 1.2, 1, 60)
 	check(veh.ropeInfo(3) and veh.ropeInfo(4) and veh.ropeInfo(4).kind == 0, "a vehicle holds several ropes at once")
 	veh.ropeRelease(4)
@@ -6127,7 +6159,7 @@ end)();
 			end,
 		},
 	}, { __index = _G })
-	local chunk = assert(loadfile("client/lua/vehicle/extensions/auto/sharedCareerVeh.lua"))
+	local chunk = assert(loadfile("client/lua/vehicle/extensions/auto/careerConvoyVeh.lua"))
 	setfenv(chunk, env)
 	local veh = chunk()
 	local function said(pattern)
@@ -6230,7 +6262,7 @@ end)();
 				end,
 			},
 		}, { __index = _G })
-		local chunk = assert(loadfile("client/lua/vehicle/extensions/auto/sharedCareerVeh.lua"))
+		local chunk = assert(loadfile("client/lua/vehicle/extensions/auto/careerConvoyVeh.lua"))
 		setfenv(chunk, env)
 		return chunk()
 	end
@@ -6259,7 +6291,7 @@ end)();
 		table.insert(cids, tonumber(cid))
 	end
 	check(
-		ge[1] and ge[1]:find("^if sharedCareer_straps then") and table.concat(cids, ",") == "3,4,5,6",
+		ge[1] and ge[1]:find("^if careerConvoy_straps then") and table.concat(cids, ",") == "3,4,5,6",
 		"the car names its four low corners: front left, front right, back left, back right (" .. tostring(list) .. ")"
 	)
 	-- no reference nodes: no corners
@@ -6330,7 +6362,7 @@ end)();
 	end
 	local function lastCall(v, fn)
 		for i = #v.lua, 1, -1 do
-			local args = v.lua[i]:match("sharedCareerVeh%." .. fn .. "%(([^)]*)%)")
+			local args = v.lua[i]:match("careerConvoyVeh%." .. fn .. "%(([^)]*)%)")
 			if args then
 				local nums = {}
 				for n in args:gmatch("[-%d%.]+") do
@@ -6343,8 +6375,8 @@ end)();
 	-- frames, with the roped car reporting like in the game (otherwise the watchdog drops the rope)
 	local function frames(n, each)
 		for _ = 1, n do
-			if sharedCareer_tow.isHolding() then
-				sharedCareer_rope.onRopeState(60, rid(), 0, 1, 0.5, 0, 1, 7)
+			if careerConvoy_tow.isHolding() then
+				careerConvoy_rope.onRopeState(60, rid(), 0, 1, 0.5, 0, 1, 7)
 			end
 			if each then
 				each()
@@ -6364,12 +6396,12 @@ end)();
 	local pickup = placed(61, 0, 10, 0.5)
 	local remote = placed(62, 0, 9, 0.5, true)
 	local walker = placed(63, 0, 9.5, 0, false, "unicycle")
-	check(sharedCareer_tow.uiAttachVehicle(60), "rope on the car")
-	sharedCareer_rope.onRopeTied(60, rid(), 5, 0, 1, 0.5, 7)
+	check(careerConvoy_tow.uiAttachVehicle(60), "rope on the car")
+	careerConvoy_rope.onRopeTied(60, rid(), 5, 0, 1, 0.5, 7)
 	frames(15)
 	check(lastCall(pickup, "anchorNear") == nil, "the anchor far from other vehicles: nobody is asked")
 	-- the anchor near the pickup's hitch (it sits at y = 7.4): the pickup is asked, the others not
-	sharedCareer_tow.rope().target = { x = 0, y = 7.7, z = 0.9 }
+	careerConvoy_tow.rope().target = { x = 0, y = 7.7, z = 0.9 }
 	frames(15)
 	local ask = lastCall(pickup, "anchorNear")
 	check(ask and ask[1] == rid() and ask[3] == 7.7, "the anchor near the pickup: it is asked where it would hook on")
@@ -6379,9 +6411,9 @@ end)();
 			and lastCall(walker, "anchorNear") == nil,
 		"not asked: the roped car, another player's vehicle, a player on foot"
 	)
-	check(sharedCareer_tow.appState().hookOn == nil, "no answer yet: no Hook on")
+	check(careerConvoy_tow.appState().hookOn == nil, "no answer yet: no Hook on")
 	-- the pickup answers: its hitch is the hook point – a green ring there, a dashed line to it
-	sharedCareer_rope.onAnchorNear(61, rid(), "2", 2, 1)
+	careerConvoy_rope.onAnchorNear(61, rid(), "2", 2, 1)
 	drawn = {}
 	frames(1)
 	local ringAt, guide = false, 0
@@ -6394,36 +6426,36 @@ end)();
 		end
 	end
 	check(ringAt and guide >= 1, "the hook point: a green ring on the hitch and a dashed line from the anchor")
-	local st = sharedCareer_tow.appState()
+	local st = careerConvoy_tow.appState()
 	check(
 		st.hookOn and st.hookOn.hitch == true and st.hookOn.vehicle == "Pickup" and st.anchorVehicle == nil,
 		"the app offers Hook on (onto the pickup's tow hitch)"
 	)
 	frames(30, function()
-		sharedCareer_rope.onAnchorNear(61, rid(), "2", 2, 1)
+		careerConvoy_rope.onAnchorNear(61, rid(), "2", 2, 1)
 	end)
 	check(
-		sharedCareer_tow.appState().anchorVehicle == nil and lastCall(pickup, "anchorHook") == nil,
+		careerConvoy_tow.appState().anchorVehicle == nil and lastCall(pickup, "anchorHook") == nil,
 		"it doesn't hook on by itself"
 	)
 	-- an answer nobody asked for is refused
-	sharedCareer_rope.onAnchorNode(61, rid(), 2, 1)
+	careerConvoy_rope.onAnchorNode(61, rid(), 2, 1)
 	check(
-		sharedCareer_tow.appState().anchorVehicle == nil and pickup.lua[#pickup.lua]:find("anchorRelease"),
+		careerConvoy_tow.appState().anchorVehicle == nil and pickup.lua[#pickup.lua]:find("anchorRelease"),
 		"an unasked hook-on is refused"
 	)
 	-- Hook on
-	check(sharedCareer_tow.uiHookOn(), "Hook on")
+	check(careerConvoy_tow.uiHookOn(), "Hook on")
 	local hook = lastCall(pickup, "anchorHook")
 	check(hook and hook[1] == rid() and hook[2] == 2, "Hook on: the pickup is told to take the rope at its hitch")
 	local other = placed(64, 3, 12, 0.5)
-	sharedCareer_rope.onAnchorNode(64, rid(), 2, 1)
+	careerConvoy_rope.onAnchorNode(64, rid(), 2, 1)
 	check(
-		sharedCareer_tow.appState().anchorVehicle == nil and other.lua[#other.lua]:find("anchorRelease"),
+		careerConvoy_tow.appState().anchorVehicle == nil and other.lua[#other.lua]:find("anchorRelease"),
 		"another vehicle's answer is refused"
 	)
-	sharedCareer_rope.onAnchorNode(61, rid(), 2, 1)
-	st = sharedCareer_tow.appState()
+	careerConvoy_rope.onAnchorNode(61, rid(), 2, 1)
+	st = careerConvoy_tow.appState()
 	check(
 		st.anchorVehicle == "Pickup" and st.anchorHitch == true and st.hookOn == nil,
 		"hooked onto the pickup's tow hitch"
@@ -6456,47 +6488,47 @@ end)();
 	end)
 	a = lastCall(car, "ropeUpdate")
 	check(math.abs(a[10] - 2) < 0.01 and math.abs(a[9]) < 0.01, "the hitch jumped: the pickup's own speed instead")
-	sharedCareer_rope.onRopePull(60, rid(), 0, -1500, 0)
+	careerConvoy_rope.onRopePull(60, rid(), 0, -1500, 0)
 	local pull = lastCall(pickup, "anchorPull")
 	check(pull and pull[1] == rid() and pull[3] == -1500, "the rope's pull goes on to the pickup")
 	-- hooked on, the remote doesn't move it
-	local hookedAt = sharedCareer_tow.rope().target
-	sharedCareer_tow.uiNudge(-1, 0, 0)
+	local hookedAt = careerConvoy_tow.rope().target
+	careerConvoy_tow.uiNudge(-1, 0, 0)
 	frames(30)
-	sharedCareer_tow.uiNudgeStop()
+	careerConvoy_tow.uiNudgeStop()
 	check(
-		sharedCareer_tow.appState().anchorVehicle and not sharedCareer_tow.appState().moving,
+		careerConvoy_tow.appState().anchorVehicle and not careerConvoy_tow.appState().moving,
 		"hooked on: the arrows do nothing"
 	)
 	-- Unhook: the anchor stays where it is, the pickup is told
-	sharedCareer_tow.uiUnhook()
+	careerConvoy_tow.uiUnhook()
 	local told = pickup.lua[#pickup.lua]:find("anchorRelease") ~= nil
 	frames(1)
 	a = lastCall(car, "ropeUpdate")
 	check(told and a[12] == 0 and a[10] == 0, "Unhook: the pickup is told, the anchor no longer rides on it")
 	check(
-		sharedCareer_tow.appState().anchorVehicle == nil and math.abs(a[3] - sharedCareer_tow.rope().target.y) < 0.01,
+		careerConvoy_tow.appState().anchorVehicle == nil and math.abs(a[3] - careerConvoy_tow.rope().target.y) < 0.01,
 		"unhooked: it rests in the world"
 	)
 	-- the remote moves it again
-	sharedCareer_tow.uiNudge(-1, 0, 0)
+	careerConvoy_tow.uiNudge(-1, 0, 0)
 	frames(30)
-	sharedCareer_tow.uiNudgeStop()
-	check(sharedCareer_tow.rope().target.y < hookedAt.y - 0.3, "unhooked: the arrows move it again")
+	careerConvoy_tow.uiNudgeStop()
+	check(careerConvoy_tow.rope().target.y < hookedAt.y - 0.3, "unhooked: the arrows move it again")
 	-- hooked on again, then the pickup is reset: the anchor stays where it was
-	sharedCareer_tow.rope().target = { x = 0, y = pickup.p.y - 2.4, z = 0.9 }
+	careerConvoy_tow.rope().target = { x = 0, y = pickup.p.y - 2.4, z = 0.9 }
 	frames(15)
-	sharedCareer_rope.onAnchorNear(61, rid(), "2", 2, 1)
-	sharedCareer_tow.uiHookOn()
-	sharedCareer_rope.onAnchorNode(61, rid(), 2, 1)
-	check(sharedCareer_tow.appState().anchorVehicle, "hooked on again")
+	careerConvoy_rope.onAnchorNear(61, rid(), "2", 2, 1)
+	careerConvoy_tow.uiHookOn()
+	careerConvoy_rope.onAnchorNode(61, rid(), 2, 1)
+	check(careerConvoy_tow.appState().anchorVehicle, "hooked on again")
 	extensions.hook("onVehicleResetted", 61)
 	check(
-		sharedCareer_tow.appState().anchorVehicle == nil and pickup.lua[#pickup.lua]:find("anchorRelease"),
+		careerConvoy_tow.appState().anchorVehicle == nil and pickup.lua[#pickup.lua]:find("anchorRelease"),
 		"the pickup is reset: the anchor comes off it and stays in the world"
 	)
-	sharedCareer_tow.uiRelease()
-	check(not sharedCareer_tow.isHolding(), "rope removed")
+	careerConvoy_tow.uiRelease()
+	check(not careerConvoy_tow.isHolding(), "rope removed")
 	_G.core_camera, _G.debugDrawer = nil, nil
 end)();
 -- GE side: the Straps app – Strap down, a strap by hand, the list
@@ -6525,8 +6557,8 @@ end)();
 		end,
 	}
 	local messages = {}
-	local realToast = sharedCareer_util.toast
-	sharedCareer_util.toast = function(_, msg)
+	local realToast = careerConvoy_util.toast
+	careerConvoy_util.toast = function(_, msg)
 		table.insert(messages, msg)
 	end
 	-- truck nodes 11-14 on its deck (z = 0.9), relative to its position
@@ -6554,7 +6586,7 @@ end)();
 	local function calls(v, fn)
 		local out = {}
 		for _, cmd in ipairs(v.lua) do
-			local args = cmd:match("sharedCareerVeh%." .. fn .. "%((.*)%) end$")
+			local args = cmd:match("careerConvoyVeh%." .. fn .. "%((.*)%) end$")
 			if args then
 				local nums = {}
 				for n in args:gmatch("[-%d%.]+") do
@@ -6571,8 +6603,8 @@ end)();
 	end
 	local function frames(n)
 		for _ = 1, n do
-			for _, r in ipairs(sharedCareer_rope.list()) do
-				sharedCareer_rope.onRopeState(r.veh, r.id, 0, 0, 1, 0, 0, 1, 0.1)
+			for _, r in ipairs(careerConvoy_rope.list()) do
+				careerConvoy_rope.onRopeState(r.veh, r.id, 0, 0, 1, 0, 0, 1, 0.1)
 			end
 			extensions.hook("onUpdate", 1 / 60, 1 / 60)
 		end
@@ -6589,15 +6621,15 @@ end)();
 	local truck = placed(71, 0, 0, 0.5, false, nil, deck)
 	local remote = placed(72, 0, 3, 0.5, true)
 	local walker = placed(73, 2, 0, 0, false, "unicycle")
-	local straps = sharedCareer_straps
+	local straps = careerConvoy_straps
 	local app
-	for _, x in ipairs(sharedCareer_phone.state().apps) do
+	for _, x in ipairs(careerConvoy_phone.state().apps) do
 		if x.id == "straps" then
 			app = x
 		end
 	end
 	check(app and app.title == "Straps" and app.icon == "straps", "the Straps app is on the phone")
-	sharedCareer_phone.uiOpenApp("straps")
+	careerConvoy_phone.uiOpenApp("straps")
 	-- Strap down: the car you look at names its corners
 	check(straps.uiStrapDown(), "Strap down")
 	local ask = last(car, "strapCorners")
@@ -6624,7 +6656,7 @@ end)();
 	check(#straps.appState().straps == 0, "not hooked on yet: not in the list")
 	-- tied: each is hooked onto its point on the truck
 	for _, t in ipairs(ties) do
-		sharedCareer_rope.onRopeTied(70, t.nums[1], 0, 0, 0, 1, t.nums[3])
+		careerConvoy_rope.onRopeTied(70, t.nums[1], 0, 0, 0, 1, t.nums[3])
 	end
 	local hooks = calls(truck, "anchorHook")
 	check(
@@ -6632,7 +6664,7 @@ end)();
 		"each strap is hooked onto its point on the truck"
 	)
 	for _, h in ipairs(hooks) do
-		sharedCareer_rope.onAnchorNode(71, h.nums[1], h.nums[2], 0)
+		careerConvoy_rope.onAnchorNode(71, h.nums[1], h.nums[2], 0)
 	end
 	local st = straps.appState()
 	check(#st.straps == 3 and st.straps[1].n == 1 and st.straps[1].vehicle == "Pickup", "the list shows three straps")
@@ -6657,7 +6689,7 @@ end)();
 	messages = {}
 	extensions.hook("onVehicleResetted", 71)
 	check(
-		#sharedCareer_rope.list() == 0 and #messages == 1 and messages[1]:find("straps off"),
+		#careerConvoy_rope.list() == 0 and #messages == 1 and messages[1]:find("straps off"),
 		"truck reset: all straps off, one message"
 	)
 	-- nothing below the car: nothing strapped
@@ -6666,7 +6698,7 @@ end)();
 	straps.onStrapCorners(70, req, "1,-0.9,2,1;2,0.9,2,1")
 	straps.onHookBelow(71, req, "")
 	check(
-		#sharedCareer_rope.list() == 0 and messages[#messages] == "Nothing below to strap to",
+		#careerConvoy_rope.list() == 0 and messages[#messages] == "Nothing below to strap to",
 		"no points below: nothing strapped"
 	)
 	-- no answer from the car: given up after a moment
@@ -6684,10 +6716,10 @@ end)();
 	local tie = last(car, "ropeTieRay")
 	check(tie and tie.nums[2] == 1, "tied where you look, as a strap")
 	local strapId = tie.nums[1]
-	sharedCareer_rope.onRopeTied(70, strapId, 5, 0.9, 2, 1, 4)
+	careerConvoy_rope.onRopeTied(70, strapId, 5, 0.9, 2, 1, 4)
 	-- 2. the remote moves the strap's end; the car doesn't feel it until it is hooked on
 	local updatesBefore = #calls(car, "ropeUpdate")
-	local strapRope = sharedCareer_rope.get(strapId)
+	local strapRope = careerConvoy_rope.get(strapId)
 	check(strapRope.target and strapRope.target.z == 1, "the strap's end starts where it is tied")
 	straps.uiNudge(0, 0, -1)
 	frames(30)
@@ -6704,8 +6736,8 @@ end)();
 	straps.uiNudge(1, 0, 0)
 	frames(400)
 	straps.uiNudgeStop()
-	local grip = sharedCareer_rope.gripNow(strapRope)
-	check(sharedCareer_rope.distance(grip, strapRope.target) <= 3.01, "the end stays within 3 m of the car")
+	local grip = careerConvoy_rope.gripNow(strapRope)
+	check(careerConvoy_rope.distance(grip, strapRope.target) <= 3.01, "the end stays within 3 m of the car")
 	messages = {}
 	check(
 		not straps.uiHookOn() and messages[1] == "Move it to your truck or trailer",
@@ -6713,7 +6745,7 @@ end)();
 	)
 	-- next to the truck's deck: it shows where it would hook on
 	strapRope.target = { x = 0.9, y = 2, z = 1.1 }
-	sharedCareer_rope.onAnchorNear(71, strapId, "", 12, 0)
+	careerConvoy_rope.onAnchorNear(71, strapId, "", 12, 0)
 	st = straps.appState()
 	check(st.step == 2 and st.hookOn and st.hookOn.hitch == false, "near the deck: Hook on is offered")
 	check(straps.uiHookOn(), "Hook on")
@@ -6721,7 +6753,7 @@ end)();
 		last(truck, "anchorHook").nums[1] == strapId and last(truck, "anchorHook").nums[2] == 12,
 		"the strap hooks onto that point"
 	)
-	sharedCareer_rope.onAnchorNode(71, strapId, 12, 0)
+	careerConvoy_rope.onAnchorNode(71, strapId, 12, 0)
 	check(straps.appState().step == 0 and #straps.appState().straps == 1, "hooked on: done, the strap is in the list")
 	frames(1)
 	check(
@@ -6731,11 +6763,11 @@ end)();
 	-- a strap's pull on the truck comes late (through the GE side): passed on smoothed, so it can't
 	-- rock the trailer; the steady load gets through
 	for _ = 1, 60 do
-		sharedCareer_rope.onRopePull(70, strapId, 0, 0, -3000)
+		careerConvoy_rope.onRopePull(70, strapId, 0, 0, -3000)
 		extensions.hook("onUpdate", 1 / 60, 1 / 60)
 	end
 	check(math.abs(last(truck, "anchorPull").nums[4] + 3000) < 1, "a steady strap pull reaches the truck in full")
-	sharedCareer_rope.onRopePull(70, strapId, 0, 0, -9000)
+	careerConvoy_rope.onRopePull(70, strapId, 0, 0, -9000)
 	local jolt = last(truck, "anchorPull").nums[4]
 	check(
 		jolt < -3000 and jolt > -3600,
@@ -6761,7 +6793,7 @@ end)();
 	extensions.hook("onUpdate", 1 / 60, 1 / 60)
 	local up = last(car, "ropeUpdate").nums
 	check(up[5] == 1 and up[7] == 0.1 and up[8] == 25, "Tighten: winch on, slow and weak (0.1 m/s, 25 %)")
-	sharedCareer_rope.onRopeState(70, strapId, 0, 0, 1, 1, 0, 1, 0.1)
+	careerConvoy_rope.onRopeState(70, strapId, 0, 0, 1, 1, 0, 1, 0.1)
 	extensions.hook("onUpdate", 1 / 60, 1 / 60)
 	extensions.hook("onUpdate", 1 / 60, 1 / 60)
 	check(last(car, "ropeUpdate").nums[5] == 0 and not straps.appState().tightening, "tight: the strap is locked again")
@@ -6780,7 +6812,7 @@ end)();
 	check(
 		straps.appState().step == 0
 			and last(car, "ropeRelease").nums[1] == second
-			and sharedCareer_rope.get(second) == nil,
+			and careerConvoy_rope.get(second) == nil,
 		"Cancel: the half-done strap comes off"
 	)
 	-- remove one, remove all
@@ -6796,21 +6828,21 @@ end)();
 	straps.onStrapCorners(70, req, "1,-0.9,2,1;2,0.9,2,1;3,-0.9,-2,1;4,0.9,-2,1")
 	straps.onHookBelow(71, req, "1,11,0.1;2,12,0.1;3,13,0.1;4,14,0.1")
 	check(
-		messages[#messages] == "Strapped down" and #sharedCareer_rope.list(sharedCareer_rope.STRAP) == 4,
+		messages[#messages] == "Strapped down" and #careerConvoy_rope.list(careerConvoy_rope.STRAP) == 4,
 		"four corners: strapped down"
 	)
 	straps.uiRemoveAll()
-	check(#sharedCareer_rope.list() == 0, "Remove all")
+	check(#careerConvoy_rope.list() == 0, "Remove all")
 	-- the tow rope and the straps live side by side: a car hauled up onto the truck is strapped down
 	-- from the Tow app, onto the truck the rope is hooked on only
-	local tow = sharedCareer_tow
+	local tow = careerConvoy_tow
 	local other = placed(74, 3, 0, 0.5)
 	check(tow.uiAttachVehicle(70), "tow rope on the car")
 	local towId = tow.rope().id
-	sharedCareer_rope.onRopeTied(70, towId, 0, 0, 2, 1.5, 5)
+	careerConvoy_rope.onRopeTied(70, towId, 0, 0, 2, 1.5, 5)
 	check(not tow.appState().strapDown, "not hooked on yet: no Strap down")
-	sharedCareer_rope.hook(tow.rope(), 71, 11)
-	sharedCareer_rope.onAnchorNode(71, towId, 11, 0)
+	careerConvoy_rope.hook(tow.rope(), 71, 11)
+	careerConvoy_rope.onAnchorNode(71, towId, 11, 0)
 	tow.setWinch(1)
 	frames(1)
 	check(tow.rope().length == 1 and not tow.appState().strapDown, "winch hauling in: no Strap down")
@@ -6825,19 +6857,19 @@ end)();
 	)
 	straps.onHookBelow(71, req, "1,11,0.1;2,12,0.1;3,13,0.1;4,14,0.1")
 	for _, t in ipairs(calls(car, "ropeTieNode")) do
-		sharedCareer_rope.onRopeTied(70, t.nums[1], 0, 0, 0, 1, t.nums[3])
+		careerConvoy_rope.onRopeTied(70, t.nums[1], 0, 0, 0, 1, t.nums[3])
 	end
 	check(straps.isStrapped(70) and not tow.appState().strapDown, "strapped: the button is gone")
 	-- the Straps app takes the tow rope off
 	check(straps.appState().towRope, "Straps app: Remove rope")
 	straps.uiRemoveRope()
 	check(
-		tow.rope() == nil and not straps.appState().towRope and #sharedCareer_rope.list(sharedCareer_rope.STRAP) == 4,
+		tow.rope() == nil and not straps.appState().towRope and #careerConvoy_rope.list(careerConvoy_rope.STRAP) == 4,
 		"Remove rope: the rope is off, the straps stay"
 	)
 	straps.uiRemoveAll()
-	sharedCareer_phone.uiCloseApp("straps")
-	sharedCareer_util.toast = realToast
+	careerConvoy_phone.uiCloseApp("straps")
+	careerConvoy_util.toast = realToast
 	_G.core_camera, _G.debugDrawer = nil, nil
 end)()
 

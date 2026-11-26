@@ -1,4 +1,4 @@
-# SharedCareer :: checks of a pull request into main
+# Career-Convoy :: checks of a pull request into main
 #
 #   tests          all tests and the Lua formatting (tools/test.sh)
 #   version        the version in the code stays "dev" (a release stamps it in); a change of

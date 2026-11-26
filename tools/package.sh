@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
-# Builds the package for rolling out: SharedCareer-<version>.zip
-# Contents: Resources/Client/SharedCareer.zip, Resources/Server/SharedCareer/main.lua, README.md,
+# Builds the package for rolling out: CareerConvoy-<version>.zip
+# Contents: Resources/Client/CareerConvoy.zip, Resources/Server/CareerConvoy/main.lua, README.md,
 #           server.sh (server control, lands in the server folder when unpacked)
 # (no config/ – settings on the server stay untouched when unpacking).
+# Plus empty stand-ins under the names from before the rename to Career-Convoy
+# (Resources/Server/SharedCareer/main.lua, Resources/Client/SharedCareer.zip): unpacked by a
+# server.sh from before the rename, they replace the old plugin and client mod, so those don't run
+# next to the new ones. A newer server.sh skips them and removes the old files.
 #
 #   tools/package.sh 0.35.0   release package (the Release workflow, see tools/version.sh)
 #   tools/package.sh --dev    dev build for a test server: the last release's version plus
@@ -16,8 +20,8 @@ case "${1:-}" in
 	[0-9]*.[0-9]*.[0-9]*) VERSION="$1" ;;
 	*) echo "Usage: tools/package.sh <version>|--dev" >&2; exit 1 ;;
 esac
-SERVER=Resources/Server/SharedCareer/main.lua
-CLIENT=client/lua/ge/extensions/sharedCareer/util.lua
+SERVER=Resources/Server/CareerConvoy/main.lua
+CLIENT=client/lua/ge/extensions/careerConvoy/util.lua
 tools/test.sh >/dev/null
 SAVED="$(mktemp -d)"
 cp "$SERVER" "$SAVED/main.lua"
@@ -30,8 +34,16 @@ if ! grep -q "^local VERSION = \"$VERSION\"" "$SERVER" || ! grep -q "^M.VERSION 
 	exit 1
 fi
 tools/build.sh >/dev/null
-rm -f SharedCareer-*.zip
+rm -f CareerConvoy-*.zip
 cp tools/server.sh server.sh && chmod +x server.sh
-zip -qr "SharedCareer-$VERSION.zip" server.sh Resources/Client/SharedCareer.zip "$SERVER" README.md
+zip -qr "CareerConvoy-$VERSION.zip" server.sh Resources/Client/CareerConvoy.zip "$SERVER" README.md
+STUBS="$SAVED/stubs"
+mkdir -p "$STUBS/Resources/Server/SharedCareer" "$STUBS/Resources/Client" "$STUBS/old-client"
+NOTE="The mod is called Career-Convoy now (Resources/Server/CareerConvoy). This is an empty stand-in for the old SharedCareer files; delete it (server.sh does that on the next start)."
+printf -- '-- %s\n' "$NOTE" >"$STUBS/Resources/Server/SharedCareer/main.lua"
+printf '%s\n' "$NOTE" >"$STUBS/old-client/README.txt"
+(cd "$STUBS/old-client" && zip -q -X ../Resources/Client/SharedCareer.zip README.txt)
+ZIP="$PWD/CareerConvoy-$VERSION.zip"
+(cd "$STUBS" && zip -q "$ZIP" Resources/Server/SharedCareer/main.lua Resources/Client/SharedCareer.zip)
 rm -f server.sh
-echo "built: SharedCareer-$VERSION.zip (tests passed)"
+echo "built: CareerConvoy-$VERSION.zip (tests passed)"

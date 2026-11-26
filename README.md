@@ -89,7 +89,7 @@ These changes stay after you leave:
 
 - **Your save** is a normal career save in your BeamNG user folder, named after your BeamMP account.
 - **Your UI layout** keeps the two Career-Convoy apps (you can remove them). If old Mileage boxes were removed, they stay removed.
-- **A small file** `settings/sharedCareer/state.json` remembers choices like "Don't show again".
+- **A small file** `settings/careerConvoy/state.json` remembers choices like "Don't show again".
 
 For server owners: settings move to new defaults automatically on updates, and `./server.sh update` installs the newest release. See [Server setup](docs/server-setup.md).
 
@@ -204,7 +204,7 @@ One post per problem. Please include:
 - What exactly is the problem?
 - Steps to make the bug happen again
 - A workaround, if you found one
-- The lines with `sharedCareer` from your `beamng.log`. The game overwrites this file on the next start, so copy it before you restart.
+- The lines containing `CareerConvoy` from your `beamng.log`. The game overwrites this file on the next start, so copy it before you restart.
 - If you can, screenshots or clips that show the bug
 
 Where to find `beamng.log`:
@@ -217,7 +217,7 @@ Where to find `beamng.log`:
 On Linux this prints the relevant lines:
 
 ```bash
-grep -E "sharedCareer|Instability|FATAL" ~/.local/share/BeamNG/BeamNG.drive/current/beamng.log | tail -50
+grep -i -E "careerConvoy|Instability|FATAL" ~/.local/share/BeamNG/BeamNG.drive/current/beamng.log | tail -50
 ```
 
 Logs can contain your user name and folder paths. Check them before you post.
