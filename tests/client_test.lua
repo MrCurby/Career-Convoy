@@ -5389,6 +5389,27 @@ check(
 		streets >= 35 and toPlaces >= 5 and named,
 		'rides mostly to streets ("Near Belasco Auto", "Country road"), some to places'
 	)
+	-- a higher level: longer rides and more passengers
+	local function rides(tier)
+		local inRange, people, count = 0, 0, 0
+		local range = ({ { 600, 2000 }, nil, nil, { 3000, 7000 } })[tier]
+		for _ = 1, 40 do
+			local ride = taxi.generate(tier)
+			if ride then
+				local d = jobs.dist2D(ride.pos, ride.dest.pos)
+				inRange = inRange + (d >= range[1] and d <= range[2] and 1 or 0)
+				people = people + ride.data.passengers
+				count = count + 1
+			end
+		end
+		return inRange / count, people / count
+	end
+	local shortShare, fewPeople = rides(1)
+	local longShare, morePeople = rides(4)
+	check(
+		shortShare == 1 and longShare == 1 and morePeople > fewPeople + 0.5,
+		"level 1: rides of 0.6-2 km; level 8: of 3-7 km, with more passengers"
+	)
 	-- doing it: pick up the passenger, drive to the place, a smooth ride pays all
 	local ride = {
 		id = 30,

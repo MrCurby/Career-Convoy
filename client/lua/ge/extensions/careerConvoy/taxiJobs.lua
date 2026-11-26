@@ -186,47 +186,74 @@ local function streetEnd(from, inTown, min, max, places)
 	return nil
 end
 
---- Makes up a taxi job of a tier on this map, or returns nil and why not.
+-- A taxi job from this roadside spot to dest.
+local function rideOf(spot, dest, tier)
+	local t = tierOf(tier)
+	local length = J.roadLength(spot.pos, dest.pos)
+	local vip = math.random() < t.vip
+	-- spot.dir runs along the road; the road is to the left of it
+	local face = spot.dir and { x = J.roundTo(-spot.dir.y, 0.01), y = J.roundTo(spot.dir.x, 0.01) }
+	return {
+		title = vip and "VIP" or "Passenger",
+		pos = spot.pos,
+		dest = dest,
+		length = length,
+		pay = M.payFor(length, vip, tier),
+		data = { vip = vip, passengers = M.rollPassengers(tier), face = face },
+	}
+end
+
+--- Makes up a taxi job of a tier on this map, or returns nil and why not. The ride's length comes
+--- first: a place to go as far away as the tier says, if there is one; then a street rather than a
+--- facility (STREET_SHARE) and in town or not (TOWN_END), as rolled. A spot with no place to go at
+--- the right distance: another spot; none at all (a small map): the nearest place from the first.
 function M.generate(tier)
 	local t = tierOf(tier)
 	local places = J.facilityPlaces()
-	local startInTown, endInTown = math.random() < TOWN_START, math.random() < TOWN_END
+	-- in town or not: only on a map with a town (else nil: anywhere)
+	local startInTown, endInTown = nil, nil
+	if J.hasTown() then
+		startInTown, endInTown = math.random() < TOWN_START, math.random() < TOWN_END
+	end
 	local toStreet = #places == 0 or math.random() < STREET_SHARE
 	local ends = {}
 	for _, place in ipairs(places) do
-		if J.inTown(place.pos) == endInTown then
+		if endInTown == nil or J.inTown(place.pos) == endInTown then
 			table.insert(ends, place)
 		end
 	end
+	local function facility(from, list)
+		local pick = J.pickDestination(list, from, t.destMin, t.destMax)
+		return pick and pick.d >= t.destMin and pick.d <= t.destMax and { name = pick.place.name, pos = pick.place.pos }
+	end
+	local function street(from, inTown)
+		return streetEnd(from, inTown, t.destMin, t.destMax, places)
+	end
+	local fallback = nil
 	for _ = 1, PLACE_TRIES do
 		local spot, why = J.randomRoadside(startInTown)
 		if why then
 			return nil, why
 		end
 		if spot and J.farFromVehicles(spot.pos, FAR_FROM_VEHICLES) then
-			local dest = toStreet and streetEnd(spot.pos, endInTown, t.destMin, t.destMax, places)
-			if not dest then
-				local pick = J.pickDestination(ends, spot.pos, t.destMin, t.destMax)
-				if not pick or pick.d < t.destMin or pick.d > t.destMax then
-					pick = J.pickDestination(places, spot.pos, t.destMin, t.destMax) or pick
-				end
-				dest = pick and { name = pick.place.name, pos = pick.place.pos }
+			local from = spot.pos
+			local dest
+			if toStreet then
+				dest = street(from, endInTown) or facility(from, ends) or street(from, nil) or facility(from, places)
+			else
+				dest = facility(from, ends) or street(from, endInTown) or facility(from, places) or street(from, nil)
 			end
 			if dest then
-				local length = J.roadLength(spot.pos, dest.pos)
-				local vip = math.random() < t.vip
-				-- spot.dir runs along the road; the road is to the left of it
-				local face = spot.dir and { x = J.roundTo(-spot.dir.y, 0.01), y = J.roundTo(spot.dir.x, 0.01) }
-				return {
-					title = vip and "VIP" or "Passenger",
-					pos = spot.pos,
-					dest = dest,
-					length = length,
-					pay = M.payFor(length, vip, tier),
-					data = { vip = vip, passengers = M.rollPassengers(tier), face = face },
-				}
+				return rideOf(spot, dest, tier)
+			end
+			local nearest = not fallback and J.pickDestination(places, from, t.destMin, t.destMax)
+			if nearest then
+				fallback = rideOf(spot, { name = nearest.place.name, pos = nearest.place.pos }, tier)
 			end
 		end
+	end
+	if fallback then
+		return fallback
 	end
 	return nil, #places == 0 and "no places to go on this map" or "no free place found"
 end

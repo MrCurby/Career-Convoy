@@ -290,6 +290,12 @@ local function mapRoads()
 	return type(nodes) == "table" and roadsOf(nodes) or nil
 end
 
+--- Whether this map has a town (inTown).
+function M.hasTown()
+	local r = mapRoads()
+	return r ~= nil and #r.town > 0
+end
+
 --- Whether p ({x, y}) is in a town of this map: road junctions are dense there (roadsOf). A map
 --- without a town: false everywhere.
 function M.inTown(p)
