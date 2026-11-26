@@ -46,10 +46,10 @@ echo 'REPO="MrCurby/Career-Convoy"' > server.conf
 `update` downloads the newest release from GitHub, installs it and starts the server. The server console should show:
 
 ```
-[SharedCareer] Version <version> loaded. Console: sc help
+[Career-Convoy] Version <version> loaded. Console: sc help
 ```
 
-On the first start the mod creates its settings in `Resources/Server/SharedCareer/config/config.json`.
+On the first start the mod creates its settings in `Resources/Server/CareerConvoy/config/config.json`.
 
 > **Already running your server in your own screen or tmux session?** Stop it there once (open the session, then press Ctrl+C) and start it again with `./server.sh start`. From then on the script manages it.
 >
@@ -83,7 +83,7 @@ GITHUB_TOKEN=""               # only needed for a private repository (token with
 BACKUPS_KEEP=5                # update backups to keep; 0 = keep all
 ```
 
-Without a `REPO`, `update` installs the newest `SharedCareer-*.zip` it finds in the server folder, for example one you uploaded with `scp`.
+Without a `REPO`, `update` installs the newest `CareerConvoy-*.zip` it finds in the server folder, for example one you uploaded with `scp`.
 
 ## Test server (dev builds)
 
@@ -117,7 +117,7 @@ BRANCH=""
 1. Asks GitHub for the newest release (or dev build) and compares it with the installed version. If it is the same, it stops here with "Already up to date".
 2. Downloads the release zip and checks that it is a valid zip.
 3. Stops the server.
-4. Backs up the current mod **and your settings** to `sharedcareer-backup-<date>.tgz`.
+4. Backs up the current mod **and your settings** to `careerconvoy-backup-<date>.tgz`.
 5. Unpacks the release. This replaces the mod code and the client mod, but **never touches your settings**. `server.sh` itself is only replaced by a newer one (a higher `SCRIPT_REVISION`), so going back to an older release keeps the newer script.
 6. Deletes old release zips (the newest three stay) and old backups (the newest `BACKUPS_KEEP` stay, 5 by default).
 7. Starts the server again and shows the Career-Convoy startup lines.
@@ -133,47 +133,60 @@ After an update:
 
 ## Manual installation and updates
 
-A release is the file `SharedCareer-<version>.zip` from the [releases page](https://github.com/MrCurby/Career-Convoy/releases). It contains:
+A release is the file `CareerConvoy-<version>.zip` from the [releases page](https://github.com/MrCurby/Career-Convoy/releases). It contains:
 
 ```
 server.sh                                   server control script
-Resources/Client/SharedCareer.zip           client mod (BeamMP sends it to the players)
-Resources/Server/SharedCareer/main.lua      server plugin
+Resources/Client/CareerConvoy.zip           client mod (BeamMP sends it to the players)
+Resources/Server/CareerConvoy/main.lua      server plugin
 README.md
+Resources/Client/SharedCareer.zip           empty stand-ins for the files from before the
+Resources/Server/SharedCareer/main.lua      rename (see "Coming from SharedCareer")
 ```
 
-Settings (`Resources/Server/SharedCareer/config/`) are **not** in the zip, so unpacking over an existing installation is always safe.
+Settings (`Resources/Server/CareerConvoy/config/`) are **not** in the zip, so unpacking over an existing installation is always safe.
 
 1. Upload the zip from your PC:
    ```bash
-   scp SharedCareer-<version>.zip <user>@<server>:<server-folder>/
+   scp CareerConvoy-<version>.zip <user>@<server>:<server-folder>/
    ```
 2. Stop the server.
 3. Optional: back up the current version together with your settings:
    ```bash
-   cd <server-folder> && tar czf sharedcareer-backup-$(date +%F-%H%M).tgz Resources/Server/SharedCareer Resources/Client/SharedCareer.zip
+   cd <server-folder> && tar czf careerconvoy-backup-$(date +%F-%H%M).tgz Resources/Server/CareerConvoy Resources/Client/CareerConvoy.zip
    ```
 4. Unpack:
    ```bash
-   cd <server-folder> && unzip -o SharedCareer-<version>.zip
+   cd <server-folder> && unzip -o CareerConvoy-<version>.zip
    ```
-5. Start the server and look for `[SharedCareer] Version <version> loaded` in the console. When the client mod changed, BeamMP also prints `File 'Resources/Client/SharedCareer.zip' has been modified, rehashing`.
+5. Start the server and look for `[Career-Convoy] Version <version> loaded` in the console. When the client mod changed, BeamMP also prints `File 'Resources/Client/CareerConvoy.zip' has been modified, rehashing`.
 
 ## Rolling back
 
 Stop the server, then either install the older release:
 
 ```bash
-./server.sh update SharedCareer-<old-version>.zip
+./server.sh update CareerConvoy-<old-version>.zip
 ```
 
 or restore a backup made during an update:
 
 ```bash
-tar xzf sharedcareer-backup-<date>.tgz
+tar xzf careerconvoy-backup-<date>.tgz
 ```
 
 Then start the server. Players automatically get the matching client mod again on their next join.
+
+A package or backup from before the rename to Career-Convoy (`SharedCareer-<version>.zip`, or a backup with a `Resources/Server/SharedCareer` folder): `./server.sh update` installs such a package as it was. Before restoring such a backup by hand, delete `Resources/Server/CareerConvoy` and `Resources/Client/CareerConvoy.zip`, so the two versions don't run side by side.
+
+## Coming from SharedCareer
+
+Career-Convoy used to be called SharedCareer, and its files had that name: `Resources/Server/SharedCareer` (with your settings in `config/`) and `Resources/Client/SharedCareer.zip`. Updating moves everything over once:
+
+- **With `./server.sh update`**, even an older `server.sh`: your settings move to `Resources/Server/CareerConvoy/config`, and the old files are removed before the next start. Nothing to do.
+- **By hand** (`unzip -o`): the package replaces the old files with empty stand-ins, and the server moves your settings on its first start. Then delete `Resources/Server/SharedCareer` and `Resources/Client/SharedCareer.zip`.
+- `REPO="MrCurby/SharedCareer"` in `server.conf` still works (GitHub forwards it). Change it to `REPO="MrCurby/Career-Convoy"` when you like.
+- Players keep everything: their apps and settings move to the new names on their next join, their save games stay as they are. Only a key they changed for the menu or the phone has to be set again.
 
 ## Save games
 
@@ -201,4 +214,4 @@ Career-Convoy and Mileage must **never run on the same server at the same time**
 3. Install Career-Convoy as described above and start the server.
 4. If Mileage used a suffix (for example `_wcusa`), set the same one: `sc set client.saveSuffix _wcusa`. Otherwise leave it empty. The Mileage saves then keep working, because the profile name is built the same way.
 5. Every player should back up their save folder before the first join (`<BeamNG user folder>/current/settings/cloud/saves/<name>`).
-6. Players who used Mileage still have its apps in their UI layout; without Mileage they show up as red "Unknown app" boxes. Career-Convoy removes them automatically on join (`client.cleanupMileageApps`). The mod backs up the layout files first as `.sharedcareer-backup`.
+6. Players who used Mileage still have its apps in their UI layout; without Mileage they show up as red "Unknown app" boxes. Career-Convoy removes them automatically on join (`client.cleanupMileageApps`). The mod backs up the layout files first as `.careerconvoy-backup`.

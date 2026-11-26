@@ -1,0 +1,17 @@
+{
+  "domElement": "<career-convoy-speed-limit></career-convoy-speed-limit>",
+  "name": "Career-Convoy Speed Limit",
+  "types": [
+    "ui.apps.categories.beammp"
+  ],
+  "css": {
+    "right": "40px",
+    "bottom": "300px",
+    "width": "100px",
+    "height": "110px"
+  },
+  "description": "Career-Convoy: the speed limit of the road you drive on, in the unit of your speedometer.",
+  "author": "Career-Convoy",
+  "version": "1.0",
+  "directive": "careerConvoySpeedLimit"
+}

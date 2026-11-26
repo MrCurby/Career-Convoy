@@ -1,4 +1,4 @@
--- SharedCareer :: replays the timeline from tests/ui_test.js (random clicks on the real menu and
+-- Career-Convoy :: replays the timeline from tests/ui_test.js (random clicks on the real menu and
 -- phone windows) against the real menu.lua and checks at every moment that the state is sent
 -- exactly while something shows it, with fuel prices whenever the Fuel app is open.
 --
@@ -18,7 +18,7 @@ local pushes = {}
 local clock = 0
 _G.guihooks = {
 	trigger = function(name, data)
-		if name == "SharedCareerState" then
+		if name == "CareerConvoyState" then
 			table.insert(pushes, { t = clock, fuel = data.fuel })
 		end
 	end,
@@ -29,13 +29,13 @@ _G.MPCoreNetwork = {
 		return true
 	end,
 }
-local U = dofile(ROOT .. "/client/lua/ge/extensions/sharedCareer/util.lua")
-extensions.sharedCareer_util = U
-local menu = dofile(ROOT .. "/client/lua/ge/extensions/sharedCareer/menu.lua")
+local U = dofile(ROOT .. "/client/lua/ge/extensions/careerConvoy/util.lua")
+extensions.careerConvoy_util = U
+local menu = dofile(ROOT .. "/client/lua/ge/extensions/careerConvoy/menu.lua")
 menu.onExtensionLoaded()
-_G.sharedCareer_menu = menu
+_G.careerConvoy_menu = menu
 local fuelCalls = 0
-extensions.sharedCareer_fuel = {
+extensions.careerConvoy_fuel = {
 	overview = function()
 		fuelCalls = fuelCalls + 1
 		return { stations = {} }
@@ -74,7 +74,7 @@ for i, step in ipairs(steps) do
 	end
 	local before = #pushes
 	for _, c in ipairs(step.calls) do
-		if c:find("sharedCareer_menu") then
+		if c:find("careerConvoy_menu") then
 			assert(loadstring(c))()
 		end
 	end

@@ -1,0 +1,17 @@
+{
+  "domElement": "<career-convoy-menu></career-convoy-menu>",
+  "name": "Career-Convoy Menu",
+  "types": [
+    "ui.apps.categories.beammp"
+  ],
+  "css": {
+    "right": "0px",
+    "top": "600px",
+    "width": "345px",
+    "height": "190px"
+  },
+  "description": "Career-Convoy server menu: time of day, traffic and options. Every change applies to all players at once.",
+  "author": "Career-Convoy",
+  "version": "1.0",
+  "directive": "careerConvoyMenu"
+}

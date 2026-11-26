@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SharedCareer :: server control for a BeamMP server (runs it in a tmux session)
+# Career-Convoy :: server control for a BeamMP server (runs it in a tmux session)
 #
 # Put this file into the server folder (where BeamMP-Server and ServerConfig.toml are),
 # make it executable once:   chmod +x server.sh
@@ -7,7 +7,7 @@
 #   ./server.sh start          start the server in the background
 #   ./server.sh stop           stop it cleanly (SIGTERM, killed if it hangs)
 #   ./server.sh restart        stop + start
-#   ./server.sh status         is it running? (with PID and SharedCareer version)
+#   ./server.sh status         is it running? (with PID and Career-Convoy version)
 #   ./server.sh console        open the live console  –  leave with Ctrl+B, then D
 #                              (NOT Ctrl+C: that stops the server)
 #   ./server.sh logs [n]       last n lines of Server.log (default 100)
@@ -28,8 +28,8 @@
 #   CHANNEL="release"          what "update" installs: "release" or "dev" (a test server)
 #   BRANCH=""                  with CHANNEL="dev": only dev builds of this branch (empty = any)
 #   GITHUB_TOKEN=""            only needed for a private repository (token with read access)
-#   BACKUPS_KEEP=5             update backups to keep (sharedcareer-backup-*.tgz); 0 = keep all
-# Without REPO, "update" installs the newest SharedCareer-*.zip in this folder.
+#   BACKUPS_KEEP=5             update backups to keep (careerconvoy-backup-*.tgz); 0 = keep all
+# Without REPO, "update" installs the newest CareerConvoy-*.zip in this folder.
 #
 # The tmux session is named after the folder (e.g. "sctest"), so several servers in
 # different folders don't get in each other's way.
@@ -39,7 +39,7 @@ set -u
 # Raise with every change of this script (tools/version_check.sh checks it): an update only
 # replaces server.sh with one of a higher revision, so installing an older package (or a release
 # built before a fix of this script) never brings back an old server.sh.
-SCRIPT_REVISION=3
+SCRIPT_REVISION=4
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$DIR" || exit 1
@@ -54,6 +54,11 @@ CHANNEL="release"
 BRANCH=""
 DEV_PREFIX="build-"   # tag of a branch's dev build: build-<branch>, a GitHub pre-release (dev-build.yml)
 BACKUPS_KEEP=5
+PLUGIN="Resources/Server/CareerConvoy"          # the server plugin (main.lua, settings in config/)
+CLIENT_ZIP="Resources/Client/CareerConvoy.zip"  # the client mod BeamMP sends to the players
+# where they were while the mod was called SharedCareer (see "Rename" below)
+PLUGIN_BEFORE_RENAME="Resources/Server/SharedCareer"
+CLIENT_ZIP_BEFORE_RENAME="Resources/Client/SharedCareer.zip"
 # shellcheck disable=SC1091
 [ -f "$DIR/server.conf" ] && . "$DIR/server.conf"
 
@@ -108,7 +113,7 @@ console_text() {
 
 terminate() {
 	# SIGTERM: BeamMP shuts down cleanly, like on Ctrl+C, without depending on the console.
-	# SIGKILL only if it hangs; SharedCareer writes its data as soon as it changes,
+	# SIGKILL only if it hangs; Career-Convoy writes its data as soon as it changes,
 	# so a kill loses nothing.
 	local p="$1" i logstart=0
 	[ -f "$LOG" ] && logstart="$(wc -c <"$LOG")"
@@ -126,6 +131,41 @@ terminate() {
 	sleep 1
 }
 
+#== Rename ======================================================================
+# The mod was called SharedCareer. Packages since the rename bring empty stand-ins under the old
+# names, so a server.sh from before the rename doesn't run the old plugin next to the new one.
+
+# Moves the settings into the new folder once and removes the old files (only once the new
+# plugin is installed).
+move_from_old_name() {
+	[ -f "$DIR/$PLUGIN/main.lua" ] || return 0
+	if [ -d "$DIR/$PLUGIN_BEFORE_RENAME/config" ] && [ ! -e "$DIR/$PLUGIN/config" ]; then
+		mv "$DIR/$PLUGIN_BEFORE_RENAME/config" "$DIR/$PLUGIN/config" && info "Settings moved to $PLUGIN/config."
+	fi
+	if [ -d "$DIR/$PLUGIN_BEFORE_RENAME/config" ]; then
+		rm -f "$DIR/$PLUGIN_BEFORE_RENAME/main.lua"
+		red "Old settings kept in $PLUGIN_BEFORE_RENAME/config (the new folder has its own). Delete it when you don't need it."
+	elif [ -e "$DIR/$PLUGIN_BEFORE_RENAME" ]; then
+		rm -rf "${DIR:?}/$PLUGIN_BEFORE_RENAME"
+	fi
+	rm -f "$DIR/$CLIENT_ZIP_BEFORE_RENAME"
+	local f
+	for f in "$DIR"/sharedcareer-backup-*.tgz; do
+		[ -f "$f" ] && mv "$f" "$DIR/careerconvoy-backup-${f##*/sharedcareer-backup-}"
+	done
+	return 0
+}
+
+# The other way round, before a package from before the rename is installed (going back to an
+# older version).
+move_to_old_name() {
+	if [ -d "$DIR/$PLUGIN/config" ] && [ ! -e "$DIR/$PLUGIN_BEFORE_RENAME/config" ]; then
+		mkdir -p "$DIR/$PLUGIN_BEFORE_RENAME" && mv "$DIR/$PLUGIN/config" "$DIR/$PLUGIN_BEFORE_RENAME/config"
+	fi
+	if [ -d "$DIR/$PLUGIN/config" ]; then rm -f "$DIR/$PLUGIN/main.lua"; else rm -rf "${DIR:?}/$PLUGIN"; fi
+	rm -f "$DIR/$CLIENT_ZIP"
+}
+
 cmd_start() {
 	need_tmux
 	if running; then info "Already running (session '$SESSION'). Console: ./server.sh console"; return 0; fi
@@ -136,6 +176,7 @@ cmd_start() {
 	fi
 	local bin
 	if ! bin="$(find_binary)"; then red "No BeamMP-Server program found in $DIR."; exit 1; fi
+	move_from_old_name
 	if [ ! -f "$DIR/ServerConfig.toml" ]; then info "Note: no ServerConfig.toml yet – BeamMP creates one on the first start."; fi
 	# the session ends together with the server; Server.log keeps the reason if it crashes
 	tmux new-session -d -s "$SESSION" -c "$DIR" "$(printf '%q' "$bin")"
@@ -175,7 +216,7 @@ cmd_status() {
 		p="$(server_pid || true)"
 		green "Running (session '$SESSION'${p:+, PID $p})."
 		if [ -f "$LOG" ]; then
-			local v; v="$(grep -o 'SharedCareer\] Version [0-9A-Za-z.-]*' "$LOG" | tail -n 1)"
+			local v; v="$(grep -o 'Career-Convoy\] Version [0-9A-Za-z.-]*' "$LOG" | tail -n 1)"
 			[ -n "$v" ] && info "${v#*] }"
 		fi
 	else
@@ -222,7 +263,9 @@ cmd_cmd() {
 #== GitHub ======================================================================
 
 installed_version() {
-	sed -n 's/^local VERSION = "\(.*\)"/\1/p' "$DIR/Resources/Server/SharedCareer/main.lua" 2>/dev/null
+	local f="$DIR/$PLUGIN/main.lua"
+	[ -f "$f" ] || f="$DIR/$PLUGIN_BEFORE_RENAME/main.lua"
+	sed -n 's/^local VERSION = "\(.*\)"/\1/p' "$f" 2>/dev/null
 }
 
 # curl with token (if set)
@@ -248,7 +291,7 @@ dev_tag() {
 
 # Gets the newest package: channel "release" (newest release) or "dev" (the newest dev build of
 # branch $2, or of any branch if $2 is empty). Sets REMOTE_VERSION (from the zip's name,
-# SharedCareer-<version>.zip), REMOTE_ASSET (API address of the zip) and REMOTE_BRANCH (dev
+# CareerConvoy-<version>.zip, SharedCareer-<version>.zip before the rename), REMOTE_ASSET (API address of the zip) and REMOTE_BRANCH (dev
 # builds). With "quiet" ($3), a missing package returns 1 instead of stopping.
 fetch_remote() {
 	local channel="$1" branch="${2:-}" quiet="${3:-}"
@@ -280,10 +323,10 @@ fetch_remote() {
 		fi
 		exit 1
 	fi
-	REMOTE_VERSION="$(printf '%s' "$json" | grep -o '"name": *"SharedCareer-[^"]*\.zip"' | head -n 1 | sed 's/.*"SharedCareer-\(.*\)\.zip"$/\1/')"
+	REMOTE_VERSION="$(printf '%s' "$json" | grep -o -E '"name": *"(CareerConvoy|SharedCareer)-[^"]*\.zip"' | head -n 1 | sed -E 's/.*"(CareerConvoy|SharedCareer)-(.*)\.zip"$/\2/')"
 	REMOTE_ASSET="$(printf '%s' "$json" | grep -o '"url": *"[^"]*/releases/assets/[0-9]*"' | head -n 1 | sed 's/.*"\(http[^"]*\)"$/\1/')"
 	# the dev build's title ends with "from <branch>"
-	REMOTE_BRANCH="$(printf '%s' "$json" | grep -o '"name": *"SharedCareer dev build [^"]* from [^"]*"' | head -n 1 | sed 's/.* from \([^"]*\)"$/\1/')"
+	REMOTE_BRANCH="$(printf '%s' "$json" | grep -o -E '"name": *"(Career-Convoy|SharedCareer) dev build [^"]* from [^"]*"' | head -n 1 | sed 's/.* from \([^"]*\)"$/\1/')"
 	if [ -z "$REMOTE_VERSION" ] || [ -z "$REMOTE_ASSET" ]; then
 		[ -n "$quiet" ] && return 1
 		red "The newest $what of $REPO has no zip."; exit 1
@@ -318,7 +361,7 @@ cmd_check() {
 clean_backups() {
 	[ "${BACKUPS_KEEP:-0}" -gt 0 ] 2>/dev/null || return 0
 	local old
-	old="$(ls -1 "$DIR"/sharedcareer-backup-*.tgz 2>/dev/null | sort | head -n "-$BACKUPS_KEEP")"
+	old="$(ls -1 "$DIR"/careerconvoy-backup-*.tgz 2>/dev/null | sort | head -n "-$BACKUPS_KEEP")"
 	[ -z "$old" ] && return 0
 	printf '%s\n' "$old" | xargs -r rm -f
 	info "Old backups removed: $(printf '%s\n' "$old" | wc -l) (the newest $BACKUPS_KEEP stay)"
@@ -334,8 +377,8 @@ download_remote() {
 		green "Already up to date (version $have). To reinstall anyway: ./server.sh update --force" >&2
 		return 0
 	fi
-	local file="$DIR/SharedCareer-$REMOTE_VERSION.zip"
-	info "Downloading SharedCareer $REMOTE_VERSION${REMOTE_BRANCH:+ (branch $REMOTE_BRANCH)} from GitHub ($REPO) ..." >&2
+	local file="$DIR/CareerConvoy-$REMOTE_VERSION.zip"
+	info "Downloading Career-Convoy $REMOTE_VERSION${REMOTE_BRANCH:+ (branch $REMOTE_BRANCH)} from GitHub ($REPO) ..." >&2
 	if ! gh_curl -H "Accept: application/octet-stream" -o "$file.part" "$REMOTE_ASSET" || ! unzip -tq "$file.part" >/dev/null 2>&1; then
 		rm -f "$file.part"; red "Download failed." >&2; exit 1
 	fi
@@ -389,29 +432,36 @@ cmd_update() {
 		zip="$(download_remote "$channel" "$branch" "$force")" || exit 1
 		[ -z "$zip" ] && return 0
 	elif [ -z "$zip" ]; then
-		zip="$(ls -1 "$DIR"/SharedCareer-*.zip 2>/dev/null | sort -V | tail -n 1)"
-		if [ -z "$zip" ]; then red "No SharedCareer-*.zip in this folder and no REPO in server.conf."; exit 1; fi
+		zip="$(ls -1 "$DIR"/CareerConvoy-*.zip 2>/dev/null | sort -V | tail -n 1)"
+		if [ -z "$zip" ]; then red "No CareerConvoy-*.zip in this folder and no REPO in server.conf."; exit 1; fi
 	fi
 	if [ ! -f "$zip" ]; then red "File not found: $zip"; exit 1; fi
 	info "Updating with $(basename "$zip") (installed before: $(installed_version))"
 	local was_running=0
 	running && was_running=1
 	cmd_stop
-	local backup="sharedcareer-backup-$(date +%F-%H%M%S).tgz"
+	local backup="careerconvoy-backup-$(date +%F-%H%M%S).tgz"
 	local what=() f
-	for f in Resources/Server/SharedCareer Resources/Client/SharedCareer.zip; do [ -e "$f" ] && what+=("$f"); done
+	for f in "$PLUGIN" "$CLIENT_ZIP" "$PLUGIN_BEFORE_RENAME" "$CLIENT_ZIP_BEFORE_RENAME"; do [ -e "$f" ] && what+=("$f"); done
 	if [ "${#what[@]}" -gt 0 ]; then
 		if tar czf "$backup" "${what[@]}"; then info "Backup: $backup"; else red "Backup failed – aborting."; exit 1; fi
 	fi
-	unzip -o -q "$zip" -x server.sh || { red "Unpacking failed."; exit 1; }
+	if unzip -l "$zip" "$PLUGIN/main.lua" >/dev/null 2>&1; then
+		unzip -o -q "$zip" -x server.sh "$PLUGIN_BEFORE_RENAME/*" "$CLIENT_ZIP_BEFORE_RENAME" || { red "Unpacking failed."; exit 1; }
+		move_from_old_name
+	else
+		info "A package from before the rename to Career-Convoy: installing it as SharedCareer."
+		move_to_old_name
+		unzip -o -q "$zip" -x server.sh || { red "Unpacking failed."; exit 1; }
+	fi
 	update_script "$zip"
 	# clean up old zips (the newest 3 stay)
-	ls -1 "$DIR"/SharedCareer-*.zip 2>/dev/null | sort -V | head -n -3 | xargs -r rm -f
+	ls -1 "$DIR"/CareerConvoy-*.zip 2>/dev/null | sort -V | head -n -3 | xargs -r rm -f
 	clean_backups
-	green "Unpacked (settings in Resources/Server/SharedCareer/config are kept)."
+	green "Unpacked (the settings are kept)."
 	cmd_start
 	sleep 3
-	grep -h "SharedCareer\]" "$LOG" 2>/dev/null | tail -n 5
+	grep -h -E "(Career-Convoy|SharedCareer)\]" "$LOG" 2>/dev/null | tail -n 5
 	[ "$was_running" = 0 ] && info "(The server was not running before – it is running now.)"
 }
 

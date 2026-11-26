@@ -34,9 +34,9 @@ One window for everything you can change in the game. **Every change applies to 
 
 - The menu is added to your career UI automatically on your first join, at the right edge below the BeamMP player list.
 - The **steering-wheel tab** at the right screen edge opens and closes it. **F7** does the same.
-- To use another key, open *Options → Controls → BeamMP*, entry "SharedCareer: show/hide menu".
+- To use another key, open *Options → Controls → BeamMP*, entry "Career-Convoy: show/hide menu".
 - The window remembers whether it is open and which tab you used last.
-- If you removed it, you can add it again: UI app menu → *Add app* → category **BeamMP** → **SharedCareer Menu**.
+- If you removed it, you can add it again: UI app menu → *Add app* → category **BeamMP** → **Career-Convoy Menu**.
 
 ### Time tab
 
@@ -76,7 +76,7 @@ By default everybody may. A server admin can lock settings with `sc set server.a
 A few seconds after your career has loaded, a card in the middle of the screen lists the most important features.
 
 - **Got it** closes it. It comes back on your next join.
-- **Don't show again** hides it on this PC for good. The choice is stored in `settings/sharedCareer/state.json` in your BeamNG user folder.
+- **Don't show again** hides it on this PC for good. The choice is stored in `settings/careerConvoy/state.json` in your BeamNG user folder.
 - Click the **steering-wheel logo** in the menu to see it again at any time.
 - Server admins can switch it off for everyone with `sc set client.showWelcome false`.
 
@@ -302,7 +302,7 @@ A road sign at the bottom right shows the speed limit of the road you drive on: 
 - It is **off** by default. Turn it on in the phone's **Settings** app: **Taxi rides** (only while you drive a taxi ride) or **Always**.
 - It shows only while you drive a vehicle on a road that has a speed limit in the game; on foot, off the road or on a road without one it is hidden.
 - It hides while the Career-Convoy menu is open, so it never covers the menu.
-- It is a UI app of its own (*SharedCareer Speed Limit*), added to your career layout once. Move or remove it in the game's UI editor like any other app; once removed, it isn't added again.
+- It is a UI app of its own (*Career-Convoy Speed Limit*), added to your career layout once. Move or remove it in the game's UI editor like any other app; once removed, it isn't added again.
 
 ## Phone
 
@@ -324,7 +324,7 @@ Apps:
 
 - The bar at the bottom goes back to the home screen from an app, or puts the phone away.
 - Opening the phone collapses the Career-Convoy menu, and the other way round.
-- The key is rebindable under *Options → Controls → BeamMP*, entry "SharedCareer: phone".
+- The key is rebindable under *Options → Controls → BeamMP*, entry "Career-Convoy: phone".
 - Server admins can switch it off with `sc set client.phone false`.
 
 ## Sending money

@@ -42,19 +42,21 @@ The maintainer puts a lot of weight on tidy code. Keep it that way with every ch
 - No leftovers: remove old names, aliases ("old name for older callers") and dead code instead of
   keeping them around. Data on players' PCs or servers is migrated once instead (layouts:
   `cleanup.lua` RENAMES/MOVES, state flags: STATE_RENAMED in `util.lua`; server settings: RENAMED / REMOVED in `main.lua`,
-  checked against the last release by `tests/config_update_test.lua`).
+  checked against the last release by `tests/config_update_test.lua`; the rename from SharedCareer:
+  `move_from_old_name` in `server.sh`, the stand-ins in `package.sh`, `moveConfigOnce` in
+  `main.lua`, STATE_FILE_BEFORE_RENAME in `util.lua`, the old keys in the UI apps).
 
 ## Workflow
 
 - `tools/test.sh` – syntax check, all tests, Lua formatting, language check. Run it before every commit.
 - Lua is formatted with StyLua (`stylua.toml`); run `stylua .` before committing Lua changes.
 - Each change in its own branch; never push to `main`. Every push to a branch builds a dev build
-  (`SharedCareer-<last release>-dev.<commit>.zip`, GitHub pre-release `build-<branch>`); a test
+  (`CareerConvoy-<last release>-dev.<commit>.zip`, GitHub pre-release `build-<branch>`); a test
   server installs it with `./server.sh update --dev` (or `--dev=<branch>`).
 - Once it works in the game: a pull request into `main`. Its checks run the tests and
   `tools/version_check.sh`. The version in the code always stays `"dev"`; never set it by hand.
 - Releases: on GitHub, Actions → Release → Run workflow (patch, minor, major or an exact version;
-  "Review first" makes a draft to edit). It builds `SharedCareer-<version>.zip`, creates release
+  "Review first" makes a draft to edit). It builds `CareerConvoy-<version>.zip`, creates release
   `v<version>` with the notes of all pull requests since the last release and posts it to
   Discord. Servers install it with `./server.sh update`. Step by step: `docs/releasing.md`.
 - Pull request text becomes the release notes (GitHub and Discord): follow

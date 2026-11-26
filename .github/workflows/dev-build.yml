@@ -1,8 +1,8 @@
-# SharedCareer :: dev builds of every branch, for test servers
+# Career-Convoy :: dev builds of every branch, for test servers
 #
 # On every push to a branch other than main (and by hand via "Run workflow"):
 #   1. run all tests and build the package as a dev build (tools/package.sh --dev ->
-#      SharedCareer-<last release>-dev.<commit>.zip, e.g. 0.34.0-dev.ab12cd3)
+#      CareerConvoy-<last release>-dev.<commit>.zip, e.g. 0.34.0-dev.ab12cd3)
 #   2. replace the branch's GitHub pre-release "build-<branch>" with it
 # When a branch is deleted (e.g. after its pull request was merged), its pre-release goes too.
 #
@@ -48,12 +48,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           BRANCH: ${{ github.ref_name }}
         run: |
-          zip=$(ls SharedCareer-*-dev.*.zip)
-          v=${zip#SharedCareer-}; v=${v%.zip}
+          zip=$(ls CareerConvoy-*-dev.*.zip)
+          v=${zip#CareerConvoy-}; v=${v%.zip}
           tag="build-${BRANCH//[!A-Za-z0-9._-]/-}"
           gh release delete "$tag" --yes --cleanup-tag >/dev/null 2>&1 || true
-          gh release create "$tag" "$zip" --prerelease --target "$GITHUB_SHA" \
-            --title "SharedCareer dev build $v from $BRANCH" \
+          # the same zip under the name from before the rename, for servers whose server.sh only knows that
+          cp "$zip" "SharedCareer-$v.zip"
+          gh release create "$tag" "$zip" "SharedCareer-$v.zip" --prerelease --target "$GITHUB_SHA" \
+            --title "Career-Convoy dev build $v from $BRANCH" \
             --notes "Dev build of branch \`$BRANCH\` (commit ${GITHUB_SHA::7}) for testing. Install on a test server: \`./server.sh update --dev=$BRANCH\` (or \`./server.sh update --dev\` for the newest dev build of any branch). Normal servers keep the newest release."
 
   remove:

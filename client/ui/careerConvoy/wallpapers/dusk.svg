@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 268 566" preserveAspectRatio="xMidYMid slice">
+	<!-- Career-Convoy phone wallpaper: Dusk, a sunset over the mountains -->
+	<defs>
+		<linearGradient id="s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#14121c"/><stop offset="0.35" stop-color="#2a1a2e"/><stop offset="0.58" stop-color="#7a2e2a"/><stop offset="0.7" stop-color="#ff7a1a"/></linearGradient>
+		<radialGradient id="g" cx="0.5" cy="0.69" r="0.4"><stop offset="0" stop-color="#ffb347" stop-opacity="0.7"/><stop offset="1" stop-color="#ffb347" stop-opacity="0"/></radialGradient>
+	</defs>
+	<rect width="268" height="566" fill="url(#s)"/>
+	<rect width="268" height="566" fill="url(#g)"/>
+	<circle cx="150" cy="392" r="34" fill="#ffd08a"/>
+	<path d="M0,566 L0,396.3 L12,398.3 L24,390.7 L36,382.4 L48,385.7 L60,389.3 L72,392 L84,387.5 L96,370.8 L108,359.7 L120,362.2 L132,362.2 L144,372.5 L156,371.9 L168,376 L180,375 L192,369.1 L204,379.2 L216,388.8 L228,392.2 L240,397.5 L252,399.1 L264,394.5 L276,382.6 L268,566 Z" fill="#4a2230"/>
+	<path d="M0,566 L0,433.1 L12,427.4 L24,419.2 L36,423.6 L48,431.5 L60,422.1 L72,407.6 L84,392.4 L96,393.3 L108,400.8 L120,412 L132,415.3 L144,418.8 L156,414.5 L168,416.9 L180,426.1 L192,438.2 L204,445.5 L216,448 L228,439.4 L240,424.6 L252,414.6 L264,416.8 L276,418.5 L268,566 Z" fill="#2a1520"/>
+	<path d="M0,566 L0,467.8 L12,472.4 L24,470.4 L36,466.3 L48,458 L60,448.2 L72,448.7 L84,461.5 L96,465.9 L108,470.9 L120,476.4 L132,470 L144,472.2 L156,474.1 L168,482.9 L180,485.5 L192,489.1 L204,484.3 L216,472.6 L228,467.7 L240,466 L252,464.1 L264,470.7 L276,466.6 L268,566 Z" fill="#140c12"/>
+</svg>

@@ -70,7 +70,7 @@ local function startServer(patch)
 	print = function(msg)
 		table.insert(logs, tostring(msg))
 	end
-	local source = assert(io.open("Resources/Server/SharedCareer/main.lua")):read("*a")
+	local source = assert(io.open("Resources/Server/CareerConvoy/main.lua")):read("*a")
 	source =
 		source:gsub('local CONFIG_FILE = CONFIG_DIR %.%. "/config%.json"', 'local CONFIG_FILE = "' .. configFile .. '"')
 	source = source:gsub(
@@ -212,7 +212,7 @@ local function tableIn(src, name)
 	local block = src:match("\nlocal " .. name .. " = (%b{})")
 	return block and assert(load("return " .. block, name, "t", {}))() or nil
 end
-local current = assert(io.open("Resources/Server/SharedCareer/main.lua")):read("*a")
+local current = assert(io.open("Resources/Server/CareerConvoy/main.lua")):read("*a")
 local now, renamed, removed = tableIn(current, "DEFAULTS"), tableIn(current, "RENAMED"), tableIn(current, "REMOVED")
 check(now and renamed and removed, "DEFAULTS, RENAMED and REMOVED can be read from main.lua")
 for section, names in pairs(renamed or {}) do
@@ -238,10 +238,15 @@ if tagPipe then
 end
 local oldSource
 if tag and tag ~= "" then
-	local showPipe = io.popen("git show " .. tag .. ":Resources/Server/SharedCareer/main.lua 2>/dev/null")
-	oldSource = showPipe and showPipe:read("*a")
-	if showPipe then
-		showPipe:close()
+	-- releases from before the rename to Career-Convoy have the plugin in Resources/Server/SharedCareer
+	for _, folder in ipairs({ "CareerConvoy", "SharedCareer" }) do
+		if not oldSource or oldSource == "" then
+			local showPipe = io.popen("git show " .. tag .. ":Resources/Server/" .. folder .. "/main.lua 2>/dev/null")
+			oldSource = showPipe and showPipe:read("*a")
+			if showPipe then
+				showPipe:close()
+			end
+		end
 	end
 end
 local before = oldSource and oldSource ~= "" and tableIn(oldSource, "DEFAULTS")

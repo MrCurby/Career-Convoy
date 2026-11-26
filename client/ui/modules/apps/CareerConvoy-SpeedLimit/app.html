@@ -1,0 +1,12 @@
+<div ng-controller="CareerConvoySpeedLimit" class="scs-host">
+	<!-- the sign: round with a red ring (km/h) or a US "SPEED LIMIT" sign (mph); pulses red while
+	     you are too fast; only when the player wants it and the menu is closed (shown() in app.js).
+	     Nothing may stand before this <div> (replace: true, see app.js). -->
+	<link rel="stylesheet" type="text/css" href="/ui/modules/apps/CareerConvoy-SpeedLimit/app.css">
+	<div class="scs-sign" ng-if="shown()"
+		ng-class="{'scs-us': unit() === 'mph', 'scs-over': sign.over}"
+		title="{{ 'Speed limit: ' + limit() + ' ' + unit() }}">
+		<span class="scs-title" ng-if="unit() === 'mph'">SPEED<br>LIMIT</span>
+		<span class="scs-limit" ng-bind="limit()"></span>
+	</div>
+</div>
