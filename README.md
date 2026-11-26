@@ -8,8 +8,8 @@
 
 One shared world (same traffic, same time of day, same traffic lights), while every player keeps their **own save** on their own PC. Plus optional extras for playing together.
 
-[![Latest release](https://img.shields.io/github/v/release/MrCurby/SharedCareer?label=release)](https://github.com/MrCurby/SharedCareer/releases/latest)
-[![Build](https://github.com/MrCurby/SharedCareer/actions/workflows/release.yml/badge.svg)](https://github.com/MrCurby/SharedCareer/actions/workflows/release.yml)
+[![Latest release](https://img.shields.io/github/v/release/MrCurby/Career-Convoy?label=release)](https://github.com/MrCurby/Career-Convoy/releases/latest)
+[![Build](https://github.com/MrCurby/Career-Convoy/actions/workflows/release.yml/badge.svg)](https://github.com/MrCurby/Career-Convoy/actions/workflows/release.yml)
 ![BeamNG.drive 0.39+](https://img.shields.io/badge/BeamNG.drive-0.39%2B-orange)
 ![BeamMP](https://img.shields.io/badge/BeamMP-server%20mod-blue)
 [![Discord](https://img.shields.io/badge/Discord-join%20us-5865F2?logo=discord&logoColor=white)](https://discord.gg/29393BNWBt)
@@ -141,10 +141,10 @@ Requirements: a BeamMP server on Linux, BeamNG.drive 0.39 or newer. West Coast U
 
 ```bash
 # 1. In your BeamMP server folder: get the control script
-curl -fsSL -o server.sh https://raw.githubusercontent.com/MrCurby/SharedCareer/main/tools/server.sh && chmod +x server.sh
+curl -fsSL -o server.sh https://raw.githubusercontent.com/MrCurby/Career-Convoy/main/tools/server.sh && chmod +x server.sh
 
 # 2. Tell it where releases come from
-echo 'REPO="MrCurby/SharedCareer"' > server.conf
+echo 'REPO="MrCurby/Career-Convoy"' > server.conf
 
 # 3. Install the newest release and start the server
 ./server.sh update
@@ -192,14 +192,20 @@ New releases are posted there too.
 
 ## Help and bug reports
 
-Questions and bug reports are welcome on [Discord](https://discord.gg/29393BNWBt): post bugs in the bugs channel. [GitHub issues](https://github.com/MrCurby/SharedCareer/issues) work too.
+Questions and bug reports are welcome on [Discord](https://discord.gg/29393BNWBt): post bugs in the bugs channel. [GitHub issues](https://github.com/MrCurby/Career-Convoy/issues) work too.
 
-For a bug, please include:
+If your bug is already reported, please add to that post instead of making a new one.
 
-- The Career-Convoy version (`beamng.log` shows it as `SharedCareer <version> loaded`) and your BeamNG.drive and BeamMP versions
-- What you did, what you expected and what happened, ideally with a screenshot
-- Whether it happened to one player or to everyone
-- The Career-Convoy lines from `beamng.log` of the affected session. The game overwrites this file on the next start, so copy it before you restart.
+One post per problem. Please include:
+
+- The Career-Convoy version (the server console shows it on start)
+- Your BeamNG.drive and BeamMP versions
+- Are you the server owner or a player?
+- What exactly is the problem?
+- Steps to make the bug happen again
+- A workaround, if you found one
+- The lines with `sharedCareer` from your `beamng.log`. The game overwrites this file on the next start, so copy it before you restart.
+- If you can, screenshots or clips that show the bug
 
 Where to find `beamng.log`:
 

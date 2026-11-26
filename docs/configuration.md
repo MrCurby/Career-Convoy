@@ -38,7 +38,7 @@ Type these into the server console, or send them with `./server.sh cmd "..."`.
 
 The file is `Resources/Server/SharedCareer/config/config.json`. It is created on the first start. Change settings with `sc set` while the server runs, or edit the file and use `sc reload`.
 
-`server.*` settings are used by the server, and `client.*` settings are sent to every player. Many of them can also be changed by players in the [SharedCareer menu](features.md#the-sharedcareer-menu), unless you lock it.
+`server.*` settings are used by the server, and `client.*` settings are sent to every player. Many of them can also be changed by players in the [Career-Convoy menu](features.md#the-career-convoy-menu), unless you lock it.
 
 ### Save games
 
@@ -87,7 +87,7 @@ The file is `Resources/Server/SharedCareer/config/config.json`. It is created on
 | `server.allowTeleport` | `false` | **Go** in the Players tab: teleport your vehicle to another player |
 | `client.showPlayerStatus` | `true` | Status after other players' names: `[Mission]`, `[On foot]`, `[Loading]` |
 | `client.showWelcome` | `true` | Welcome dialog on join (everyone can still pick "Don't show again") |
-| `client.addApps` | `true` | Add the SharedCareer menu and the phone tab to the career UI once, on the first join |
+| `client.addApps` | `true` | Add the Career-Convoy menu and the phone tab to the career UI once, on the first join |
 | `client.cleanupMileageApps` | `true` | For players who used the Mileage mod before: remove its apps that are left in their UI layouts (red "Unknown app" boxes) and bring back the BeamMP player list |
 
 ### Vehicles and collisions

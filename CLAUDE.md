@@ -1,4 +1,4 @@
-# SharedCareer – notes for working on this repository
+# Career-Convoy – notes for working on this repository
 
 BeamMP mod that brings the normal BeamNG.drive career to multiplayer. Overview: `README.md`; details: `docs/`.
 
