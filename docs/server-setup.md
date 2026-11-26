@@ -129,6 +129,7 @@ After an update:
 - **Save game mapping** in `config/profiles.json` is kept.
 - **Unpaid jobs** in `config/payouts.json` are kept. A player gets the pay on their next join.
 - **Job levels** in `config/progress.json` are kept.
+- **Licenses** players bought in `config/licenses.json` are kept.
 - A **broken `config.json`**, for example one with a typo, is saved as `config.json.broken` instead of being overwritten.
 
 ## Manual installation and updates

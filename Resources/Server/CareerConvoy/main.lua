@@ -140,8 +140,8 @@ local DEFAULTS = {
 		-- then the limit is split evenly.
 		roadTrafficTotal = 20,
 		parkedTrafficTotal = 24,
-		-- Jobs in the Jobs app on the phone, for now towing jobs: broken-down cars at the
-		-- roadside, towed to a repair shop. One list for everyone, every job goes to one player.
+		-- Jobs in the Jobs app on the phone: towing jobs (broken-down cars at the roadside, towed to a
+		-- repair shop) and taxi jobs. One list for everyone, every job goes to one player.
 		jobs = true,
 		jobsOpen = 3, -- open jobs per level group that players on the server have reached
 		jobTimeoutMinutes = 30, -- a taken job is open again after this many minutes
@@ -195,8 +195,8 @@ local DEFAULTS = {
 		-- On join, remove Mileage leftovers (red "Unknown app" boxes) from the players' UI
 		-- layouts and bring back the BeamMP player list. Files are backed up first.
 		cleanupMileageApps = true,
-		-- Add the Career-Convoy menu and the phone tab to the career layout automatically on the
-		-- first join (once; players who remove them don't get them back).
+		-- Add the Career-Convoy menu, the phone tab and the speed limit sign to the career layout
+		-- automatically on the first join (once; players who remove them don't get them back).
 		addApps = true,
 		-- status after the players' names: [Mission], [On foot], [Loading]
 		showPlayerStatus = true,
