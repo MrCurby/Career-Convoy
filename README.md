@@ -192,9 +192,9 @@ New releases are posted there too.
 
 ## Help and bug reports
 
-Quick questions are welcome on [Discord](https://discord.gg/29393BNWBt). For bugs, please use GitHub so nothing gets lost.
+Questions and bug reports are welcome on [Discord](https://discord.gg/29393BNWBt): post bugs in the bugs channel. [GitHub issues](https://github.com/MrCurby/SharedCareer/issues) work too.
 
-Search the [existing issues](https://github.com/MrCurby/SharedCareer/issues) first, then [open a new one](https://github.com/MrCurby/SharedCareer/issues/new). Please include:
+For a bug, please include:
 
 - The Career-Convoy version (`beamng.log` shows it as `SharedCareer <version> loaded`) and your BeamNG.drive and BeamMP versions
 - What you did, what you expected and what happened, ideally with a screenshot
