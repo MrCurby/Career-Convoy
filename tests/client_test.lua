@@ -5268,8 +5268,12 @@ check(
 	me.p = { x = 0, y = -20, z = 10 }
 	-- making one up: a passenger beside the road, a place of the map, the pay by the way by road
 	check(
-		taxi.payFor(1000, false, 1) == 140 and taxi.payFor(1000, true, 1) == 210 and taxi.payFor(1000, false, 4) == 210,
-		"taxi pay: $60 + $80 per km; a VIP pays 50 % more, tier 4 50 % more"
+		taxi.payFor(1000, false, 1) == 140
+			and taxi.payFor(1000, true, 1) == 210
+			and taxi.payFor(1000, false, 4) == 210
+			and taxi.payFor(1000, false, 1, 3) == 180
+			and taxi.payFor(1000, false, 1, 5) == 220,
+		"taxi pay: $60 + $80 per km; a VIP pays 50 % more, tier 4 50 % more, 15 % for every passenger after the first"
 	)
 	handlers.sc_jobGenerate(json.encode({ type = "taxi", tier = 2 }))
 	offer = lastSent("sc_jobOffer")
@@ -5280,7 +5284,7 @@ check(
 			and (offer.title == "Passenger" or offer.title == "VIP")
 			and math.abs(math.abs(offer.pos.y) - 5.8) < 1e-6
 			and offer.length == jobs.roadLength(offer.pos, offer.dest.pos)
-			and offer.pay == taxi.payFor(offer.length, offer.data.vip, 2),
+			and offer.pay == taxi.payFor(offer.length, offer.data.vip, 2, offer.data.passengers),
 		"the server asks for a taxi job: a passenger beside the road, a ride by road to a place, its pay"
 	)
 	check(

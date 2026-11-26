@@ -19,7 +19,8 @@
 --     passengers  1..5, at random by the tier's chances (PASSENGERS): a higher tier (unlocked by a
 --                 higher level) makes a group more likely, but a ride for one stays common
 --     the pay     (PAY_BASE + PAY_PER_KM per km of the ride (jobs.roadLength)) x the tier's pay,
---                 x PAY_VIP for a VIP, x client.jobPay
+--                 x PAY_VIP for a VIP, + PAY_PER_PASSENGER for every passenger after the first
+--                 (a group needs a bigger car), x client.jobPay
 --     job.data = {vip, passengers, face (x, y: the way the passengers look, towards the road)};
 --     job.title = "Passenger" or "VIP"; a group has a tag ("3 people")
 --   doing it
@@ -82,6 +83,7 @@ local PENALTY_MAX = 0.5 -- share of the pay a bumpy ride can cost at most
 local DAMAGE_FOR_MAX = 40000 -- damage points (beamstate.damage) that cost PENALTY_MAX
 local PAY_BASE, PAY_PER_KM = 60, 80
 local PAY_VIP = 1.5
+local PAY_PER_PASSENGER = 0.15 -- share of the pay on top for every passenger after the first
 -- the stars: the most a ride may have cost (share of the pay) for each rating, the best first
 local STARS = { { 5, 0.01 }, { 4, 0.1 }, { 3, 0.2 }, { 2, 0.35 } } -- else 1 star
 -- the tip by stars, as a share of the pay; a VIP tips more
@@ -140,9 +142,14 @@ local function tierOf(tier)
 	return TIERS[math.max(1, math.min(#TIERS, tonumber(tier) or 1))]
 end
 
---- The pay for a ride of `length` m at level 1 (a VIP and a higher tier pay more).
-function M.payFor(length, vip, tier)
-	local pay = (PAY_BASE + PAY_PER_KM * length / 1000) * tierOf(tier).pay * (vip and PAY_VIP or 1) * J.payFactor()
+--- The pay for a ride of `length` m at level 1 (a VIP, a group and a higher tier pay more).
+function M.payFor(length, vip, tier, passengers)
+	local group = 1 + PAY_PER_PASSENGER * (math.max(1, tonumber(passengers) or 1) - 1)
+	local pay = (PAY_BASE + PAY_PER_KM * length / 1000)
+		* tierOf(tier).pay
+		* (vip and PAY_VIP or 1)
+		* group
+		* J.payFactor()
 	return J.roundTo(pay, 10)
 end
 
@@ -191,6 +198,7 @@ local function rideOf(spot, dest, tier)
 	local t = tierOf(tier)
 	local length = J.roadLength(spot.pos, dest.pos)
 	local vip = math.random() < t.vip
+	local passengers = M.rollPassengers(tier)
 	-- spot.dir runs along the road; the road is to the left of it
 	local face = spot.dir and { x = J.roundTo(-spot.dir.y, 0.01), y = J.roundTo(spot.dir.x, 0.01) }
 	return {
@@ -198,8 +206,8 @@ local function rideOf(spot, dest, tier)
 		pos = spot.pos,
 		dest = dest,
 		length = length,
-		pay = M.payFor(length, vip, tier),
-		data = { vip = vip, passengers = M.rollPassengers(tier), face = face },
+		pay = M.payFor(length, vip, tier, passengers),
+		data = { vip = vip, passengers = passengers, face = face },
 	}
 end
 
