@@ -5766,7 +5766,7 @@ check(
 	check(
 		ring
 			and ring.title == "Ride request"
-			and ring.text == "To Belasco Auto"
+			and ring.text == "1 person to Belasco Auto"
 			and ring.detail == "600 m away · $300"
 			and ring.icon == "taxi"
 			and ring.open.app == "jobs"
@@ -5783,7 +5783,10 @@ check(
 	)
 	me.p = { x = 4000, y = -2, z = 10 }
 	wait(4)
-	check(lastRing() and lastRing().text == "To Belasco Auto" and phone.ringing(), "nearer to another ride: it calls")
+	check(
+		lastRing() and lastRing().text == "1 person to Belasco Auto" and phone.ringing(),
+		"nearer to another ride: it calls"
+	)
 	wait(16)
 	check(lastRing() == false and not phone.ringing() and taxi.isOnDuty(), "not answered: it rings out, still on duty")
 	listRides(rideAt(41, 2600), rideAt(42, 4500), rideAt(43, 3600))
