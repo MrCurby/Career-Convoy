@@ -99,9 +99,8 @@ local TOWN_MIN_JUNCTIONS = 15 -- in town: at least this many junctions around (f
 
 local types = {} -- id -> job type
 local typeOrder = {} -- ids, in the order they registered
-local roadNodes = nil -- {nodes, names, town, out}: the road nodes a place beside the road may be at
--- (all, in town, outside), for the map's road network `nodes`
-local towns = nil -- {nodes, cells, needed}: junctions per grid cell, and how many make a town
+local roads = nil -- the map's road network worked out once (roadsOf): {nodes, neighbours, cells,
+-- needed, names, town, out}
 local list = {} -- jobs from the server (sc_jobs)
 local levels = {} -- your levels from the server: type -> {level, xp, from, to}
 local enabled = false
@@ -185,21 +184,6 @@ function M.speedOf(veh)
 end
 
 -- road nodes a place beside the road may be at: wide enough, on a normal road (cached per map)
--- How many links of a road node a normal car can drive.
-local function drivableLinks(n)
-	local count = 0
-	for _, link in pairs(type(n) == "table" and type(n.links) == "table" and n.links or {}) do
-		if type(link) == "table" and (tonumber(link.drivability) or 0) >= MIN_DRIVABILITY then
-			count = count + 1
-		end
-	end
-	return count
-end
-
-local function cellOf(p)
-	return math.floor(p.x / TOWN_CELL), math.floor(p.y / TOWN_CELL)
-end
-
 -- The junctions in grid cell (cx, cy) of `cells` and its 8 neighbours.
 local function junctionsAround(cells, cx, cy)
 	local count = 0
@@ -212,17 +196,47 @@ local function junctionsAround(cells, cx, cy)
 	return count
 end
 
--- The junctions (road nodes with 3 or more drivable links) of the map's road network per grid
--- cell, and how many around a place make it a town (TOWN_SHARE of the most anywhere, at least
--- TOWN_MIN_JUNCTIONS). Worked out once per road network.
-local function townsOf(nodes)
-	if towns and towns.nodes == nodes then
-		return towns
+local function cellOf(p)
+	return math.floor(p.x / TOWN_CELL), math.floor(p.y / TOWN_CELL)
+end
+
+-- The map's road network `nodes` (map.getMap().nodes), worked out once:
+--   neighbours  name -> the names of the nodes a normal car can drive to from it (sorted). The game
+--               keeps each link at one of its two ends only, so both ends are looked at
+--   cells       the junctions (3 or more neighbours) per grid cell; `needed`: how many around a
+--               place make it a town (TOWN_SHARE of the most anywhere, at least TOWN_MIN_JUNCTIONS)
+--   names       the road nodes a place beside the road may be at (wide enough, drivable), sorted:
+--               the same order on every PC; `town` and `out`: those in town and outside it
+local function roadsOf(nodes)
+	if roads and roads.nodes == nodes then
+		return roads
+	end
+	local neighbours = {}
+	local function link(a, b)
+		neighbours[a] = neighbours[a] or {}
+		neighbours[a][b] = true
+	end
+	for name, n in pairs(nodes) do
+		for other, l in pairs(type(n) == "table" and type(n.links) == "table" and n.links or {}) do
+			if type(l) == "table" and (tonumber(l.drivability) or 0) >= MIN_DRIVABILITY and nodes[other] then
+				link(name, other)
+				link(other, name)
+			end
+		end
+	end
+	local function byName(a, b)
+		return tostring(a) < tostring(b)
 	end
 	local cells = {}
-	for _, n in pairs(nodes) do
-		local p = type(n) == "table" and U.vecOf(n.pos)
-		if p and drivableLinks(n) >= 3 then
+	for name, set in pairs(neighbours) do
+		local list = {}
+		for other in pairs(set) do
+			table.insert(list, other)
+		end
+		table.sort(list, byName)
+		neighbours[name] = list
+		local p = U.vecOf(nodes[name].pos)
+		if p and #list >= 3 then
 			local cx, cy = cellOf(p)
 			cells[cx] = cells[cx] or {}
 			cells[cx][cy] = (cells[cx][cy] or 0) + 1
@@ -234,42 +248,57 @@ local function townsOf(nodes)
 			most = math.max(most, junctionsAround(cells, cx, cy))
 		end
 	end
-	towns = { nodes = nodes, cells = cells, needed = math.max(TOWN_MIN_JUNCTIONS, most * TOWN_SHARE) }
-	return towns
-end
-
---- Whether p ({x, y}) is in a town of this map: road junctions are dense there (townsOf). A map
---- without a town: false everywhere.
-function M.inTown(p)
-	local nodes = map and type(map.getMap) == "function" and map.getMap().nodes
-	if type(nodes) ~= "table" or not p then
-		return false
-	end
-	local t = townsOf(nodes)
-	local cx, cy = cellOf(p)
-	return junctionsAround(t.cells, cx, cy) >= t.needed
-end
-
-local function candidateNodes(nodes)
-	if roadNodes and roadNodes.nodes == nodes then
-		return roadNodes
-	end
-	local names = {}
-	for name, n in pairs(nodes) do
-		if type(n) == "table" and n.pos and (tonumber(n.radius) or 0) >= MIN_ROAD_RADIUS and drivableLinks(n) > 0 then
+	local needed = math.max(TOWN_MIN_JUNCTIONS, most * TOWN_SHARE)
+	local names, town, out = {}, {}, {}
+	for name in pairs(neighbours) do
+		local n = nodes[name]
+		if U.vecOf(n.pos) and (tonumber(n.radius) or 0) >= MIN_ROAD_RADIUS then
 			table.insert(names, name)
 		end
 	end
-	table.sort(names, function(a, b)
-		return tostring(a) < tostring(b)
-	end) -- the same order on every PC
-	local town, out = {}, {}
+	table.sort(names, byName)
 	for _, name in ipairs(names) do
-		table.insert(M.inTown(U.vecOf(nodes[name].pos)) and town or out, name)
+		local cx, cy = cellOf(U.vecOf(nodes[name].pos))
+		table.insert(junctionsAround(cells, cx, cy) >= needed and town or out, name)
 	end
-	roadNodes = { nodes = nodes, names = names, town = town, out = out }
-	U.log("I", "jobs", string.format("roads: %d places beside them, %d in town", #names, #town))
-	return roadNodes
+	roads = {
+		nodes = nodes,
+		neighbours = neighbours,
+		cells = cells,
+		needed = needed,
+		names = names,
+		town = town,
+		out = out,
+	}
+	U.log(
+		"I",
+		"jobs",
+		string.format(
+			"roads: %d places beside them, %d in town (%d junctions around at most, %d make a town)",
+			#names,
+			#town,
+			most,
+			math.ceil(needed)
+		)
+	)
+	return roads
+end
+
+-- The map's road network, worked out (roadsOf), or nil without one.
+local function mapRoads()
+	local nodes = map and type(map.getMap) == "function" and map.getMap().nodes
+	return type(nodes) == "table" and roadsOf(nodes) or nil
+end
+
+--- Whether p ({x, y}) is in a town of this map: road junctions are dense there (roadsOf). A map
+--- without a town: false everywhere.
+function M.inTown(p)
+	local r = p and mapRoads()
+	if not r then
+		return false
+	end
+	local cx, cy = cellOf(p)
+	return junctionsAround(r.cells, cx, cy) >= r.needed
 end
 
 -- The spot `side` m from the road point `p` towards `out` (x, y, length 1) with its ground, or nil
@@ -290,17 +319,14 @@ end
 
 -- Where on the roadside of this node a car can stand: {pos, dir} or nil. The right side of the
 -- road first, else the left.
-local function roadside(nodes, name)
-	local n = nodes[name]
+local function roadside(r, name)
+	local n = r.nodes[name]
 	local p = n and U.vecOf(n.pos)
 	if not p then
 		return nil
 	end
-	for other, link in pairs(n.links) do
-		local q = type(link) == "table"
-			and (tonumber(link.drivability) or 0) >= MIN_DRIVABILITY
-			and nodes[other]
-			and U.vecOf(nodes[other].pos)
+	for _, other in ipairs(r.neighbours[name] or {}) do
+		local q = U.vecOf(r.nodes[other].pos)
 		if q then
 			local dx, dy = q.x - p.x, q.y - p.y
 			local len = math.sqrt(dx * dx + dy * dy)
@@ -326,19 +352,18 @@ end
 --- car height) and there is ground at about the road's height (GROUND_STEP). The right side first.
 --- `town`: true only in town, false only outside (inTown); nil, or none there: anywhere.
 function M.randomRoadside(town)
-	local nodes = map and type(map.getMap) == "function" and map.getMap().nodes
-	if type(nodes) ~= "table" then
+	local r = mapRoads()
+	if not r then
 		return nil, "no road network"
 	end
-	local c = candidateNodes(nodes)
-	local names = c.names
-	if town ~= nil and #c[town and "town" or "out"] > 0 then
-		names = c[town and "town" or "out"]
+	local names = r.names
+	if town ~= nil and #r[town and "town" or "out"] > 0 then
+		names = r[town and "town" or "out"]
 	end
 	if #names == 0 then
 		return nil, "no normal roads"
 	end
-	return roadside(nodes, names[math.random(#names)])
+	return roadside(r, names[math.random(#names)])
 end
 
 --- Whether no vehicle is within `dist` m of pos.
@@ -1124,7 +1149,7 @@ end
 function M.onBeamMPServerLeave()
 	navigate(nil)
 	active, list, levels, enabled = nil, {}, {}, false
-	appOpen, routes, roadNodes, towns = false, {}, nil, nil
+	appOpen, routes, roads = false, {}, nil
 end
 
 function M.onExtensionLoaded()

@@ -5287,7 +5287,8 @@ check(
 		offer.data.face and offer.data.face.x == 0 and offer.data.face.y * offer.pos.y < 0,
 		"the passenger looks towards the road"
 	)
-	-- a town: a grid of streets (10 x 10 junctions, 50 m apart) next to the long road
+	-- a town: a grid of streets (10 x 10 junctions, 50 m apart) next to the long road; like the
+	-- game, each link is kept at one of its ends only
 	local realGetMap = map.getMap
 	local townNodes = {}
 	for name, n in pairs(nodes) do
@@ -5307,7 +5308,6 @@ check(
 				local a, b = street(i, j), street(i + d[1], j + d[2])
 				if townNodes[b] then
 					townNodes[a].links[b] = { drivability = 1 }
-					townNodes[b].links[a] = { drivability = 1 }
 				end
 			end
 		end
