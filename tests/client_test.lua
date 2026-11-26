@@ -5287,6 +5287,54 @@ check(
 		offer.data.face and offer.data.face.x == 0 and offer.data.face.y * offer.pos.y < 0,
 		"the passenger looks towards the road"
 	)
+	-- a town: a grid of streets (10 x 10 junctions, 50 m apart) next to the long road
+	local realGetMap = map.getMap
+	local townNodes = {}
+	for name, n in pairs(nodes) do
+		townNodes[name] = n
+	end
+	local function street(i, j)
+		return "t" .. i .. "_" .. j
+	end
+	for i = 0, 9 do
+		for j = 0, 9 do
+			townNodes[street(i, j)] = { pos = vec3(6000 + i * 50, 2000 + j * 50, 10), radius = 4, links = {} }
+		end
+	end
+	for i = 0, 9 do
+		for j = 0, 9 do
+			for _, d in ipairs({ { 1, 0 }, { 0, 1 } }) do
+				local a, b = street(i, j), street(i + d[1], j + d[2])
+				if townNodes[b] then
+					townNodes[a].links[b] = { drivability = 1 }
+					townNodes[b].links[a] = { drivability = 1 }
+				end
+			end
+		end
+	end
+	map.getMap = function()
+		return { nodes = townNodes }
+	end
+	check(
+		jobs.inTown({ x = 6200, y = 2200 }) and not jobs.inTown({ x = 2000, y = 0 }),
+		"a town: where road junctions are dense"
+	)
+	local inTown, outside = 0, 0
+	for _ = 1, 20 do
+		local spot = jobs.randomRoadside(true)
+		inTown = inTown + (spot and jobs.inTown(spot.pos) and 1 or 0)
+		spot = jobs.randomRoadside(false)
+		outside = outside + (spot and not jobs.inTown(spot.pos) and 1 or 0)
+	end
+	check(inTown == 20 and outside == 20, "a place beside the road in town, or outside it, as asked")
+	local startsInTown = 0
+	math.randomseed(3)
+	for _ = 1, 100 do
+		local ride = taxi.generate(1)
+		startsInTown = startsInTown + (ride and jobs.inTown(ride.pos) and 1 or 0)
+	end
+	check(startsInTown >= 45 and startsInTown <= 75, "most taxi rides start in town, the others outside")
+	map.getMap = realGetMap
 	local vips = { 0, 0 }
 	for i, tier in ipairs({ 1, 4 }) do
 		for _ = 1, 100 do

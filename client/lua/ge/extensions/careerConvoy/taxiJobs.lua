@@ -8,6 +8,10 @@
 --     a place     a facility of the map (garage, dealership, gas station, ...: jobs.facilityPlaces,
 --                 the middle of its doors), as far away as the tier says in a straight line
 --                 (jobs.pickDestination: the nearest fit if none is)
+--     the town    the pickup is in town (jobs.inTown) by TOWN_START, the place by TOWN_END, each on
+--                 its own: most rides touch the town, every mix stays possible (in town, out of
+--                 town, into it, past it). None that fits there (a map without a town, a long ride
+--                 from a small one): anywhere
 --     a VIP       by the tier's VIP share: pays PAY_VIP times more, jolts and speeding cost twice as much
 --     passengers  1..5, at random by the tier's chances (PASSENGERS): a higher tier (unlocked by a
 --                 higher level) makes a group more likely, but a ride for one stays common
@@ -86,6 +90,8 @@ local PASSENGER_WEIGHT = 89 -- kg: a dummy in the taxi (the game's own default f
 local SEAT_CHECK = 2 -- s between two looks whether the dummies still sit in the taxi
 local FIGURE_GAP = 0.8 -- m between two passengers waiting side by side
 local MAX_PASSENGERS = 5
+local TOWN_START = 0.6 -- share of rides that start in town
+local TOWN_END = 0.6 -- share of rides that end in town (on its own: 84 % touch the town)
 -- the chances of 1, 2, 3, 4, 5 passengers by tier
 local PASSENGERS = {
 	{ 0.8, 0.2 },
@@ -160,13 +166,23 @@ function M.generate(tier)
 	if #places == 0 then
 		return nil, "no places to go on this map"
 	end
+	local startInTown, endInTown = math.random() < TOWN_START, math.random() < TOWN_END
+	local ends = {}
+	for _, place in ipairs(places) do
+		if J.inTown(place.pos) == endInTown then
+			table.insert(ends, place)
+		end
+	end
 	for _ = 1, PLACE_TRIES do
-		local spot, why = J.randomRoadside()
+		local spot, why = J.randomRoadside(startInTown)
 		if why then
 			return nil, why
 		end
 		if spot and J.farFromVehicles(spot.pos, FAR_FROM_VEHICLES) then
-			local pick = J.pickDestination(places, spot.pos, t.destMin, t.destMax)
+			local pick = J.pickDestination(ends, spot.pos, t.destMin, t.destMax)
+			if not pick or pick.d < t.destMin or pick.d > t.destMax then
+				pick = J.pickDestination(places, spot.pos, t.destMin, t.destMax) or pick
+			end
 			if pick then
 				local length = J.roadLength(spot.pos, pick.place.pos)
 				local vip = math.random() < t.vip
