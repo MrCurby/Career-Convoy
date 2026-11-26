@@ -10,8 +10,10 @@
 --                    BeamXP ("commercial"): the branch whose attribute key, id or path id is or
 --                    ends with it (career_branches; the names change between game versions).
 --                    No branch XP if the career has no such branch
---   deduction        optional: what the pay held back is for, in the pay's toast ("Job done: +$450
---                    (-$50 rough ride)"); default "damage"
+--   deduction        optional: the hint in the pay's toast when pay was held back (more than the tip):
+--                    "Job done: +$450 · +40 XP · Rough ride"; default "Damage"
+--   bonus            optional: the hint in the pay's toast when the tip was more than the pay held
+--                    back ("Smooth ride bonus"); default "Tip"
 --   steps            the steps of a job in the Jobs app, e.g. {"Pick up", "Tow", "Paid"}; the last
 --                    one is reached when the pay arrives
 --   generate(tier)   makes up a job of this tier (1 easy .. 4 hard, see main.lua "Job levels") on
@@ -603,12 +605,18 @@ local function rxPaid(data)
 	U.send("sc_jobPaidAck", { payout = msg.payout })
 	local deduction = math.max(0, math.floor(tonumber(msg.deduction) or 0))
 	local tip = math.max(0, math.floor(tonumber(msg.tip) or 0))
+	-- one total, and at most one short hint: what tipped the balance (the tip or what was held back)
+	local hint = nil
+	if tip > deduction then
+		hint = t and t.bonus or "Tip"
+	elseif deduction > tip then
+		hint = t and t.deduction or "Damage"
+	end
 	U.toast(
 		"success",
 		string.format("Job done: +$%d", pay)
-			.. (tip > 0 and string.format(" (with $%d tip)", tip) or "")
-			.. (deduction > 0 and string.format(" (−$%d %s)", deduction, t and t.deduction or "damage") or "")
-			.. (xp > 0 and string.format(" · +%d XP", xp) or ""),
+			.. (xp > 0 and string.format(" · +%d XP", xp) or "")
+			.. (hint and " · " .. hint or ""),
 		8
 	)
 	if mine then

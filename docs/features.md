@@ -272,9 +272,9 @@ People wait at the roadside for a ride to a place on the map: a garage, a dealer
 
 **License needed:** taxi jobs need the **Taxi License** ($5,000) from the **License Office**.
 
-1. **Find a ride:** phone (**F4**) → **Jobs** → **Taxi**. Every ride shows where the passenger wants to go, how far you have to drive to them, the length of the ride (both by road), your pay and the XP.
-2. **Pick them up:** the route leads you to the passenger, a figure beside the road with a yellow marker above. Drive there in any vehicle (not on foot) and stop next to them for 2 seconds: they get in and sit on a free seat. That vehicle is your taxi now. (Older or modded vehicles without seats for passengers carry them unseen.)
-3. **Drive them:** the route leads to the place. A ring on the ground there shows the drop-off zone. Stop in it for 2 seconds, sitting in your taxi. The pay goes to your account.
+1. **Find a ride:** phone (**F4**) → **Jobs** → **Taxi**. Every ride shows where the passengers want to go, how many they are (a ride for a group shows e.g. *3 people*), how far you have to drive to them, the length of the ride (both by road), your pay and the XP.
+2. **Pick them up:** the route leads you to the passengers, figures beside the road with a yellow marker above. Drive there in any vehicle (not on foot) with a seat for each of them and stop next to them for 2 seconds: they get in and sit on the back seats, spread out evenly (the front passenger seat only when the back is full). That vehicle is your taxi now. Too few seats: they don't get in. (Older or modded vehicles without seats for passengers can't be counted: they carry them unseen.)
+3. **Drive them:** the route leads to the place. A ring on the ground there shows the drop-off zone. Stop in it for 2 seconds, sitting in your taxi. The pay goes to your account; the message shows the total with one short hint: *Smooth ride bonus* when the tip was more than the ride cost, *Rough ride* when it cost more.
 
 - **Pay:** $60 plus $80 per km of the ride, more for longer rides and for your level. The server can change it (`client.jobPay`). A ride pays less than a tow of the same length: it is quicker and easier, and a smooth one earns a tip.
 - **Drive smoothly:** every jolt (hard braking, a crash, a hard landing) costs 5 % of the pay; *Drive smoother!* tells you.
@@ -283,17 +283,19 @@ People wait at the roadside for a ride to a place on the map: a garage, a dealer
 - **Stars:** the passenger rates the ride with 1 to 5 stars. Every jolt, speeding and damage costs stars. In the Jobs app your ride shows the stars and the pay as it is now (the full pay struck through once it drops).
 - **Tip:** 5 stars earn a tip of 15 % on top of the pay, 4 stars 5 %. Below that, no tip.
 - **VIPs** pay 50 % more and tip more (25 % for 5 stars, 10 % for 4), but jolts and speeding cost twice as much.
-- **Calls (On duty):** on the taxi page of the Jobs app, switch **On duty** on. While you drive, the nearest ride within 2 km then calls you: the phone comes out with **Accept** and **Decline**. It rings 15 seconds. You only get calls while you are on duty, have the Taxi License and no job. So it doesn't nag: after a call you didn't take the next one waits 45 seconds (and that ride doesn't call again), after a ride 20 seconds, and after two missed calls in a row you are off duty. Every join starts off duty.
+- **Calls (On duty):** on the taxi page of the Jobs app, switch **On duty** on. While you drive, the nearest ride within 2 km that your vehicle has enough seats for then calls you (a vehicle whose seats can't be counted: rides for one only): the phone comes out with **Accept** and **Decline**. It rings 15 seconds. You only get calls while you are on duty, have the Taxi License and no job. So it doesn't nag: after a call you didn't take the next one waits 45 seconds (and that ride doesn't call again), after a ride 20 seconds, and after two missed calls in a row you are off duty. Every join starts off duty.
 - If you get out, the route leads back to your taxi. If the taxi disappears, the passenger waits at the pickup again.
 - Giving up, the 30 minutes and new jobs work as for towing jobs.
 - **Levels:** taxi jobs have their own level, by the same rules as towing (see [Levels](#levels)), but every level above 1 adds only 3 % to the pay (towing: 5 %):
 
   | From level | Rides |
   |---|---|
-  | 1 | short rides (about 0.6–2 km) |
-  | 3 | longer rides, sometimes a VIP (pays 15 % more) |
-  | 5 | long rides, often a VIP (pays 30 % more) |
-  | 8 | the longest rides, every second passenger a VIP (pays 50 % more) |
+  | 1 | short rides (about 0.6–2 km), sometimes two passengers |
+  | 3 | longer rides, sometimes a VIP (pays 15 % more), up to 3 passengers |
+  | 5 | long rides, often a VIP (pays 30 % more), up to 5 passengers |
+  | 8 | the longest rides, every second passenger a VIP (pays 50 % more), groups more often |
+
+  Even at the highest level many rides are for one or two passengers.
 
 ## Speed limit sign
 
