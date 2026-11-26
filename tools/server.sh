@@ -39,7 +39,7 @@ set -u
 # Raise with every change of this script (tools/version_check.sh checks it): an update only
 # replaces server.sh with one of a higher revision, so installing an older package (or a release
 # built before a fix of this script) never brings back an old server.sh.
-SCRIPT_REVISION=2
+SCRIPT_REVISION=3
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$DIR" || exit 1
