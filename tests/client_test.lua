@@ -7275,7 +7275,7 @@ end)();
 	careerConvoy_util.toast = realToast
 	_G.core_camera, _G.debugDrawer = nil, nil
 end)();
--- the drop-off zone: a wall standing on the ground (also on a slope), the rays only once
+-- the drop-off zone: a column standing on the ground (also on a slope), the rays only once
 (function()
 	local J = careerConvoy_jobs
 	local getVeh = _G.getPlayerVehicle
@@ -7311,8 +7311,11 @@ end)();
 	}
 	J.drawDropOff({ x = 0, y = 0, z = 10 }, 12, "Shop")
 	local wall = cylinders[1]
-	check(wall.r == 12 and wall.a.z < 8.8 and wall.b.z > 12, "drop-off zone: the wall reaches below the lowest ground")
-	local foot = cylinders[2] -- the ring at the foot, its first piece at x = 12
+	check(
+		wall.r == 12 and wall.a.z < 8.8 and wall.b.z > 12,
+		"drop-off zone: the column reaches below the lowest ground"
+	)
+	local foot = cylinders[8] -- after the 7 shells: the ring at the foot, its first piece at x = 12
 	check(
 		math.abs(foot.a.x - 12) < 1e-6 and math.abs(foot.a.z - 11.25) < 1e-6,
 		"drop-off zone: the ring at its foot lies on the ground"
@@ -7323,6 +7326,13 @@ end)();
 	J.drawDropOff({ x = 0, y = 0, z = 10 }, 12, "Shop", 1.4)
 	check(rays == first, "drop-off zone: the ground is looked for only once")
 	check(cylinders[1].c.g == 0.9 and texts[1] == "Drop-off \194\183 2 s", "drop-off zone: green, counting down")
+	local outside = cylinders[1].c.a
+	_G.core_camera.getPosition = function()
+		return { x = 1, y = 0, z = 12 }
+	end
+	cylinders = {}
+	J.drawDropOff({ x = 0, y = 0, z = 10 }, 12, "Shop")
+	check(cylinders[1].c.a < outside * 0.5, "drop-off zone: faint with the camera inside")
 	_G.castRayStatic, _G.debugDrawer, _G.core_camera, _G.ColorI, _G.getPlayerVehicle = nil, nil, nil, nil, getVeh
 end)()
 
