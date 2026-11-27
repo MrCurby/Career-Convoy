@@ -52,9 +52,7 @@ jobs:
           v=${zip#CareerConvoy-}; v=${v%.zip}
           tag="build-${BRANCH//[!A-Za-z0-9._-]/-}"
           gh release delete "$tag" --yes --cleanup-tag >/dev/null 2>&1 || true
-          # the same zip under the name from before the rename, for servers whose server.sh only knows that
-          cp "$zip" "SharedCareer-$v.zip"
-          gh release create "$tag" "$zip" "SharedCareer-$v.zip" --prerelease --target "$GITHUB_SHA" \
+          gh release create "$tag" "$zip" --prerelease --target "$GITHUB_SHA" \
             --title "Career-Convoy dev build $v from $BRANCH" \
             --notes "Dev build of branch \`$BRANCH\` (commit ${GITHUB_SHA::7}) for testing. Install on a test server: \`./server.sh update --dev=$BRANCH\` (or \`./server.sh update --dev\` for the newest dev build of any branch). Normal servers keep the newest release."
 
