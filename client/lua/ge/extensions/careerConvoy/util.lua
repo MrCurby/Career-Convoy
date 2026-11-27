@@ -84,11 +84,15 @@ function M.send(event, value)
 	TriggerServerEvent(event, type(value) == "string" and value or jsonEncode(value or {}))
 end
 
+-- BeamMP keeps one handler per event and name, and without a name it takes the file that calls
+-- AddEventHandler - always this one. A second module listening to the same event would then
+-- silently replace the first. So the name is the file of the module that calls M.on.
 function M.on(event, handler)
 	if type(rawget(_G, "AddEventHandler")) ~= "function" then
 		return
 	end
-	AddEventHandler(event, handler)
+	local caller = debug.getinfo(2, "S")
+	AddEventHandler(event, handler, caller and caller.source or "careerConvoy")
 end
 
 function M.toast(kind, msg, seconds)
