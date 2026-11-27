@@ -7274,6 +7274,66 @@ end)();
 	careerConvoy_phone.uiCloseApp("straps")
 	careerConvoy_util.toast = realToast
 	_G.core_camera, _G.debugDrawer = nil, nil
+end)();
+-- the drop-off zone: a column standing on the ground (also on a slope), the rays only once
+(function()
+	local J = careerConvoy_jobs
+	local getVeh = _G.getPlayerVehicle
+	_G.getPlayerVehicle = nil
+	_G.core_camera = {
+		getPosition = function()
+			return { x = 0, y = -30, z = 12 }
+		end,
+	}
+	_G.ColorF = function(r, g, b, a)
+		return { r = r, g = g, b = b, a = a }
+	end
+	_G.vec3 = setmetatable({}, {
+		__call = function(_, x, y, z)
+			return { x = x, y = y, z = z }
+		end,
+	})
+	-- the ground rises 0.1 m for every m along x: 10 m at the zone's middle
+	_G.ColorI = function() end
+	local rays = 0
+	_G.castRayStatic = function(from, dir)
+		rays = rays + 1
+		return from.z - (10 + from.x * 0.1)
+	end
+	local cylinders, texts = {}, {}
+	_G.debugDrawer = {
+		drawCylinder = function(_, a, b, r, c)
+			table.insert(cylinders, { a = a, b = b, r = r, c = c })
+		end,
+		drawTextAdvanced = function(_, _, text)
+			table.insert(texts, text)
+		end,
+	}
+	J.drawDropOff({ x = 0, y = 0, z = 10 }, 12, "Shop")
+	local wall = cylinders[1]
+	check(
+		wall.r == 12 and wall.a.z < 8.8 and wall.b.z > 12,
+		"drop-off zone: the column reaches below the lowest ground"
+	)
+	local foot = cylinders[8] -- after the 7 shells: the ring at the foot, its first piece at x = 12
+	check(
+		math.abs(foot.a.x - 12) < 1e-6 and math.abs(foot.a.z - 11.25) < 1e-6,
+		"drop-off zone: the ring at its foot lies on the ground"
+	)
+	check(wall.c.b == 1 and texts[1] == "Drop-off \194\183 Shop", "drop-off zone: blue, with the place's name")
+	local first = rays
+	cylinders, texts = {}, {}
+	J.drawDropOff({ x = 0, y = 0, z = 10 }, 12, "Shop", 1.4)
+	check(rays == first, "drop-off zone: the ground is looked for only once")
+	check(cylinders[1].c.g == 0.9 and texts[1] == "Drop-off \194\183 2 s", "drop-off zone: green, counting down")
+	local outside = cylinders[1].c.a
+	_G.core_camera.getPosition = function()
+		return { x = 1, y = 0, z = 12 }
+	end
+	cylinders = {}
+	J.drawDropOff({ x = 0, y = 0, z = 10 }, 12, "Shop")
+	check(cylinders[1].c.a < outside * 0.5, "drop-off zone: faint with the camera inside")
+	_G.castRayStatic, _G.debugDrawer, _G.core_camera, _G.ColorI, _G.getPlayerVehicle = nil, nil, nil, nil, getVeh
 end)()
 
 print(string.format("Client: %d ok, %d failed", passed, failures))

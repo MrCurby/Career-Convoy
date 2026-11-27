@@ -47,7 +47,7 @@
 --     vanished (deleted, reloaded, or refused by the server's vehicle limit) appears again at its
 --     place when you come near, at most every SPAWN_RETRY s.
 --   What you see: a marker above the broken-down vehicle while you drive there, and the drop-off
---   zone (a flat ring with a sign) near the repair shop while you tow.
+--   zone (a column of light on the ground with a sign) near the repair shop while you tow.
 
 local M = {}
 
