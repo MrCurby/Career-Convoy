@@ -42,9 +42,8 @@ The maintainer puts a lot of weight on tidy code. Keep it that way with every ch
 - No leftovers: remove old names, aliases ("old name for older callers") and dead code instead of
   keeping them around. Data on players' PCs or servers is migrated once instead (layouts:
   `cleanup.lua` RENAMES/MOVES, state flags: STATE_RENAMED in `util.lua`; server settings: RENAMED / REMOVED in `main.lua`,
-  checked against the last release by `tests/config_update_test.lua`; the rename from SharedCareer:
-  `move_from_old_name` in `server.sh`, the stand-ins in `package.sh`, `moveConfigOnce` in
-  `main.lua`, STATE_FILE_BEFORE_RENAME in `util.lua`, the old keys in the UI apps).
+  checked against the last release by `tests/config_update_test.lua`; the rename from SharedCareer
+  on players' PCs: STATE_FILE_BEFORE_RENAME in `util.lua`, the old keys in the UI apps).
 
 ## Workflow
 

@@ -83,9 +83,6 @@ local TAG = "[Career-Convoy] "
 
 local CONFIG_DIR = "Resources/Server/CareerConvoy/config"
 local CONFIG_FILE = CONFIG_DIR .. "/config.json"
--- where the mod was while it was called SharedCareer (its settings and data move over once)
-local FOLDER_BEFORE_RENAME = "Resources/Server/SharedCareer"
-local CLIENT_ZIP_BEFORE_RENAME = "Resources/Client/SharedCareer.zip"
 
 local MAX_PAYLOAD = 16384 -- bytes; larger client messages are ignored
 
@@ -358,32 +355,6 @@ local function writeJson(path, value)
 	f:write(text)
 	f:close()
 	return true
-end
-
--- The mod was called SharedCareer: its settings and data (config/) move to the new folder once.
--- The old folder and client zip are only stand-ins now (packages bring empty ones, so an older
--- server.sh doesn't run the old plugin next to this one); server.sh removes them before a start.
-local function moveConfigOnce()
-	if not FS or not FS.Exists then
-		return
-	end
-	local old = FOLDER_BEFORE_RENAME .. "/config"
-	if FS.Exists(old) and not FS.Exists(CONFIG_DIR) then
-		local _, err = FS.Rename(old, CONFIG_DIR) -- BeamMP returns (had an error, message)
-		if FS.Exists(CONFIG_DIR) then
-			log("Settings moved from " .. old .. " to " .. CONFIG_DIR)
-		else
-			log("Could not move " .. old .. " to " .. CONFIG_DIR .. ": " .. tostring(err))
-		end
-	end
-	if FS.Exists(FOLDER_BEFORE_RENAME) or FS.Exists(CLIENT_ZIP_BEFORE_RENAME) then
-		log(
-			"Old SharedCareer files are no longer used: delete "
-				.. FOLDER_BEFORE_RENAME
-				.. " and "
-				.. CLIENT_ZIP_BEFORE_RENAME
-		)
-	end
 end
 
 -- Besides the settings, the file contains the defaults it was last written with
@@ -3201,7 +3172,6 @@ function sc_tick()
 end
 
 function onInit()
-	moveConfigOnce()
 	loadConfig()
 	loadProfiles()
 	loadFuel()

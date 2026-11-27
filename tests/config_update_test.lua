@@ -238,15 +238,10 @@ if tagPipe then
 end
 local oldSource
 if tag and tag ~= "" then
-	-- releases from before the rename to Career-Convoy have the plugin in Resources/Server/SharedCareer
-	for _, folder in ipairs({ "CareerConvoy", "SharedCareer" }) do
-		if not oldSource or oldSource == "" then
-			local showPipe = io.popen("git show " .. tag .. ":Resources/Server/" .. folder .. "/main.lua 2>/dev/null")
-			oldSource = showPipe and showPipe:read("*a")
-			if showPipe then
-				showPipe:close()
-			end
-		end
+	local showPipe = io.popen("git show " .. tag .. ":Resources/Server/CareerConvoy/main.lua 2>/dev/null")
+	oldSource = showPipe and showPipe:read("*a")
+	if showPipe then
+		showPipe:close()
 	end
 end
 local before = oldSource and oldSource ~= "" and tableIn(oldSource, "DEFAULTS")
