@@ -4051,7 +4051,17 @@ end)();
 	place(theirs)
 	world.mp["1-1"].ownerName = "Borian"
 	world.playerVeh = 70
+	local mine = world.objects[#world.objects - 2]
+	place(mine, 5)
+	mine.getPosition = function()
+		return vec(0, 0, 0)
+	end
+	theirs.getPosition = function()
+		return vec(3, 4, 0)
+	end
 	update(1.1)
+	extensions.hook("onVehicleResetted", 70)
+	clock = clock + 0.4
 	-- a glitch: your car, your parked car and Borian's car at once
 	toasts = {}
 	local beammp = { instabilityHandled = true } -- BeamMP handles it; Career-Convoy leaves it so
@@ -4067,6 +4077,28 @@ end)();
 		#toasts == 1 and toasts[1].msg == "Physics glitch (also Borian)",
 		"one toast per glitch: " .. tostring(toasts[1] and toasts[1].msg)
 	)
+	local glitch = lastSent("sc_glitch")
+	local car
+	for _, c in ipairs(glitch and glitch.mine or {}) do
+		if c.model == "hopper" then
+			car = c
+		end
+	end
+	check(
+		glitch and #glitch.mine == 2 and glitch.total == 3 and glitch.others[1] == "Borian",
+		"the glitch goes to the server: your two vehicles, Borian named"
+	)
+	check(
+		car
+			and car.kind == "player"
+			and car.speed == 18
+			and car.reset == 0.4
+			and car.near == 5
+			and car.nearOwner == "Borian"
+			and car.nearHidden == false
+			and car.coupled == false,
+		"with what happened just before: speed, reset, nearest other player: " .. json.encode(car or {})
+	)
 	-- only traffic and other players' cars hit: no toast
 	toasts = {}
 	world.playerVeh = nil
@@ -4076,6 +4108,7 @@ end)();
 	clock = clock + 0.6
 	update(0.1)
 	check(#toasts == 0, "only traffic and other players' cars: no toast")
+	check(lastSent("sc_glitch").mine[1].kind == "parked", "your parked car's glitch is reported as parked")
 
 	-- BeamMP sets another player's car in place: only with valid values
 	local placed = {}
