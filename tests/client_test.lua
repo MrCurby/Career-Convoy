@@ -54,6 +54,7 @@ local world -- {objects = {veh...}, mp = {serverId -> entry}, own = {gameId=true
 local function resetWorld()
 	clock = 0
 	sentToServer, handlers, toasts = {}, {}, {}
+	_G.handlerNames = {} -- event -> name given to AddEventHandler
 	loadingScreens = {}
 	world = { objects = {}, mp = {}, own = {}, playerVeh = nil }
 
@@ -84,8 +85,9 @@ local function resetWorld()
 	_G.TriggerServerEvent = function(event, data)
 		table.insert(sentToServer, { event = event, data = data ~= "" and json.decode(data) or {} })
 	end
-	_G.AddEventHandler = function(event, fn)
+	_G.AddEventHandler = function(event, fn, name)
 		handlers[event] = fn
+		_G.handlerNames[event] = name
 	end
 	_G.MPCoreNetwork = {
 		isMPSession = function()
@@ -344,6 +346,13 @@ local theirs = addVehicle(2, "1-0", false)
 extensions.hook("onWorldReadyState", 2)
 check(lastSent("sc_hello") ~= nil, "hello sent after world ready")
 handlers.sc_config(json.encode(config))
+check(
+	handlerNames.sc_config
+		and handlerNames.sc_config:find("core.lua", 1, true)
+		and handlerNames.sc_vehStates
+		and handlerNames.sc_vehStates:find("vehicles.lua", 1, true),
+	"each event handler is named after its own module, not util.lua"
+)
 check(world.careerArgs.name == "johndoe99srv", "profile name cleaned up: " .. tostring(world.careerArgs.name))
 check(
 	type(world.careerArgs.options) == "table" and world.careerArgs.options.startMode == "freshStart",
