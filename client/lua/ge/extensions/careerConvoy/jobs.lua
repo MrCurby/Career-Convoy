@@ -1058,7 +1058,42 @@ function M.drawMarker(p, color)
 	debugDrawer:drawCylinder(vec3(p.x, p.y, p.z + 2.3 + bob), vec3(p.x, p.y, p.z + 2.85 + bob), 0.06, c)
 end
 
---- The drop-off zone at d, within MARKER_RANGE of you: a flat ring of `radius` m with a sign, blue;
+-- the drop-off zone's look (drawDropOff)
+local ZONE_HEIGHT = 2.5 -- m: the glowing wall's height above the ground
+local ZONE_SEGMENTS = 36 -- pieces of each ring around the zone
+local ZONE_PULSE = 1.8 -- s: a ring rises up the wall this often
+local ZONE_RAY = 6 -- m above and below the zone's middle the ground is looked for
+
+-- The ground below each point of the zone's edge: {x, y, z} for ZONE_SEGMENTS points, kept while the
+-- zone stays where it is (rays only once per zone).
+local zoneEdge = nil -- {x, y, z, radius, points}
+
+local function edgePoints(d, radius)
+	local e = zoneEdge
+	if e and e.x == d.x and e.y == d.y and e.z == d.z and e.radius == radius then
+		return e.points
+	end
+	local points = {}
+	for i = 1, ZONE_SEGMENTS do
+		local angle = (i - 1) / ZONE_SEGMENTS * 2 * math.pi
+		local x, y = d.x + math.cos(angle) * radius, d.y + math.sin(angle) * radius
+		local hit = U.castRay(vec3(x, y, d.z + ZONE_RAY), vec3(0, 0, -1), 2 * ZONE_RAY)
+		points[i] = { x = x, y = y, z = hit and d.z + ZONE_RAY - hit or d.z }
+	end
+	zoneEdge = { x = d.x, y = d.y, z = d.z, radius = radius, points = points }
+	return points
+end
+
+-- A ring along the zone's edge, `height` m above the ground at each point.
+local function edgeRing(points, height, thickness, color)
+	for i = 1, #points do
+		local a, b = points[i], points[i % #points + 1]
+		debugDrawer:drawCylinder(vec3(a.x, a.y, a.z + height), vec3(b.x, b.y, b.z + height), thickness, color)
+	end
+end
+
+--- The drop-off zone at d, within MARKER_RANGE of you: a glowing wall of `radius` m standing on the
+--- ground (a bright ring at its foot, a faint one on top, a ring rising up it) with a sign, blue;
 --- green while you stand in it, the sign counting down the s still to wait (waitLeft).
 function M.drawDropOff(d, radius, name, waitLeft)
 	local me = U.myPosition()
@@ -1069,7 +1104,22 @@ function M.drawDropOff(d, radius, name, waitLeft)
 	if waitLeft then
 		r, g, b = 0.3, 0.9, 0.45
 	end
-	debugDrawer:drawCylinder(vec3(d.x, d.y, d.z + 0.02), vec3(d.x, d.y, d.z + 0.08), radius, ColorF(r, g, b, 0.18))
+	local points = edgePoints(d, radius)
+	local low = d.z
+	for _, p in ipairs(points) do
+		low = math.min(low, p.z)
+	end
+	-- the wall: from below the lowest ground at the edge, so it never floats on a slope
+	debugDrawer:drawCylinder(
+		vec3(d.x, d.y, low - 0.5),
+		vec3(d.x, d.y, d.z + ZONE_HEIGHT),
+		radius,
+		ColorF(r, g, b, waitLeft and 0.07 or 0.1)
+	)
+	edgeRing(points, 0.05, 0.09, ColorF(r, g, b, 0.9))
+	edgeRing(points, ZONE_HEIGHT, 0.04, ColorF(r, g, b, 0.35))
+	local rise = (clock / ZONE_PULSE) % 1 -- 0 at the ground .. 1 at the top
+	edgeRing(points, rise * ZONE_HEIGHT, 0.05, ColorF(r, g, b, 0.7 * (1 - rise)))
 	debugDrawer:drawCylinder(vec3(d.x, d.y, d.z), vec3(d.x, d.y, d.z + 4), 0.08, ColorF(r, g, b, 0.7))
 	local label = waitLeft and string.format("Drop-off \194\183 %d s", math.max(1, math.ceil(waitLeft)))
 		or ("Drop-off \194\183 " .. name)
