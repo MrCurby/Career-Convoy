@@ -1065,7 +1065,6 @@ local ZONE_HEIGHT = 4 -- m: the column fades out this high above the ground
 local ZONE_SHELLS = 7 -- shells the column is made of (more: a smoother fade)
 local ZONE_SHELL_ALPHA = 0.035 -- how strong each shell is
 local ZONE_SEGMENTS = 36 -- pieces of each ring around the zone
-local ZONE_PULSE = 1.8 -- s: a ring rises up the column this often
 local ZONE_RAY = 6 -- m above and below the zone's middle the ground is looked for
 local ZONE_INSIDE = 0.3 -- with the camera inside: the column this strong (it would tint the view)
 
@@ -1110,7 +1109,7 @@ local function columnStrength(d, radius)
 end
 
 --- The drop-off zone at d, within MARKER_RANGE of you: a column of light of `radius` m standing on the
---- ground and fading out upwards (a bright ring at its foot, a ring rising up it) with a sign, blue;
+--- ground and fading out upwards (a bright ring at its foot) with a sign, blue;
 --- green while you stand in it, the sign counting down the s still to wait (waitLeft).
 function M.drawDropOff(d, radius, name, waitLeft)
 	local me = U.myPosition()
@@ -1136,8 +1135,6 @@ function M.drawDropOff(d, radius, name, waitLeft)
 	-- the foot: a bright line with a soft glow around it
 	edgeRing(points, 0.05, 0.08, ColorF(r, g, b, 0.95))
 	edgeRing(points, 0.05, 0.3, ColorF(r, g, b, 0.15))
-	local rise = (clock / ZONE_PULSE) % 1 -- 0 at the ground .. 1 at the top
-	edgeRing(points, rise * ZONE_HEIGHT * 0.6, 0.05, ColorF(r, g, b, 0.6 * (1 - rise) * strength))
 	debugDrawer:drawCylinder(vec3(d.x, d.y, d.z), vec3(d.x, d.y, d.z + 4), 0.08, ColorF(r, g, b, 0.7))
 	local label = waitLeft and string.format("Drop-off \194\183 %d s", math.max(1, math.ceil(waitLeft)))
 		or ("Drop-off \194\183 " .. name)
