@@ -74,6 +74,16 @@ local function isOwnServerId(m, serverId)
 	return gameId ~= nil and m.isOwn(gameId)
 end
 
+--- Whether the vehicle (server id) is coupled to another one here.
+function M.isCoupled(serverId)
+	for _, c in pairs(here) do
+		if c.a == serverId or c.b == serverId then
+			return true
+		end
+	end
+	return false
+end
+
 --== What we see here ==========================================================
 
 function M.onCouplerAttached(objId1, objId2, nodeId, obj2nodeId)
