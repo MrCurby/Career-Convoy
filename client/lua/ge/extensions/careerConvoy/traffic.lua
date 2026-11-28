@@ -16,10 +16,11 @@
 --   * missions hide the traffic instead of deleting it: see "Missions" below
 --
 -- Live changes (menu, players joining/leaving): setActiveAmount shows or hides cars from the
--- pool spawned at the start. Pool = share + client.trafficReserve. Less always works live,
+-- pool spawned at the start. Pool = share + reserve (client.trafficReserve, which the server
+-- makes smaller where the pool would not fit under BeamMP's car limit). Less always works live,
 -- more up to the pool size; anything above that applies on the next join.
 --
--- Receives: sc_traffic {road, parked} – new share when players join or leave.
+-- Receives: sc_traffic {road, parked, reserve} – new share when players join or leave.
 
 local M = {}
 
@@ -42,12 +43,13 @@ local function clamp(n)
 	return math.floor(math.max(0, math.min(MAX, n)))
 end
 
+--- Driving, parked and reserve cars of this player's share, or nil without a share.
 function M.amounts(config)
 	local share = type(config) == "table" and config.trafficShare
 	if type(share) ~= "table" then
 		return nil
 	end
-	return clamp(share.road), clamp(share.parked)
+	return clamp(share.road), clamp(share.parked), clamp(share.reserve)
 end
 
 local function disarm()
@@ -60,7 +62,7 @@ end
 --- Call before the career start.
 function M.arm(config)
 	disarm()
-	local road, parked = M.amounts(config)
+	local road, parked, reserve = M.amounts(config)
 	if not road then
 		return
 	end
@@ -88,7 +90,6 @@ function M.arm(config)
 		end
 		-- Pool = share + reserve; the reserve stays hidden until someone sets more traffic
 		-- in the menu.
-		local reserve = clamp(config.trafficReserve)
 		local poolRoad, poolParked = clamp(road + reserve), clamp(parked + reserve)
 		U.log(
 			"I",

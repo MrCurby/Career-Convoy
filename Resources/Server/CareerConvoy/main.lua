@@ -49,7 +49,8 @@
 --   Client -> Server                  Server -> Client
 --   sc_hello            {version}     sc_config / sc_configUpdate   client settings
 --   sc_careerResult     {ok, reason,  sc_vehStates   {"<pid>-<vid>": {active, traffic}}
---                        profile}     sc_traffic     {road, parked}  new traffic share
+--                        profile}     sc_traffic     {road, parked,  new traffic share
+--                                                     reserve}
 --   sc_vehReport        {id: {active, sc_time        {hour, play, dayLength, dayLengthDay,
 --                        traffic}}                    dayLengthNight, dayStart, nightStart,
 --                                                     dayMinutes, nightMinutes, canControl,
@@ -151,13 +152,15 @@ local DEFAULTS = {
 		-- save. Empty = the same save on every Career-Convoy server.
 		saveSuffix = "",
 		-- Traffic that EVERY player spawns (driving / parked, 0–50 each). BeamMP shows it to
-		-- everyone; the server limits roadTrafficTotal / parkedTrafficTotal apply on top.
+		-- everyone; the server limits roadTrafficTotal / parkedTrafficTotal apply on top, and
+		-- with the reserve it must fit 10 cars below MaxCars (see "Traffic shares").
 		roadTraffic = 6,
 		parkedTraffic = 8,
 		-- Reserve: every player spawns this many extra cars (driving and parked) hidden on
 		-- join. Up to that, the traffic amount can be raised LIVE in the menu; more only
 		-- applies on the next join. Less always works live.
-		-- Costs some loading time, because BeamMP builds hidden cars on every PC too.
+		-- Costs some loading time, because BeamMP builds hidden cars on every PC too. Hidden
+		-- cars count towards MaxCars too; the reserve shrinks first where traffic doesn't fit.
 		trafficReserve = 4,
 		-- Other PLAYERS' cars without collision (true) or with (false). Does not apply to AI traffic:
 		-- traffic/parked cars always collide, no matter who owns them.
@@ -591,6 +594,15 @@ end
 -- amount (client.roadTraffic / parkedTraffic); above it the limit is split evenly;
 -- leftover cars go to the lowest player IDs. When the number of players changes, everyone
 -- gets their new share immediately (sc_traffic).
+--
+-- On top of that, every share fits BeamMP's car limit (MaxCars in ServerConfig.toml, per
+-- player). BeamMP refuses a player's car once they have that many (their first unicycle doesn't
+-- count) and deletes it on their PC at once: a refused traffic car is gone from the game's
+-- traffic, a refused car from the garage simply vanishes. Traffic counts as the player's cars,
+-- all of the pool spawned at the career start (driving and parked share, plus the hidden reserve
+-- for each), also the hidden part. So the pool stays OWN_CARS below the limit, which keeps room
+-- for the player's own cars (the car they drive, more out of the garage, trailers, job and
+-- mission vehicles). The visible traffic comes first; the reserve gets what is left.
 
 -- Players who have already received settings, sorted by ID.
 local function careerPlayerIds()
@@ -602,6 +614,39 @@ local function careerPlayerIds()
 	end
 	table.sort(ids)
 	return ids
+end
+
+local OWN_CARS = 10 -- cars per player kept free from traffic under BeamMP's car limit
+
+-- BeamMP's car limit per player (MaxCars), or nil if this server can't tell.
+local function maxCars()
+	if type(MP.Get) ~= "function" or type(MP.Settings) ~= "table" or MP.Settings.MaxCars == nil then
+		return nil
+	end
+	local ok, n = pcall(MP.Get, MP.Settings.MaxCars)
+	if not ok or type(n) ~= "number" or n ~= n or n < 1 then
+		return nil
+	end
+	return math.floor(n)
+end
+
+-- Driving, parked and reserve traffic of one player, fitted under the car limit. The fourth
+-- value is true if the visible traffic had to shrink.
+local function fitToCarLimit(road, parked, reserve)
+	local limit = maxCars()
+	if not limit then
+		return road, parked, reserve, false
+	end
+	local room = math.max(0, limit - OWN_CARS)
+	local shrunk = false
+	if road + parked > room then
+		-- both kinds shrink by the same factor
+		local fitRoad = math.floor(room * road / (road + parked))
+		road, parked, shrunk = fitRoad, room - fitRoad, true
+	end
+	-- the pool has the reserve twice (driving and parked)
+	reserve = math.min(reserve, math.floor((room - road - parked) / 2))
+	return road, parked, reserve, shrunk
 end
 
 -- A player's share: perPlayer each, until all together exceed `total`.
@@ -622,17 +667,52 @@ local function shareOf(perPlayer, total, ids, player_id)
 	return math.min(perPlayer, each)
 end
 
--- {road, parked} for this player.
+-- {road, parked, reserve} for this player, and true if the car limit made it smaller.
 local function trafficShareFor(player_id)
 	local ids = careerPlayerIds()
-	return {
-		road = shareOf(Config.client.roadTraffic, Config.server.roadTrafficTotal, ids, player_id),
-		parked = shareOf(Config.client.parkedTraffic, Config.server.parkedTrafficTotal, ids, player_id),
-	}
+	local road, parked, reserve, limited = fitToCarLimit(
+		shareOf(Config.client.roadTraffic, Config.server.roadTrafficTotal, ids, player_id),
+		shareOf(Config.client.parkedTraffic, Config.server.parkedTrafficTotal, ids, player_id),
+		clampInt(Config.client.trafficReserve, 0, 50)
+	)
+	return { road = road, parked = parked, reserve = reserve }, limited
+end
+
+-- One log line whenever the car limit starts or stops making the traffic smaller than set.
+local carLimitNote = nil
+
+local function checkCarLimit()
+	local limit = maxCars()
+	local road = clampInt(Config.client.roadTraffic, 0, 50)
+	local parked = clampInt(Config.client.parkedTraffic, 0, 50)
+	local reserve = clampInt(Config.client.trafficReserve, 0, 50)
+	local fitRoad, fitParked, fitReserve = fitToCarLimit(road, parked, reserve)
+	local note
+	if not limit then
+		note = "car limit: unknown on this server version, traffic is not checked against MaxCars"
+	elseif fitRoad + fitParked + 2 * fitReserve < road + parked + 2 * reserve then
+		note = string.format(
+			"car limit: MaxCars = %d leaves room for %d traffic cars per player, so traffic is reduced "
+				.. "to %d driving + %d parked (reserve %d). For the full amount set MaxCars to at least %d.",
+			limit,
+			math.max(0, limit - OWN_CARS),
+			fitRoad,
+			fitParked,
+			fitReserve,
+			road + parked + 2 * reserve + OWN_CARS
+		)
+	else
+		note = string.format("car limit: MaxCars = %d, traffic fits", limit)
+	end
+	if note ~= carLimitNote then
+		carLimitNote = note
+		log(note)
+	end
 end
 
 -- Sends every player with a running career their new share if it changed.
 local function updateTrafficShares()
+	checkCarLimit()
 	for _, id in ipairs(careerPlayerIds()) do
 		local share = trafficShareFor(id)
 		local last = sharesSent[id]
@@ -1042,6 +1122,7 @@ end
 
 -- New settings to everyone who is already playing.
 local function sendSettingsToAll()
+	checkCarLimit()
 	for id, entry in pairs(players) do
 		if entry.counted and MP.IsPlayerConnected(id) then
 			local settings = settingsFor(id)
@@ -2884,6 +2965,9 @@ function sc_setSetting(player_id, data)
 		return
 	end
 	setSetting(msg.key, tostring(value))
+	if msg.key:find("Traffic", 1, true) and select(2, trafficShareFor(player_id)) then
+		notify(player_id, "Server car limit: less traffic", "warning")
+	end
 	local shown = def.kind == "bool" and onOff(value) or tostring(value)
 	log(string.format("%s: %s = %s", playerName(player_id), msg.key, shown))
 	for id, e in pairs(players) do
@@ -3077,6 +3161,9 @@ end
 --== BeamMP events =============================================================
 -- Triggered by BeamMP itself (join, leave, vehicles).
 
+local REFUSED_NOTE_EVERY = 30 -- s: a player hears that a car was refused at most this often
+local refusedNoted = {} -- player id -> time of the last note
+
 -- Connection established; the career only starts after sc_hello / sc_careerResult.
 function onPlayerJoin(player_id)
 	players[player_id] = { name = MP.GetPlayerName(player_id), careerActive = false }
@@ -3107,6 +3194,7 @@ function onPlayerDisconnect(player_id)
 	end
 	jobsLeave(player_id)
 	licensesLeave(player_id)
+	refusedNoted[player_id] = nil
 	lastGlitch[player_id] = nil
 	players[player_id] = nil
 	sharesSent[player_id] = nil
@@ -3132,6 +3220,38 @@ end
 
 function onVehicleDeleted(player_id, vehicle_id)
 	vehicleStates[player_id .. "-" .. vehicle_id] = nil
+end
+
+-- BeamMP refused a car (car limit, or another plugin cancelled it) and deleted it on the
+-- player's PC. Logged every time; the player hears about it at most every REFUSED_NOTE_EVERY s.
+function postVehicleSpawn(confirmed, player_id, vehicle_id, data)
+	if confirmed ~= false or not players[player_id] then
+		return
+	end
+	local model = type(data) == "string" and data:match('"jbm"%s*:%s*"([%w_%-]+)"') or "?"
+	local count = 0
+	local ok, list = pcall(MP.GetPlayerVehicles, player_id)
+	if ok and type(list) == "table" then
+		for _ in pairs(list) do
+			count = count + 1
+		end
+	end
+	local limit = maxCars()
+	local atLimit = limit ~= nil and count >= limit
+	log(
+		string.format(
+			"%s: the server refused a car (%s, %s)",
+			playerName(player_id),
+			model,
+			atLimit and ("car limit: " .. count .. " of MaxCars " .. limit)
+				or ("has " .. count .. " cars; refused by another plugin?")
+		)
+	)
+	local t = now()
+	if atLimit and (not refusedNoted[player_id] or t - refusedNoted[player_id] >= REFUSED_NOTE_EVERY) then
+		refusedNoted[player_id] = t
+		notify(player_id, "Server car limit reached", "warning")
+	end
 end
 
 --== Timers ====================================================================
@@ -3184,6 +3304,7 @@ function onInit()
 	MP.RegisterEvent("onVehicleSpawn", "onVehicleSpawn")
 	MP.RegisterEvent("onVehicleEdited", "onVehicleEdited")
 	MP.RegisterEvent("onVehicleDeleted", "onVehicleDeleted")
+	MP.RegisterEvent("postVehicleSpawn", "postVehicleSpawn")
 	MP.RegisterEvent("onVehicleReset", "onVehicleReset")
 	MP.RegisterEvent("onChatMessage", "onChatMessage")
 	MP.RegisterEvent("onConsoleInput", "onConsoleInput")
@@ -3218,5 +3339,6 @@ function onInit()
 	MP.CreateEventTimer("sc_tick", 1000)
 	MP.CreateEventTimer("sc_timeTick", 30000)
 
+	checkCarLimit()
 	log("Version " .. VERSION .. " loaded. Console: sc help")
 end

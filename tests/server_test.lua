@@ -28,6 +28,8 @@ local fakeTime = 100
 local accounts = {} -- player id -> BeamMP account ID (nil = none)
 local guests = {} -- player id -> true
 local dialogs = {} -- {to, title, body, warning}
+maxCarsLimit = nil -- MaxCars the server reports (nil: not known)
+playerCars = {} -- player id -> {vehicle id -> data} as MP.GetPlayerVehicles returns it
 
 MP = {
 	CreateTimer = function()
@@ -63,6 +65,16 @@ MP = {
 	end,
 	IsPlayerGuest = function(id)
 		return guests[id] == true
+	end,
+	-- BeamMP's car limit (MaxCars): MP.Get(MP.Settings.MaxCars); nil until a test sets it
+	Settings = { MaxCars = 2 },
+	Get = function(setting)
+		if setting == 2 then
+			return maxCarsLimit
+		end
+	end,
+	GetPlayerVehicles = function(id)
+		return playerCars[id]
 	end,
 	-- notifications end up in the same list as chat (for lastChat)
 	SendNotification = function(to, msg, icon)
@@ -1274,6 +1286,113 @@ do
 			and stored.profiles.ben.tow.stats.done > 20,
 		"progress.json keeps XP, stats and the last 20 jobs"
 	)
+end
+
+--== Car limit: the traffic pool fits under BeamMP's MaxCars ==
+do
+	local printed = {}
+	local realPrint = print
+	print = function(msg)
+		table.insert(printed, tostring(msg))
+		if tostring(msg):find("^FAILED") then
+			realPrint(msg)
+		end
+	end
+	local function printedFind(text)
+		for _, line in ipairs(printed) do
+			if line:find(text, 1, true) then
+				return true
+			end
+		end
+		return false
+	end
+	local saved = {}
+	for _, key in ipairs({
+		"client.roadTraffic",
+		"client.parkedTraffic",
+		"client.trafficReserve",
+		"server.roadTrafficTotal",
+		"server.parkedTrafficTotal",
+		"server.allowPlayerSettings",
+	}) do
+		saved[key] = onConsoleInput("sc get"):match(key:gsub("%.", "%%.") .. " = (%S+)")
+	end
+	onConsoleInput("sc set server.roadTrafficTotal 0")
+	onConsoleInput("sc set server.parkedTrafficTotal 0")
+	onConsoleInput("sc set client.trafficReserve 4")
+	onConsoleInput("sc set client.parkedTraffic 20")
+	onConsoleInput("sc set client.roadTraffic 30")
+	join(30, "Limo")
+	local share = lastTo(30, "sc_config").trafficShare
+	check(
+		share.road == 30 and share.parked == 20 and share.reserve == 4,
+		"without a known car limit the traffic is as set"
+	)
+	maxCarsLimit = 70
+	connected[30] = false
+	onPlayerDisconnect(30)
+	join(30, "Limo")
+	share = lastTo(30, "sc_config").trafficShare
+	check(
+		share.road == 30 and share.parked == 20 and share.reserve == 4,
+		"MaxCars 70: 30 + 20 + 2 * 4 reserve + 10 own cars fit"
+	)
+	check(printedFind("car limit: MaxCars = 70, traffic fits"), "the log says the traffic fits")
+	maxCarsLimit = 56
+	onConsoleInput("sc set client.roadTraffic 31")
+	onConsoleInput("sc set client.roadTraffic 30")
+	share = lastTo(30, "sc_configUpdate").trafficShare
+	check(
+		share.road == 27 and share.parked == 19 and share.reserve == 0,
+		"MaxCars 56: 46 traffic cars, both kinds smaller, no reserve: " .. json.encode(share)
+	)
+	check(
+		printedFind("traffic is reduced to 27 driving + 19 parked (reserve 0)")
+			and printedFind("set MaxCars to at least 68"),
+		"the log says how much traffic fits and which MaxCars would be needed"
+	)
+	maxCarsLimit = 64
+	onConsoleInput("sc set client.roadTraffic 31")
+	onConsoleInput("sc set client.roadTraffic 30")
+	share = lastTo(30, "sc_configUpdate").trafficShare
+	check(
+		share.road == 30 and share.parked == 20 and share.reserve == 2,
+		"MaxCars 64: the visible traffic fits, the reserve gets what is left"
+	)
+	-- the menu: whoever sets more traffic than fits hears so
+	maxCarsLimit = 40
+	onConsoleInput("sc set server.allowPlayerSettings true")
+	fakeTime = fakeTime + 1
+	local chatsBeforeMenu = #chats
+	sc_setSetting(30, json.encode({ key = "client.roadTraffic", value = 40 }))
+	local heard = false
+	for i = chatsBeforeMenu + 1, #chats do
+		heard = heard or (chats[i].to == 30 and chats[i].msg == "Server car limit: less traffic")
+	end
+	check(heard, "the menu user hears about the limit")
+	-- BeamMP refused a car: logged, and the player hears it at most every 30 s
+	maxCarsLimit = 2
+	playerCars[30] = { [0] = "{}", [1] = "{}" }
+	local notesBefore = #chats
+	postVehicleSpawn(false, 30, 2, '30-2:{"jbm":"pickup","pid":30}')
+	check(printedFind("Limo: the server refused a car (pickup, car limit: 2 of MaxCars 2)"), "a refused car is logged")
+	check(#chats == notesBefore + 1 and lastChat(30) == "Server car limit reached", "the player hears it")
+	postVehicleSpawn(false, 30, 3, '30-3:{"jbm":"pickup"}')
+	check(#chats == notesBefore + 1, "a second refusal right after: logged only")
+	playerCars[30] = { [0] = "{}" }
+	postVehicleSpawn(false, 30, 4, '30-4:{"jbm":"van"}')
+	check(printedFind("refused by another plugin?"), "below the limit: another plugin refused it")
+	postVehicleSpawn(true, 30, 5, "{}")
+	check(#chats == notesBefore + 1, "a car that spawned is not reported")
+	-- clean up
+	maxCarsLimit = nil
+	playerCars[30] = nil
+	connected[30] = false
+	onPlayerDisconnect(30)
+	for key, value in pairs(saved) do
+		onConsoleInput("sc set " .. key .. " " .. value)
+	end
+	print = realPrint
 end
 
 --== Config was saved and is valid JSON ==
