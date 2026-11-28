@@ -205,6 +205,68 @@ check(countTo(2, "sc_vehStates") == before, "an unchanged report is not distribu
 sc_vehReport(0, "broken{")
 check(true, "broken JSON is ignored")
 
+--== Physics glitches: logged with what happened just before ==
+do
+	local printed = {}
+	local realPrint = print
+	print = function(msg)
+		table.insert(printed, tostring(msg))
+	end
+	local function lastPrinted()
+		return printed[#printed] or ""
+	end
+	sc_glitch(
+		0,
+		json.encode({
+			mine = {
+				{
+					model = "pickup",
+					kind = "player",
+					speed = 12,
+					reset = 0.4,
+					near = 2.1,
+					nearOwner = "Ben",
+					nearHidden = true,
+				},
+			},
+			others = { "Ben" },
+			total = 2,
+			simSpeed = 1,
+		})
+	)
+	check(
+		lastPrinted():find("physics glitch at", 1, true)
+			and lastPrinted():find("pickup: player, speed 12 km/h, reset 0.4 s ago, near Ben 2.1 m (hidden)", 1, true)
+			and lastPrinted():find("other players: Ben", 1, true),
+		"a glitch report is logged with its player and context: " .. lastPrinted()
+	)
+	local count = #printed
+	sc_glitch(0, json.encode({ mine = { { model = "pickup" } } }))
+	check(#printed == count, "a second report within a second is not logged")
+	fakeTime = fakeTime + 2
+	sc_glitch(0, json.encode({ mine = { { model = "pickup\nfake line", speed = "fast" } } }))
+	check(
+		#printed == count + 1 and not lastPrinted():find("\n", 1, true) and not lastPrinted():find("fast", 1, true),
+		"a report's text stays on one line, and no numbers that aren't numbers"
+	)
+	sc_glitch(9, json.encode({ mine = { { model = "pickup" } } }))
+	check(#printed == count + 1, "a report from a player who isn't here is ignored")
+	-- resets: logged with the position for cars, not for traffic
+	onVehicleSpawn(0, 4, "")
+	sc_vehReport(0, json.encode({ ["0-4"] = { active = true, traffic = false } }))
+	onVehicleReset(0, 4, '0-4:{"pos":[100.4,-20.6,30],"rot":[0,0,0,1]}')
+	check(
+		lastPrinted():find("vehicle 0-4 was reset (at 100 -21 30)", 1, true),
+		"a car's reset is logged with where it ended up: " .. lastPrinted()
+	)
+	count = #printed
+	onVehicleReset(0, 0, '{"pos":[1,2,3]}')
+	check(#printed == count, "a traffic car's reset is not logged")
+	onVehicleReset(0, 4, "broken")
+	check(lastPrinted():find("was reset (at unknown position)", 1, true), "a reset without a position is still logged")
+	print = realPrint
+end
+
 --== Couplings: passed on, kept for later players ==
 sc_couplings(
 	1,

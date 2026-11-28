@@ -56,6 +56,8 @@
 --                                                     dayMinutes, nightMinutes, canControl,
 --                                                     paused, realtime}
 --   sc_vehStatesRequest               sc_signals     traffic light cycle (seconds)
+--   sc_glitch           {mine = [{model, kind, speed, spawned, reset, coupled, near, nearOwner,
+--                        nearHidden}], others, total, simSpeed}  own vehicles blew up (only logged)
 --   sc_couplings        {list = [{a, an, b, bn}]}   sc_couplings {pid, list}  a player's couplings
 --   sc_payDebitResult   {id, ok}      sc_payDebit / sc_payCredit   money transfer
 --   sc_payCreditAck     {id}
@@ -82,9 +84,6 @@ local TAG = "[Career-Convoy] "
 
 local CONFIG_DIR = "Resources/Server/CareerConvoy/config"
 local CONFIG_FILE = CONFIG_DIR .. "/config.json"
--- where the mod was while it was called SharedCareer (its settings and data move over once)
-local FOLDER_BEFORE_RENAME = "Resources/Server/SharedCareer"
-local CLIENT_ZIP_BEFORE_RENAME = "Resources/Client/SharedCareer.zip"
 
 local MAX_PAYLOAD = 16384 -- bytes; larger client messages are ignored
 
@@ -359,32 +358,6 @@ local function writeJson(path, value)
 	f:write(text)
 	f:close()
 	return true
-end
-
--- The mod was called SharedCareer: its settings and data (config/) move to the new folder once.
--- The old folder and client zip are only stand-ins now (packages bring empty ones, so an older
--- server.sh doesn't run the old plugin next to this one); server.sh removes them before a start.
-local function moveConfigOnce()
-	if not FS or not FS.Exists then
-		return
-	end
-	local old = FOLDER_BEFORE_RENAME .. "/config"
-	if FS.Exists(old) and not FS.Exists(CONFIG_DIR) then
-		local _, err = FS.Rename(old, CONFIG_DIR) -- BeamMP returns (had an error, message)
-		if FS.Exists(CONFIG_DIR) then
-			log("Settings moved from " .. old .. " to " .. CONFIG_DIR)
-		else
-			log("Could not move " .. old .. " to " .. CONFIG_DIR .. ": " .. tostring(err))
-		end
-	end
-	if FS.Exists(FOLDER_BEFORE_RENAME) or FS.Exists(CLIENT_ZIP_BEFORE_RENAME) then
-		log(
-			"Old SharedCareer files are no longer used: delete "
-				.. FOLDER_BEFORE_RENAME
-				.. " and "
-				.. CLIENT_ZIP_BEFORE_RENAME
-		)
-	end
 end
 
 -- Besides the settings, the file contains the defaults it was last written with
@@ -2424,6 +2397,108 @@ function sc_vehStatesRequest(player_id)
 	end
 end
 
+--== Physics glitches ==========================================================
+-- To find out why vehicles blow up ("Instability detected"), every client reports the glitches
+-- that hit its own vehicles, with what happened just before (sc_glitch), and the server logs them
+-- with the player's name. BeamMP resets a vehicle that blew up; that reset (onVehicleReset) is
+-- logged too, with where the vehicle ended up, for every vehicle that is not traffic.
+-- Only for the log: nothing is changed or sent back.
+
+local GLITCH_EVERY = 1 -- s: at most one glitch report per player within this time
+local lastGlitch = {} -- player id -> time of the last glitch report
+
+local function short(value, length)
+	return tostring(value):gsub("[%c]", " "):sub(1, length or 32)
+end
+
+local function number(value)
+	local n = tonumber(value)
+	return n and n == n and n > -math.huge and n < math.huge and n or nil
+end
+
+-- "pickup: player, speed 12 km/h, reset 0.4 s ago, near Ben 2.1 m (hidden)"
+local function describeGlitch(c)
+	if type(c) ~= "table" then
+		return "?"
+	end
+	local parts = {}
+	if c.kind then
+		table.insert(parts, short(c.kind, 12))
+	end
+	if number(c.speed) then
+		table.insert(parts, "speed " .. number(c.speed) .. " km/h")
+	end
+	for _, what in ipairs({ "spawned", "reset" }) do
+		if number(c[what]) then
+			table.insert(parts, what .. " " .. number(c[what]) .. " s ago")
+		end
+	end
+	if c.coupled == true then
+		table.insert(parts, "coupled")
+	end
+	if number(c.near) then
+		table.insert(
+			parts,
+			"near "
+				.. short(c.nearOwner or "unknown")
+				.. " "
+				.. number(c.near)
+				.. " m"
+				.. (c.nearHidden == true and " (hidden)" or "")
+		)
+	end
+	return short(c.model or "?") .. ": " .. table.concat(parts, ", ")
+end
+
+function sc_glitch(player_id, data)
+	local report = decodeTable(data)
+	if not report or not players[player_id] or type(report.mine) ~= "table" then
+		return
+	end
+	local t = now()
+	if lastGlitch[player_id] and t - lastGlitch[player_id] < GLITCH_EVERY then
+		return
+	end
+	lastGlitch[player_id] = t
+	local others = {}
+	if type(report.others) == "table" then
+		for i = 1, math.min(#report.others, 5) do
+			table.insert(others, short(report.others[i]))
+		end
+	end
+	local lines = {}
+	for i = 1, math.min(#report.mine, 5) do
+		table.insert(lines, describeGlitch(report.mine[i]))
+	end
+	log(
+		string.format(
+			"physics glitch at %s: %s | %d vehicle(s) in all, other players: %s, game speed: %s",
+			playerName(player_id),
+			table.concat(lines, "; "),
+			number(report.total) or 0,
+			#others > 0 and table.concat(others, ", ") or "none",
+			tostring(number(report.simSpeed) or "unknown")
+		)
+	)
+end
+
+-- data: the vehicle's new position and rotation as JSON, possibly after "<pid>-<vid>:"
+function onVehicleReset(player_id, vehicle_id, data)
+	local id = player_id .. "-" .. vehicle_id
+	local state = vehicleStates[id]
+	if not players[player_id] or (state and state.traffic ~= false) then
+		return -- traffic and parked cars are reset all the time (respawns); not-yet-reported cars too
+	end
+	local where = "unknown position"
+	local json = type(data) == "string" and data:match("{.*}")
+	local ok, reset = pcall(Util.JsonDecode, json or "")
+	local pos = ok and type(reset) == "table" and type(reset.pos) == "table" and reset.pos
+	if pos and number(pos[1]) and number(pos[2]) and number(pos[3]) then
+		where = string.format("%.0f %.0f %.0f", pos[1], pos[2], pos[3])
+	end
+	log(playerName(player_id) .. ": vehicle " .. id .. " was reset (at " .. where .. ")")
+end
+
 --== Couplings ===================================================================
 -- BeamMP sends a coupling (trailer, dolly) only once; copies that miss it stay uncoupled. Every
 -- client reports the couplings of its own vehicles (sc_couplings, see couplings.lua); the server
@@ -3120,6 +3195,7 @@ function onPlayerDisconnect(player_id)
 	jobsLeave(player_id)
 	licensesLeave(player_id)
 	refusedNoted[player_id] = nil
+	lastGlitch[player_id] = nil
 	players[player_id] = nil
 	sharesSent[player_id] = nil
 	updateTrafficShares()
@@ -3216,7 +3292,6 @@ function sc_tick()
 end
 
 function onInit()
-	moveConfigOnce()
 	loadConfig()
 	loadProfiles()
 	loadFuel()
@@ -3230,6 +3305,7 @@ function onInit()
 	MP.RegisterEvent("onVehicleEdited", "onVehicleEdited")
 	MP.RegisterEvent("onVehicleDeleted", "onVehicleDeleted")
 	MP.RegisterEvent("postVehicleSpawn", "postVehicleSpawn")
+	MP.RegisterEvent("onVehicleReset", "onVehicleReset")
 	MP.RegisterEvent("onChatMessage", "onChatMessage")
 	MP.RegisterEvent("onConsoleInput", "onConsoleInput")
 
@@ -3238,6 +3314,7 @@ function onInit()
 	MP.RegisterEvent("sc_vehReport", "sc_vehReport")
 	MP.RegisterEvent("sc_couplings", "sc_couplings")
 	MP.RegisterEvent("sc_vehStatesRequest", "sc_vehStatesRequest")
+	MP.RegisterEvent("sc_glitch", "sc_glitch")
 	MP.RegisterEvent("sc_timeControl", "sc_timeControl")
 	MP.RegisterEvent("sc_setSetting", "sc_setSetting")
 	MP.RegisterEvent("sc_status", "sc_status")

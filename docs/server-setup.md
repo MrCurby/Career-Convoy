@@ -143,8 +143,6 @@ server.sh                                   server control script
 Resources/Client/CareerConvoy.zip           client mod (BeamMP sends it to the players)
 Resources/Server/CareerConvoy/main.lua      server plugin
 README.md
-Resources/Client/SharedCareer.zip           empty stand-ins for the files from before the
-Resources/Server/SharedCareer/main.lua      rename (see "Coming from SharedCareer")
 ```
 
 Settings (`Resources/Server/CareerConvoy/config/`) are **not** in the zip, so unpacking over an existing installation is always safe.
@@ -179,17 +177,6 @@ tar xzf careerconvoy-backup-<date>.tgz
 ```
 
 Then start the server. Players automatically get the matching client mod again on their next join.
-
-A package or backup from before the rename to Career-Convoy (`SharedCareer-<version>.zip`, or a backup with a `Resources/Server/SharedCareer` folder): `./server.sh update` installs such a package as it was. Before restoring such a backup by hand, delete `Resources/Server/CareerConvoy` and `Resources/Client/CareerConvoy.zip`, so the two versions don't run side by side.
-
-## Coming from SharedCareer
-
-Career-Convoy used to be called SharedCareer, and its files had that name: `Resources/Server/SharedCareer` (with your settings in `config/`) and `Resources/Client/SharedCareer.zip`. Updating moves everything over once:
-
-- **With `./server.sh update`**, even an older `server.sh`: your settings move to `Resources/Server/CareerConvoy/config`, and the old files are removed before the next start. Nothing to do.
-- **By hand** (`unzip -o`): the package replaces the old files with empty stand-ins, and the server moves your settings on its first start. Then delete `Resources/Server/SharedCareer` and `Resources/Client/SharedCareer.zip`.
-- `REPO="MrCurby/SharedCareer"` in `server.conf` still works (GitHub forwards it). Change it to `REPO="MrCurby/Career-Convoy"` when you like.
-- Players keep everything: their apps and settings move to the new names on their next join, their save games stay as they are. Only a key they changed for the menu or the phone has to be set again.
 
 ## Save games
 

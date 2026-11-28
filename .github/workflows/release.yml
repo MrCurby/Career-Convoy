@@ -101,9 +101,7 @@ jobs:
           fi
           draft=()
           if [ "$REVIEW" = "true" ]; then draft=(--draft); fi
-          # the same zip under the name from before the rename, for servers whose server.sh only knows that
-          cp "CareerConvoy-$v.zip" "SharedCareer-$v.zip"
-          gh release create "v$v" "CareerConvoy-$v.zip" "SharedCareer-$v.zip" "${draft[@]}" \
+          gh release create "v$v" "CareerConvoy-$v.zip" "${draft[@]}" \
             --target "$(git rev-parse HEAD)" \
             --title "Career-Convoy $v" \
             --notes-file "$RUNNER_TEMP/notes.md"
