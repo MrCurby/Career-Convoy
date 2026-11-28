@@ -3299,7 +3299,7 @@ local cfgM = {}
 for k, v in pairs(config) do
 	cfgM[k] = v
 end
-cfgM.trafficReserve = 4
+cfgM.trafficShare = { road = 4, parked = 3, reserve = 4 } -- the reserve comes with the share
 cfgM.roadTraffic, cfgM.parkedTraffic = 4, 3
 cfgM.ui = { allowPlayerSettings = true, roadTrafficTotal = 20, players = 1 }
 extensions.hook("onWorldReadyState", 2)

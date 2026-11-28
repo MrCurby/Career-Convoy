@@ -53,7 +53,7 @@ The file is `Resources/Server/CareerConvoy/config/config.json`. It is created on
 |---|---|---|
 | `server.roadTrafficTotal` | `20` | Driving traffic on the whole server, shared between all players (0 = no limit) |
 | `server.parkedTrafficTotal` | `24` | Parked cars on the whole server |
-| `client.roadTraffic` | `6` | Driving traffic per player (max 50) |
+| `client.roadTraffic` | `6` | Driving traffic per player (max 50). With the parked cars and the reserve it must fit 10 cars below `MaxCars`, otherwise everyone gets less |
 | `client.parkedTraffic` | `8` | Parked cars per player |
 | `client.trafficReserve` | `4` | Extra hidden cars per player, so the menu can raise the amount live |
 | `client.trafficSimpleVehicles` | `true` | Traffic as simplified vehicles (`simple_traffic`) for all players |

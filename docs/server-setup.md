@@ -25,6 +25,8 @@ MaxCars = 100                              # traffic counts as cars of the playe
 Map = "/levels/west_coast_usa/info.json"
 ```
 
+`MaxCars` is per player, and all of a player's traffic counts, the hidden reserve too. Career-Convoy keeps each player's traffic 10 cars below it, so there is room for their own cars. If the traffic you set doesn't fit, everyone gets less, and `Server.log` says how high `MaxCars` would have to be (`car limit: ...`). A car BeamMP refuses anyway is logged too.
+
 ## Install with server.sh (recommended)
 
 `server.sh` is a single script that starts, stops and updates your server. It runs the server in a `tmux` session named after the server folder, so several servers in different folders don't get in each other's way.
